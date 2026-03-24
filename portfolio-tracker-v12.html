@@ -89,6 +89,21 @@
             <span style="color:#10b981; font-size:0.8rem; white-space:nowrap;">✓ 已設定</span>
         </div>
 
+        <!-- Exchange Rate Controls -->
+        <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
+            <label style="color:#fbbf24; font-size:0.85rem; font-weight:600; white-space:nowrap;">💱 匯率設定：</label>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">USD/TWD</span>
+                <input id="input-usd-twd" type="number" step="0.01" value="31.50" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
+            </div>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">HKD/TWD</span>
+                <input id="input-hkd-twd" type="number" step="0.001" value="4.050" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
+            </div>
+            <button onclick="fetchLiveRates()" style="padding:0.4rem 0.9rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.35); border-radius:8px; font-weight:600; font-size:0.82rem; text-transform:none; letter-spacing:0;">🌐 抓即時匯率</button>
+            <span id="rate-source" style="color:#64748b; font-size:0.78rem;"></span>
+        </div>
+
         <!-- Action Buttons -->
         <div style="display:flex; gap:1rem; margin-bottom:2rem; flex-wrap:wrap;">
             <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span style="font-size:18px;">📤</span>匯入持倉數據</button>
@@ -530,7 +545,11 @@
                 if (!sheetUrl) { alert('請先填入 Google Sheet CSV 連結'); return; }
                 if (!sheetUrl.includes('docs.google.com')) { alert('URL 格式不符，請使用 Google Sheets 已發布的 CSV 連結'); return; }
 
-                // 10 秒 timeout，避免 fetch 無限卡住
+                // 同時發出：① 股價 CSV ② 即時匯率，不互相等待
+                const ratePromise = fetch('https://open.er-api.com/v6/latest/USD', {
+                    signal: AbortSignal.timeout(8000)
+                }).then(r => r.json()).catch(() => null);
+
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000);
                 let res;
@@ -546,36 +565,56 @@
                     return;
                 }
                 clearTimeout(timeoutId);
-
                 if (!res.ok) throw new Error(`伺服器回傳 HTTP ${res.status}`);
-
                 const csvText = await res.text();
 
-                // 若回傳的是 HTML（未正確發布），提早偵測
                 if (csvText.trim().startsWith('<')) {
                     alert('❌ Google Sheet 尚未以 CSV 格式發布，或連結不正確。\n\n請在 Google Sheets → 檔案 → 共用 → 發布到網路 → 選擇「逗號分隔值(.csv)」後重試。');
                     return;
                 }
 
                 const prices = {};
+                const sheetRates = {};
                 csvText.trim().split(/\r?\n/).forEach(line => {
                     const cols = line.trim().split(',').map(c => c.replace(/"/g,'').trim());
                     const val = parseFloat(cols[1]);
-                    if (cols.length >= 2 && cols[0] && !isNaN(val) && val > 0) prices[cols[0]] = val;
+                    if (cols.length < 2 || !cols[0] || isNaN(val) || val <= 0) return;
+                    // 特殊 key：匯率覆蓋
+                    if (cols[0] === 'USD_TWD') sheetRates.USD_TWD = val;
+                    else if (cols[0] === 'HKD_TWD') sheetRates.HKD_TWD = val;
+                    else prices[cols[0]] = val;
                 });
 
+                // 套用匯率：Sheet 指定 > 即時 API > 維持現值
+                const rateData = await ratePromise;
+                let rateUpdated = false;
+                if (sheetRates.USD_TWD) { exchangeRates.USD_TWD = sheetRates.USD_TWD; rateUpdated = true; }
+                if (sheetRates.HKD_TWD) { exchangeRates.HKD_TWD = sheetRates.HKD_TWD; rateUpdated = true; }
+                if (!rateUpdated && rateData && rateData.rates) {
+                    const twd = rateData.rates['TWD'], hkd = rateData.rates['HKD'];
+                    if (twd && hkd) {
+                        exchangeRates.USD_TWD = parseFloat(twd.toFixed(4));
+                        exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
+                        rateUpdated = true;
+                    }
+                }
+                if (rateUpdated) {
+                    syncRateInputs();
+                    const updated = new Date().toLocaleTimeString('zh-TW');
+                    document.getElementById('rate-source').textContent = `✓ ${sheetRates.USD_TWD ? 'Sheet 覆蓋' : '即時匯率'}（${updated}）`;
+                }
+
                 if (Object.keys(prices).length === 0) {
-                    alert('⚠️ CSV 解析後沒有有效價格資料。\n請確認 Google Sheet 格式為：\n第一欄 = 股票代碼，第二欄 = 價格\n\n改用「手動輸入報價」繼續。');
+                    alert('⚠️ CSV 解析後沒有有效股價資料。\n請確認第一欄 = 股票代碼，第二欄 = 價格\n\n改用「手動輸入報價」繼續。');
                     manualPriceReview();
                     return;
                 }
 
-                // 確認有幾筆能匹配到目前持倉
                 const matchCount = holdings.filter(h => prices[h.symbol] != null).length;
                 if (matchCount === 0) {
                     const sheetSymbols = Object.keys(prices).slice(0, 5).join(', ');
                     const holdingSymbols = holdings.slice(0, 5).map(h => h.symbol).join(', ');
-                    alert(`⚠️ CSV 中的代碼與持倉代碼全部不符。\n\nSheet 代碼（前5筆）：${sheetSymbols}\n持倉代碼（前5筆）：${holdingSymbols}\n\n請確認 Sheet 代碼格式一致，或改用「手動輸入報價」。`);
+                    alert(`⚠️ CSV 代碼與持倉代碼全部不符。\n\nSheet（前5筆）：${sheetSymbols}\n持倉（前5筆）：${holdingSymbols}\n\n請確認代碼格式，或改用「手動輸入報價」。`);
                     return;
                 }
 
@@ -634,7 +673,50 @@
             priceReviewData.prices[symbol].diff = (Math.abs(newPrice - old) / old * 100).toFixed(1);
             showReviewModal();
         }
-        function applyReviewedPrices() {
+        function applyManualRates() {
+            const usd = parseFloat(document.getElementById('input-usd-twd').value);
+            const hkd = parseFloat(document.getElementById('input-hkd-twd').value);
+            if (!isNaN(usd) && usd > 0) exchangeRates.USD_TWD = usd;
+            if (!isNaN(hkd) && hkd > 0) exchangeRates.HKD_TWD = hkd;
+            document.getElementById('rate-source').textContent = '（手動設定）';
+            renderAll();
+        }
+
+        async function fetchLiveRates() {
+            const btn = event.target;
+            btn.textContent = '更新中...'; btn.disabled = true;
+            try {
+                const controller = new AbortController();
+                const tid = setTimeout(() => controller.abort(), 8000);
+                const res = await fetch('https://open.er-api.com/v6/latest/USD', { signal: controller.signal });
+                clearTimeout(tid);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (!data.rates) throw new Error('API 格式異常');
+                const twd = data.rates['TWD'];
+                const hkd = data.rates['HKD'];
+                if (!twd || !hkd) throw new Error('找不到 TWD 或 HKD 匯率');
+                exchangeRates.USD_TWD = parseFloat((twd).toFixed(4));
+                exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
+                document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
+                document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
+                const updated = new Date().toLocaleTimeString('zh-TW');
+                document.getElementById('rate-source').textContent = `✓ 即時匯率（${updated}）`;
+                renderAll();
+            } catch(e) {
+                if (e.name === 'AbortError') alert('⏱ 匯率 API 逾時，請稍後再試');
+                else alert(`❌ 無法取得即時匯率：${e.message}`);
+            } finally {
+                btn.textContent = '🌐 抓即時匯率'; btn.disabled = false;
+            }
+        }
+
+        function syncRateInputs() {
+            document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
+            document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
+        }
+
+
             saveHistory();
             Object.keys(priceReviewData.accepted).forEach(symbol => {
                 if (priceReviewData.accepted[symbol]) {

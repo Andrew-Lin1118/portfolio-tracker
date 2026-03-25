@@ -198,7 +198,10 @@
         <!-- Tab 2: 基本面 -->
         <div id="tab-pane-2" class="tab-pane" style="padding-top:1rem;">
             <div class="glass-card" style="padding:1.5rem 2rem;">
-                <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0 0 1rem 0;">📈 基本面指標</h2>
+                <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0 0 0.5rem 0;">📈 基本面指標</h2>
+                <div id="fund-backend-note" style="display:none; margin-bottom:0.75rem; padding:0.6rem 1rem; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:8px; font-size:0.82rem; color:#f59e0b;">
+                    ⚠ 基本面數據需要後端支援。請點「⚙️ 後端設定」填入 Render.com 網址，或在本機執行 server.py。
+                </div>
                 <div style="overflow-x:auto;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.85rem; min-width:1400px;">
                         <thead>
@@ -1164,23 +1167,9 @@
                         }
                     }
                 } catch(_) {}
-            } else {
-                // 無後端：從 Yahoo Finance v7 quote API 取基本面（部分欄位）
-                try {
-                    const qUrl  = `${BASE1}/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
-                    const qData = await yfFetch(qUrl);
-                    const q     = qData?.quoteResponse?.result?.[0];
-                    if (q) {
-                        pe         = q.trailingPE                       ?? null;
-                        fpe        = q.forwardPE                        ?? null;
-                        peg        = q.pegRatio                         ?? null;
-                        ps         = q.priceToSalesTrailingTwelveMonths ?? null;
-                        eps_ttm    = q.epsTrailingTwelveMonths          ?? null;
-                        eps_next_y = q.epsForward                       ?? null;
-                        fund.pb    = q.priceToBook                      ?? null;
-                    }
-                } catch(_) {}
             }
+            // 注意：Yahoo Finance 基本面 API 需要後端（Render.com），
+            // 瀏覽器無法直接存取（Yahoo 封鎖 CORS proxy 請求）
 
             // KD：用 /proxy 轉發 Yahoo Finance chart（週、日、時）
             const weeklyData = await yfFetch(`${BASE1}/v8/finance/chart/${symbol}?interval=1wk&range=2y`);
@@ -1253,7 +1242,7 @@
         })();
 
         // ==================== Analysis Cache (sessionStorage, 1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v1';
+        const _CACHE_KEY = 'pf_analysis_v2';
         const _CACHE_TTL = 60 * 60 * 1000;
         function _loadCache() {
             try { const r = JSON.parse(sessionStorage.getItem(_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
@@ -1268,6 +1257,10 @@
 
             const btn = document.getElementById('analysis-btn');
             btn.textContent = '載入中...'; btn.disabled = true;
+
+            // 無後端時顯示提示
+            const fundNote = document.getElementById('fund-backend-note');
+            if (fundNote) fundNote.style.display = (!_isLocal && !BACKEND_URL) ? 'block' : 'none';
 
             const fundTbody = document.getElementById('fund-tbody');
             const techTbody = document.getElementById('tech-tbody');

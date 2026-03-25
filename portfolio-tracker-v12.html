@@ -167,16 +167,16 @@
                 <h3 style="color:#fbbf24; font-size:1.3rem; margin:0;">📤 匯入持倉 CSV</h3>
                 <button onclick="hideImportModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
             </div>
-            <div id="csv-drop-zone" onclick="document.getElementById('csv-file-input').click()"
+            <label for="csv-file-input" id="csv-drop-zone"
                 ondragover="event.preventDefault(); this.style.borderColor='#fbbf24'; this.style.background='rgba(251,191,36,0.08)';"
                 ondragleave="this.style.borderColor='rgba(59,130,246,0.4)'; this.style.background='rgba(15,30,60,0.4)';"
                 ondrop="handleCsvDrop(event)"
-                style="border:2px dashed rgba(59,130,246,0.4); border-radius:14px; padding:2rem; text-align:center; cursor:pointer; background:rgba(15,30,60,0.4); transition:all 0.2s; margin-bottom:1rem; flex-shrink:0;">
+                style="display:block; border:2px dashed rgba(59,130,246,0.4); border-radius:14px; padding:2rem; text-align:center; cursor:pointer; background:rgba(15,30,60,0.4); transition:all 0.2s; margin-bottom:1rem; flex-shrink:0;">
                 <div style="font-size:2.5rem; margin-bottom:0.5rem;">📁</div>
                 <div style="color:#e2e8f0; font-weight:600; margin-bottom:0.25rem;">拖曳 CSV 到這裡，或點擊選擇檔案</div>
                 <div style="color:#64748b; font-size:0.82rem;">支援「匯出持倉數據」產生的 CSV</div>
                 <input id="csv-file-input" type="file" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
-            </div>
+            </label>
             <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem; font-size:0.82rem; color:#94a3b8; flex-shrink:0;">
                 <span style="color:#60a5fa; font-weight:600;">CSV 欄位順序（第一行為標題）：</span><br>
                 <code style="color:#fbbf24;">Symbol, Market, Name, Quantity, Cost Price, Current Price</code><br>

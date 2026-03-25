@@ -89,6 +89,21 @@
             <span style="color:#10b981; font-size:0.8rem; white-space:nowrap;">✓ 已設定</span>
         </div>
 
+        <!-- Exchange Rate Controls -->
+        <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
+            <label style="color:#fbbf24; font-size:0.85rem; font-weight:600; white-space:nowrap;">💱 匯率設定：</label>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">USD/TWD</span>
+                <input id="input-usd-twd" type="number" step="0.01" value="31.50" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
+            </div>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">HKD/TWD</span>
+                <input id="input-hkd-twd" type="number" step="0.001" value="4.050" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
+            </div>
+            <button onclick="fetchLiveRates()" style="padding:0.4rem 0.9rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.35); border-radius:8px; font-weight:600; font-size:0.82rem; text-transform:none; letter-spacing:0;">🌐 抓即時匯率</button>
+            <span id="rate-source" style="color:#64748b; font-size:0.78rem;"></span>
+        </div>
+
         <!-- Action Buttons -->
         <div style="display:flex; gap:1rem; margin-bottom:2rem; flex-wrap:wrap;">
             <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span style="font-size:18px;">📤</span>匯入持倉數據</button>
@@ -146,12 +161,46 @@
     </div>
 
     <!-- Modals -->
-    <div id="import-modal" onclick="if(event.target===this)hideImportModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); display:none; align-items:center; justify-content:center; z-index:1000;">
-        <div class="glass-card" style="padding:2rem; max-width:500px; width:100%;">
-            <h3 style="color:#f1f5f9; font-size:1.5rem; margin-bottom:1rem;">確認匯入持倉數據</h3>
-            <p style="color:#cbd5e1; margin-bottom:1rem;">即將匯入 <strong>23 筆</strong> 持倉數據 (2026-03-24 最新收盤價)</p>
-            <div style="display:flex; gap:1rem;">
-                <button onclick="importData()" class="btn-primary" style="flex:1;">確認匯入</button>
+    <div id="import-modal" onclick="if(event.target===this)hideImportModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); display:none; align-items:center; justify-content:center; z-index:1000; padding:1rem;">
+        <div class="glass-card" style="padding:2rem; max-width:720px; width:100%; max-height:90vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+                <h3 style="color:#fbbf24; font-size:1.3rem; margin:0;">📤 匯入持倉 CSV</h3>
+                <button onclick="hideImportModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
+            </div>
+            <div id="csv-drop-zone" onclick="document.getElementById('csv-file-input').click()"
+                ondragover="event.preventDefault(); this.style.borderColor='#fbbf24'; this.style.background='rgba(251,191,36,0.08)';"
+                ondragleave="this.style.borderColor='rgba(59,130,246,0.4)'; this.style.background='rgba(15,30,60,0.4)';"
+                ondrop="handleCsvDrop(event)"
+                style="border:2px dashed rgba(59,130,246,0.4); border-radius:14px; padding:2rem; text-align:center; cursor:pointer; background:rgba(15,30,60,0.4); transition:all 0.2s; margin-bottom:1rem; flex-shrink:0;">
+                <div style="font-size:2.5rem; margin-bottom:0.5rem;">📁</div>
+                <div style="color:#e2e8f0; font-weight:600; margin-bottom:0.25rem;">拖曳 CSV 到這裡，或點擊選擇檔案</div>
+                <div style="color:#64748b; font-size:0.82rem;">支援「匯出持倉數據」產生的 CSV</div>
+                <input id="csv-file-input" type="file" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
+            </div>
+            <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem; font-size:0.82rem; color:#94a3b8; flex-shrink:0;">
+                <span style="color:#60a5fa; font-weight:600;">CSV 欄位順序（第一行為標題）：</span><br>
+                <code style="color:#fbbf24;">Symbol, Market, Name, Quantity, Cost Price, Current Price</code><br>
+                <code style="color:#e2e8f0; font-size:0.78rem;">NVDL, US, GraniteShares 2x NVDA, 750, 42.40, 74.17</code>
+            </div>
+            <div id="csv-preview-wrap" style="flex:1; overflow-y:auto; display:none; margin-bottom:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                    <span id="csv-preview-count" style="color:#10b981; font-weight:600; font-size:0.9rem;"></span>
+                    <span id="csv-preview-error" style="color:#ef4444; font-size:0.82rem;"></span>
+                </div>
+                <table id="csv-preview-table" style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                    <thead><tr style="border-bottom:2px solid rgba(251,191,36,0.3);">
+                        <th style="padding:0.4rem 0.5rem; text-align:left; color:#fbbf24;">代碼</th>
+                        <th style="padding:0.4rem 0.5rem; color:#fbbf24;">市場</th>
+                        <th style="padding:0.4rem 0.5rem; text-align:left; color:#fbbf24;">名稱</th>
+                        <th style="padding:0.4rem 0.5rem; text-align:right; color:#fbbf24;">股數</th>
+                        <th style="padding:0.4rem 0.5rem; text-align:right; color:#fbbf24;">成本價</th>
+                        <th style="padding:0.4rem 0.5rem; text-align:right; color:#fbbf24;">現價</th>
+                    </tr></thead>
+                    <tbody id="csv-preview-tbody"></tbody>
+                </table>
+            </div>
+            <div style="display:flex; gap:0.75rem; flex-shrink:0;">
+                <button id="csv-confirm-btn" onclick="confirmCsvImport()" style="flex:1; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#0a1628; font-weight:700; display:none;">✓ 確認匯入</button>
                 <button onclick="hideImportModal()" style="flex:1; background:rgba(71,85,105,0.3); color:#cbd5e1;">取消</button>
             </div>
         </div>
@@ -494,16 +543,118 @@
         function confirmDelete() { saveHistory(); holdings = holdings.filter(h => h.id !== currentDeleteId); hideConfirmModal(); renderAll(); }
         function hideConfirmModal() { document.getElementById('confirm-modal').style.display = 'none'; currentDeleteId = null; }
 
-        function showImportConfirm() { document.getElementById('import-modal').style.display = 'flex'; }
+        let pendingCsvRows = [];
+
+        function showImportConfirm() {
+            // 每次開啟時重置狀態
+            pendingCsvRows = [];
+            document.getElementById('csv-preview-wrap').style.display = 'none';
+            document.getElementById('csv-confirm-btn').style.display = 'none';
+            document.getElementById('csv-preview-count').textContent = '';
+            document.getElementById('csv-preview-error').textContent = '';
+            document.getElementById('csv-file-input').value = '';
+            const dz = document.getElementById('csv-drop-zone');
+            dz.style.borderColor = 'rgba(59,130,246,0.4)';
+            dz.style.background = 'rgba(15,30,60,0.4)';
+            document.getElementById('import-modal').style.display = 'flex';
+        }
         function hideImportModal() { document.getElementById('import-modal').style.display = 'none'; }
-        function importData() {
-            hideImportModal();
-            saveHistory();
-            holdings = IMPORT_DATA.holdings.map((item, index) => {
-                let market = 'US';
-                if (item.symbol.includes('.HK')) market = 'HK';
-                return { id: Date.now() + index, symbol: item.symbol, market, name: item.name, quantity: item.quantity, costPrice: item.avg_cost, currentPrice: item.current_price || item.avg_cost, addedDate: new Date().toISOString() };
+
+        function handleCsvDrop(event) {
+            event.preventDefault();
+            const dz = document.getElementById('csv-drop-zone');
+            dz.style.borderColor = 'rgba(59,130,246,0.4)';
+            dz.style.background = 'rgba(15,30,60,0.4)';
+            const file = event.dataTransfer.files[0];
+            if (file) handleCsvFile(file);
+        }
+
+        function handleCsvFile(file) {
+            if (!file) return;
+            if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv') {
+                alert('請選擇 .csv 格式的檔案');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = e => parseCsvPreview(e.target.result);
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function parseCsvPreview(csvText) {
+            // 移除 BOM
+            csvText = csvText.replace(/^﻿/, '');
+            const lines = csvText.trim().split(/
+?\n/).filter(l => l.trim());
+            if (lines.length < 2) {
+                showCsvError('CSV 內容為空或只有標題行');
+                return;
+            }
+
+            // 自動偵測標題行並跳過
+            const firstLine = lines[0].replace(/"/g, '').toLowerCase();
+            const hasHeader = firstLine.includes('symbol') || firstLine.includes('market') || firstLine.includes('quantity');
+            const dataLines = hasHeader ? lines.slice(1) : lines;
+
+            const rows = [];
+            const errors = [];
+            dataLines.forEach((line, i) => {
+                const cols = line.split(',').map(c => c.replace(/"/g, '').trim());
+                const symbol = cols[0];
+                const market = (cols[1] || 'US').toUpperCase();
+                const name = cols[2] || '';
+                const quantity = parseFloat(cols[3]);
+                const costPrice = parseFloat(cols[4]);
+                const currentPrice = parseFloat(cols[5]) || costPrice;
+                const addedDate = cols[6] || new Date().toISOString();
+
+                if (!symbol) { errors.push(`第${i+2}行：代碼為空`); return; }
+                if (isNaN(quantity) || quantity <= 0) { errors.push(`第${i+2}行 ${symbol}：股數無效`); return; }
+                if (isNaN(costPrice) || costPrice <= 0) { errors.push(`第${i+2}行 ${symbol}：成本價無效`); return; }
+
+                rows.push({ id: Date.now() + i, symbol, market, name, quantity, costPrice, currentPrice, addedDate });
             });
+
+            pendingCsvRows = rows;
+            renderCsvPreview(rows, errors);
+        }
+
+        function renderCsvPreview(rows, errors) {
+            const wrap = document.getElementById('csv-preview-wrap');
+            const countEl = document.getElementById('csv-preview-count');
+            const errEl = document.getElementById('csv-preview-error');
+            const tbody = document.getElementById('csv-preview-tbody');
+            const confirmBtn = document.getElementById('csv-confirm-btn');
+
+            countEl.textContent = `✓ 解析到 ${rows.length} 筆持倉`;
+            errEl.textContent = errors.length > 0 ? `⚠ ${errors.length} 行跳過：${errors.slice(0,2).join('；')}` : '';
+
+            tbody.innerHTML = rows.map(r => `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:0.35rem 0.5rem; font-weight:600; color:#f1f5f9;">${r.symbol}</td>
+                    <td style="padding:0.35rem 0.5rem; text-align:center; color:#94a3b8;">${r.market==='TW'?'🇹🇼':r.market==='HK'?'🇭🇰':'🇺🇸'}</td>
+                    <td style="padding:0.35rem 0.5rem; color:#94a3b8; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name||'-'}</td>
+                    <td style="padding:0.35rem 0.5rem; text-align:right; color:#e2e8f0;">${r.quantity.toLocaleString()}</td>
+                    <td style="padding:0.35rem 0.5rem; text-align:right; color:#94a3b8;">${r.costPrice}</td>
+                    <td style="padding:0.35rem 0.5rem; text-align:right; color:#60a5fa;">${r.currentPrice}</td>
+                </tr>`).join('');
+
+            wrap.style.display = rows.length > 0 ? 'block' : 'none';
+            confirmBtn.style.display = rows.length > 0 ? 'block' : 'none';
+        }
+
+        function showCsvError(msg) {
+            document.getElementById('csv-preview-count').textContent = '';
+            document.getElementById('csv-preview-error').textContent = '❌ ' + msg;
+            document.getElementById('csv-preview-wrap').style.display = 'block';
+            document.getElementById('csv-preview-tbody').innerHTML = '';
+            document.getElementById('csv-confirm-btn').style.display = 'none';
+        }
+
+        function confirmCsvImport() {
+            if (pendingCsvRows.length === 0) return;
+            saveHistory();
+            holdings = pendingCsvRows;
+            hideImportModal();
             alert(`✅ 成功匯入 ${holdings.length} 筆持倉數據！`);
             renderAll();
         }
@@ -530,7 +681,11 @@
                 if (!sheetUrl) { alert('請先填入 Google Sheet CSV 連結'); return; }
                 if (!sheetUrl.includes('docs.google.com')) { alert('URL 格式不符，請使用 Google Sheets 已發布的 CSV 連結'); return; }
 
-                // 10 秒 timeout，避免 fetch 無限卡住
+                // 同時發出：① 股價 CSV ② 即時匯率，不互相等待
+                const ratePromise = fetch('https://open.er-api.com/v6/latest/USD', {
+                    signal: AbortSignal.timeout(8000)
+                }).then(r => r.json()).catch(() => null);
+
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000);
                 let res;
@@ -546,36 +701,56 @@
                     return;
                 }
                 clearTimeout(timeoutId);
-
                 if (!res.ok) throw new Error(`伺服器回傳 HTTP ${res.status}`);
-
                 const csvText = await res.text();
 
-                // 若回傳的是 HTML（未正確發布），提早偵測
                 if (csvText.trim().startsWith('<')) {
                     alert('❌ Google Sheet 尚未以 CSV 格式發布，或連結不正確。\n\n請在 Google Sheets → 檔案 → 共用 → 發布到網路 → 選擇「逗號分隔值(.csv)」後重試。');
                     return;
                 }
 
                 const prices = {};
+                const sheetRates = {};
                 csvText.trim().split(/\r?\n/).forEach(line => {
                     const cols = line.trim().split(',').map(c => c.replace(/"/g,'').trim());
                     const val = parseFloat(cols[1]);
-                    if (cols.length >= 2 && cols[0] && !isNaN(val) && val > 0) prices[cols[0]] = val;
+                    if (cols.length < 2 || !cols[0] || isNaN(val) || val <= 0) return;
+                    // 特殊 key：匯率覆蓋
+                    if (cols[0] === 'USD_TWD') sheetRates.USD_TWD = val;
+                    else if (cols[0] === 'HKD_TWD') sheetRates.HKD_TWD = val;
+                    else prices[cols[0]] = val;
                 });
 
+                // 套用匯率：Sheet 指定 > 即時 API > 維持現值
+                const rateData = await ratePromise;
+                let rateUpdated = false;
+                if (sheetRates.USD_TWD) { exchangeRates.USD_TWD = sheetRates.USD_TWD; rateUpdated = true; }
+                if (sheetRates.HKD_TWD) { exchangeRates.HKD_TWD = sheetRates.HKD_TWD; rateUpdated = true; }
+                if (!rateUpdated && rateData && rateData.rates) {
+                    const twd = rateData.rates['TWD'], hkd = rateData.rates['HKD'];
+                    if (twd && hkd) {
+                        exchangeRates.USD_TWD = parseFloat(twd.toFixed(4));
+                        exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
+                        rateUpdated = true;
+                    }
+                }
+                if (rateUpdated) {
+                    syncRateInputs();
+                    const updated = new Date().toLocaleTimeString('zh-TW');
+                    document.getElementById('rate-source').textContent = `✓ ${sheetRates.USD_TWD ? 'Sheet 覆蓋' : '即時匯率'}（${updated}）`;
+                }
+
                 if (Object.keys(prices).length === 0) {
-                    alert('⚠️ CSV 解析後沒有有效價格資料。\n請確認 Google Sheet 格式為：\n第一欄 = 股票代碼，第二欄 = 價格\n\n改用「手動輸入報價」繼續。');
+                    alert('⚠️ CSV 解析後沒有有效股價資料。\n請確認第一欄 = 股票代碼，第二欄 = 價格\n\n改用「手動輸入報價」繼續。');
                     manualPriceReview();
                     return;
                 }
 
-                // 確認有幾筆能匹配到目前持倉
                 const matchCount = holdings.filter(h => prices[h.symbol] != null).length;
                 if (matchCount === 0) {
                     const sheetSymbols = Object.keys(prices).slice(0, 5).join(', ');
                     const holdingSymbols = holdings.slice(0, 5).map(h => h.symbol).join(', ');
-                    alert(`⚠️ CSV 中的代碼與持倉代碼全部不符。\n\nSheet 代碼（前5筆）：${sheetSymbols}\n持倉代碼（前5筆）：${holdingSymbols}\n\n請確認 Sheet 代碼格式一致，或改用「手動輸入報價」。`);
+                    alert(`⚠️ CSV 代碼與持倉代碼全部不符。\n\nSheet（前5筆）：${sheetSymbols}\n持倉（前5筆）：${holdingSymbols}\n\n請確認代碼格式，或改用「手動輸入報價」。`);
                     return;
                 }
 
@@ -634,7 +809,50 @@
             priceReviewData.prices[symbol].diff = (Math.abs(newPrice - old) / old * 100).toFixed(1);
             showReviewModal();
         }
-        function applyReviewedPrices() {
+        function applyManualRates() {
+            const usd = parseFloat(document.getElementById('input-usd-twd').value);
+            const hkd = parseFloat(document.getElementById('input-hkd-twd').value);
+            if (!isNaN(usd) && usd > 0) exchangeRates.USD_TWD = usd;
+            if (!isNaN(hkd) && hkd > 0) exchangeRates.HKD_TWD = hkd;
+            document.getElementById('rate-source').textContent = '（手動設定）';
+            renderAll();
+        }
+
+        async function fetchLiveRates() {
+            const btn = event.target;
+            btn.textContent = '更新中...'; btn.disabled = true;
+            try {
+                const controller = new AbortController();
+                const tid = setTimeout(() => controller.abort(), 8000);
+                const res = await fetch('https://open.er-api.com/v6/latest/USD', { signal: controller.signal });
+                clearTimeout(tid);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (!data.rates) throw new Error('API 格式異常');
+                const twd = data.rates['TWD'];
+                const hkd = data.rates['HKD'];
+                if (!twd || !hkd) throw new Error('找不到 TWD 或 HKD 匯率');
+                exchangeRates.USD_TWD = parseFloat((twd).toFixed(4));
+                exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
+                document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
+                document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
+                const updated = new Date().toLocaleTimeString('zh-TW');
+                document.getElementById('rate-source').textContent = `✓ 即時匯率（${updated}）`;
+                renderAll();
+            } catch(e) {
+                if (e.name === 'AbortError') alert('⏱ 匯率 API 逾時，請稍後再試');
+                else alert(`❌ 無法取得即時匯率：${e.message}`);
+            } finally {
+                btn.textContent = '🌐 抓即時匯率'; btn.disabled = false;
+            }
+        }
+
+        function syncRateInputs() {
+            document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
+            document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
+        }
+
+
             saveHistory();
             Object.keys(priceReviewData.accepted).forEach(symbol => {
                 if (priceReviewData.accepted[symbol]) {
@@ -650,13 +868,9 @@
 
         // ==================== 初始化 ====================
         function init() {
-            holdings = IMPORT_DATA.holdings.map((item, index) => {
-                let market = 'US';
-                if (item.symbol.includes('.HK')) market = 'HK';
-                return { id: Date.now() + index, symbol: item.symbol, market, name: item.name, quantity: item.quantity, costPrice: item.avg_cost, currentPrice: item.current_price || item.avg_cost, addedDate: new Date().toISOString() };
-            });
+            holdings = [];
             renderAll();
-            console.log('%c✅ Portfolio Tracker 已啟動！持倉占比已修正為精準 100%', 'color:#10b981; font-size:14px;');
+            console.log('%c✅ Portfolio Tracker 已啟動', 'color:#10b981; font-size:14px;');
         }
         window.onload = init;
     </script>

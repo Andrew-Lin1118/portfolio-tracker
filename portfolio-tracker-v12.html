@@ -1167,9 +1167,27 @@
                         }
                     }
                 } catch(_) {}
+            } else {
+                // GitHub Pages 無後端：讀取 GitHub Actions 預先產生的 data/fundamentals.json
+                try {
+                    if (!window._fundJsonCache) {
+                        const r = await fetch('./data/fundamentals.json');
+                        window._fundJsonCache = r.ok ? await r.json() : {};
+                    }
+                    const f = window._fundJsonCache?.data?.[symbol];
+                    if (f && !f.error) {
+                        fund       = f;
+                        pe         = f.pe         ?? null;
+                        fpe        = f.fpe        ?? null;
+                        peg        = f.peg        ?? null;
+                        ps         = f.ps         ?? null;
+                        eps_ttm    = f.eps_ttm    ?? null;
+                        eps_next_q = f.eps_next_q ?? null;
+                        eps_cur_y  = f.eps_cur_y  ?? null;
+                        eps_next_y = f.eps_next_y ?? null;
+                    }
+                } catch(_) {}
             }
-            // 注意：Yahoo Finance 基本面 API 需要後端（Render.com），
-            // 瀏覽器無法直接存取（Yahoo 封鎖 CORS proxy 請求）
 
             // KD：用 /proxy 轉發 Yahoo Finance chart（週、日、時）
             const weeklyData = await yfFetch(`${BASE1}/v8/finance/chart/${symbol}?interval=1wk&range=2y`);
@@ -1234,11 +1252,31 @@
             location.reload();
         }
 
-        // 頁面載入時顯示後端狀態
+        // 頁面載入時顯示後端狀態 / fundamentals.json 更新時間
         (function() {
             const saved = localStorage.getItem('backend_url');
             const el = document.getElementById('backend-status');
-            if (el) el.textContent = saved ? '✓ ' + saved.replace('https://', '') : (location.hostname === 'localhost' ? '（本機）' : '⚠ 未設定後端');
+            if (!el) return;
+            if (saved) {
+                el.textContent = '✓ ' + saved.replace('https://', '');
+            } else if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                el.textContent = '（本機）';
+            } else {
+                // GitHub Pages：嘗試讀取 fundamentals.json 更新時間
+                fetch('./data/fundamentals.json')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(j => {
+                        if (j && j.generated) {
+                            const d = new Date(j.generated);
+                            const ts = d.toLocaleString('zh-TW', {timeZone:'Asia/Taipei', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+                            el.textContent = '基本面資料：' + ts + ' 更新';
+                            el.style.color = '#10b981';
+                        } else {
+                            el.textContent = '⚠ 未設定後端';
+                        }
+                    })
+                    .catch(() => { el.textContent = '⚠ 未設定後端'; });
+            }
         })();
 
         // ==================== Analysis Cache (sessionStorage, 1hr TTL) ====================
@@ -1258,9 +1296,10 @@
             const btn = document.getElementById('analysis-btn');
             btn.textContent = '載入中...'; btn.disabled = true;
 
-            // 無後端時顯示提示
+            // 無後端時清除 _fundJsonCache，確保每次「強制重整」都重新讀取 fundamentals.json
+            if (forceRefresh) window._fundJsonCache = null;
             const fundNote = document.getElementById('fund-backend-note');
-            if (fundNote) fundNote.style.display = (!_isLocal && !BACKEND_URL) ? 'block' : 'none';
+            if (fundNote) fundNote.style.display = 'none';
 
             const fundTbody = document.getElementById('fund-tbody');
             const techTbody = document.getElementById('tech-tbody');

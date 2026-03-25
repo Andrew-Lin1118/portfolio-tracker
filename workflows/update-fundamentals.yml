@@ -1,0 +1,35 @@
+name: Update Fundamentals Data
+
+on:
+  schedule:
+    - cron: '0 0,6,12,18 * * *'   # UTC 0/6/12/18 點 = 台灣 8/14/20/02 點
+  workflow_dispatch:               # 允許手動觸發
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write              # 允許 push fundamentals.json
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install yfinance>=0.2.40 pandas
+
+      - name: Fetch fundamentals
+        run: python data/update_fund.py
+
+      - name: Commit & push updated data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/fundamentals.json
+          git diff --cached --quiet || git commit -m "chore: auto-update fundamentals $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push

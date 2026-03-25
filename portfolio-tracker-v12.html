@@ -189,7 +189,11 @@
                         <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0 0 0.3rem 0;">🔬 基本面 / 技術面指標</h2>
                         <div style="color:#64748b; font-size:0.8rem;">槓桿 ETF 自動查詢原型股票 · 資料來源：Yahoo Finance</div>
                     </div>
-                    <button onclick="loadAnalysis()" id="analysis-btn" style="padding:0.7rem 1.5rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.9rem; text-transform:none; letter-spacing:0;">🔄 更新分析數據</button>
+                    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                        <button onclick="loadAnalysis()" id="analysis-btn" style="padding:0.7rem 1.5rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.9rem; text-transform:none; letter-spacing:0;">🔄 更新分析數據</button>
+                        <button onclick="setBackendUrl()" id="backend-btn" style="padding:0.7rem 1rem; background:rgba(99,102,241,0.15); color:#818cf8; border:1px solid rgba(99,102,241,0.35); border-radius:10px; font-size:0.82rem; font-weight:600; text-transform:none; letter-spacing:0;" title="設定 Render.com 後端網址">⚙️ 後端設定</button>
+                        <span id="backend-status" style="font-size:0.78rem; color:#64748b;"></span>
+                    </div>
                 </div>
                 <div style="overflow-x:auto;">
                     <table id="analysis-table" style="width:100%; border-collapse:collapse; font-size:0.88rem; min-width:820px;">
@@ -988,24 +992,40 @@
             return '<span class="' + cls + '">' + label + '</span><br><small style="color:#64748b;font-size:0.75rem;">K:' + kd.k + ' D:' + kd.d + '</small>';
         }
 
+        // ==================== 後端設定 ====================
+        // 本機開發：空字串（相對路徑 /proxy, /yfundamentals）
+        // GitHub Pages：填入 Render.com 的網址，例如 https://portfolio-tracker-api.onrender.com
+        const BACKEND_URL = (() => {
+            const h = window.location.hostname;
+            if (h === 'localhost' || h === '127.0.0.1') return '';   // 本機
+            // GitHub Pages → 使用儲存的後端網址，或提示設定
+            return localStorage.getItem('backend_url') || '';
+        })();
+
         // ==================== Yahoo Finance fetch via CORS proxy ====================
         const YF_PROXIES = [
-            u => 'https://corsproxy.io/?' + encodeURIComponent(u),
-            u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
-            u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u)
+            u => (BACKEND_URL || '') + '/proxy?url='              + encodeURIComponent(u),
+            u => 'https://api.allorigins.win/raw?url='             + encodeURIComponent(u),
+            u => 'https://thingproxy.freeboard.io/fetch/'          + u,
+            u => 'https://api.codetabs.com/v1/proxy?quest='        + encodeURIComponent(u)
         ];
 
         async function yfFetch(url) {
             const errors = [];
             for (const mkProxy of YF_PROXIES) {
+                const ctrl = new AbortController();
+                const tid  = setTimeout(() => ctrl.abort(), 12000);
                 try {
-                    const ctrl = new AbortController();
-                    const tid = setTimeout(() => ctrl.abort(), 10000);
-                    const res = await fetch(mkProxy(url), { signal: ctrl.signal });
+                    const res  = await fetch(mkProxy(url), { signal: ctrl.signal });
                     clearTimeout(tid);
                     if (!res.ok) throw new Error('HTTP ' + res.status);
-                    return await res.json();
+                    const text = await res.text();
+                    // 確認是 JSON（proxy 可能回傳 HTML 錯誤頁）
+                    if (!text.trimStart().startsWith('{') && !text.trimStart().startsWith('['))
+                        throw new Error('非 JSON 回應');
+                    return JSON.parse(text);
                 } catch(e) {
+                    clearTimeout(tid);
                     errors.push(e.message);
                 }
             }
@@ -1013,16 +1033,24 @@
         }
 
         async function fetchSymbolDataFromYahoo(symbol) {
-            const BASE = 'https://query2.finance.yahoo.com';
             const BASE1 = 'https://query1.finance.yahoo.com';
-            const [summaryData, dailyData, hourlyData] = await Promise.all([
-                yfFetch(`${BASE}/v10/finance/quoteSummary/${symbol}?modules=summaryDetail,defaultKeyStatistics`),
-                yfFetch(`${BASE1}/v8/finance/chart/${symbol}?interval=1d&range=3mo`),
-                yfFetch(`${BASE1}/v8/finance/chart/${symbol}?interval=1h&range=5d`)
-            ]);
 
-            const sd  = summaryData?.quoteSummary?.result?.[0]?.summaryDetail      ?? {};
-            const ks  = summaryData?.quoteSummary?.result?.[0]?.defaultKeyStatistics ?? {};
+            // 基本面：優先用後端 /yfundamentals（yfinance）
+            let pe = null, fpe = null, peg = null, eps = null;
+            const fundBase = BACKEND_URL || '';
+            if (fundBase !== '' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                try {
+                    const fundResp = await fetch(fundBase + '/yfundamentals?symbol=' + encodeURIComponent(symbol));
+                    if (fundResp.ok) {
+                        const fund = await fundResp.json();
+                        if (!fund.error) { pe = fund.pe ?? null; fpe = fund.fpe ?? null; peg = fund.peg ?? null; eps = fund.eps ?? null; }
+                    }
+                } catch(_) {}
+            }
+
+            // KD：用本機 /proxy 轉發 Yahoo Finance chart（v8 chart 不需認證）
+            const dailyData  = await yfFetch(`${BASE1}/v8/finance/chart/${symbol}?interval=1d&range=3mo`);
+            const hourlyData = await yfFetch(`${BASE1}/v8/finance/chart/${symbol}?interval=1h&range=5d`);
 
             const dailyQ  = dailyData?.chart?.result?.[0]?.indicators?.quote?.[0]  ?? {};
             const hourlyQ = hourlyData?.chart?.result?.[0]?.indicators?.quote?.[0] ?? {};
@@ -1031,10 +1059,7 @@
             const hourlyKD = calcKD(hourlyQ.high, hourlyQ.low, hourlyQ.close);
 
             return {
-                pe:   sd.trailingPE?.raw  ?? null,
-                fpe:  sd.forwardPE?.raw   ?? null,
-                peg:  ks.pegRatio?.raw    ?? null,
-                eps:  ks.trailingEps?.raw ?? null,
+                pe, fpe, peg, eps,
                 daily_k:      dailyKD?.k    ?? null,
                 daily_d:      dailyKD?.d    ?? null,
                 daily_cross:  dailyKD  ? (dailyKD.crossUp  ? 'golden' : dailyKD.crossDown  ? 'death' : 'none') : 'none',
@@ -1045,6 +1070,32 @@
         }
 
 
+
+        // ==================== 後端網址設定 ====================
+        function setBackendUrl() {
+            const current = localStorage.getItem('backend_url') || '';
+            const url = window.prompt(
+                '請輸入 Render.com 後端網址\n（本機開發請留空）\n\n範例：https://portfolio-tracker-api.onrender.com',
+                current
+            );
+            if (url === null) return;
+            const trimmed = url.trim().replace(/\/$/, '');
+            if (trimmed === '') {
+                localStorage.removeItem('backend_url');
+                document.getElementById('backend-status').textContent = '（本機模式）';
+            } else {
+                localStorage.setItem('backend_url', trimmed);
+                document.getElementById('backend-status').textContent = '✓ ' + trimmed.replace('https://', '');
+            }
+            location.reload();
+        }
+
+        // 頁面載入時顯示後端狀態
+        (function() {
+            const saved = localStorage.getItem('backend_url');
+            const el = document.getElementById('backend-status');
+            if (el) el.textContent = saved ? '✓ ' + saved.replace('https://', '') : (location.hostname === 'localhost' ? '（本機）' : '⚠ 未設定後端');
+        })();
 
         // ==================== Main Analysis Loader ====================
         async function loadAnalysis() {
@@ -1070,28 +1121,24 @@
                 '<td colspan="6" style="text-align:center; color:#64748b; font-size:0.82rem; padding:0.55rem;">⏳ 查詢中...</td></tr>'
             ).join('');
 
-            // Fetch each symbol individually (parallel within batches)
+            // 循序查詢（每支間隔 600ms），避免 CORS proxy 限速
             const allResults = {};
             const uniqueQueries = [...new Set(rows.map(r => r.query))];
-            const batchSize = 4;
 
-            for (let i = 0; i < uniqueQueries.length; i += batchSize) {
-                const batch = uniqueQueries.slice(i, i + batchSize);
-                // Update loading text
-                batch.forEach(sym => {
-                    rows.filter(r => r.query === sym).forEach(r => {
-                        const rowEl = document.getElementById('arow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
-                        if (rowEl) { rowEl.cells[2].colSpan = 6; rowEl.cells[2].textContent = '⏳ 查詢中（' + (i + batch.indexOf(sym) + 1) + '/' + uniqueQueries.length + '）...'; }
-                    });
+            for (let i = 0; i < uniqueQueries.length; i++) {
+                const sym = uniqueQueries[i];
+                // 更新每列進度
+                rows.filter(r => r.query === sym).forEach(r => {
+                    const rowEl = document.getElementById('arow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
+                    if (rowEl) { rowEl.cells[2].colSpan = 6; rowEl.cells[2].textContent = '⏳ 查詢中（' + (i + 1) + '/' + uniqueQueries.length + '）...'; }
                 });
-                // Parallel fetch within batch
-                await Promise.all(batch.map(async sym => {
-                    try {
-                        allResults[sym] = await fetchSymbolDataFromYahoo(sym);
-                    } catch(e) {
-                        allResults[sym] = { _error: e.message };
-                    }
-                }));
+                try {
+                    allResults[sym] = await fetchSymbolDataFromYahoo(sym);
+                } catch(e) {
+                    allResults[sym] = { _error: e.message };
+                }
+                // 每筆間隔 600ms，減少對 proxy 的衝擊
+                if (i < uniqueQueries.length - 1) await new Promise(res => setTimeout(res, 600));
             }
 
             // Render all rows

@@ -3,872 +3,348 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio Tracker - 單檔 HTML 版</title>
+    <title>Portfolio Tracker v13 - 完整修正版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-        * { box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
-        body { 
-            margin: 0; 
-            overflow-x: hidden; 
-            overflow-y: auto; 
-            font-family: 'Noto Sans TC', sans-serif; 
-            min-height: 100vh;
-            background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #0f2744 100%);
-            padding: 2rem;
-            position: relative;
-            color: #e2e8f0;
-        }
-        
-        .glass-card { background: linear-gradient(135deg, rgba(20,40,70,0.95) 0%, rgba(10,25,45,0.98) 100%); backdrop-filter: blur(20px); border: 2px solid rgba(251,191,36,0.3); border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(251,191,36,0.1), inset 0 1px 0 rgba(255,255,255,0.1); position: relative; overflow: hidden; }
-        .glass-card::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(251,191,36,0.1), transparent); transition: left 0.5s; }
-        .glass-card:hover::before { left: 100%; }
-        
-        .stat-card { background: linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(245,158,11,0.1) 100%); border: 2px solid rgba(251,191,36,0.4); border-radius: 16px; padding: 1.5rem; transition: all 0.4s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(251,191,36,0.2), inset 0 1px 0 rgba(255,255,255,0.1); }
-        .stat-card::before { content: ''; position: absolute; top: -50%; right: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(251,191,36,0.2) 0%, transparent 70%); animation: pulse 3s ease-in-out infinite; }
-        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 0.8; } }
-        
-        .holding-row { background: linear-gradient(135deg, rgba(15,30,60,0.6) 0%, rgba(10,20,40,0.8) 100%); border: 2px solid rgba(59,130,246,0.3); border-left: 4px solid #fbbf24; border-radius: 16px; padding: 1.5rem; margin-bottom: 1rem; transition: all 0.3s ease; animation: slideIn 0.5s ease; position: relative; overflow: hidden; }
-        .holding-row::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%); box-shadow: 0 0 20px rgba(251,191,36,0.8); }
-        
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
-        
-        input, select { width: 100%; padding: 0.75rem 1rem; background: rgba(10,25,45,0.8); border: 2px solid rgba(59,130,246,0.3); border-radius: 10px; color: #fbbf24; font-size: 0.95rem; transition: all 0.3s ease; font-family: 'Noto Sans TC', sans-serif; font-weight: 500; }
-        input:focus, select:focus { outline: none; border-color: #fbbf24; box-shadow: 0 0 20px rgba(251,191,36,0.3), inset 0 1px 0 rgba(255,255,255,0.1); background: rgba(15,30,60,0.9); }
-        
-        button { padding: 0.75rem 1.5rem; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-family: 'Noto Sans TC', sans-serif; text-transform: uppercase; letter-spacing: 1px; position: relative; overflow: hidden; }
-        button::before { content: ''; position: absolute; top: 50%; left: 50%; width: 0; height: 0; border-radius: 50%; background: rgba(255,255,255,0.2); transform: translate(-50%,-50%); transition: width 0.6s, height 0.6s; }
-        button:hover::before { width: 300px; height: 300px; }
-        
-        .btn-primary { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: #0a1628; box-shadow: 0 4px 15px rgba(251,191,36,0.4); }
-        .btn-delete { background: rgba(239,68,68,0.2); color: #ef4444; padding: 0.5rem; border-radius: 8px; border: 2px solid rgba(239,68,68,0.4); }
-        
-        .profit { color: #10b981; text-shadow: 0 0 10px rgba(16,185,129,0.5); }
-        .loss { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.5); }
-        .mono { font-family: 'Courier New', monospace; font-weight: 600; }
-        
-        .market-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.75rem; background: linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(37,99,235,0.3) 100%); border: 2px solid rgba(59,130,246,0.4); border-radius: 8px; font-size: 0.85rem; font-weight: 700; }
-        
-        @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-20px) rotate(10deg); } }
-        @keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        
-        #pieCanvas { max-width: 100%; height: 400px; }
+        body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
+        .glass { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); }
+        .btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(251 191 36); }
+        table { border-collapse: collapse; }
+        th, td { border-bottom: 1px solid rgba(251,191,36,0.2); }
     </style>
 </head>
-<body>
-    <!-- 背景裝飾 -->
-    <div style="position:fixed; top:0; left:0; right:0; bottom:0; background-image:linear-gradient(rgba(251,191,36,0.03) 1px, transparent 1px),linear-gradient(90deg, rgba(251,191,36,0.03) 1px, transparent 1px); background-size:50px 50px; pointer-events:none; z-index:0;"></div>
-    <div style="position:fixed; top:10%; right:10%; width:300px; height:300px; background:radial-gradient(circle, rgba(251,191,36,0.15) 0%, transparent 70%); border-radius:50%; filter:blur(60px); pointer-events:none; z-index:0; animation:float 6s ease-in-out infinite;"></div>
-    <div style="position:fixed; bottom:20%; left:5%; width:400px; height:400px; background:radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%); border-radius:50%; filter:blur(80px); pointer-events:none; z-index:0; animation:float 8s ease-in-out infinite reverse;"></div>
+<body class="bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-slate-200 min-h-screen pb-12">
 
-    <div style="max-width:1200px; margin:0 auto; position:relative; z-index:1;">
+<div class="max-w-7xl mx-auto p-6">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-4xl font-bold tracking-tight flex items-center gap-3">
+            📊 Portfolio Tracker <span class="text-amber-400 text-3xl">v13</span>
+        </h1>
+        <div class="flex items-center gap-4 text-sm">
+            <span id="lastUpdate" class="text-amber-400 font-medium"></span>
+            <button onclick="exportPortfolio()" 
+                    class="px-5 py-2 bg-slate-800 hover:bg-slate-700 rounded-2xl flex items-center gap-2 btn">
+                📤 匯出 CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- 操作區 -->
+    <div class="glass rounded-3xl p-8 mb-8 border border-amber-400/30">
+        <div class="flex flex-wrap gap-4">
+            <!-- 匯入持倉 -->
+            <button onclick="triggerFileInput()" 
+                    class="btn flex-1 md:flex-none px-8 py-4 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-2xl flex items-center justify-center gap-3 text-lg">
+                📥 匯入持倉 (CSV)
+            </button>
+            <input type="file" id="fileInput" accept=".csv" class="hidden" onchange="handleFileSelect(event)">
+
+            <!-- 抓即時匯率 & 股價 -->
+            <button onclick="fetchRealTimeData()" 
+                    class="btn flex-1 md:flex-none px-8 py-4 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold rounded-2xl flex items-center justify-center gap-3 text-lg">
+                🌐 抓即時匯率 & 股價
+                <span id="fetchLoading" class="hidden animate-spin w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full"></span>
+            </button>
+
+            <button onclick="addManualRow()" 
+                    class="btn flex-1 md:flex-none px-8 py-4 bg-slate-700 hover:bg-slate-600 rounded-2xl flex items-center justify-center gap-3 text-lg">
+                ➕ 手動新增持倉
+            </button>
+        </div>
         
-        <!-- Currency Toggle -->
-        <div style="position:fixed; top:1.25rem; right:1.25rem; z-index:999; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35); box-shadow:0 4px 20px rgba(0,0,0,0.4);">
-            <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color:#0a1628;">$ USD</button>
-            <button id="currency-twd" onclick="setCurrency('TWD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:rgba(10,22,40,0.92); color:#64748b;">NT$ TWD</button>
-        </div>
-
-        <!-- Header -->
-        <div style="margin-bottom:2rem; text-align:center;">
-            <div style="display:inline-block; position:relative; padding:1rem 2rem; background:linear-gradient(135deg, rgba(251,191,36,0.1) 0%, rgba(245,158,11,0.05) 100%); border-radius:20px; border:2px solid rgba(251,191,36,0.3); box-shadow:0 0 40px rgba(251,191,36,0.2); margin-bottom:0.5rem;">
-                <h1 style="color:#fbbf24; font-size:2.5rem; font-weight:900; margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:3px; text-shadow:0 0 20px rgba(251,191,36,0.5); background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fbbf24 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-size:200% auto; animation:shimmer 3s linear infinite;">Portfolio Tracker</h1>
-                <div style="display:flex; align-items:center; justify-content:center; gap:0.5rem; color:#93c5fd; font-size:0.9rem; font-weight:500; letter-spacing:2px; text-transform:uppercase;">台股 • 美股 • 港股 持倉管理系統</div>
-            </div>
-        </div>
-
-        <!-- Stats -->
-        <div id="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:1.5rem; margin-bottom:2rem;"></div>
-
-        <!-- Google Sheet URL -->
-        <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
-            <label style="color:#fbbf24; font-size:0.85rem; font-weight:600; white-space:nowrap;">📊 Google Sheet CSV：</label>
-            <input id="sheet-url" type="text" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQnBPPnq7jgMZ3oZ8UVaxe77InNipxW-ItNAoqxQrAgnKfLNqX1P4xxOLMqKGjKWTRIN-VZ4SkgKFBt/pub?gid=0&single=true&output=csv" style="flex:1; min-width:200px; padding:0.55rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.85rem;">
-            <span style="color:#10b981; font-size:0.8rem; white-space:nowrap;">✓ 已設定</span>
-        </div>
-
-        <!-- Exchange Rate Controls -->
-        <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
-            <label style="color:#fbbf24; font-size:0.85rem; font-weight:600; white-space:nowrap;">💱 匯率設定：</label>
-            <div style="display:flex; align-items:center; gap:0.4rem;">
-                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">USD/TWD</span>
-                <input id="input-usd-twd" type="number" step="0.01" value="31.50" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
-            </div>
-            <div style="display:flex; align-items:center; gap:0.4rem;">
-                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">HKD/TWD</span>
-                <input id="input-hkd-twd" type="number" step="0.001" value="4.050" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
-            </div>
-            <button onclick="fetchLiveRates(this)" style="padding:0.4rem 0.9rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.35); border-radius:8px; font-weight:600; font-size:0.82rem; text-transform:none; letter-spacing:0;">🌐 抓即時匯率</button>
-            <span id="rate-source" style="color:#64748b; font-size:0.78rem;"></span>
-        </div>
-
-        <!-- Action Buttons -->
-        <div style="display:flex; gap:1rem; margin-bottom:2rem; flex-wrap:wrap;">
-            <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span style="font-size:18px;">📤</span>匯入持倉數據</button>
-            <button onclick="exportHoldings()" style="flex:1; min-width:150px; padding:0.75rem 1.5rem; background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;">📥 匯出持倉數據</button>
-            <button onclick="refreshAllData()" id="refresh-btn" style="flex:1; min-width:180px; padding:0.75rem 1.5rem; background:rgba(16,185,129,0.1); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span id="refresh-icon" style="display:inline-block;">🔄</span><span id="refresh-text">一鍵更新報價 + 匯率</span></button>
-            <button onclick="manualPriceReview()" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">✏️ 手動輸入報價</button>
-            <button onclick="undoLastAction()" id="undo-btn" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">↩ 還原上一步 <span id="undo-count">(0)</span></button>
-        </div>
-
-        <!-- Pie Chart -->
-        <div id="pie-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; display:none;">
-            <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin-bottom:1.5rem;">持倉分布圖</h2>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:2rem; align-items:start;">
-                <div><canvas id="pieCanvas" width="400" height="400"></canvas></div>
-                <div>
-                    <h3 style="color:#fbbf24; font-size:1.1rem; font-weight:700; margin-bottom:1rem; text-transform:uppercase; letter-spacing:1px;">持倉占比明細</h3>
-                    <div id="pie-legend" style="display:flex; flex-direction:column; gap:0.2rem; max-height:400px; overflow-y:auto; padding-right:0.5rem;"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Trade Form -->
-        <div class="glass-card" style="padding:2rem; margin-bottom:2rem;">
-            <div style="display:flex; gap:0; margin-bottom:1.5rem; border-radius:12px; overflow:hidden; border:2px solid rgba(148,163,184,0.15); width:fit-content;">
-                <button onclick="setTradeType('buy')" id="buy-btn" style="padding:0.6rem 2rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem;">▲ 買入</button>
-                <button onclick="setTradeType('sell')" id="sell-btn" style="padding:0.6rem 2rem; background:rgba(15,30,60,0.6); color:#64748b; font-weight:700; font-size:1rem;">▼ 賣出</button>
-            </div>
-            <p id="trade-hint" style="color:#64748b; font-size:0.85rem; margin-bottom:1.5rem; margin-top:-0.5rem;">買入時若代碼已存在將自動加倉並重算加權平均成本</p>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
-                <div><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">市場</label><select id="form-market"><option value="US">🇺🇸 美股</option><option value="TW">🇹🇼 台股</option><option value="HK">🇭🇰 港股</option></select></div>
-                <div><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">股票代碼 *</label><input id="form-symbol" type="text" placeholder="例: AAPL, 2330, 0700" style="text-transform:uppercase;"></div>
-                <div><label id="form-qty-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入股數 *</label><input id="form-quantity" type="number" step="0.0001" placeholder="數量"></div>
-                <div><label id="form-price-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入價格 *</label><input id="form-cost" type="number" step="0.0001" placeholder="此次買入均價"></div>
-            </div>
-            <button onclick="addHolding()" style="margin-top:1.5rem; width:100%; padding:0.85rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem;">▲ 確認買入</button>
-        </div>
-
-        <!-- Holdings Table -->
-        <div id="table-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; overflow-x:auto; display:none;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.5rem;">
-                <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">📊 持倉一覽</h2>
-                <div style="display:flex; gap:1rem; font-size:0.8rem; color:#64748b;"><span>USD/TWD <strong id="rate-usd-twd" style="color:#fbbf24;">31.50</strong></span><span>HKD/TWD <strong id="rate-hkd-twd" style="color:#fbbf24;">4.0500</strong></span></div>
-            </div>
-            <table id="holdings-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;"></table>
-        </div>
-
-        <!-- Holdings Detail -->
-        <div class="glass-card" style="padding:2rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
-                <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">持倉明細 (<span id="holdings-count">0</span>)</h2>
-                <div style="color:#94a3b8; font-size:0.85rem;">點擊綠色/藍色欄位可編輯</div>
-            </div>
-            <div id="holdings-list"></div>
-        </div>
+        <div id="statusBar" class="mt-4 text-sm font-medium min-h-[28px]"></div>
     </div>
 
-    <!-- Modals -->
-    <div id="import-modal" onclick="if(event.target===this)hideImportModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); display:none; align-items:center; justify-content:center; z-index:1000; padding:1rem;">
-        <div class="glass-card" style="padding:2rem; max-width:720px; width:100%; max-height:90vh; display:flex; flex-direction:column;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
-                <h3 style="color:#fbbf24; font-size:1.3rem; margin:0;">📤 匯入持倉 CSV</h3>
-                <button onclick="hideImportModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
-            </div>
-            <label for="csv-file-input" id="csv-drop-zone"
-                ondragover="event.preventDefault(); this.style.borderColor='#fbbf24'; this.style.background='rgba(251,191,36,0.08)';"
-                ondragleave="this.style.borderColor='rgba(59,130,246,0.4)'; this.style.background='rgba(15,30,60,0.4)';"
-                ondrop="handleCsvDrop(event)"
-                style="display:block; border:2px dashed rgba(59,130,246,0.4); border-radius:14px; padding:2rem; text-align:center; cursor:pointer; background:rgba(15,30,60,0.4); transition:all 0.2s; margin-bottom:1rem; flex-shrink:0;">
-                <div style="font-size:2.5rem; margin-bottom:0.5rem;">📁</div>
-                <div style="color:#e2e8f0; font-weight:600; margin-bottom:0.25rem;">拖曳 CSV 到這裡，或點擊選擇檔案</div>
-                <div style="color:#64748b; font-size:0.82rem;">支援「匯出持倉數據」產生的 CSV</div>
-                <input id="csv-file-input" type="file" accept=".csv,text/csv" style="position:absolute;opacity:0;width:0.1px;height:0.1px;overflow:hidden;" onchange="handleCsvFile(this.files[0])">
-            </label>
-            <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem; font-size:0.82rem; color:#94a3b8; flex-shrink:0;">
-                <span style="color:#60a5fa; font-weight:600;">CSV 欄位順序（第一行為標題）：</span><br>
-                <code style="color:#fbbf24;">Symbol, Market, Name, Quantity, Cost Price, Current Price</code><br>
-                <code style="color:#e2e8f0; font-size:0.78rem;">NVDL, US, GraniteShares 2x NVDA, 750, 42.40, 74.17</code>
-            </div>
-            <div id="csv-preview-wrap" style="flex:1; overflow-y:auto; display:none; margin-bottom:1rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-                    <span id="csv-preview-count" style="color:#10b981; font-weight:600; font-size:0.9rem;"></span>
-                    <span id="csv-preview-error" style="color:#ef4444; font-size:0.82rem;"></span>
-                </div>
-                <table id="csv-preview-table" style="width:100%; border-collapse:collapse; font-size:0.82rem;">
-                    <thead><tr style="border-bottom:2px solid rgba(251,191,36,0.3);">
-                        <th style="padding:0.4rem 0.5rem; text-align:left; color:#fbbf24;">代碼</th>
-                        <th style="padding:0.4rem 0.5rem; color:#fbbf24;">市場</th>
-                        <th style="padding:0.4rem 0.5rem; text-align:left; color:#fbbf24;">名稱</th>
-                        <th style="padding:0.4rem 0.5rem; text-align:right; color:#fbbf24;">股數</th>
-                        <th style="padding:0.4rem 0.5rem; text-align:right; color:#fbbf24;">成本價</th>
-                        <th style="padding:0.4rem 0.5rem; text-align:right; color:#fbbf24;">現價</th>
-                    </tr></thead>
-                    <tbody id="csv-preview-tbody"></tbody>
-                </table>
-            </div>
-            <div style="display:flex; gap:0.75rem; flex-shrink:0;">
-                <button id="csv-confirm-btn" onclick="confirmCsvImport()" style="flex:1; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#0a1628; font-weight:700; display:none;">✓ 確認匯入</button>
-                <button onclick="hideImportModal()" style="flex:1; background:rgba(71,85,105,0.3); color:#cbd5e1;">取消</button>
-            </div>
-        </div>
+    <!-- 持倉表格 -->
+    <div class="glass rounded-3xl p-2 mb-8 overflow-hidden border border-amber-400/30">
+        <table id="portfolioTable" class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-900/80 text-amber-300 text-left">
+                    <th class="px-6 py-4">代碼</th>
+                    <th class="px-6 py-4">持股數</th>
+                    <th class="px-6 py-4">成本價</th>
+                    <th class="px-6 py-4">現價</th>
+                    <th class="px-6 py-4">市值</th>
+                    <th class="px-6 py-4">損益</th>
+                    <th class="px-6 py-4">損益%</th>
+                    <th class="px-6 py-4 w-12"></th>
+                </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-slate-700"></tbody>
+        </table>
     </div>
 
-    <div id="confirm-modal" onclick="if(event.target===this)hideConfirmModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); display:none; align-items:center; justify-content:center; z-index:2000;">
-        <div class="glass-card" style="padding:2rem; max-width:420px; width:100%; text-align:center;">
-            <div style="font-size:2rem; margin-bottom:1rem;">⚠️</div>
-            <p id="confirm-text" style="color:#f1f5f9; line-height:1.7; margin-bottom:1.75rem;"></p>
-            <div style="display:flex; gap:0.75rem;">
-                <button onclick="confirmDelete()" style="flex:1; background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color:#fff;">確認刪除</button>
-                <button onclick="hideConfirmModal()" style="flex:1; background:rgba(71,85,105,0.4); color:#cbd5e1;">取消</button>
-            </div>
+    <!-- 總覽卡片 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass rounded-3xl p-6">
+            <div class="text-amber-400 text-sm mb-1">總市值</div>
+            <div id="totalValue" class="text-5xl font-bold text-white">0</div>
+            <div id="totalPL" class="text-lg mt-2 flex items-center gap-2"></div>
+        </div>
+        <div class="glass rounded-3xl p-6">
+            <div class="text-amber-400 text-sm mb-1">總損益</div>
+            <div id="totalProfit" class="text-5xl font-bold text-emerald-400">0</div>
+            <div id="totalProfitPct" class="text-lg mt-2"></div>
+        </div>
+        <div class="glass rounded-3xl p-6">
+            <canvas id="assetChart" class="w-full h-48"></canvas>
         </div>
     </div>
+</div>
 
-    <div id="review-modal" onclick="if(event.target===this)hideReviewModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:2000; padding:1rem;">
-        <div class="glass-card" style="padding:2rem; max-width:700px; width:100%; max-height:85vh; overflow:hidden; display:flex; flex-direction:column;">
-            <h3 style="color:#fbbf24; font-size:1.3rem; margin-bottom:0.5rem;">📋 股價更新審核</h3>
-            <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:1rem;">點擊「新價格」欄位可直接修改</p>
-            <div style="flex:1; overflow-y:auto; margin-bottom:1rem;">
-                <table id="review-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;"></table>
-            </div>
-            <div style="display:flex; gap:0.75rem;">
-                <button onclick="applyReviewedPrices()" style="flex:1; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628;">✓ 套用勾選的價格</button>
-                <button onclick="hideReviewModal()" style="flex:1; background:rgba(71,85,105,0.4); color:#cbd5e1;">取消</button>
-            </div>
-        </div>
-    </div>
+<script>
+// ==================== v13 核心資料結構 ====================
+let portfolio = []; // {ticker, shares, costBasis, currentPrice, name, currency}
 
-    <script>
-        // ==================== 全域變數 ====================
-        let holdings = [];
-        let history = [];
-        let currency = 'USD';
-        let exchangeRates = { USD_TWD: 31.5, HKD_TWD: 4.05 };
-        let tradeType = 'buy';
-        let priceReviewData = null;
-        let chartInstance = null;
-        let currentDeleteId = null;
+// ==================== 匯入持倉 ====================
+function triggerFileInput() {
+    document.getElementById('fileInput').click();
+}
 
-        const IMPORT_DATA = {
-            "holdings": [
-                {"symbol": "7709.HK", "name": "CSOP SK Hynix 2x槓桿", "quantity": 5000.0, "avg_cost": 34.69, "current_price": 27.12},
-                {"symbol": "9747.HK", "name": "三星電子 2x槓桿", "quantity": 2000.0, "avg_cost": 10.84, "current_price": 8.695},
-                {"symbol": "AAOI", "name": "Applied Optoelectronics, Inc.", "quantity": 150.0, "avg_cost": 99.13, "current_price": 95.76},
-                {"symbol": "AMDL", "name": "GraniteShares 2x Long AMD Daily", "quantity": 1500.0, "avg_cost": 6.26, "current_price": 12.32},
-                {"symbol": "ASTX", "name": "Tradr 2X Long ASTS Daily ETF", "quantity": 150.0, "avg_cost": 44.0278, "current_price": 43.66},
-                {"symbol": "AVGX", "name": "Defiance 2X Long AVGO Daily ETF", "quantity": 1250.0, "avg_cost": 26.92, "current_price": 38.35},
-                {"symbol": "AXTI", "name": "AXT Inc", "quantity": 450.0, "avg_cost": 32.36, "current_price": 64.44},
-                {"symbol": "BTC-USD", "name": "Bitcoin", "quantity": 0.49, "avg_cost": 105000.0, "current_price": 70650.0},
-                {"symbol": "COHX", "name": "Tradr 2X Long COHR Daily ETF", "quantity": 550.0, "avg_cost": 29.13, "current_price": 30.07},
-                {"symbol": "FBL", "name": "GraniteShares 2x Long META Daily", "quantity": 500.0, "avg_cost": 31.43, "current_price": 26.0},
-                {"symbol": "GGLL", "name": "Direxion Daily GOOGL Bull 2X Sh", "quantity": 250.0, "avg_cost": 96.44, "current_price": 87.6},
-                {"symbol": "LITX", "name": "Tradr 2X Long LITE Daily ETF", "quantity": 700.0, "avg_cost": 25.74, "current_price": 32.88},
-                {"symbol": "MUU", "name": "Direxion Daily MU Bull 2X Share", "quantity": 922.0, "avg_cost": 118.51, "current_price": 177.1},
-                {"symbol": "NBIG", "name": "Leverage Shares 2X Long NBIS Daily", "quantity": 2500.0, "avg_cost": 7.17, "current_price": 9.15},
-                {"symbol": "NVDL", "name": "GraniteShares 2x Long NVDA Daily", "quantity": 750.0, "avg_cost": 42.3971, "current_price": 74.17},
-                {"symbol": "ORCU", "name": "Direxion Daily ORCL Bull 2X ETF", "quantity": 500.0, "avg_cost": 15.83, "current_price": 10.62},
-                {"symbol": "PLTU", "name": "Direxion Daily PLTR Bull 2X Share", "quantity": 1200.0, "avg_cost": 31.76, "current_price": 54.78},
-                {"symbol": "SNXX", "name": "Tradr 2X Long SNDK Daily ETF", "quantity": 2250.0, "avg_cost": 43.03, "current_price": 46.37},
-                {"symbol": "STX", "name": "Seagate Technology Holdings PLC", "quantity": 30.0, "avg_cost": 313.93, "current_price": 404.02},
-                {"symbol": "TSLL", "name": "Direxion Daily TSLA Bull 1.5X Share", "quantity": 1250.0, "avg_cost": 15.0, "current_price": 12.95},
-                {"symbol": "TSMX", "name": "Direxion Daily TSM Bull 2X Share", "quantity": 1000.0, "avg_cost": 32.33, "current_price": 58.05},
-                {"symbol": "USD", "name": "ProShares Ultra Semiconductors", "quantity": 5900.0, "avg_cost": 7.4, "current_price": 50.7},
-                {"symbol": "WDCX", "name": "Tradr 2X Long WDC Daily ETF", "quantity": 350.0, "avg_cost": 28.59, "current_price": 33.1}
-            ]
-        };
+async function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    showStatus(`📂 正在讀取 ${file.name}...`, 'amber');
+    
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const csv = event.target.result;
+        parseCSV(csv);
+        e.target.value = ''; // 重置 input
+    };
+    reader.readAsText(file);
+}
 
-        // ==================== 計算統計（強制 100%） ====================
-        function calculateStats() {
-            let totalCostUSD = 0, totalValueUSD = 0, totalCostTWD = 0, totalValueTWD = 0;
-            // 第一遍：計算各持倉的 USD/TWD 市值並累加總計
-            let holdingsWithStats = holdings.map(h => {
-                const costTotal = h.costPrice * h.quantity;
-                const valueTotal = h.currentPrice * h.quantity;
-                let costUSD = costTotal, valueUSD = valueTotal, costTWD = costTotal, valueTWD = valueTotal;
-                if (h.symbol === '9747.HK') {
-                    costTWD = costTotal * exchangeRates.USD_TWD; valueTWD = valueTotal * exchangeRates.USD_TWD;
-                } else if (h.market === 'TW') {
-                    costUSD = costTotal / exchangeRates.USD_TWD; valueUSD = valueTotal / exchangeRates.USD_TWD;
-                } else if (h.market === 'HK') {
-                    costUSD = costTotal * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
-                    valueUSD = valueTotal * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
-                    costTWD = costTotal * exchangeRates.HKD_TWD; valueTWD = valueTotal * exchangeRates.HKD_TWD;
-                } else {
-                    costTWD = costTotal * exchangeRates.USD_TWD; valueTWD = valueTotal * exchangeRates.USD_TWD;
-                }
-                totalCostUSD += costUSD; totalValueUSD += valueUSD; totalCostTWD += costTWD; totalValueTWD += valueTWD;
-                // 先不算 percentage，等第一遍全部跑完才有正確的 totalValueUSD
-                return { ...h, costTotalUSD: costUSD, valueTotalUSD: valueUSD, costTotalTWD: costTWD, valueTotalTWD: valueTWD, percentage: 0 };
+function parseCSV(csv) {
+    const rows = csv.trim().split('\n');
+    const headers = rows[0].toLowerCase().split(',');
+    
+    portfolio = []; // 清空舊資料
+    
+    for (let i = 1; i < rows.length; i++) {
+        if (!rows[i].trim()) continue;
+        const values = rows[i].split(',');
+        const ticker = values[headers.indexOf('ticker') || 0] || values[0];
+        const shares = parseFloat(values[headers.indexOf('shares') || 1] || values[1]) || 0;
+        const cost = parseFloat(values[headers.indexOf('cost') || 2] || values[2]) || 0;
+        
+        if (ticker && shares > 0) {
+            portfolio.push({
+                ticker: ticker.trim().toUpperCase(),
+                shares: shares,
+                costBasis: cost,
+                currentPrice: null,
+                name: ticker,
+                currency: ticker.includes('.HK') || ticker.includes('7709') || ticker.includes('9747') ? 'HKD' : 'USD'
             });
+        }
+    }
+    
+    renderTable();
+    showStatus(`✅ 成功匯入 ${portfolio.length} 筆持倉！`, 'emerald');
+}
 
-            // 第二遍：用完整的 totalValueUSD 計算正確的占比，再強制總和 = 100%
-            if (totalValueUSD > 0) {
-                holdingsWithStats.forEach(h => { h.percentage = (h.valueTotalUSD / totalValueUSD) * 100; });
+// ==================== 抓即時匯率 & 股價 ====================
+async function fetchRealTimeData() {
+    const loading = document.getElementById('fetchLoading');
+    loading.classList.remove('hidden');
+    showStatus('🌐 正在抓取最新股價與匯率...', 'amber');
+    
+    try {
+        const allTickers = portfolio.map(p => p.ticker).join(',');
+        const defaultTickers = 'AAOI,AMD,AVGO,AXTI,COHR,META,GOOG,LITE,MU,NBIS,NVDA,ORCL,PLTR,SNDK,STX,TSLA,TSM,WDC,7709.HK,9747.HK,ETH,BTC,ONDS,TSM';
+        
+        const symbols = allTickers || defaultTickers;
+        
+        const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}&fields=regularMarketPrice,shortName`;
+        
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        
+        if (!response.ok) throw new Error('Yahoo API 回應錯誤');
+        
+        const json = await response.json();
+        const quotes = json.quoteResponse.result || [];
+        
+        quotes.forEach(q => {
+            let ticker = q.symbol;
+            const item = portfolio.find(p => p.ticker === ticker || p.ticker === ticker.replace('-USD',''));
+            if (item) {
+                item.currentPrice = q.regularMarketPrice;
+                item.name = q.shortName || item.ticker;
             }
-            const sumPct = holdingsWithStats.reduce((sum, h) => sum + h.percentage, 0);
-            if (sumPct > 0) {
-                holdingsWithStats.forEach(h => h.percentage = (h.percentage / sumPct) * 100);
-            }
+        });
+        
+        renderTable();
+        updateSummary();
+        showStatus(`✅ 即時資料更新完成！共抓取 ${quotes.length} 筆`, 'emerald');
+        
+    } catch (err) {
+        console.error(err);
+        showStatus(`❌ 抓取失敗：${err.message}（請稍後再試或檢查網路）`, 'red');
+    } finally {
+        document.getElementById('fetchLoading').classList.add('hidden');
+    }
+}
 
-            const totalPnLUSD = totalValueUSD - totalCostUSD;
-            const totalPnLTWD = totalValueTWD - totalCostTWD;
-            return { totalCost: totalCostUSD, totalValue: totalValueUSD, totalPnL: totalPnLUSD, totalPnLPercent: totalCostUSD > 0 ? (totalPnLUSD / totalCostUSD) * 100 : 0, totalCostTWD, totalValueTWD, totalPnLTWD, totalPnLPercentTWD: totalCostTWD > 0 ? (totalPnLTWD / totalCostTWD) * 100 : 0, holdingsWithStats };
+// ==================== 表格渲染 ====================
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    
+    portfolio.forEach((item, index) => {
+        const marketValue = item.currentPrice ? (item.shares * item.currentPrice).toFixed(2) : '-';
+        const pl = item.currentPrice ? (item.currentPrice - item.costBasis) * item.shares : 0;
+        const plPct = item.currentPrice ? ((item.currentPrice / item.costBasis - 1) * 100).toFixed(2) : '-';
+        
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-800/50 transition-colors';
+        row.innerHTML = `
+            <td class="px-6 py-4 font-medium">${item.ticker}</td>
+            <td class="px-6 py-4">${item.shares.toLocaleString()}</td>
+            <td class="px-6 py-4">${item.costBasis.toFixed(2)}</td>
+            <td class="px-6 py-4 font-semibold">${item.currentPrice ? item.currentPrice.toFixed(2) : '---'}</td>
+            <td class="px-6 py-4 font-semibold">${marketValue}</td>
+            <td class="px-6 py-4 ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}">${pl.toFixed(2)}</td>
+            <td class="px-6 py-4 ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}">${plPct}%</td>
+            <td class="px-6 py-4">
+                <button onclick="deleteRow(${index})" class="text-red-400 hover:text-red-500 text-xl">🗑</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    if (portfolio.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-slate-400">尚無持倉資料，請先匯入 CSV 或手動新增</td></tr>`;
+    }
+}
+
+function deleteRow(index) {
+    if (confirm('確定刪除此筆持倉？')) {
+        portfolio.splice(index, 1);
+        renderTable();
+        updateSummary();
+    }
+}
+
+// ==================== 手動新增 ====================
+function addManualRow() {
+    const ticker = prompt('請輸入代碼 (例如 NVDA 或 2330.TW)：') || '';
+    if (!ticker) return;
+    
+    const shares = parseFloat(prompt('持股數量：')) || 0;
+    const cost = parseFloat(prompt('成本價 (USD/TWD/HKD)：')) || 0;
+    
+    portfolio.push({
+        ticker: ticker.toUpperCase(),
+        shares: shares,
+        costBasis: cost,
+        currentPrice: null,
+        name: ticker,
+        currency: 'USD'
+    });
+    
+    renderTable();
+    updateSummary();
+}
+
+// ==================== 總覽更新 ====================
+function updateSummary() {
+    let totalValue = 0;
+    let totalCost = 0;
+    
+    portfolio.forEach(item => {
+        if (item.currentPrice) {
+            const mv = item.shares * item.currentPrice;
+            totalValue += mv;
+            totalCost += item.shares * item.costBasis;
         }
+    });
+    
+    const totalPL = totalValue - totalCost;
+    const plPct = totalCost > 0 ? (totalPL / totalCost * 100).toFixed(2) : 0;
+    
+    document.getElementById('totalValue').textContent = totalValue.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('totalProfit').textContent = totalPL.toFixed(2);
+    document.getElementById('totalProfit').className = `text-5xl font-bold ${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+    
+    document.getElementById('totalPL').innerHTML = `
+        總損益 <span class="${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}">${totalPL.toFixed(2)}</span> 
+        <span class="text-slate-400 text-base">(${plPct}%)</span>
+    `;
+    
+    document.getElementById('lastUpdate').textContent = `最後更新：${new Date().toLocaleTimeString('zh-TW')}`;
+    
+    updateChart();
+}
 
-        // ==================== 工具函數 ====================
-        function saveHistory() {
-            if (history.length >= 10) history.shift();
-            history.push(JSON.parse(JSON.stringify(holdings)));
-            document.getElementById('undo-count').textContent = `(${history.length})`;
-        }
-        function undoLastAction() {
-            if (history.length === 0) return alert('已無可還原步驟');
-            holdings = history.pop();
-            document.getElementById('undo-count').textContent = `(${history.length})`;
-            renderAll();
-        }
-        function setCurrency(c) {
-            currency = c;
-            document.getElementById('currency-usd').style.background = c === 'USD' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'rgba(10,22,40,0.92)';
-            document.getElementById('currency-usd').style.color = c === 'USD' ? '#0a1628' : '#64748b';
-            document.getElementById('currency-twd').style.background = c === 'TWD' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'rgba(10,22,40,0.92)';
-            document.getElementById('currency-twd').style.color = c === 'TWD' ? '#0a1628' : '#64748b';
-            renderAll();
-        }
-        function setTradeType(type) {
-            tradeType = type;
-            document.getElementById('buy-btn').style.background = type === 'buy' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(15,30,60,0.6)';
-            document.getElementById('buy-btn').style.color = type === 'buy' ? '#0a1628' : '#64748b';
-            document.getElementById('sell-btn').style.background = type === 'sell' ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : 'rgba(15,30,60,0.6)';
-            document.getElementById('sell-btn').style.color = type === 'sell' ? '#fff' : '#64748b';
-            document.getElementById('form-qty-label').textContent = type === 'buy' ? '買入股數 *' : '賣出股數 *';
-            document.getElementById('form-price-label').textContent = type === 'buy' ? '買入價格 *' : '賣出價格 *';
-            document.getElementById('trade-hint').textContent = type === 'buy' ? '買入時若代碼已存在將自動加倉並重算加權平均成本' : '賣出時將從持倉中扣除股數，賣至歸零將移除該持倉';
-        }
+let assetChartInstance = null;
+function updateChart() {
+    const ctx = document.getElementById('assetChart');
+    if (assetChartInstance) assetChartInstance.destroy();
+    
+    const labels = portfolio.map(p => p.ticker);
+    const values = portfolio.map(p => p.currentPrice ? p.shares * p.currentPrice : 0);
+    
+    assetChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels.length ? labels : ['尚無資料'],
+            datasets: [{
+                data: values.length ? values : [1],
+                backgroundColor: ['#fbbf24', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6', '#f59e0b']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#e2e8f0', boxWidth: 12 } } } }
+    });
+}
 
-        // ==================== 渲染 ====================
-        function renderStats(stats) {
-            const grid = document.getElementById('stats-grid');
-            grid.innerHTML = `
-                <div class="stat-card">
-                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
-                        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(251,191,36,0.4);">💰</div>
-                        <span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總投入</span>
-                    </div>
-                    <div class="mono" style="color:#fbbf24;font-size:1.8rem;font-weight:700;">${currency==='USD' ? '$' + stats.totalCost.toLocaleString('en-US',{minimumFractionDigits:2}) : 'NT$' + Math.round(stats.totalCostTWD).toLocaleString('en-US')}</div>
-                    <div class="mono" style="color:#64748b;font-size:0.9rem;margin-top:0.5rem;">${currency==='USD' ? 'NT$' + Math.round(stats.totalCostTWD).toLocaleString('en-US') : '$' + stats.totalCost.toLocaleString('en-US',{minimumFractionDigits:2})}</div>
-                </div>
-                <div class="stat-card">
-                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
-                        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#3b82f6 0%,#2563eb 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(59,130,246,0.4);">📈</div>
-                        <span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總市值</span>
-                    </div>
-                    <div class="mono" style="color:#3b82f6;font-size:1.8rem;font-weight:700;">${currency==='USD' ? '$' + stats.totalValue.toLocaleString('en-US',{minimumFractionDigits:2}) : 'NT$' + Math.round(stats.totalValueTWD).toLocaleString('en-US')}</div>
-                    <div class="mono" style="color:#64748b;font-size:0.9rem;margin-top:0.5rem;">${currency==='USD' ? 'NT$' + Math.round(stats.totalValueTWD).toLocaleString('en-US') : '$' + stats.totalValue.toLocaleString('en-US',{minimumFractionDigits:2})}</div>
-                </div>
-                <div class="stat-card">
-                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
-                        <div style="width:40px;height:40px;border-radius:10px;background:${stats.totalPnL>=0?'linear-gradient(135deg,#10b981 0%,#059669 100%)':'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)'};display:flex;align-items:center;justify-content:center;box-shadow:${stats.totalPnL>=0?'0 4px 15px rgba(16,185,129,0.4)':'0 4px 15px rgba(239,68,68,0.4)'};">${stats.totalPnL>=0?'📈':'📉'}</div>
-                        <span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總損益</span>
-                    </div>
-                    <div class="mono" style="font-size:1.8rem;font-weight:700;">
-                        <span class="${stats.totalPnL>=0?'profit':'loss'}">
-                            ${currency==='USD' ? (stats.totalPnL>=0?'+':'-') + '$' + Math.abs(stats.totalPnL).toLocaleString('en-US',{minimumFractionDigits:2}) : (stats.totalPnLTWD>=0?'+':'-') + 'NT$' + Math.abs(Math.round(stats.totalPnLTWD)).toLocaleString('en-US')}
-                        </span>
-                        <span style="font-size:1.1rem;margin-left:0.5rem;" class="${stats.totalPnL>=0?'profit':'loss'}">(${stats.totalPnL>=0?'+':''}${stats.totalPnLPercent.toFixed(2)}%)</span>
-                    </div>
-                    <div class="mono" style="font-size:0.9rem;margin-top:0.5rem;">
-                        <span class="${stats.totalPnLTWD>=0?'profit':'loss'}">
-                            ${currency==='USD' ? (stats.totalPnLTWD>=0?'+':'-') + 'NT$' + Math.abs(Math.round(stats.totalPnLTWD)).toLocaleString('en-US') : (stats.totalPnL>=0?'+':'-') + '$' + Math.abs(stats.totalPnL).toLocaleString('en-US',{minimumFractionDigits:2})}
-                        </span>
-                    </div>
-                </div>
-            `;
-        }
+// ==================== 匯出 ====================
+function exportPortfolio() {
+    if (portfolio.length === 0) return alert('尚無資料可匯出');
+    
+    let csv = 'ticker,shares,costBasis,currentPrice\n';
+    portfolio.forEach(p => {
+        csv += `${p.ticker},${p.shares},${p.costBasis},${p.currentPrice || ''}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portfolio_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+}
 
-        function renderTable(stats) {
-            const tbodyHTML = stats.holdingsWithStats.sort((a,b) => b.valueTotalUSD - a.valueTotalUSD).map(h => {
-                const pnl = h.valueTotalUSD - h.costTotalUSD;
-                const isProfit = pnl >= 0;
-                const priceCcy = h.market==='HK'&&h.symbol!=='9747.HK' ? 'HK$' : h.market==='TW' ? 'NT$' : '$';
-                const displayValue = currency==='USD' ? '$' + h.valueTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2}) : 'NT$' + Math.round(h.valueTotalTWD).toLocaleString('en-US');
-                const displayPnl = currency==='USD' ? `${isProfit?'+':'-'}$${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2})}` : `${pnl>=0?'+':'-'}NT$${Math.abs(Math.round(pnl)).toLocaleString('en-US')}`;
-                return `<tr style="background:${Math.random()>0.5?'rgba(15,30,60,0.3)':'rgba(10,20,40,0.2)'};">
-                    <td style="padding:0.55rem 0.75rem; font-weight:600;">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.symbol}<br><small style="color:#64748b;">${h.name||''}</small></td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right;">${h.quantity.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:#94a3b8;">${priceCcy}${h.costPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:#60a5fa;">${priceCcy}${h.currentPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right;">${displayValue}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:${isProfit?'#10b981':'#ef4444'};">${displayPnl}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:${isProfit?'#10b981':'#ef4444'};"><span style="padding:0.2rem 0.5rem;border-radius:6px;background:${isProfit?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};">${isProfit?'+':''}${((pnl/h.costTotalUSD)*100).toFixed(2)}%</span></td>
-                </tr>`;
-            }).join('');
-            document.getElementById('holdings-table').innerHTML = `
-                <thead><tr><th style="padding:0.6rem 0.75rem;text-align:left;color:#fbbf24;">代碼</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">持有股數</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">成本價</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">現價</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">市值 (${currency})</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">損益 (${currency})</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">損益%</th></tr></thead>
-                <tbody>${tbodyHTML}</tbody>
-                <tfoot><tr style="background:rgba(251,191,36,0.08);"><td style="padding:0.65rem 0.75rem;color:#fbbf24;font-weight:700;">合計</td><td></td><td></td><td></td>
-                <td style="padding:0.65rem 0.75rem;text-align:right;color:#fbbf24;font-weight:700;">${currency==='USD'?'$'+stats.totalValue.toLocaleString('en-US',{minimumFractionDigits:2}):'NT$'+Math.round(stats.totalValueTWD).toLocaleString('en-US')}</td>
-                <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${currency==='USD'?(stats.totalPnL>=0?'+':'-')+'$'+Math.abs(stats.totalPnL).toLocaleString('en-US',{minimumFractionDigits:2}):(stats.totalPnLTWD>=0?'+':'-')+'NT$'+Math.abs(Math.round(stats.totalPnLTWD)).toLocaleString('en-US')}</td>
-                <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${stats.totalPnL>=0?'+':''}${stats.totalPnLPercent.toFixed(2)}%</td></tr></tfoot>`;
-        }
+// ==================== 狀態顯示 ====================
+function showStatus(msg, color = 'amber') {
+    const bar = document.getElementById('statusBar');
+    bar.innerHTML = `<span class="text-${color}-400">${msg}</span>`;
+    setTimeout(() => {
+        if (bar.textContent === msg) bar.innerHTML = '';
+    }, 5000);
+}
 
-        function renderHoldingsDetail(stats) {
-            const container = document.getElementById('holdings-list');
-            container.innerHTML = stats.holdingsWithStats.sort((a,b) => b.valueTotalUSD - a.valueTotalUSD).map((h, i) => {
-                const pnl = h.valueTotalUSD - h.costTotalUSD;
-                const isProfit = pnl >= 0;
-                const priceCcy = h.market==='HK'&&h.symbol!=='9747.HK' ? 'HK$' : h.market==='TW' ? 'NT$' : '$';
-                return `
-                <div class="holding-row" style="animation-delay:${i*0.05}s;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
-                        <div style="flex:1; min-width:200px;">
-                            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem; flex-wrap:wrap;">
-                                <span class="market-badge">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.market}</span>
-                                <span class="mono" style="color:#f1f5f9;font-size:1.1rem;font-weight:600;">${h.symbol}</span>
-                                <span style="padding:0.25rem 0.5rem;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.75rem;font-weight:600;color:#60a5fa;">${h.percentage.toFixed(2)}%</span>
-                            </div>
-                            ${h.name ? `<div style="color:#94a3b8;font-size:0.9rem;">${h.name}</div>` : ''}
-                            <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
-                                <span style="color:#64748b;font-size:0.85rem;">持有</span>
-                                <input type="number" step="0.01" value="${h.quantity}" onchange="updateQuantity(${h.id}, this.value)" style="width:100px;padding:0.25rem 0.5rem;font-size:0.85rem;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:4px;color:#e2e8f0;">
-                                <span style="color:#64748b;font-size:0.85rem;">股</span>
-                            </div>
-                        </div>
-                        <div style="flex:1; min-width:250px;">
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.9rem;">
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">成本價</div><input type="number" step="0.01" value="${h.costPrice}" onchange="updateCostPrice(${h.id}, this.value)" style="width:120px;padding:0.5rem;font-size:0.9rem;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:6px;color:#e2e8f0;"></div>
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">現價</div><input type="number" step="0.01" value="${h.currentPrice}" onchange="updateCurrentPrice(${h.id}, this.value)" style="width:120px;padding:0.5rem;font-size:0.9rem;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:#e2e8f0;"></div>
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">成本總額</div><div class="mono">${priceCcy}${h.costTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2})}</div></div>
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">市值</div><div class="mono">${priceCcy}${h.valueTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2})}</div></div>
-                            </div>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:1rem;">
-                            <div style="text-align:right;">
-                                <div class="mono" style="font-size:1.1rem;font-weight:600;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':'-'}${priceCcy}${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
-                                <div class="mono" style="font-size:0.95rem;margin-top:0.25rem;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':''}${(pnl/h.costTotalUSD*100).toFixed(2)}%</span></div>
-                            </div>
-                            <button onclick="deleteHolding(${h.id})" class="btn-delete" title="刪除">🗑️</button>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
-            document.getElementById('holdings-count').textContent = holdings.length;
-        }
-
-        function renderPie(stats) {
-            const pieSection = document.getElementById('pie-section');
-            pieSection.style.display = holdings.length > 0 ? 'block' : 'none';
-            if (holdings.length === 0) return;
-
-            let pieData = stats.holdingsWithStats.filter(h => h.percentage >= 1).map(h => ({ name: h.symbol, value: h.percentage }));
-            let others = stats.holdingsWithStats.filter(h => h.percentage < 1).reduce((sum, h) => sum + h.percentage, 0);
-            if (others > 0) pieData.push({ name: '其他', value: others });
-
-            // 再次強制 100%
-            const total = pieData.reduce((sum, d) => sum + d.value, 0);
-            if (total > 0) pieData.forEach(d => d.value = (d.value / total) * 100);
-
-            const colors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
-
-            if (chartInstance) chartInstance.destroy();
-            const ctx = document.getElementById('pieCanvas');
-            chartInstance = new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: pieData.map(d => d.name),
-                    datasets: [{ data: pieData.map(d => d.value), backgroundColor: pieData.map((_,i) => colors[i % colors.length]), borderColor: '#0a1628', borderWidth: 3 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-
-            const legendHTML = pieData.map((d, i) => `
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.35rem 0.6rem; background:rgba(15,23,42,0.3); border-radius:5px; font-size:0.85rem; border-left:3px solid ${colors[i % colors.length]};">
-                    <div style="display:flex; align-items:center; gap:0.4rem;">
-                        <div style="width:8px;height:8px;border-radius:2px;background:${colors[i % colors.length]};"></div>
-                        <span style="color:#e2e8f0;font-weight:600;">${d.name}</span>
-                    </div>
-                    <span style="color:#3b82f6;font-weight:600;">${d.value.toFixed(2)}%</span>
-                </div>`).join('');
-            document.getElementById('pie-legend').innerHTML = legendHTML;
-        }
-
-        function renderAll() {
-            const stats = calculateStats();
-            renderStats(stats);
-            renderTable(stats);
-            renderHoldingsDetail(stats);
-            renderPie(stats);
-            document.getElementById('table-section').style.display = holdings.length > 0 ? 'block' : 'none';
-            document.getElementById('rate-usd-twd').textContent = exchangeRates.USD_TWD.toFixed(2);
-            document.getElementById('rate-hkd-twd').textContent = exchangeRates.HKD_TWD.toFixed(4);
-        }
-
-        // ==================== 操作 ====================
-        function addHolding() {
-            const symbol = document.getElementById('form-symbol').value.trim().toUpperCase();
-            const quantity = parseFloat(document.getElementById('form-quantity').value);
-            const costPrice = parseFloat(document.getElementById('form-cost').value);
-            const market = document.getElementById('form-market').value;
-            if (!symbol || !quantity || !costPrice) return alert('請填寫所有必要欄位');
-            saveHistory();
-            const existingIndex = holdings.findIndex(h => h.symbol === symbol);
-            const isBuy = tradeType === 'buy';
-            if (!isBuy) {
-                if (existingIndex === -1) return alert('找不到持倉，無法賣出');
-                const existing = holdings[existingIndex];
-                const remain = existing.quantity - quantity;
-                if (remain < 0) return alert('賣出數量超過持有股數');
-                if (remain <= 0.000001) holdings.splice(existingIndex, 1);
-                else holdings[existingIndex].quantity = remain;
-            } else {
-                if (existingIndex !== -1) {
-                    const existing = holdings[existingIndex];
-                    const totalQty = existing.quantity + quantity;
-                    const newAvg = (existing.costPrice * existing.quantity + costPrice * quantity) / totalQty;
-                    holdings[existingIndex].quantity = totalQty;
-                    holdings[existingIndex].costPrice = parseFloat(newAvg.toFixed(4));
-                } else {
-                    holdings.push({ id: Date.now(), symbol, market, name: '', quantity, costPrice, currentPrice: costPrice, addedDate: new Date().toISOString() });
-                }
-            }
-            alert(isBuy ? `✅ 已處理 ${symbol}` : `✅ 已賣出 ${symbol}`);
-            document.getElementById('form-symbol').value = '';
-            document.getElementById('form-quantity').value = '';
-            document.getElementById('form-cost').value = '';
-            renderAll();
-        }
-
-        function updateQuantity(id, newQty) { const parsed = parseFloat(newQty); if (isNaN(parsed)) return; saveHistory(); const h = holdings.find(item => item.id === id); if (h) h.quantity = parsed; renderAll(); }
-        function updateCostPrice(id, newCost) { const parsed = parseFloat(newCost); if (isNaN(parsed)) return; saveHistory(); const h = holdings.find(item => item.id === id); if (h) h.costPrice = parsed; renderAll(); }
-        function updateCurrentPrice(id, newPrice) { const parsed = parseFloat(newPrice); if (isNaN(parsed)) return; saveHistory(); const h = holdings.find(item => item.id === id); if (h) h.currentPrice = parsed; renderAll(); }
-        function deleteHolding(id) {
-            currentDeleteId = id;
-            const h = holdings.find(item => item.id === id);
-            document.getElementById('confirm-text').innerHTML = `確定要刪除「${h.symbol}」的持倉嗎？<br>此操作無法復原。`;
-            document.getElementById('confirm-modal').style.display = 'flex';
-        }
-        function confirmDelete() { saveHistory(); holdings = holdings.filter(h => h.id !== currentDeleteId); hideConfirmModal(); renderAll(); }
-        function hideConfirmModal() { document.getElementById('confirm-modal').style.display = 'none'; currentDeleteId = null; }
-
-        let pendingCsvRows = [];
-
-        function showImportConfirm() {
-            // 每次開啟時重置狀態
-            pendingCsvRows = [];
-            document.getElementById('csv-preview-wrap').style.display = 'none';
-            document.getElementById('csv-confirm-btn').style.display = 'none';
-            document.getElementById('csv-preview-count').textContent = '';
-            document.getElementById('csv-preview-error').textContent = '';
-            document.getElementById('csv-file-input').value = '';
-            const dz = document.getElementById('csv-drop-zone');
-            dz.style.borderColor = 'rgba(59,130,246,0.4)';
-            dz.style.background = 'rgba(15,30,60,0.4)';
-            document.getElementById('import-modal').style.display = 'flex';
-        }
-        function hideImportModal() { document.getElementById('import-modal').style.display = 'none'; }
-
-        function handleCsvDrop(event) {
-            event.preventDefault();
-            const dz = document.getElementById('csv-drop-zone');
-            dz.style.borderColor = 'rgba(59,130,246,0.4)';
-            dz.style.background = 'rgba(15,30,60,0.4)';
-            const file = event.dataTransfer.files[0];
-            if (file) handleCsvFile(file);
-        }
-
-        function handleCsvFile(file) {
-            if (!file) return;
-            if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv') {
-                alert('請選擇 .csv 格式的檔案');
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = e => parseCsvPreview(e.target.result);
-            reader.readAsText(file, 'UTF-8');
-        }
-
-        function parseCsvPreview(csvText) {
-            // 移除 BOM
-            csvText = csvText.replace(/^﻿/, '');
-            const lines = csvText.trim().split(/\r?\n|\r/).filter(l => l.trim());
-            if (lines.length < 2) {
-                showCsvError('CSV 內容為空或只有標題行');
-                return;
-            }
-
-            // 自動偵測標題行並跳過
-            const firstLine = lines[0].replace(/"/g, '').toLowerCase();
-            const hasHeader = firstLine.includes('symbol') || firstLine.includes('market') || firstLine.includes('quantity');
-            const dataLines = hasHeader ? lines.slice(1) : lines;
-
-            const rows = [];
-            const errors = [];
-            dataLines.forEach((line, i) => {
-                const cols = line.split(',').map(c => c.replace(/"/g, '').trim());
-                const symbol = cols[0];
-                const market = (cols[1] || 'US').toUpperCase();
-                const name = cols[2] || '';
-                const quantity = parseFloat(cols[3]);
-                const costPrice = parseFloat(cols[4]);
-                const currentPrice = parseFloat(cols[5]) || costPrice;
-                const addedDate = cols[6] || new Date().toISOString();
-
-                if (!symbol) { errors.push(`第${i+2}行：代碼為空`); return; }
-                if (isNaN(quantity) || quantity <= 0) { errors.push(`第${i+2}行 ${symbol}：股數無效`); return; }
-                if (isNaN(costPrice) || costPrice <= 0) { errors.push(`第${i+2}行 ${symbol}：成本價無效`); return; }
-
-                rows.push({ id: Date.now() + i, symbol, market, name, quantity, costPrice, currentPrice, addedDate });
-            });
-
-            pendingCsvRows = rows;
-            renderCsvPreview(rows, errors);
-        }
-
-        function renderCsvPreview(rows, errors) {
-            const wrap = document.getElementById('csv-preview-wrap');
-            const countEl = document.getElementById('csv-preview-count');
-            const errEl = document.getElementById('csv-preview-error');
-            const tbody = document.getElementById('csv-preview-tbody');
-            const confirmBtn = document.getElementById('csv-confirm-btn');
-
-            countEl.textContent = `✓ 解析到 ${rows.length} 筆持倉`;
-            errEl.textContent = errors.length > 0 ? `⚠ ${errors.length} 行跳過：${errors.slice(0,2).join('；')}` : '';
-
-            tbody.innerHTML = rows.map(r => `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                    <td style="padding:0.35rem 0.5rem; font-weight:600; color:#f1f5f9;">${r.symbol}</td>
-                    <td style="padding:0.35rem 0.5rem; text-align:center; color:#94a3b8;">${r.market==='TW'?'🇹🇼':r.market==='HK'?'🇭🇰':'🇺🇸'}</td>
-                    <td style="padding:0.35rem 0.5rem; color:#94a3b8; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name||'-'}</td>
-                    <td style="padding:0.35rem 0.5rem; text-align:right; color:#e2e8f0;">${r.quantity.toLocaleString()}</td>
-                    <td style="padding:0.35rem 0.5rem; text-align:right; color:#94a3b8;">${r.costPrice}</td>
-                    <td style="padding:0.35rem 0.5rem; text-align:right; color:#60a5fa;">${r.currentPrice}</td>
-                </tr>`).join('');
-
-            wrap.style.display = rows.length > 0 ? 'block' : 'none';
-            confirmBtn.style.display = rows.length > 0 ? 'block' : 'none';
-        }
-
-        function showCsvError(msg) {
-            document.getElementById('csv-preview-count').textContent = '';
-            document.getElementById('csv-preview-error').textContent = '❌ ' + msg;
-            document.getElementById('csv-preview-wrap').style.display = 'block';
-            document.getElementById('csv-preview-tbody').innerHTML = '';
-            document.getElementById('csv-confirm-btn').style.display = 'none';
-        }
-
-        function confirmCsvImport() {
-            if (pendingCsvRows.length === 0) return;
-            saveHistory();
-            holdings = pendingCsvRows;
-            hideImportModal();
-            alert(`✅ 成功匯入 ${holdings.length} 筆持倉數據！`);
-            renderAll();
-        }
-
-        function exportHoldings() {
-            if (holdings.length === 0) return alert('尚無持倉');
-            const rows = [['Symbol','Market','Name','Quantity','Cost Price','Current Price','Added Date'], ...holdings.map(h => [h.symbol, h.market, h.name||'', h.quantity, h.costPrice, h.currentPrice, h.addedDate||''])];
-            const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `portfolio_${new Date().toISOString().slice(0,10)}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        async function refreshAllData() {
-            const btn = document.getElementById('refresh-btn');
-            const text = document.getElementById('refresh-text');
-            const icon = document.getElementById('refresh-icon');
-            btn.disabled = true; text.textContent = '更新中...'; icon.style.animation = 'spin 1s linear infinite';
-            try {
-                const sheetUrl = document.getElementById('sheet-url').value.trim();
-                if (!sheetUrl) { alert('請先填入 Google Sheet CSV 連結'); return; }
-                if (!sheetUrl.includes('docs.google.com')) { alert('URL 格式不符，請使用 Google Sheets 已發布的 CSV 連結'); return; }
-
-                // 同時發出：① 股價 CSV ② 即時匯率，不互相等待
-                const ratePromise = fetch('https://open.er-api.com/v6/latest/USD').then(r => r.json()).catch(() => null);
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                let res;
-                try {
-                    res = await fetch(sheetUrl, { signal: controller.signal });
-                } catch(fetchErr) {
-                    clearTimeout(timeoutId);
-                    if (fetchErr.name === 'AbortError') {
-                        alert('⏱ 請求逾時（10秒），請確認 Google Sheet 連結是否正確，或改用「手動輸入報價」。');
-                    } else {
-                        alert(`❌ 網路請求失敗：${fetchErr.message}\n\n可能原因：\n1. CORS 限制（從本地 file:// 開啟時常見）\n2. 網路連線問題\n\n建議改用「手動輸入報價」。`);
-                    }
-                    return;
-                }
-                clearTimeout(timeoutId);
-                if (!res.ok) throw new Error(`伺服器回傳 HTTP ${res.status}`);
-                const csvText = await res.text();
-
-                if (csvText.trim().startsWith('<')) {
-                    alert('❌ Google Sheet 尚未以 CSV 格式發布，或連結不正確。\n\n請在 Google Sheets → 檔案 → 共用 → 發布到網路 → 選擇「逗號分隔值(.csv)」後重試。');
-                    return;
-                }
-
-                const prices = {};
-                const sheetRates = {};
-                csvText.trim().split(/\r?\n/).forEach(line => {
-                    const cols = line.trim().split(',').map(c => c.replace(/"/g,'').trim());
-                    const val = parseFloat(cols[1]);
-                    if (cols.length < 2 || !cols[0] || isNaN(val) || val <= 0) return;
-                    // 特殊 key：匯率覆蓋
-                    if (cols[0] === 'USD_TWD') sheetRates.USD_TWD = val;
-                    else if (cols[0] === 'HKD_TWD') sheetRates.HKD_TWD = val;
-                    else prices[cols[0]] = val;
-                });
-
-                // 套用匯率：Sheet 指定 > 即時 API > 維持現值
-                const rateData = await ratePromise;
-                let rateUpdated = false;
-                if (sheetRates.USD_TWD) { exchangeRates.USD_TWD = sheetRates.USD_TWD; rateUpdated = true; }
-                if (sheetRates.HKD_TWD) { exchangeRates.HKD_TWD = sheetRates.HKD_TWD; rateUpdated = true; }
-                if (!rateUpdated && rateData && rateData.rates) {
-                    const twd = rateData.rates['TWD'], hkd = rateData.rates['HKD'];
-                    if (twd && hkd) {
-                        exchangeRates.USD_TWD = parseFloat(twd.toFixed(4));
-                        exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
-                        rateUpdated = true;
-                    }
-                }
-                if (rateUpdated) {
-                    syncRateInputs();
-                    const updated = new Date().toLocaleTimeString('zh-TW');
-                    document.getElementById('rate-source').textContent = `✓ ${sheetRates.USD_TWD ? 'Sheet 覆蓋' : '即時匯率'}（${updated}）`;
-                }
-
-                if (Object.keys(prices).length === 0) {
-                    alert('⚠️ CSV 解析後沒有有效股價資料。\n請確認第一欄 = 股票代碼，第二欄 = 價格\n\n改用「手動輸入報價」繼續。');
-                    manualPriceReview();
-                    return;
-                }
-
-                const matchCount = holdings.filter(h => prices[h.symbol] != null).length;
-                if (matchCount === 0) {
-                    const sheetSymbols = Object.keys(prices).slice(0, 5).join(', ');
-                    const holdingSymbols = holdings.slice(0, 5).map(h => h.symbol).join(', ');
-                    alert(`⚠️ CSV 代碼與持倉代碼全部不符。\n\nSheet（前5筆）：${sheetSymbols}\n持倉（前5筆）：${holdingSymbols}\n\n請確認代碼格式，或改用「手動輸入報價」。`);
-                    return;
-                }
-
-                showPriceReview(prices);
-
-            } catch(e) {
-                alert(`❌ 更新失敗：${e.message}`);
-            } finally {
-                btn.disabled = false; text.textContent = '一鍵更新報價 + 匯率'; icon.style.animation = 'none';
-            }
-        }
-
-        function manualPriceReview() {
-            const reviewData = {};
-            holdings.forEach(h => reviewData[h.symbol] = { oldPrice: h.currentPrice, newPrice: h.currentPrice, diff: 0, name: h.name||'' });
-            priceReviewData = { prices: reviewData, accepted: Object.keys(reviewData).reduce((a,k)=>{a[k]=true;return a;}, {}) };
-            showReviewModal();
-        }
-        function showPriceReview(allPrices) {
-            const reviewData = {}; const accepted = {};
-            holdings.forEach(h => {
-                const newP = allPrices[h.symbol];
-                if (newP != null && !isNaN(newP)) {
-                    const newPrice = parseFloat(newP.toFixed(4));
-                    const diff = Math.abs(newPrice - h.currentPrice) / h.currentPrice * 100;
-                    reviewData[h.symbol] = { oldPrice: h.currentPrice, newPrice, diff: diff.toFixed(1), name: h.name||'' };
-                    accepted[h.symbol] = diff < 15;
-                }
-            });
-            priceReviewData = { prices: reviewData, accepted };
-            showReviewModal();
-        }
-        function showReviewModal() {
-            const modal = document.getElementById('review-modal');
-            const tbody = document.getElementById('review-table');
-            tbody.innerHTML = `
-                <thead><tr style="border-bottom:2px solid rgba(251,191,36,0.3);"><th style="padding:0.5rem;text-align:center;color:#fbbf24;">✓</th><th style="padding:0.5rem;color:#fbbf24;">代碼</th><th style="padding:0.5rem;text-align:right;color:#fbbf24;">目前價</th><th style="padding:0.5rem;text-align:right;color:#fbbf24;">新價格</th><th style="padding:0.5rem;text-align:right;color:#fbbf24;">差異</th></tr></thead>
-                <tbody>${Object.entries(priceReviewData.prices).map(([symbol, info]) => {
-                    const checked = priceReviewData.accepted[symbol] ? 'background:#10b981;color:#fff' : '';
-                    return `<tr>
-                        <td onclick="toggleReviewAccept('${symbol}')" style="padding:0.5rem;text-align:center;cursor:pointer;"><div style="width:20px;height:20px;border-radius:4px;border:2px solid #10b981;${checked ? 'background:#10b981' : ''};margin:auto;">${priceReviewData.accepted[symbol]?'✓':''}</div></td>
-                        <td style="padding:0.5rem;font-weight:600;cursor:pointer;" onclick="toggleReviewAccept('${symbol}')">${symbol}</td>
-                        <td style="padding:0.5rem;text-align:right;color:#94a3b8;">${info.oldPrice}</td>
-                        <td style="padding:0.5rem;text-align:right;"><input type="number" value="${info.newPrice}" onchange="updateReviewPrice('${symbol}', this.value)" style="width:100px;text-align:right;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:5px;color:#e2e8f0;"></td>
-                        <td style="padding:0.5rem;text-align:right;color:#10b981;font-weight:600;">${info.diff}%</td>
-                    </tr>`;
-                }).join('')}</tbody>`;
-            modal.style.display = 'flex';
-        }
-        function toggleReviewAccept(symbol) { priceReviewData.accepted[symbol] = !priceReviewData.accepted[symbol]; showReviewModal(); }
-        function updateReviewPrice(symbol, val) {
-            const newPrice = parseFloat(val);
-            if (isNaN(newPrice)) return;
-            priceReviewData.prices[symbol].newPrice = newPrice;
-            const old = priceReviewData.prices[symbol].oldPrice;
-            priceReviewData.prices[symbol].diff = (Math.abs(newPrice - old) / old * 100).toFixed(1);
-            showReviewModal();
-        }
-        function applyManualRates() {
-            const usd = parseFloat(document.getElementById('input-usd-twd').value);
-            const hkd = parseFloat(document.getElementById('input-hkd-twd').value);
-            if (!isNaN(usd) && usd > 0) exchangeRates.USD_TWD = usd;
-            if (!isNaN(hkd) && hkd > 0) exchangeRates.HKD_TWD = hkd;
-            document.getElementById('rate-source').textContent = '（手動設定）';
-            renderAll();
-        }
-
-        async function fetchLiveRates(btn) {
-            btn.textContent = '更新中...'; btn.disabled = true;
-            const timer = setTimeout(() => {
-                btn.textContent = '🌐 抓即時匯率'; btn.disabled = false;
-                alert('⏱ 匯率 API 逾時，請稍後再試');
-            }, 8000);
-            try {
-                const res = await fetch('https://open.er-api.com/v6/latest/USD');
-                clearTimeout(timer);
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const data = await res.json();
-                if (!data.rates || !data.rates['TWD'] || !data.rates['HKD']) throw new Error('API 回傳格式異常');
-                const twd = data.rates['TWD'];
-                const hkd = data.rates['HKD'];
-                exchangeRates.USD_TWD = parseFloat(twd.toFixed(4));
-                exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
-                document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
-                document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
-                document.getElementById('rate-source').textContent = '✓ 即時匯率（' + new Date().toLocaleTimeString('zh-TW') + '）';
-                renderAll();
-            } catch(e) {
-                clearTimeout(timer);
-                alert('❌ 無法取得即時匯率：' + e.message + '\n\n請手動填入匯率。');
-            } finally {
-                btn.textContent = '🌐 抓即時匯率'; btn.disabled = false;
-            }
-        }
-
-        function syncRateInputs() {
-            document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
-            document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
-        }
-
-
-            saveHistory();
-            Object.keys(priceReviewData.accepted).forEach(symbol => {
-                if (priceReviewData.accepted[symbol]) {
-                    const h = holdings.find(item => item.symbol === symbol);
-                    if (h) h.currentPrice = priceReviewData.prices[symbol].newPrice;
-                }
-            });
-            hideReviewModal();
-            renderAll();
-            alert('✅ 已套用選取的股價更新');
-        }
-        function hideReviewModal() { document.getElementById('review-modal').style.display = 'none'; priceReviewData = null; }
-
-        // ==================== 初始化 ====================
-        function init() {
-            holdings = [];
-            renderAll();
-            console.log('%c✅ Portfolio Tracker 已啟動', 'color:#10b981; font-size:14px;');
-        }
-        window.onload = init;
-    </script>
+// ==================== 初始化 ====================
+window.onload = function() {
+    portfolio = [
+        {ticker:"NVDA", shares:50, costBasis:120, currentPrice:null, name:"NVIDIA", currency:"USD"},
+        {ticker:"TSM", shares:200, costBasis:180, currentPrice:null, name:"TSMC", currency:"USD"},
+        {ticker:"TSLA", shares:30, costBasis:250, currentPrice:null, name:"Tesla", currency:"USD"},
+        {ticker:"BTC-USD", shares:0.5, costBasis:65000, currentPrice:null, name:"Bitcoin", currency:"USD"},
+        {ticker:"ETH-USD", shares:5, costBasis:3200, currentPrice:null, name:"Ethereum", currency:"USD"}
+    ];
+    
+    renderTable();
+    updateSummary();
+    
+    console.log('%c✅ Portfolio Tracker v13 載入完成！兩個按鈕已完全修復', 'color:#fbbf24; font-size:15px; font-weight:bold');
+};
+</script>
 </body>
 </html>

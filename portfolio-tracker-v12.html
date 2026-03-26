@@ -2,9 +2,28 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio Tracker - 單檔 HTML 版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Portfolio Tracker 持倉追蹤</title>
+
+    <!-- PWA / Add to Home Screen -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#fbbf24">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- iOS Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="持倉追蹤">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+      // 註冊 Service Worker（讓 PWA 可離線使用）
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () =>
+          navigator.serviceWorker.register('./sw.js').catch(() => {})
+        );
+      }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
         * { box-sizing: border-box; }
@@ -68,6 +87,75 @@
         .rsi-ob  { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(239,68,68,0.2); color:#ef4444; font-weight:700; font-size:0.8rem; }
         .rsi-os  { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(59,130,246,0.2); color:#60a5fa; font-weight:700; font-size:0.8rem; }
         .rsi-neu { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(100,116,139,0.2); color:#94a3b8; font-weight:700; font-size:0.8rem; }
+
+        /* ═══════════════════════════════════════
+           行動版響應式樣式 (≤640px)
+           ═══════════════════════════════════════ */
+        @media (max-width: 640px) {
+
+            /* 全體縮小邊距 */
+            body { padding: 0.6rem !important; }
+
+            /* 標題區 */
+            #main-header { padding-top: 2.8rem !important; margin-bottom: 0.75rem !important; }
+            #main-header-wrap { padding: 0.6rem 1rem !important; margin-bottom: 0.25rem !important; }
+            #main-title { font-size: 1.45rem !important; letter-spacing: 1px !important; }
+            #main-header .subtitle { font-size: 0.7rem !important; letter-spacing: 0.5px !important; }
+
+            /* 幣別切換縮小 */
+            #currency-toggle { top: 0.55rem !important; right: 0.55rem !important; }
+            #currency-toggle button { padding: 0.32rem 0.6rem !important; font-size: 0.72rem !important; }
+
+            /* Tab 標籤縮小 */
+            .tab-btn { padding: 0.5rem 0.7rem !important; font-size: 0.78rem !important; letter-spacing: 0 !important; }
+
+            /* 統計卡片：2欄 */
+            #stats-grid { grid-template-columns: 1fr 1fr !important; gap: 0.6rem !important; margin-bottom: 1rem !important; }
+            .stat-card { padding: 0.75rem !important; border-radius: 12px !important; }
+            .stat-card .stat-icon { width: 32px !important; height: 32px !important; font-size: 0.9rem !important; }
+            .stat-card .stat-val { font-size: 1.1rem !important; }
+            .stat-card .stat-sub { font-size: 0.75rem !important; }
+
+            /* 持倉明細 */
+            .holding-row { padding: 0.85rem 0.85rem 0.85rem 1.1rem !important; border-radius: 12px !important; margin-bottom: 0.6rem !important; }
+            /* 成本/現價 input 全寬 */
+            .holding-row input[type="number"] { width: 100% !important; }
+
+            /* glass-card 內距 */
+            .glass-card { border-radius: 14px !important; }
+            .glass-card > div[style*="padding:2rem"],
+            .glass-card > div[style*="padding: 2rem"] { padding: 0.9rem !important; }
+
+            /* 分析控制列 */
+            #analysis-ctrl { padding: 0.6rem 0 0 0 !important; }
+            #analysis-ctrl > div { gap: 0.4rem !important; }
+            #analysis-btn { padding: 0.55rem 1rem !important; font-size: 0.82rem !important; }
+            #backend-btn  { padding: 0.55rem 0.75rem !important; font-size: 0.75rem !important; }
+            #backend-status { font-size: 0.7rem !important; }
+
+            /* 基本面/技術面表格：允許橫向滾動，提示 */
+            #tab-pane-2 .glass-card > div,
+            #tab-pane-3 .glass-card > div { padding: 0.75rem !important; }
+
+            /* 表格字體縮小 */
+            #fund-tbody td, #fund-tbody th,
+            #tech-tbody td, #tech-tbody th { font-size: 0.75rem !important; padding: 0.4rem 0.4rem !important; }
+
+            /* Modal 全寬 */
+            #import-modal > div,
+            #confirm-modal > div,
+            #review-modal > div { padding: 1.1rem !important; border-radius: 14px !important; }
+
+            /* 表單欄位：手機 2欄 */
+            #trade-form-grid { grid-template-columns: 1fr 1fr !important; gap: 0.65rem !important; }
+        }
+
+        /* 超小螢幕 (≤380px) */
+        @media (max-width: 380px) {
+            .tab-btn { padding: 0.45rem 0.5rem !important; font-size: 0.72rem !important; }
+            #stats-grid { grid-template-columns: 1fr 1fr !important; }
+            .stat-card { padding: 0.6rem !important; }
+        }
     </style>
 </head>
 <body>
@@ -79,16 +167,16 @@
     <div style="max-width:1200px; margin:0 auto; position:relative; z-index:1;">
         
         <!-- Currency Toggle -->
-        <div style="position:fixed; top:1.25rem; right:1.25rem; z-index:999; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35); box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+        <div id="currency-toggle" style="position:fixed; top:1.25rem; right:1.25rem; z-index:999; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35); box-shadow:0 4px 20px rgba(0,0,0,0.4);">
             <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color:#0a1628;">$ USD</button>
             <button id="currency-twd" onclick="setCurrency('TWD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:rgba(10,22,40,0.92); color:#64748b;">NT$ TWD</button>
         </div>
 
         <!-- Header -->
-        <div style="margin-bottom:2rem; text-align:center;">
-            <div style="display:inline-block; position:relative; padding:1rem 2rem; background:linear-gradient(135deg, rgba(251,191,36,0.1) 0%, rgba(245,158,11,0.05) 100%); border-radius:20px; border:2px solid rgba(251,191,36,0.3); box-shadow:0 0 40px rgba(251,191,36,0.2); margin-bottom:0.5rem;">
-                <h1 style="color:#fbbf24; font-size:2.5rem; font-weight:900; margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:3px; text-shadow:0 0 20px rgba(251,191,36,0.5); background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fbbf24 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-size:200% auto; animation:shimmer 3s linear infinite;">Portfolio Tracker</h1>
-                <div style="display:flex; align-items:center; justify-content:center; gap:0.5rem; color:#93c5fd; font-size:0.9rem; font-weight:500; letter-spacing:2px; text-transform:uppercase;">台股 • 美股 • 港股 持倉管理系統</div>
+        <div id="main-header" style="margin-bottom:1.25rem; text-align:center; padding-top:2.5rem;">
+            <div id="main-header-wrap" style="display:inline-block; position:relative; padding:1rem 2rem; background:linear-gradient(135deg, rgba(251,191,36,0.1) 0%, rgba(245,158,11,0.05) 100%); border-radius:20px; border:2px solid rgba(251,191,36,0.3); box-shadow:0 0 40px rgba(251,191,36,0.2); margin-bottom:0.5rem;">
+                <h1 id="main-title" style="color:#fbbf24; font-size:2.5rem; font-weight:900; margin:0 0 0.25rem 0; text-transform:uppercase; letter-spacing:3px; text-shadow:0 0 20px rgba(251,191,36,0.5); background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fbbf24 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-size:200% auto; animation:shimmer 3s linear infinite;">Portfolio Tracker</h1>
+                <div class="subtitle" style="display:flex; align-items:center; justify-content:center; gap:0.5rem; color:#93c5fd; font-size:0.9rem; font-weight:500; letter-spacing:2px; text-transform:uppercase;">台股 • 美股 • 港股 持倉管理系統</div>
             </div>
         </div>
 
@@ -155,7 +243,7 @@
                 <button onclick="setTradeType('sell')" id="sell-btn" style="padding:0.6rem 2rem; background:rgba(15,30,60,0.6); color:#64748b; font-weight:700; font-size:1rem;">▼ 賣出</button>
             </div>
             <p id="trade-hint" style="color:#64748b; font-size:0.85rem; margin-bottom:1.5rem; margin-top:-0.5rem;">買入時若代碼已存在將自動加倉並重算加權平均成本</p>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+            <div id="trade-form-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
                 <div><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">市場</label><select id="form-market"><option value="US">🇺🇸 美股</option><option value="TW">🇹🇼 台股</option><option value="HK">🇭🇰 港股</option></select></div>
                 <div><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">股票代碼 *</label><input id="form-symbol" type="text" placeholder="例: AAPL, 2330, 0700" style="text-transform:uppercase;"></div>
                 <div><label id="form-qty-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入股數 *</label><input id="form-quantity" type="number" step="0.0001" placeholder="數量"></div>

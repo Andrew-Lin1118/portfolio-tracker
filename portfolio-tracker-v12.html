@@ -88,6 +88,42 @@
         .rsi-os  { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(59,130,246,0.2); color:#60a5fa; font-weight:700; font-size:0.8rem; }
         .rsi-neu { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(100,116,139,0.2); color:#94a3b8; font-weight:700; font-size:0.8rem; }
 
+        /* ── 凍結欄（持倉代碼 + 查詢標的）── */
+        #tab-pane-2 table thead th:nth-child(1),
+        #tab-pane-2 table tbody td:nth-child(1),
+        #tab-pane-3 table thead th:nth-child(1),
+        #tab-pane-3 table tbody td:nth-child(1) {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background: #0d1d36;
+            min-width: 78px;
+            max-width: 78px;
+            width: 78px;
+            box-shadow: 3px 0 8px rgba(0,0,0,0.6);
+        }
+        #tab-pane-2 table thead th:nth-child(2),
+        #tab-pane-2 table tbody td:nth-child(2),
+        #tab-pane-3 table thead th:nth-child(2),
+        #tab-pane-3 table tbody td:nth-child(2) {
+            position: sticky;
+            left: 78px;
+            z-index: 3;
+            background: #0d1d36;
+            min-width: 100px;
+            max-width: 120px;
+            box-shadow: 3px 0 8px rgba(0,0,0,0.4);
+        }
+        /* 表頭凍結欄需更高 z-index */
+        #tab-pane-2 table thead th:nth-child(1),
+        #tab-pane-2 table thead th:nth-child(2),
+        #tab-pane-3 table thead th:nth-child(1),
+        #tab-pane-3 table thead th:nth-child(2) { z-index: 5; }
+
+        /* 字體大小調整按鈕：寬螢幕隱藏 */
+        #font-ctrl { display:flex; }
+        @media (min-width: 900px) { #font-ctrl { display:none; } }
+
         /* ═══════════════════════════════════════
            行動版響應式樣式 (≤640px)
            ═══════════════════════════════════════ */
@@ -1489,6 +1525,38 @@
             console.log('%c✅ Portfolio Tracker 已啟動', 'color:#10b981; font-size:14px;');
         }
         window.onload = init;
+
+        // ── 字體大小調整 ──
+        (function(){
+            const saved = parseInt(localStorage.getItem('font_size')||'16',10);
+            document.documentElement.style.fontSize = saved + 'px';
+            const lbl = document.getElementById('font-size-label');
+            if(lbl) lbl.textContent = saved + 'px';
+        })();
+        function adjustFontSize(delta){
+            const html = document.documentElement;
+            const cur  = parseInt(html.style.fontSize||'16',10);
+            const next = Math.max(11, Math.min(24, cur + delta));
+            html.style.fontSize = next + 'px';
+            localStorage.setItem('font_size', next);
+            const lbl = document.getElementById('font-size-label');
+            if(lbl) lbl.textContent = next + 'px';
+        }
     </script>
+
+    <!-- 浮動字體調整 (觸控裝置顯示) -->
+    <div id="font-ctrl" style="position:fixed; bottom:5.5rem; right:0.75rem; z-index:998;
+         background:rgba(8,18,35,0.93); border:1.5px solid rgba(251,191,36,0.45);
+         border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.6);
+         display:flex; flex-direction:column; align-items:center; user-select:none;">
+        <button onclick="adjustFontSize(1)"
+                style="padding:0.55rem 1rem; background:none; border:none; border-bottom:1px solid rgba(251,191,36,0.2);
+                       color:#fbbf24; font-weight:800; font-size:1rem; cursor:pointer; width:100%; text-align:center;">A+</button>
+        <span id="font-size-label"
+              style="font-size:0.65rem; color:#64748b; padding:0.2rem 0.5rem; line-height:1.4;">16px</span>
+        <button onclick="adjustFontSize(-1)"
+                style="padding:0.55rem 1rem; background:none; border:none; border-top:1px solid rgba(251,191,36,0.2);
+                       color:#fbbf24; font-weight:800; font-size:0.85rem; cursor:pointer; width:100%; text-align:center;">A-</button>
+    </div>
 </body>
 </html>

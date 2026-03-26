@@ -895,8 +895,38 @@
             saveHistory();
             holdings = pendingCsvRows;
             hideImportModal();
-            alert(`✅ 成功匯入 ${holdings.length} 筆持倉數據！`);
             renderAll();
+            // toast 提示
+            const n = holdings.length;
+            showImportToast(`✅ 已匯入 ${n} 筆持倉，正在自動更新報價與分析數據…`);
+            // 自動串接：報價 → 分析數據
+            autoRefreshAfterImport();
+        }
+
+        function showImportToast(msg, duration) {
+            const toast = document.createElement('div');
+            toast.textContent = msg;
+            Object.assign(toast.style, {
+                position:'fixed', bottom:'1.5rem', left:'50%', transform:'translateX(-50%)',
+                background:'rgba(16,185,129,0.93)', color:'#0a1628',
+                padding:'0.65rem 1.5rem', borderRadius:'20px', fontWeight:'700',
+                fontSize:'0.92rem', zIndex:'9999',
+                boxShadow:'0 4px 18px rgba(0,0,0,0.45)', pointerEvents:'none',
+                whiteSpace:'nowrap'
+            });
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), duration || 3000);
+        }
+
+        async function autoRefreshAfterImport() {
+            // ① 更新報價（有設定 Google Sheet 時才執行）
+            const sheetUrl = (document.getElementById('sheet-url')?.value || '').trim();
+            if (sheetUrl && sheetUrl.includes('docs.google.com')) {
+                await refreshAllData();
+            }
+            // ② 更新分析數據（基本面 + 技術面），強制重新抓取
+            await loadAnalysis(true);
+            showImportToast('✅ 報價與分析數據已全部更新完成', 2500);
         }
 
         function exportHoldings() {
@@ -1013,17 +1043,7 @@
                 }
             });
             renderAll();
-            // 輕量 toast 通知
-            const toast = document.createElement('div');
-            toast.textContent = `✅ 已更新 ${updated} 檔股價`;
-            Object.assign(toast.style, {
-                position:'fixed', bottom:'1.5rem', left:'50%', transform:'translateX(-50%)',
-                background:'rgba(16,185,129,0.92)', color:'#0a1628', padding:'0.6rem 1.4rem',
-                borderRadius:'20px', fontWeight:'700', fontSize:'0.95rem',
-                zIndex:'9999', boxShadow:'0 4px 16px rgba(0,0,0,0.4)', pointerEvents:'none'
-            });
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 2500);
+            showImportToast(`✅ 已更新 ${updated} 檔股價`, 2000);
         }
 
         function manualPriceReview() {
@@ -1125,7 +1145,7 @@
             });
             hideReviewModal();
             renderAll();
-            alert('✅ 已套用選取的股價更新');
+            showImportToast('✅ 已套用選取的股價更新', 2000);
         }
         function hideReviewModal() { document.getElementById('review-modal').style.display = 'none'; priceReviewData = null; }
 

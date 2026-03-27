@@ -1803,6 +1803,11 @@
             const btn = document.getElementById('analysis-btn');
             btn.textContent = '載入中...'; btn.disabled = true;
 
+            // 每次執行分析都清空 prevClose 快取，避免上次執行殘留的舊值造成昨日漲跌顯示 0%
+            window._prevCloseCache     = {};
+            window._prevPrevCloseCache = {};
+            window._marketOpenedToday  = {};
+
             // 無後端時清除 _fundJsonCache，確保每次「強制重整」都重新讀取 fundamentals.json
             if (forceRefresh) window._fundJsonCache = null;
             const fundNote = document.getElementById('fund-backend-note');
@@ -1906,9 +1911,6 @@
             btn.textContent = '🔄 更新分析數據'; btn.disabled = false;
 
             // ── 儲存 prevClose / prevPrevClose / marketOpenedToday 快取 ──
-            if (!window._prevCloseCache)     window._prevCloseCache     = {};
-            if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
-            if (!window._marketOpenedToday)  window._marketOpenedToday  = {};
             rows.forEach(r => {
                 const d = allResults[r.query];
                 if (!r.isProxy) {
@@ -1960,7 +1962,6 @@
             }
 
             // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
-            if (!window._marketOpenedToday) window._marketOpenedToday = {};
             const BASE1_lev = 'https://query1.finance.yahoo.com';
             const proxyRows = rows.filter(r => r.isProxy);
             for (let pi = 0; pi < proxyRows.length; pi++) {

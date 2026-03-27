@@ -1964,13 +1964,15 @@
             // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
             const BASE1_lev = 'https://query1.finance.yahoo.com';
             const proxyRows = rows.filter(r => r.isProxy);
+            console.log('[prevClose-dbg] proxy ETFs:', proxyRows.map(r => r.holding));
             for (let pi = 0; pi < proxyRows.length; pi++) {
                 const r = proxyRows[pi];
                 try {
                     const data  = await yfFetch(`${BASE1_lev}/v8/finance/chart/${r.holding}?interval=1d&range=5d`);
                     const res0  = data?.chart?.result?.[0];
                     const ts    = res0?.timestamp ?? [];
-                    const closes = (res0?.indicators?.quote?.[0]?.close ?? []).filter(c => c != null);
+                    const rawCloses = res0?.indicators?.quote?.[0]?.close ?? [];
+                    const closes = rawCloses.filter(c => c != null);
 
                     // 判斷今日美股是否已開盤（比對最後一根 K 棒的日期與今日 US/ET）
                     const lastTs   = ts[ts.length - 1];
@@ -1989,7 +1991,14 @@
                         if (closes.length >= 1) window._prevCloseCache[r.holding]     = closes[closes.length - 1];
                         if (closes.length >= 2) window._prevPrevCloseCache[r.holding] = closes[closes.length - 2];
                     }
-                } catch(_) {}
+                    console.log('[prevClose-dbg]', r.holding,
+                        '| ts.len='+ts.length, 'closes.len='+closes.length,
+                        '| todayET='+todayET, 'barET='+barET, 'opened='+todayOpened,
+                        '| prevClose='+window._prevCloseCache[r.holding],
+                        '| prevPrev='+window._prevPrevCloseCache[r.holding]);
+                } catch(err) {
+                    console.error('[prevClose-dbg]', r.holding, 'FAILED:', err?.message || err);
+                }
                 if (pi < proxyRows.length - 1) await new Promise(res => setTimeout(res, 300));
             }
 

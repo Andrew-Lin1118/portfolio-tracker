@@ -1792,7 +1792,7 @@
         })();
 
         // ==================== Analysis Cache (sessionStorage, 1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v3';
+        const _CACHE_KEY = 'pf_analysis_v4';
         const _CACHE_TTL = 60 * 60 * 1000;
         function _loadCache() {
             try { const r = JSON.parse(sessionStorage.getItem(_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
@@ -1931,7 +1931,8 @@
                 const missingSyms = [...new Set(
                     rows.filter(r => !r.isProxy && (
                         window._prevCloseCache[r.holding] == null ||
-                        window._prevPrevCloseCache[r.holding] == null
+                        window._prevPrevCloseCache[r.holding] == null ||
+                        window._prevCloseCache[r.holding] === window._prevPrevCloseCache[r.holding]
                     )).map(r => ({ holding: r.holding, query: r.query }))
                         .filter((v, i, a) => a.findIndex(x => x.holding === v.holding) === i)
                 )];

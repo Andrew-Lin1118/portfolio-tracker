@@ -1622,12 +1622,17 @@
                                 const todayET = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York'});
                                 const barET   = tss.length ? new Date(tss[tss.length-1]*1000).toLocaleDateString('en-US',{timeZone:'America/New_York'}) : '';
                                 marketOpenedToday = (todayET === barET);
+                                // 去除 Yahoo 在未開盤時附加的幻影重複 bar（closes[-1]=closes[-2] 完全相等）
+                                const adjC = c.slice();
+                                if (!marketOpenedToday) {
+                                    while (adjC.length >= 2 && adjC[adjC.length-1] === adjC[adjC.length-2]) adjC.pop();
+                                }
                                 if (marketOpenedToday) {
-                                    if (c.length >= 2) prevClose     = c[c.length - 2];
-                                    if (c.length >= 3) prevPrevClose = c[c.length - 3];
+                                    if (adjC.length >= 2) prevClose     = adjC[adjC.length - 2];
+                                    if (adjC.length >= 3) prevPrevClose = adjC[adjC.length - 3];
                                 } else {
-                                    if (c.length >= 1) prevClose     = c[c.length - 1];
-                                    if (c.length >= 2) prevPrevClose = c[c.length - 2];
+                                    if (adjC.length >= 1) prevClose     = adjC[adjC.length - 1];
+                                    if (adjC.length >= 2) prevPrevClose = adjC[adjC.length - 2];
                                 }
                             } catch(_) {}
                         }
@@ -1941,12 +1946,15 @@
                         const barET = tss.length ? new Date(tss[tss.length - 1] * 1000).toLocaleDateString('en-US', {timeZone: 'America/New_York'}) : '';
                         const opened = (todayET === barET);
                         window._marketOpenedToday[holding] = opened;
+                        // 去除幻影重複 bar
+                        const adjCl = closes.slice();
+                        if (!opened) { while (adjCl.length >= 2 && adjCl[adjCl.length-1] === adjCl[adjCl.length-2]) adjCl.pop(); }
                         if (opened) {
-                            if (closes.length >= 2) window._prevCloseCache[holding]     = closes[closes.length - 2];
-                            if (closes.length >= 3) window._prevPrevCloseCache[holding] = closes[closes.length - 3];
+                            if (adjCl.length >= 2) window._prevCloseCache[holding]     = adjCl[adjCl.length - 2];
+                            if (adjCl.length >= 3) window._prevPrevCloseCache[holding] = adjCl[adjCl.length - 3];
                         } else {
-                            if (closes.length >= 1) window._prevCloseCache[holding]     = closes[closes.length - 1];
-                            if (closes.length >= 2) window._prevPrevCloseCache[holding] = closes[closes.length - 2];
+                            if (adjCl.length >= 1) window._prevCloseCache[holding]     = adjCl[adjCl.length - 1];
+                            if (adjCl.length >= 2) window._prevPrevCloseCache[holding] = adjCl[adjCl.length - 2];
                         }
                         // 回填 allResults 讓下次快取也有值
                         if (allResults[query]) {
@@ -1964,7 +1972,6 @@
             // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
             const BASE1_lev = 'https://query1.finance.yahoo.com';
             const proxyRows = rows.filter(r => r.isProxy);
-            console.log('[prevClose-dbg] proxy ETFs:', proxyRows.map(r => r.holding));
             for (let pi = 0; pi < proxyRows.length; pi++) {
                 const r = proxyRows[pi];
                 try {
@@ -1981,24 +1988,21 @@
                     const todayOpened = (todayET === barET);
                     window._marketOpenedToday[r.holding] = todayOpened;
 
+                    // 去除幻影重複 bar：Yahoo 在未開盤時有時會在 range=5d 末尾附加一根與前一根完全相同的 bar
+                    const adjCls = closes.slice();
+                    if (!todayOpened) { while (adjCls.length >= 2 && adjCls[adjCls.length-1] === adjCls[adjCls.length-2]) adjCls.pop(); }
+
                     if (todayOpened) {
                         // 最後一根 = 今日進行中 → closes[-2]=昨日 closes[-3]=前日
-                        if (closes.length >= 2) window._prevCloseCache[r.holding]     = closes[closes.length - 2];
-                        if (closes.length >= 3) window._prevPrevCloseCache[r.holding] = closes[closes.length - 3];
+                        if (adjCls.length >= 2) window._prevCloseCache[r.holding]     = adjCls[adjCls.length - 2];
+                        if (adjCls.length >= 3) window._prevPrevCloseCache[r.holding] = adjCls[adjCls.length - 3];
                     } else {
                         // 最後一根 = 昨日（今日未開盤）→ closes[-1]=昨日 closes[-2]=前日
                         // prevClose 仍儲存（供昨日漲跌計算），但 dayChangePct 將被 flag 抑制
-                        if (closes.length >= 1) window._prevCloseCache[r.holding]     = closes[closes.length - 1];
-                        if (closes.length >= 2) window._prevPrevCloseCache[r.holding] = closes[closes.length - 2];
+                        if (adjCls.length >= 1) window._prevCloseCache[r.holding]     = adjCls[adjCls.length - 1];
+                        if (adjCls.length >= 2) window._prevPrevCloseCache[r.holding] = adjCls[adjCls.length - 2];
                     }
-                    console.log('[prevClose-dbg]', r.holding,
-                        '| ts.len='+ts.length, 'closes.len='+closes.length,
-                        '| todayET='+todayET, 'barET='+barET, 'opened='+todayOpened,
-                        '| prevClose='+window._prevCloseCache[r.holding],
-                        '| prevPrev='+window._prevPrevCloseCache[r.holding]);
-                } catch(err) {
-                    console.error('[prevClose-dbg]', r.holding, 'FAILED:', err?.message || err);
-                }
+                } catch(_) {}
                 if (pi < proxyRows.length - 1) await new Promise(res => setTimeout(res, 300));
             }
 

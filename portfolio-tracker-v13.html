@@ -316,6 +316,7 @@
                 <button onclick="loadAnalysis(event.shiftKey)" id="analysis-btn" title="Shift+Click 強制重新整理（忽略快取）" style="padding:0.7rem 1.5rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.9rem; text-transform:none; letter-spacing:0;">🔄 更新分析數據</button>
                 <button onclick="setBackendUrl()" id="backend-btn" style="padding:0.7rem 1rem; background:rgba(99,102,241,0.15); color:#818cf8; border:1px solid rgba(99,102,241,0.35); border-radius:10px; font-size:0.82rem; font-weight:600; text-transform:none; letter-spacing:0;">⚙️ 後端設定</button>
                 <span id="backend-status" style="font-size:0.78rem; color:#64748b;"></span>
+                <span id="last-analysis-time" style="font-size:0.78rem; color:#10b981; font-weight:600;"></span>
                 <span style="color:#64748b; font-size:0.78rem; margin-left:0.5rem;">槓桿 ETF 自動查詢原型股票 · 資料來源：Yahoo Finance</span>
             </div>
         </div>
@@ -497,9 +498,11 @@
         // ==================== 計算統計（強制 100%） ====================
         function calculateStats() {
             let totalCostUSD = 0, totalValueUSD = 0, totalCostTWD = 0, totalValueTWD = 0;
+            let totalDayPnLUSD = 0, totalDayPnLTWD = 0, hasDayPnL = false;
+
             // 第一遍：計算各持倉的 USD/TWD 市值並累加總計
             let holdingsWithStats = holdings.map(h => {
-                const costTotal = h.costPrice * h.quantity;
+                const costTotal  = h.costPrice * h.quantity;
                 const valueTotal = h.currentPrice * h.quantity;
                 let costUSD = costTotal, valueUSD = valueTotal, costTWD = costTotal, valueTWD = valueTotal;
                 if (h.symbol === '9747.HK') {
@@ -513,23 +516,56 @@
                 } else {
                     costTWD = costTotal * exchangeRates.USD_TWD; valueTWD = valueTotal * exchangeRates.USD_TWD;
                 }
-                totalCostUSD += costUSD; totalValueUSD += valueUSD; totalCostTWD += costTWD; totalValueTWD += valueTWD;
-                // 先不算 percentage，等第一遍全部跑完才有正確的 totalValueUSD
-                return { ...h, costTotalUSD: costUSD, valueTotalUSD: valueUSD, costTotalTWD: costTWD, valueTotalTWD: valueTWD, percentage: 0 };
+                totalCostUSD += costUSD; totalValueUSD += valueUSD;
+                totalCostTWD += costTWD; totalValueTWD += valueTWD;
+
+                // 當天損益：從 _prevCloseCache 取昨收價
+                const prevClose = window._prevCloseCache?.[h.symbol] ?? null;
+                let dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
+                if (prevClose != null && prevClose > 0) {
+                    const dayChange = h.currentPrice - prevClose;
+                    dayChangePct = (dayChange / prevClose) * 100;
+                    const dayPnlNative = dayChange * h.quantity;
+                    if (h.symbol === '9747.HK') {
+                        dayPnlUSD = dayPnlNative * exchangeRates.USD_TWD;
+                        dayPnlTWD = dayPnlNative * exchangeRates.USD_TWD;
+                    } else if (h.market === 'TW') {
+                        dayPnlUSD = dayPnlNative / exchangeRates.USD_TWD;
+                        dayPnlTWD = dayPnlNative;
+                    } else if (h.market === 'HK') {
+                        dayPnlUSD = dayPnlNative * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
+                        dayPnlTWD = dayPnlNative * exchangeRates.HKD_TWD;
+                    } else {
+                        dayPnlUSD = dayPnlNative;
+                        dayPnlTWD = dayPnlNative * exchangeRates.USD_TWD;
+                    }
+                    totalDayPnLUSD += dayPnlUSD;
+                    totalDayPnLTWD += dayPnlTWD;
+                    hasDayPnL = true;
+                }
+
+                return { ...h, costTotalUSD: costUSD, valueTotalUSD: valueUSD,
+                    costTotalTWD: costTWD, valueTotalTWD: valueTWD, percentage: 0,
+                    prevClose, dayChangePct, dayPnlUSD, dayPnlTWD };
             });
 
-            // 第二遍：用完整的 totalValueUSD 計算正確的占比，再強制總和 = 100%
-            if (totalValueUSD > 0) {
+            // 第二遍：計算占比
+            if (totalValueUSD > 0)
                 holdingsWithStats.forEach(h => { h.percentage = (h.valueTotalUSD / totalValueUSD) * 100; });
-            }
             const sumPct = holdingsWithStats.reduce((sum, h) => sum + h.percentage, 0);
-            if (sumPct > 0) {
+            if (sumPct > 0)
                 holdingsWithStats.forEach(h => h.percentage = (h.percentage / sumPct) * 100);
-            }
 
             const totalPnLUSD = totalValueUSD - totalCostUSD;
             const totalPnLTWD = totalValueTWD - totalCostTWD;
-            return { totalCost: totalCostUSD, totalValue: totalValueUSD, totalPnL: totalPnLUSD, totalPnLPercent: totalCostUSD > 0 ? (totalPnLUSD / totalCostUSD) * 100 : 0, totalCostTWD, totalValueTWD, totalPnLTWD, totalPnLPercentTWD: totalCostTWD > 0 ? (totalPnLTWD / totalCostTWD) * 100 : 0, holdingsWithStats };
+            return {
+                totalCost: totalCostUSD, totalValue: totalValueUSD,
+                totalPnL: totalPnLUSD, totalPnLPercent: totalCostUSD > 0 ? (totalPnLUSD / totalCostUSD) * 100 : 0,
+                totalCostTWD, totalValueTWD, totalPnLTWD,
+                totalPnLPercentTWD: totalCostTWD > 0 ? (totalPnLTWD / totalCostTWD) * 100 : 0,
+                totalDayPnLUSD, totalDayPnLTWD, hasDayPnL,
+                holdingsWithStats
+            };
         }
 
         // ==================== 工具函數 ====================
@@ -600,33 +636,97 @@
                         </span>
                     </div>
                 </div>
+                ${(function() {
+                    if (!stats.hasDayPnL) return '';
+                    const d = currency==='USD' ? stats.totalDayPnLUSD : stats.totalDayPnLTWD;
+                    const pos = d >= 0;
+                    const col = pos ? '#10b981' : '#ef4444';
+                    const bg  = pos ? 'linear-gradient(135deg,#10b981 0%,#059669 100%)' : 'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)';
+                    const sh  = pos ? '0 4px 15px rgba(16,185,129,0.4)' : '0 4px 15px rgba(239,68,68,0.4)';
+                    const main = (currency==='USD'
+                        ? (pos?'+':'-')+'$'+Math.abs(d).toLocaleString('en-US',{minimumFractionDigits:2})
+                        : (pos?'+':'-')+'NT$'+Math.abs(Math.round(d)).toLocaleString('en-US'));
+                    const sub = (currency==='USD'
+                        ? (stats.totalDayPnLTWD>=0?'+':'-')+'NT$'+Math.abs(Math.round(stats.totalDayPnLTWD)).toLocaleString('en-US')
+                        : (stats.totalDayPnLUSD>=0?'+':'-')+'$'+Math.abs(stats.totalDayPnLUSD).toLocaleString('en-US',{minimumFractionDigits:2}));
+                    return '<div class="stat-card">'
+                        + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">'
+                        + '<div style="width:40px;height:40px;border-radius:10px;background:'+bg+';display:flex;align-items:center;justify-content:center;box-shadow:'+sh+';">📅</div>'
+                        + '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">當天損益</span>'
+                        + '</div>'
+                        + '<div class="mono" style="font-size:1.8rem;font-weight:700;color:'+col+';">'+main+'</div>'
+                        + '<div class="mono" style="font-size:0.9rem;margin-top:0.5rem;color:'+col+';">'+sub+'</div>'
+                        + '</div>';
+                })()}
             `;
         }
 
         function renderTable(stats) {
-            const tbodyHTML = stats.holdingsWithStats.sort((a,b) => b.valueTotalUSD - a.valueTotalUSD).map(h => {
+            const tbodyHTML = stats.holdingsWithStats.sort((a,b) => b.valueTotalUSD - a.valueTotalUSD).map((h,i) => {
                 const pnl = h.valueTotalUSD - h.costTotalUSD;
                 const isProfit = pnl >= 0;
                 const priceCcy = h.market==='HK'&&h.symbol!=='9747.HK' ? 'HK$' : h.market==='TW' ? 'NT$' : '$';
                 const displayValue = currency==='USD' ? '$' + h.valueTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2}) : 'NT$' + Math.round(h.valueTotalTWD).toLocaleString('en-US');
                 const displayPnl = currency==='USD' ? `${isProfit?'+':'-'}$${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2})}` : `${pnl>=0?'+':'-'}NT$${Math.abs(Math.round(pnl)).toLocaleString('en-US')}`;
-                return `<tr style="background:${Math.random()>0.5?'rgba(15,30,60,0.3)':'rgba(10,20,40,0.2)'};">
-                    <td style="padding:0.55rem 0.75rem; font-weight:600;">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.symbol}<br><small style="color:#64748b;">${h.name||''}</small></td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right;">${h.quantity.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:#94a3b8;">${priceCcy}${h.costPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:#60a5fa;">${priceCcy}${h.currentPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right;">${displayValue}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:${isProfit?'#10b981':'#ef4444'};">${displayPnl}</td>
-                    <td style="padding:0.55rem 0.75rem; text-align:right; color:${isProfit?'#10b981':'#ef4444'};"><span style="padding:0.2rem 0.5rem;border-radius:6px;background:${isProfit?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};">${isProfit?'+':''}${((pnl/h.costTotalUSD)*100).toFixed(2)}%</span></td>
+                const bg = i%2===0 ? 'rgba(15,30,60,0.3)' : 'rgba(10,20,40,0.2)';
+
+                // 當日漲跌幅 & 當天損益
+                let dayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:#64748b;">-</td>';
+                let dayPnlCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:#64748b;">-</td>';
+                if (h.dayChangePct != null) {
+                    const cp = h.dayChangePct >= 0;
+                    dayChgCell = `<td style="padding:0.55rem 0.75rem;text-align:right;">
+                        <span style="padding:0.2rem 0.5rem;border-radius:6px;background:${cp?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};color:${cp?'#10b981':'#ef4444'};">
+                        ${cp?'+':''}${h.dayChangePct.toFixed(2)}%</span></td>`;
+                    const dp = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
+                    const dpp = dp >= 0;
+                    const dpStr = currency==='USD'
+                        ? `${dpp?'+':'-'}$${Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2})}`
+                        : `${dpp?'+':'-'}NT$${Math.abs(Math.round(dp)).toLocaleString('en-US')}`;
+                    dayPnlCell = `<td style="padding:0.55rem 0.75rem;text-align:right;color:${dpp?'#10b981':'#ef4444'};">${dpStr}</td>`;
+                }
+
+                return `<tr style="background:${bg};">
+                    <td style="padding:0.55rem 0.75rem;font-weight:600;">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.symbol}<br><small style="color:#64748b;">${h.name||''}</small></td>
+                    <td style="padding:0.55rem 0.75rem;text-align:right;">${h.quantity.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
+                    <td style="padding:0.55rem 0.75rem;text-align:right;color:#94a3b8;">${priceCcy}${h.costPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                    <td style="padding:0.55rem 0.75rem;text-align:right;color:#60a5fa;">${priceCcy}${h.currentPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                    ${dayChgCell}
+                    ${dayPnlCell}
+                    <td style="padding:0.55rem 0.75rem;text-align:right;">${displayValue}</td>
+                    <td style="padding:0.55rem 0.75rem;text-align:right;color:${isProfit?'#10b981':'#ef4444'};">${displayPnl}</td>
+                    <td style="padding:0.55rem 0.75rem;text-align:right;color:${isProfit?'#10b981':'#ef4444'};"><span style="padding:0.2rem 0.5rem;border-radius:6px;background:${isProfit?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};">${isProfit?'+':''}${((pnl/h.costTotalUSD)*100).toFixed(2)}%</span></td>
                 </tr>`;
             }).join('');
+
+            const dayPnlFooter = stats.hasDayPnL ? (() => {
+                const dp = currency==='USD' ? stats.totalDayPnLUSD : stats.totalDayPnLTWD;
+                const pos = dp >= 0;
+                return `<td style="padding:0.65rem 0.75rem;text-align:right;color:${pos?'#10b981':'#ef4444'};font-weight:700;"></td>
+                        <td style="padding:0.65rem 0.75rem;text-align:right;color:${pos?'#10b981':'#ef4444'};font-weight:700;">${pos?'+':'-'}${currency==='USD'?'$':'NT$'}${currency==='USD'?Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2}):Math.abs(Math.round(dp)).toLocaleString('en-US')}</td>`;
+            })() : '<td></td><td></td>';
+
             document.getElementById('holdings-table').innerHTML = `
-                <thead><tr><th style="padding:0.6rem 0.75rem;text-align:left;color:#fbbf24;">代碼</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">持有股數</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">成本價</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">現價</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">市值 (${currency})</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">損益 (${currency})</th><th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">損益%</th></tr></thead>
+                <thead><tr>
+                    <th style="padding:0.6rem 0.75rem;text-align:left;color:#fbbf24;">代碼</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">持有股數</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">成本價</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">現價</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">當日漲跌</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">當天損益</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">市值 (${currency})</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">總損益 (${currency})</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">損益%</th>
+                </tr></thead>
                 <tbody>${tbodyHTML}</tbody>
-                <tfoot><tr style="background:rgba(251,191,36,0.08);"><td style="padding:0.65rem 0.75rem;color:#fbbf24;font-weight:700;">合計</td><td></td><td></td><td></td>
-                <td style="padding:0.65rem 0.75rem;text-align:right;color:#fbbf24;font-weight:700;">${currency==='USD'?'$'+stats.totalValue.toLocaleString('en-US',{minimumFractionDigits:2}):'NT$'+Math.round(stats.totalValueTWD).toLocaleString('en-US')}</td>
-                <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${currency==='USD'?(stats.totalPnL>=0?'+':'-')+'$'+Math.abs(stats.totalPnL).toLocaleString('en-US',{minimumFractionDigits:2}):(stats.totalPnLTWD>=0?'+':'-')+'NT$'+Math.abs(Math.round(stats.totalPnLTWD)).toLocaleString('en-US')}</td>
-                <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${stats.totalPnL>=0?'+':''}${stats.totalPnLPercent.toFixed(2)}%</td></tr></tfoot>`;
+                <tfoot><tr style="background:rgba(251,191,36,0.08);">
+                    <td style="padding:0.65rem 0.75rem;color:#fbbf24;font-weight:700;">合計</td>
+                    <td></td><td></td><td></td>
+                    ${dayPnlFooter}
+                    <td style="padding:0.65rem 0.75rem;text-align:right;color:#fbbf24;font-weight:700;">${currency==='USD'?'$'+stats.totalValue.toLocaleString('en-US',{minimumFractionDigits:2}):'NT$'+Math.round(stats.totalValueTWD).toLocaleString('en-US')}</td>
+                    <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${currency==='USD'?(stats.totalPnL>=0?'+':'-')+'$'+Math.abs(stats.totalPnL).toLocaleString('en-US',{minimumFractionDigits:2}):(stats.totalPnLTWD>=0?'+':'-')+'NT$'+Math.abs(Math.round(stats.totalPnLTWD)).toLocaleString('en-US')}</td>
+                    <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${stats.totalPnL>=0?'+':''}${stats.totalPnLPercent.toFixed(2)}%</td>
+                </tr></tfoot>`;
         }
 
         function renderHoldingsDetail(stats) {
@@ -661,8 +761,24 @@
                         </div>
                         <div style="display:flex; align-items:center; gap:1rem;">
                             <div style="text-align:right;">
+                                <div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">總損益</div>
                                 <div class="mono" style="font-size:1.1rem;font-weight:600;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':'-'}${priceCcy}${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
-                                <div class="mono" style="font-size:0.95rem;margin-top:0.25rem;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':''}${(pnl/h.costTotalUSD*100).toFixed(2)}%</span></div>
+                                <div class="mono" style="font-size:0.95rem;margin-top:0.15rem;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':''}${(pnl/h.costTotalUSD*100).toFixed(2)}%</span></div>
+                                ${(function() {
+                                    if (h.dayChangePct == null) return '';
+                                    const cp = h.dayChangePct >= 0;
+                                    const col = cp ? '#10b981' : '#ef4444';
+                                    const bgc = cp ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+                                    const dp = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
+                                    const dpStr = currency==='USD'
+                                        ? (dp>=0?'+':'-')+'$'+Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2})
+                                        : (dp>=0?'+':'-')+'NT$'+Math.abs(Math.round(dp)).toLocaleString('en-US');
+                                    return '<div style="margin-top:0.4rem;padding-top:0.35rem;border-top:1px solid rgba(255,255,255,0.08);">'
+                                        + '<div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">當天損益</div>'
+                                        + '<div class="mono" style="font-size:0.9rem;color:'+col+';">'
+                                        + '<span style="padding:0.15rem 0.4rem;border-radius:4px;background:'+bgc+';">'+(cp?'+':'')+h.dayChangePct.toFixed(2)+'%</span>'
+                                        + '&nbsp;'+dpStr+'</div></div>';
+                                })()}
                             </div>
                             <button onclick="deleteHolding(${h.id})" class="btn-delete" title="刪除">🗑️</button>
                         </div>
@@ -1429,6 +1545,7 @@
                             rev_fwd:     f.rev_fwd     ?? null,
                             hist_avg_pe: f.hist_avg_pe ?? null,
                             eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
+                            prevClose:   f.prev_close  ?? null,
                             daily_k:  f.daily_k  ?? null, daily_d:  f.daily_d  ?? null, daily_cross:  f.daily_cross  ?? 'none',
                             weekly_k: f.weekly_k ?? null, weekly_d: f.weekly_d ?? null, weekly_cross: f.weekly_cross ?? 'none',
                             hourly_k: f.hourly_k ?? null, hourly_d: f.hourly_d ?? null, hourly_cross: f.hourly_cross ?? 'none',
@@ -1492,6 +1609,13 @@
             const dailyRSI   = calcRSI(dailyC);
             const hourlyRSI  = calcRSI(hourlyC);
 
+            // 昨收價：優先用 JSON，備用從日線圖取倒數第二根收盤
+            let prevClose = fund?.prev_close ?? null;
+            if (prevClose == null && Array.isArray(dailyC) && dailyC.length >= 2) {
+                const valid = dailyC.filter(c => c != null);
+                prevClose = valid.length >= 2 ? valid[valid.length - 2] : null;
+            }
+
             return {
                 pe, fpe, peg, ps,
                 pb:         fund?.pb         ?? null,
@@ -1499,6 +1623,7 @@
                 rev_fwd:    fund?.rev_fwd    ?? null,
                 hist_avg_pe:fund?.hist_avg_pe ?? null,
                 eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
+                prevClose,
                 weekly_k: weeklyKD?.k ?? null, weekly_d: weeklyKD?.d ?? null, weekly_cross: kdCross(weeklyKD),
                 daily_k:  dailyKD?.k  ?? null, daily_d:  dailyKD?.d  ?? null, daily_cross:  kdCross(dailyKD),
                 hourly_k: hourlyKD?.k ?? null, hourly_d: hourlyKD?.d ?? null, hourly_cross: kdCross(hourlyKD),
@@ -1673,6 +1798,22 @@
             });
 
             btn.textContent = '🔄 更新分析數據'; btn.disabled = false;
+
+            // ── 儲存 prevClose 快取（供持倉管理計算當天損益）──
+            if (!window._prevCloseCache) window._prevCloseCache = {};
+            rows.forEach(r => {
+                const d = allResults[r.query];
+                if (d?.prevClose != null) {
+                    window._prevCloseCache[r.holding] = d.prevClose;
+                    window._prevCloseCache[r.query]   = d.prevClose;
+                }
+            });
+            renderAll(); // 更新持倉管理的當天損益欄位
+
+            // ── 顯示最後更新時間 ──
+            const _t = new Date().toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+            const _timeEl = document.getElementById('last-analysis-time');
+            if (_timeEl) _timeEl.textContent = `｜ 最後更新：${_t}`;
             _lastAnalysisLoad = Date.now(); // 記錄完成時間，供 switchTab 判斷是否需要重整
         }
         // ==================== 初始化 ====================

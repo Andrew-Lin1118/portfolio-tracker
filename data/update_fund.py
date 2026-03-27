@@ -217,6 +217,9 @@ for sym in symbols:
         except Exception as e:
             print(f'    hourly tech error: {e}', flush=True)
 
+        # 昨收價（用於前端計算當天損益）
+        prev_close = info.get('regularMarketPreviousClose') or info.get('previousClose')
+
         result[sym] = {
             # 基本面
             'pe':          info.get('trailingPE'),
@@ -232,6 +235,7 @@ for sym in symbols:
             'eps_next_q2': eps_next_q,
             'eps_cur_y':   info.get('epsCurrentYear'),
             'eps_next_y':  info.get('epsForward'),
+            'prev_close':  safe_float(prev_close),
             # 技術面（日/週/小時）
             'daily_k':  daily_k,  'daily_d':  daily_d,  'daily_cross':  daily_cross,
             'weekly_k': weekly_k, 'weekly_d': weekly_d, 'weekly_cross': weekly_cross,

@@ -223,26 +223,7 @@
         <div id="tab-pane-1" class="tab-pane active" style="padding-top:1.5rem;">
 
         <!-- Stats -->
-        <!-- 當日總損益橫幅（有資料時顯示） -->
-        <div id="day-pnl-banner" style="display:none; margin-bottom:1.2rem; padding:0.9rem 1.5rem;
-             background:linear-gradient(135deg,rgba(20,40,70,0.95) 0%,rgba(10,25,45,0.98) 100%);
-             border:2px solid rgba(251,191,36,0.3); border-radius:16px;
-             box-shadow:0 4px 24px rgba(0,0,0,0.4); display:none;
-             flex-wrap:wrap; align-items:center; gap:1rem; justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:0.75rem;">
-                <span style="font-size:1.4rem;">📅</span>
-                <span style="color:#fbbf24;font-weight:700;font-size:0.95rem;letter-spacing:1px;">當日總損益</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:2rem;flex-wrap:wrap;">
-                <div>
-                    <div id="day-pnl-main" class="mono" style="font-size:1.6rem;font-weight:700;">-</div>
-                    <div id="day-pnl-sub"  class="mono" style="font-size:0.88rem;color:#64748b;margin-top:0.1rem;">-</div>
-                </div>
-                <div id="day-pnl-list" style="display:flex;flex-wrap:wrap;gap:0.5rem;font-size:0.82rem;"></div>
-            </div>
-        </div>
-
-        <div id="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:1.5rem; margin-bottom:2rem;"></div>
+        <div id="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1.5rem; margin-bottom:2rem;"></div>
 
         <!-- Google Sheet URL -->
         <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
@@ -538,8 +519,13 @@
                 totalCostUSD += costUSD; totalValueUSD += valueUSD;
                 totalCostTWD += costTWD; totalValueTWD += valueTWD;
 
-                // 當日損益：從 _prevCloseCache 取昨收價
-                const prevClose = window._prevCloseCache?.[h.symbol] ?? null;
+                // 當日損益：從 _prevCloseCache 取昨收價；前日漲跌：從 _prevPrevCloseCache 取前日收盤
+                const prevClose     = window._prevCloseCache?.[h.symbol]     ?? null;
+                const prevPrevClose = window._prevPrevCloseCache?.[h.symbol] ?? null;
+                let prevDayChangePct = null;
+                if (prevClose != null && prevClose > 0 && prevPrevClose != null && prevPrevClose > 0) {
+                    prevDayChangePct = (prevClose - prevPrevClose) / prevPrevClose * 100;
+                }
                 let dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
                 if (prevClose != null && prevClose > 0) {
                     const dayChange = h.currentPrice - prevClose;
@@ -565,7 +551,7 @@
 
                 return { ...h, costTotalUSD: costUSD, valueTotalUSD: valueUSD,
                     costTotalTWD: costTWD, valueTotalTWD: valueTWD, percentage: 0,
-                    prevClose, dayChangePct, dayPnlUSD, dayPnlTWD };
+                    prevClose, prevPrevClose, prevDayChangePct, dayChangePct, dayPnlUSD, dayPnlTWD };
             });
 
             // 第二遍：計算占比
@@ -656,37 +642,24 @@
                     </div>
                 </div>
                 ${(function() {
-                    // 更新頂部橫幅
-                    const banner = document.getElementById('day-pnl-banner');
-                    if (!banner) return '';
-                    if (!stats.hasDayPnL) { banner.style.display = 'none'; return ''; }
+                    if (!stats.hasDayPnL) return '';
                     const d   = currency==='USD' ? stats.totalDayPnLUSD : stats.totalDayPnLTWD;
                     const pos = d >= 0;
                     const col = pos ? '#10b981' : '#ef4444';
-                    const main = currency==='USD'
+                    const mainStr = currency==='USD'
                         ? (pos?'+':'-')+'$'+Math.abs(d).toLocaleString('en-US',{minimumFractionDigits:2})
                         : (pos?'+':'-')+'NT$'+Math.abs(Math.round(d)).toLocaleString('en-US');
-                    const sub  = currency==='USD'
+                    const subStr  = currency==='USD'
                         ? (stats.totalDayPnLTWD>=0?'+':'-')+'NT$'+Math.abs(Math.round(stats.totalDayPnLTWD)).toLocaleString('en-US')
                         : (stats.totalDayPnLUSD>=0?'+':'-')+'$'+Math.abs(stats.totalDayPnLUSD).toLocaleString('en-US',{minimumFractionDigits:2});
-                    document.getElementById('day-pnl-main').textContent = main;
-                    document.getElementById('day-pnl-main').style.color = col;
-                    document.getElementById('day-pnl-sub').textContent  = sub;
-                    document.getElementById('day-pnl-sub').style.color  = col;
-                    // 各持倉小徽章
-                    const listEl = document.getElementById('day-pnl-list');
-                    if (listEl) {
-                        listEl.innerHTML = stats.holdingsWithStats
-                            .filter(h => h.dayChangePct != null)
-                            .sort((a,b) => Math.abs(b.dayPnlUSD||0) - Math.abs(a.dayPnlUSD||0))
-                            .map(h => {
-                                const cp = h.dayChangePct >= 0;
-                                return '<span style="padding:0.2rem 0.55rem;border-radius:6px;background:'+(cp?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)')+';color:'+(cp?'#10b981':'#ef4444')+';white-space:nowrap;">'
-                                    +h.symbol+' '+(cp?'+':'')+h.dayChangePct.toFixed(2)+'%</span>';
-                            }).join('');
-                    }
-                    banner.style.display = 'flex';
-                    return '';
+                    return '<div class="stat-card" style="border:1px solid rgba(251,191,36,0.25);">'
+                        + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">'
+                        +   '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(245,158,11,0.4);">📅</div>'
+                        +   '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">當日損益</span>'
+                        + '</div>'
+                        + '<div class="mono" style="font-size:1.8rem;font-weight:700;color:'+col+';">'+mainStr+'</div>'
+                        + '<div class="mono" style="font-size:0.9rem;margin-top:0.5rem;color:'+col+';">'+subStr+'</div>'
+                        + '</div>';
                 })()}
             `;
         }
@@ -700,20 +673,28 @@
                 const displayPnl = currency==='USD' ? `${isProfit?'+':'-'}$${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2})}` : `${pnl>=0?'+':'-'}NT$${Math.abs(Math.round(pnl)).toLocaleString('en-US')}`;
                 const bg = i%2===0 ? 'rgba(15,30,60,0.3)' : 'rgba(10,20,40,0.2)';
 
+                // 前日漲跌
+                let prevDayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:#64748b;">-</td>';
+                if (h.prevDayChangePct != null) {
+                    const pp = h.prevDayChangePct >= 0;
+                    prevDayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;">'
+                        + '<span style="padding:0.2rem 0.5rem;border-radius:6px;background:'+(pp?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)')+';color:'+(pp?'#6ee7b7':'#fca5a5')+';font-size:0.88rem;">'
+                        + (pp?'+':'') + h.prevDayChangePct.toFixed(2) + '%</span></td>';
+                }
                 // 當日漲跌幅 & 當日損益
                 let dayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:#64748b;">-</td>';
                 let dayPnlCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:#64748b;">-</td>';
                 if (h.dayChangePct != null) {
                     const cp = h.dayChangePct >= 0;
-                    dayChgCell = `<td style="padding:0.55rem 0.75rem;text-align:right;">
-                        <span style="padding:0.2rem 0.5rem;border-radius:6px;background:${cp?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};color:${cp?'#10b981':'#ef4444'};">
-                        ${cp?'+':''}${h.dayChangePct.toFixed(2)}%</span></td>`;
+                    dayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;">'
+                        + '<span style="padding:0.2rem 0.5rem;border-radius:6px;background:'+(cp?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)')+';color:'+(cp?'#10b981':'#ef4444')+';font-weight:600;">'
+                        + (cp?'+':'') + h.dayChangePct.toFixed(2) + '%</span></td>';
                     const dp = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
                     const dpp = dp >= 0;
                     const dpStr = currency==='USD'
-                        ? `${dpp?'+':'-'}$${Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2})}`
-                        : `${dpp?'+':'-'}NT$${Math.abs(Math.round(dp)).toLocaleString('en-US')}`;
-                    dayPnlCell = `<td style="padding:0.55rem 0.75rem;text-align:right;color:${dpp?'#10b981':'#ef4444'};">${dpStr}</td>`;
+                        ? (dpp?'+':'-')+'$'+Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2})
+                        : (dpp?'+':'-')+'NT$'+Math.abs(Math.round(dp)).toLocaleString('en-US');
+                    dayPnlCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:'+(dpp?'#10b981':'#ef4444')+';">'+dpStr+'</td>';
                 }
 
                 return `<tr style="background:${bg};">
@@ -721,6 +702,7 @@
                     <td style="padding:0.55rem 0.75rem;text-align:right;">${h.quantity.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;color:#94a3b8;">${priceCcy}${h.costPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;color:#60a5fa;">${priceCcy}${h.currentPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                    ${prevDayChgCell}
                     ${dayChgCell}
                     ${dayPnlCell}
                     <td style="padding:0.55rem 0.75rem;text-align:right;">${displayValue}</td>
@@ -732,9 +714,12 @@
             const dayPnlFooter = stats.hasDayPnL ? (() => {
                 const dp = currency==='USD' ? stats.totalDayPnLUSD : stats.totalDayPnLTWD;
                 const pos = dp >= 0;
-                return `<td style="padding:0.65rem 0.75rem;text-align:right;color:${pos?'#10b981':'#ef4444'};font-weight:700;"></td>
-                        <td style="padding:0.65rem 0.75rem;text-align:right;color:${pos?'#10b981':'#ef4444'};font-weight:700;">${pos?'+':'-'}${currency==='USD'?'$':'NT$'}${currency==='USD'?Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2}):Math.abs(Math.round(dp)).toLocaleString('en-US')}</td>`;
-            })() : '<td></td><td></td>';
+                const dpStr = (pos?'+':'-') + (currency==='USD'?'$':'NT$')
+                    + (currency==='USD' ? Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2}) : Math.abs(Math.round(dp)).toLocaleString('en-US'));
+                return '<td></td>'   // 前日漲跌（合計列空白）
+                    + '<td style="padding:0.65rem 0.75rem;text-align:right;color:'+(pos?'#10b981':'#ef4444')+';font-weight:700;"></td>'
+                    + '<td style="padding:0.65rem 0.75rem;text-align:right;color:'+(pos?'#10b981':'#ef4444')+';font-weight:700;">'+dpStr+'</td>';
+            })() : '<td></td><td></td><td></td>';
 
             document.getElementById('holdings-table').innerHTML = `
                 <thead><tr>
@@ -742,6 +727,7 @@
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">持有股數</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">成本價</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">現價</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#94a3b8;">前日漲跌</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">當日漲跌</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">當日損益</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">市值 (${currency})</th>
@@ -1570,12 +1556,13 @@
                         _jsonHasTech = true;
                         return {
                             pe, fpe, peg, ps,
-                            pb:          f.pb          ?? null,
-                            rev_yoy:     f.rev_yoy     ?? null,
-                            rev_fwd:     f.rev_fwd     ?? null,
-                            hist_avg_pe: f.hist_avg_pe ?? null,
+                            pb:           f.pb          ?? null,
+                            rev_yoy:      f.rev_yoy     ?? null,
+                            rev_fwd:      f.rev_fwd     ?? null,
+                            hist_avg_pe:  f.hist_avg_pe ?? null,
                             eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
-                            prevClose:   f.prev_close  ?? null,
+                            prevClose:     f.prev_close      ?? null,
+                            prevPrevClose: f.prev_prev_close ?? null,
                             daily_k:  f.daily_k  ?? null, daily_d:  f.daily_d  ?? null, daily_cross:  f.daily_cross  ?? 'none',
                             weekly_k: f.weekly_k ?? null, weekly_d: f.weekly_d ?? null, weekly_cross: f.weekly_cross ?? 'none',
                             hourly_k: f.hourly_k ?? null, hourly_d: f.hourly_d ?? null, hourly_cross: f.hourly_cross ?? 'none',
@@ -1639,11 +1626,13 @@
             const dailyRSI   = calcRSI(dailyC);
             const hourlyRSI  = calcRSI(hourlyC);
 
-            // 昨收價：優先用 JSON，備用從日線圖取倒數第二根收盤
-            let prevClose = fund?.prev_close ?? null;
-            if (prevClose == null && Array.isArray(dailyC) && dailyC.length >= 2) {
+            // 昨收價 & 前日收盤：優先用 JSON，備用從日線圖取倒數第二、三根收盤
+            let prevClose     = fund?.prev_close      ?? null;
+            let prevPrevClose = fund?.prev_prev_close ?? null;
+            if (Array.isArray(dailyC) && dailyC.length >= 2) {
                 const valid = dailyC.filter(c => c != null);
-                prevClose = valid.length >= 2 ? valid[valid.length - 2] : null;
+                if (prevClose == null && valid.length >= 2)     prevClose     = valid[valid.length - 2];
+                if (prevPrevClose == null && valid.length >= 3) prevPrevClose = valid[valid.length - 3];
             }
 
             return {
@@ -1653,7 +1642,7 @@
                 rev_fwd:    fund?.rev_fwd    ?? null,
                 hist_avg_pe:fund?.hist_avg_pe ?? null,
                 eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
-                prevClose,
+                prevClose, prevPrevClose,
                 weekly_k: weeklyKD?.k ?? null, weekly_d: weeklyKD?.d ?? null, weekly_cross: kdCross(weeklyKD),
                 daily_k:  dailyKD?.k  ?? null, daily_d:  dailyKD?.d  ?? null, daily_cross:  kdCross(dailyKD),
                 hourly_k: hourlyKD?.k ?? null, hourly_d: hourlyKD?.d ?? null, hourly_cross: kdCross(hourlyKD),
@@ -1829,13 +1818,15 @@
 
             btn.textContent = '🔄 更新分析數據'; btn.disabled = false;
 
-            // ── 儲存 prevClose 快取 ──
-            // 非槓桿 ETF：直接用分析結果的 prevClose
-            if (!window._prevCloseCache) window._prevCloseCache = {};
+            // ── 儲存 prevClose / prevPrevClose 快取 ──
+            // 非槓桿 ETF：直接用分析結果
+            if (!window._prevCloseCache)     window._prevCloseCache     = {};
+            if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
             rows.forEach(r => {
                 const d = allResults[r.query];
-                if (!r.isProxy && d?.prevClose != null) {
-                    window._prevCloseCache[r.holding] = d.prevClose;
+                if (!r.isProxy) {
+                    if (d?.prevClose     != null) window._prevCloseCache[r.holding]     = d.prevClose;
+                    if (d?.prevPrevClose != null) window._prevPrevCloseCache[r.holding] = d.prevPrevClose;
                 }
             });
 
@@ -1847,9 +1838,8 @@
                 try {
                     const data = await yfFetch(`${BASE1_lev}/v8/finance/chart/${r.holding}?interval=1d&range=5d`);
                     const closes = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(c => c != null);
-                    if (closes?.length >= 2) {
-                        window._prevCloseCache[r.holding] = closes[closes.length - 2];
-                    }
+                    if (closes?.length >= 2) window._prevCloseCache[r.holding]     = closes[closes.length - 2];
+                    if (closes?.length >= 3) window._prevPrevCloseCache[r.holding] = closes[closes.length - 3];
                 } catch(_) {}
                 if (pi < proxyRows.length - 1) await new Promise(res => setTimeout(res, 300));
             }

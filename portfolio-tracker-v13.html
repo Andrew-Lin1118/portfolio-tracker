@@ -1789,39 +1789,59 @@
                     }
                 } catch(_) {}
             }
-            // ②-b + ③ 並行抓取：v6/finance/quote（基本面，無需認證）+ 三個週期 K 線圖
-            // Yahoo Finance v10/quoteSummary 自 2025 年起要求 crumb 驗證（HTTP 401），
-            // 改用 v6/finance/quote 不需任何 cookie/crumb，可直接透過 CORS proxy 取得。
+            // ②-b + ③ 並行抓取：quote（基本面）+ 三個週期 K 線圖
+            // 同時嘗試 query1/v6 和 query2/v7 兩個 URL，取第一個回傳有效資料的結果。
+            // _rv() 同時支援直接數值（v6格式）和 {raw,fmt} 物件（quoteSummary格式）。
+            const _rv = f => {
+                if (f == null) return null;
+                if (typeof f === 'object' && f.raw != null) return f.raw;
+                if (typeof f === 'number') return f;
+                if (typeof f === 'string') { const n = parseFloat(f); return isNaN(n) ? null : n; }
+                return null;
+            };
             const _needFund = (pe === null);
+            // 同時打出多個 quote URL，用 Promise.any 取第一個有效回應
+            const _quoteFetch = _needFund ? Promise.any([
+                yfFetch(`https://query1.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(symbol)}`).then(r => {
+                    if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty');
+                    return r;
+                }),
+                yfFetch(`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(symbol)}`).then(r => {
+                    if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty');
+                    return r;
+                }),
+                yfFetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`).then(r => {
+                    if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty');
+                    return r;
+                }),
+            ]).catch(() => null) : Promise.resolve(null);
+
             const [_quoteRaw, weeklyData, dailyData, hourlyData] = await Promise.all([
-                _needFund
-                    ? yfFetch(`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(symbol)}`).catch(() => null)
-                    : Promise.resolve(null),
+                _quoteFetch,
                 yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=2y`).catch(() => null),
                 yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`).catch(() => null),
                 yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1h&range=5d`).catch(() => null)
             ]);
 
-            // 處理 v6/finance/quote 基本面結果
+            // 處理 quote 基本面結果（_rv 同時支援直接數值與 {raw,fmt} 格式）
             if (_needFund && _quoteRaw) {
                 const q = _quoteRaw?.quoteResponse?.result?.[0];
                 if (q) {
-                    pe  = q.trailingPE                              ?? null;
-                    fpe = q.forwardPE                               ?? null;
-                    peg = q.pegRatio                                ?? null;
-                    ps  = q.priceToSalesTrailing12Months            ?? null;
+                    pe  = _rv(q.trailingPE)                                ?? null;
+                    fpe = _rv(q.forwardPE)                                 ?? null;
+                    peg = _rv(q.pegRatio)                                  ?? null;
+                    ps  = _rv(q.priceToSalesTrailing12Months)              ?? null;
                     fund = {
-                        pb:               q.priceToBook                  ?? null,
+                        pb:               _rv(q.priceToBook)               ?? null,
                         hist_avg_pe:      null,
-                        rev_yoy:          q.revenueGrowth                ?? null,
+                        rev_yoy:          _rv(q.revenueGrowth)             ?? null,
                         rev_fwd:          null,
-                        // v6/quote 偶爾包含利潤率（不保證），有則顯示
-                        gross_margin:     q.grossMargins                 ?? null,
-                        operating_margin: q.operatingMargins             ?? null,
-                        eps_ttm:          q.epsTrailingTwelveMonths      ?? null,
+                        gross_margin:     _rv(q.grossMargins)              ?? null,
+                        operating_margin: _rv(q.operatingMargins)          ?? null,
+                        eps_ttm:          _rv(q.epsTrailingTwelveMonths)   ?? null,
                         eps_cur_q:        null,
                         eps_next_q:       null,
-                        eps_cur_y:        q.epsForward                   ?? null,
+                        eps_cur_y:        _rv(q.epsForward)                ?? null,
                         eps_next_y:       null,
                     };
                     eps_ttm    = fund.eps_ttm;
@@ -1829,6 +1849,7 @@
                     eps_next_q = fund.eps_next_q;
                     eps_cur_y  = fund.eps_cur_y;
                     eps_next_y = fund.eps_next_y;
+                    console.log(`[基本面] ${symbol} PE=${pe} FPE=${fpe} EPS=${eps_ttm}`);
                 }
             }
 
@@ -1936,7 +1957,7 @@
         })();
 
         // ==================== Analysis Cache (sessionStorage, 1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v4';
+        const _CACHE_KEY = 'pf_analysis_v5';
         const _CACHE_TTL = 60 * 60 * 1000;
         function _loadCache() {
             try { const r = JSON.parse(sessionStorage.getItem(_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
@@ -2310,7 +2331,7 @@
 
         // ==================== Tab 4：財報分析 & 券商評級 ====================
         let _earningsLoaded = false;
-        const _QS_CACHE_KEY = 'pf_qs_v1';
+        const _QS_CACHE_KEY = 'pf_qs_v2';
         const _QS_CACHE_TTL = 3 * 60 * 60 * 1000; // 3 小時
         function _loadQsCache() {
             try { const r = JSON.parse(sessionStorage.getItem(_QS_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _QS_CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
@@ -2342,8 +2363,11 @@
                 await Promise.all(batch.map(async sym => {
                     try {
                         const [chartData, quoteData] = await Promise.all([
-                            yfFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=3mo&range=2y&events=earnings`).catch(() => null),
-                            yfFetch(`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(sym)}`).catch(() => null)
+                            yfFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1mo&range=2y&events=earnings`).catch(() => null),
+                            Promise.any([
+                                yfFetch(`https://query1.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(sym)}`).then(r => { if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty'); return r; }),
+                                yfFetch(`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(sym)}`).then(r => { if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty'); return r; }),
+                            ]).catch(() => null)
                         ]);
                         if (!chartData && !quoteData) { allQs[sym] = { _error: '無法取得數據' }; return; }
 

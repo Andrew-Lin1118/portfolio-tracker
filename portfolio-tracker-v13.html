@@ -209,7 +209,7 @@
             <button class="tab-btn active" id="tab-btn-1" onclick="switchTab(1)">📊 持倉管理</button>
             <button class="tab-btn" id="tab-btn-2" onclick="switchTab(2)">📈 基本面</button>
             <button class="tab-btn" id="tab-btn-3" onclick="switchTab(3)">🔬 技術面</button>
-            <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">📰 個股新聞</button>
+            <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">📊 財報分析</button>
             <button class="tab-btn" id="tab-btn-5" onclick="switchTab(5)">🌐 總體經濟</button>
         </div>
 
@@ -337,8 +337,8 @@
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">股價淨值比 (PB)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">營收成長 (YoY)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">營收成長 (FWD)</th>
-                                <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap; background:rgba(251,191,36,0.08);">毛利率</th>
-                                <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap; background:rgba(251,191,36,0.08);">營益率</th>
+                                <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">毛利率</th>
+                                <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">營益率</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (本季預估)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (下季預估)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (近4季)</th>
@@ -383,21 +383,21 @@
             </div>
         </div><!-- /tab-pane-3 -->
 
-        <!-- Tab 4: 個股新聞 -->
+        <!-- Tab 4: 財報分析 -->
         <div id="tab-pane-4" class="tab-pane" style="padding-top:1rem;">
             <div class="glass-card" style="padding:1.5rem 2rem;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
-                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">📰 近7天個股新聞</h2>
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">📊 近期財報分析 &amp; 券商評級</h2>
                     <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-                        <button onclick="loadNews(true)" id="news-btn" style="padding:0.6rem 1.2rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.88rem; text-transform:none; letter-spacing:0;">🔄 載入新聞</button>
-                        <span id="news-status" style="font-size:0.78rem; color:#64748b;"></span>
+                        <button onclick="loadEarningsAnalysis(true)" id="earnings-btn" style="padding:0.6rem 1.2rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.88rem; text-transform:none; letter-spacing:0;">🔄 載入分析</button>
+                        <span id="earnings-status" style="font-size:0.78rem; color:#64748b;"></span>
                     </div>
                 </div>
                 <div style="margin-bottom:0.75rem; padding:0.6rem 1rem; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; font-size:0.8rem; color:#64748b;">
-                    💡 顯示持倉標的近7天相關新聞，點擊標題可查看分析摘要。槓桿ETF會查詢其原型標的新聞。
+                    💡 顯示各持倉標的近4季EPS財報（預估 vs 實際 / 驚喜幅度）、毛利率、營益率、券商評級共識、近30天評級異動及目標股價。
                 </div>
-                <div id="news-list">
-                    <div style="text-align:center; padding:3rem; color:#64748b;">點擊「載入新聞」開始抓取</div>
+                <div id="earnings-list">
+                    <div style="text-align:center; padding:3rem; color:#64748b;">點擊「載入分析」開始抓取</div>
                 </div>
             </div>
         </div><!-- /tab-pane-4 -->
@@ -424,16 +424,6 @@
             </div>
         </div><!-- /tab-pane-5 -->
 
-    <!-- News Modal -->
-    <div id="news-modal" onclick="if(event.target===this)hideNewsModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:2000; padding:1rem;">
-        <div class="glass-card" style="padding:2rem; max-width:640px; width:100%; max-height:88vh; overflow:hidden; display:flex; flex-direction:column;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-shrink:0;">
-                <h3 style="color:#fbbf24; font-size:1.1rem; margin:0;">📰 新聞分析</h3>
-                <button onclick="hideNewsModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
-            </div>
-            <div id="news-modal-content" style="flex:1; overflow-y:auto;"></div>
-        </div>
-    </div>
 
     <!-- Modals -->
     <div id="import-modal" onclick="if(event.target===this)hideImportModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); display:none; align-items:center; justify-content:center; z-index:1000; padding:1rem;">
@@ -1473,9 +1463,9 @@
                     loadAnalysis(isStale);
                 }
             }
-            // 切換到新聞 Tab 時自動載入（首次）
-            if (n === 4 && holdings.length > 0 && !_newsLoaded) {
-                loadNews(false);
+            // 切換到財報分析 Tab 時自動載入（首次）
+            if (n === 4 && holdings.length > 0 && !_earningsLoaded) {
+                loadEarningsAnalysis(false);
             }
             // 切換到總經 Tab 時自動載入（首次）
             if (n === 5 && !_macroLoaded) {
@@ -1741,10 +1731,12 @@
 
                         return {
                             pe, fpe, peg, ps,
-                            pb:           f.pb          ?? null,
-                            rev_yoy:      f.rev_yoy     ?? null,
-                            rev_fwd:      f.rev_fwd     ?? null,
-                            hist_avg_pe:  f.hist_avg_pe ?? null,
+                            pb:              f.pb              ?? null,
+                            rev_yoy:         f.rev_yoy         ?? null,
+                            rev_fwd:         f.rev_fwd         ?? null,
+                            hist_avg_pe:     f.hist_avg_pe     ?? null,
+                            gross_margin:    f.gross_margin    ?? null,
+                            operating_margin:f.operating_margin?? null,
                             eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
                             prevClose, prevPrevClose, marketOpenedToday,
                             daily_k:  f.daily_k  ?? null, daily_d:  f.daily_d  ?? null, daily_cross:  f.daily_cross  ?? 'none',
@@ -1763,9 +1755,12 @@
             } catch(_) {}
 
             // ══════════════════════════════════════════════════════════════════
-            // ② 基本面備用：JSON 無此標的（新標的）且有後端時才呼叫
-            //    若 ① 已從 JSON 取得 pe，此段跳過
+            // ② 基本面備用：
+            //    ②-a 有後端時呼叫後端 /yfundamentals
+            //    ②-b 無後端 / 後端無資料 → 直接查 Yahoo Finance quoteSummary
+            //         GitHub Pages 不設後端也能取得完整基本面數據
             // ══════════════════════════════════════════════════════════════════
+            // ②-a 後端
             if (pe === null && (fundBase !== '' || _isLocal)) {
                 try {
                     const fundResp = await fetch((fundBase || '') + '/yfundamentals?symbol=' + encodeURIComponent(symbol));
@@ -1783,6 +1778,44 @@
                             eps_cur_y  = raw.eps_cur_y  ?? null;
                             eps_next_y = raw.eps_next_y ?? null;
                         }
+                    }
+                } catch(_) {}
+            }
+            // ②-b Yahoo Finance quoteSummary（無後端或後端無資料時的通用備援）
+            if (pe === null) {
+                try {
+                    const qsr = await yfFetch(
+                        `${BASE1}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}` +
+                        `?modules=defaultKeyStatistics%2CfinancialData%2CearningsTrend%2CsummaryDetail`
+                    );
+                    const res = qsr?.quoteSummary?.result?.[0];
+                    if (res) {
+                        const sd = res.summaryDetail        || {};
+                        const ks = res.defaultKeyStatistics || {};
+                        const fd = res.financialData        || {};
+                        const et = res.earningsTrend?.trend ?? [];
+                        pe  = sd.trailingPE?.raw                            ?? null;
+                        fpe = sd.forwardPE?.raw                             ?? null;
+                        peg = ks.pegRatio?.raw                              ?? null;
+                        ps  = sd.priceToSalesTrailing12Months?.raw          ?? null;
+                        fund = {
+                            pb:               ks.priceToBook?.raw                                                ?? null,
+                            hist_avg_pe:      null,
+                            rev_yoy:          fd.revenueGrowth?.raw                                             ?? null,
+                            rev_fwd:          (et.find(t => t.period === '+1y')?.revenueEstimate?.growth?.raw)  ?? null,
+                            gross_margin:     fd.grossMargins?.raw                                              ?? null,
+                            operating_margin: fd.operatingMargins?.raw                                         ?? null,
+                            eps_ttm:          ks.trailingEps?.raw                                               ?? null,
+                            eps_cur_q:        (et.find(t => t.period === '0q')?.earningsEstimate?.avg?.raw)     ?? null,
+                            eps_next_q:       (et.find(t => t.period === '+1q')?.earningsEstimate?.avg?.raw)    ?? null,
+                            eps_cur_y:        (et.find(t => t.period === '0y')?.earningsEstimate?.avg?.raw)     ?? null,
+                            eps_next_y:       (et.find(t => t.period === '+1y')?.earningsEstimate?.avg?.raw)    ?? null,
+                        };
+                        eps_ttm    = fund.eps_ttm;
+                        eps_cur_q  = fund.eps_cur_q;
+                        eps_next_q = fund.eps_next_q;
+                        eps_cur_y  = fund.eps_cur_y;
+                        eps_next_y = fund.eps_next_y;
                     }
                 } catch(_) {}
             }
@@ -1831,10 +1864,12 @@
 
             return {
                 pe, fpe, peg, ps,
-                pb:         fund?.pb         ?? null,
-                rev_yoy:    fund?.rev_yoy    ?? null,
-                rev_fwd:    fund?.rev_fwd    ?? null,
-                hist_avg_pe:fund?.hist_avg_pe ?? null,
+                pb:              fund?.pb              ?? null,
+                rev_yoy:         fund?.rev_yoy         ?? null,
+                rev_fwd:         fund?.rev_fwd         ?? null,
+                hist_avg_pe:     fund?.hist_avg_pe     ?? null,
+                gross_margin:    fund?.gross_margin    ?? null,
+                operating_margin:fund?.operating_margin?? null,
                 eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
                 prevClose, prevPrevClose, marketOpenedToday,
                 weekly_k: weeklyKD?.k ?? null, weekly_d: weeklyKD?.d ?? null, weekly_cross: kdCross(weeklyKD),
@@ -1971,6 +2006,35 @@
                 if (missing.length > 0) _showMissingFundNotice(missing);
             }
 
+            // ── 補充抓取毛利率/營益率（Yahoo quoteSummary financialData）──
+            // fundamentals.json 目前不含這兩個欄位，透過 quoteSummary 補充
+            {
+                const needMargins = uniqueQueries.filter(s => {
+                    const d = allResults[s];
+                    return d && !d._error && d.gross_margin == null;
+                });
+                // 強制重整時清除標記，確保重新抓取
+                if (forceRefresh) window._marginFetched = new Set();
+                if (!window._marginFetched) window._marginFetched = new Set();
+                const toFetchM = needMargins.filter(s => !window._marginFetched.has(s));
+                for (let mi = 0; mi < toFetchM.length; mi++) {
+                    const sym = toFetchM[mi];
+                    try {
+                        const qsr = await yfFetch(
+                            `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(sym)}?modules=financialData`
+                        );
+                        const fd = qsr?.quoteSummary?.result?.[0]?.financialData;
+                        if (fd && allResults[sym]) {
+                            allResults[sym].gross_margin     = fd.grossMargins?.raw     ?? null;
+                            allResults[sym].operating_margin = fd.operatingMargins?.raw ?? null;
+                        }
+                        window._marginFetched.add(sym);
+                    } catch(_) {}
+                    if (mi < toFetchM.length - 1) await new Promise(r => setTimeout(r, 350));
+                }
+                if (toFetchM.length > 0) _saveCache(allResults);
+            }
+
             // ── Render ──
             const fmt  = v => (v != null && !isNaN(v)) ? parseFloat(v).toFixed(2) : '-';
             const fmtp = v => (v != null && !isNaN(v)) ? (parseFloat(v)*100).toFixed(1) + '%' : '-';
@@ -2004,8 +2068,7 @@
                     tr(fmt(d.pe)) + tr(fmt(d.hist_avg_pe)) + tr(fmt(d.fpe)) +
                     tr(fmt(d.peg)) + tr(fmt(d.ps)) + tr(fmt(d.pb)) +
                     tr(fmtp(d.rev_yoy)) + tr(fmtp(d.rev_fwd)) +
-                    '<td style="padding:0.5rem 0.6rem; text-align:right; color:#e2e8f0; background:rgba(251,191,36,0.05);">' + fmtp(d.gross_margin) + '</td>' +
-                    '<td style="padding:0.5rem 0.6rem; text-align:right; color:#e2e8f0; background:rgba(251,191,36,0.05);">' + fmtp(d.operating_margin) + '</td>' +
+                    tr(fmtp(d.gross_margin)) + tr(fmtp(d.operating_margin)) +
                     tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y));
 
                 // 技術面表（含綜合評價）
@@ -2265,148 +2328,217 @@
             }, 1800000); // 每 30 分鐘
         }
 
-        // ==================== Tab 4：個股新聞 ====================
-        let _newsLoaded = false;
+        // ==================== Tab 4：財報分析 & 券商評級 ====================
+        let _earningsLoaded = false;
+        const _QS_CACHE_KEY = 'pf_qs_v1';
+        const _QS_CACHE_TTL = 3 * 60 * 60 * 1000; // 3 小時
+        function _loadQsCache() {
+            try { const r = JSON.parse(sessionStorage.getItem(_QS_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _QS_CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
+        }
+        function _saveQsCache(data) {
+            try { sessionStorage.setItem(_QS_CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch {}
+        }
 
-        async function loadNews(forceRefresh) {
+        async function loadEarningsAnalysis(forceRefresh) {
             if (holdings.length === 0) { alert('請先匯入持倉數據'); return; }
-            const btn = document.getElementById('news-btn');
-            const statusEl = document.getElementById('news-status');
+            const btn = document.getElementById('earnings-btn');
+            const statusEl = document.getElementById('earnings-status');
             if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
 
-            const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
             const symbols = [...new Set(holdings.map(h => getQuerySymbol(h.symbol)))];
-            const allNews = [];
+            const cache = forceRefresh ? {} : _loadQsCache();
+            const allQs = { ...cache };
+            const toFetch = symbols.filter(s => !allQs[s]);
 
-            for (let i = 0; i < symbols.length; i++) {
-                const sym = symbols[i];
-                if (statusEl) statusEl.textContent = `(${i+1}/${symbols.length}) 查詢 ${sym}...`;
-                const holdingSym = holdings.find(h => getQuerySymbol(h.symbol) === sym)?.symbol || sym;
+            for (let i = 0; i < toFetch.length; i++) {
+                const sym = toFetch[i];
+                if (statusEl) statusEl.textContent = `(${i+1}/${toFetch.length}) 查詢 ${sym}...`;
                 try {
                     const data = await yfFetch(
-                        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=7&quotesCount=0`
+                        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(sym)}` +
+                        `?modules=earningsHistory%2CupgradeDowngradeHistory%2CrecommendationTrend%2CfinancialData%2CearningsTrend%2CdefaultKeyStatistics%2CsummaryDetail`
                     );
-                    for (const item of (data?.news || [])) {
-                        if ((item.providerPublishTime || 0) >= sevenDaysAgo) {
-                            allNews.push({ ...item, _querySymbol: sym, _holdingSymbol: holdingSym });
+                    const res = data?.quoteSummary?.result?.[0];
+                    allQs[sym] = res || { _error: 'No data' };
+                } catch(e) {
+                    allQs[sym] = { _error: e.message.split('\n')[0] };
+                }
+                if (i < toFetch.length - 1) await new Promise(r => setTimeout(r, 500));
+            }
+            _saveQsCache(allQs);
+
+            // 同步更新 analysis cache 的毛利率/營益率，讓基本面 Tab 也能顯示
+            const analysisCache = _loadCache();
+            let acUpdated = false;
+            for (const sym of symbols) {
+                const qs = allQs[sym];
+                if (qs && !qs._error && analysisCache[sym]) {
+                    const fd = qs.financialData;
+                    if (fd) {
+                        if (analysisCache[sym].gross_margin == null && fd.grossMargins?.raw != null) {
+                            analysisCache[sym].gross_margin = fd.grossMargins.raw; acUpdated = true;
+                        }
+                        if (analysisCache[sym].operating_margin == null && fd.operatingMargins?.raw != null) {
+                            analysisCache[sym].operating_margin = fd.operatingMargins.raw; acUpdated = true;
                         }
                     }
-                } catch(e) {}
-                if (i < symbols.length - 1) await new Promise(r => setTimeout(r, 400));
+                }
             }
+            if (acUpdated) _saveCache(analysisCache);
 
-            // 去重 + 時間排序
-            const seen = new Set();
-            const unique = allNews
-                .filter(n => { if (seen.has(n.uuid)) return false; seen.add(n.uuid); return true; })
-                .sort((a, b) => b.providerPublishTime - a.providerPublishTime);
-
-            renderNewsTab(unique);
-            _newsLoaded = true;
-            if (btn) { btn.textContent = '🔄 載入新聞'; btn.disabled = false; }
-            if (statusEl) statusEl.textContent = `共 ${unique.length} 則 · ${new Date().toLocaleTimeString('zh-TW')}`;
+            renderEarningsTab(allQs);
+            _earningsLoaded = true;
+            if (btn) { btn.textContent = '🔄 載入分析'; btn.disabled = false; }
+            if (statusEl) statusEl.textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW');
         }
 
-        function renderNewsTab(items) {
-            const container = document.getElementById('news-list');
+        // ── 券商評級／動作 → 中文對照表 ──
+        const GRADE_ZH = {
+            'Strong Buy':          '強烈買進',
+            'Buy':                 '買進',
+            'Outperform':          '優於大盤',
+            'Overweight':          '增持',
+            'Market Outperform':   '優於市場',
+            'Sector Outperform':   '優於同業',
+            'Positive':            '正面看好',
+            'Accumulate':          '逢低買進',
+            'Add':                 '加碼',
+            'Neutral':             '中立',
+            'Hold':                '持有',
+            'Market Perform':      '同步大盤',
+            'Equal Weight':        '均等持有',
+            'Peer Perform':        '同業表現',
+            'Sector Perform':      '同業表現',
+            'In-Line':             '符合預期',
+            'Underperform':        '弱於大盤',
+            'Underweight':         '減持',
+            'Market Underperform': '弱於市場',
+            'Sector Underperform': '弱於同業',
+            'Negative':            '負面看空',
+            'Reduce':              '減碼',
+            'Sell':                '賣出',
+            'Strong Sell':         '強烈賣出',
+        };
+        const ACTION_ZH = {
+            'up':   '上調',
+            'down': '下調',
+            'main': '維持',
+            'init': '初評',
+            'reit': '重申',
+        };
+        function gradeZh(g) { return (g && GRADE_ZH[g]) ? GRADE_ZH[g] : (g || '-'); }
+        function actionZh(a) { return (a && ACTION_ZH[a]) ? ACTION_ZH[a] : (a || ''); }
+
+        function renderEarningsTab(allQs) {
+            const container = document.getElementById('earnings-list');
             if (!container) return;
-            if (items.length === 0) {
-                container.innerHTML = '<div style="text-align:center;padding:3rem;color:#64748b;">近7天無相關新聞（API 可能需透過代理存取）</div>';
-                return;
-            }
-            container.innerHTML = items.map(item => {
-                const dt = new Date(item.providerPublishTime * 1000);
-                const dtStr = dt.toLocaleDateString('zh-TW', {month:'2-digit',day:'2-digit'}) + ' ' +
-                              dt.toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'});
-                const sent = newssentiment(item.title);
-                return `<div class="news-item" onclick='showNewsModal(${JSON.stringify(item).replace(/'/g,"&#39;")})'
-                    style="background:linear-gradient(135deg,rgba(15,30,60,0.6),rgba(10,20,40,0.8));
-                           border:1px solid rgba(59,130,246,0.2); border-left:3px solid rgba(251,191,36,0.4);
-                           border-radius:10px; padding:0.7rem 1rem; margin-bottom:0.45rem; cursor:pointer; transition:all 0.2s;">
-                    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem;">
-                        <span style="background:rgba(251,191,36,0.15);color:#fbbf24;padding:0.12rem 0.5rem;border-radius:5px;font-size:0.76rem;font-weight:700;">${item._holdingSymbol}</span>
-                        ${sentimentBadge(sent)}
-                        <span style="color:#64748b;font-size:0.74rem;">${dtStr} · ${item.publisher||''}</span>
+
+            const recColors = { strong_buy:'#10b981', buy:'#6ee7b7', hold:'#94a3b8', sell:'#fb923c', strong_sell:'#ef4444' };
+            const recLabels = { strong_buy:'⬆ 強烈買進', buy:'↑ 建議買進', hold:'→ 持有觀望', sell:'↓ 建議賣出', strong_sell:'⬇ 強烈賣出' };
+            const thirtyDaysAgo = Date.now()/1000 - 30*24*3600;
+
+            const html = holdings.map(h => {
+                const sym = getQuerySymbol(h.symbol);
+                const qs  = allQs[sym];
+                const isProxy = !!LEVERAGED_MAP[h.symbol];
+                const proxyLabel = isProxy ? `<span style="color:#f59e0b;font-size:0.74rem;font-weight:600;"> (查詢: ${sym})</span>` : '';
+
+                if (!qs) return '';
+                if (qs._error) return `
+                    <div style="background:rgba(15,30,60,0.5);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:0.7rem 1rem;margin-bottom:0.5rem;">
+                        <span style="color:#fbbf24;font-weight:700;">${h.symbol}</span>${proxyLabel}
+                        <span style="color:#ef4444;font-size:0.8rem;margin-left:0.75rem;">❌ ${qs._error}</span>
+                    </div>`;
+
+                const fd  = qs.financialData || {};
+                const eh  = qs.earningsHistory?.history || [];
+                const ugh = qs.upgradeDowngradeHistory?.history || [];
+
+                // 分析師共識
+                const recKey   = fd.recommendationKey || '';
+                const nAna     = fd.numberOfAnalystOpinions?.raw || 0;
+                const tgtMean  = fd.targetMeanPrice?.raw;
+                const tgtLow   = fd.targetLowPrice?.raw;
+                const tgtHigh  = fd.targetHighPrice?.raw;
+                const upside   = tgtMean && h.currentPrice > 0 ? ((tgtMean - h.currentPrice) / h.currentPrice * 100).toFixed(1) : null;
+                const recColor = recColors[recKey] || '#94a3b8';
+                const recLabel = recLabels[recKey] || (recKey ? recKey : '-');
+
+                // 近30天評級異動
+                const recentUpg = ugh.filter(u => u.epochGradeDate >= thirtyDaysAgo).slice(0, 6);
+
+                // 近4季 EPS 表格
+                const earningsRows = eh.slice(-4).reverse().map(e => {
+                    const actual = e.epsActual?.raw, est = e.epsEstimate?.raw, surp = e.surprisePercent?.raw;
+                    const beat = surp != null ? surp > 0 : null;
+                    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <td style="padding:0.28rem 0.45rem;color:#94a3b8;font-size:0.78rem;">${e.quarter?.fmt||'-'}</td>
+                        <td style="padding:0.28rem 0.45rem;text-align:right;color:#e2e8f0;font-size:0.8rem;">${est != null ? est.toFixed(2) : '-'}</td>
+                        <td style="padding:0.28rem 0.45rem;text-align:right;font-weight:700;font-size:0.8rem;color:${beat===true?'#10b981':beat===false?'#ef4444':'#e2e8f0'};">${actual != null ? actual.toFixed(2) : '-'}</td>
+                        <td style="padding:0.28rem 0.45rem;text-align:right;font-size:0.78rem;">${surp!=null?`<span style="padding:0.08rem 0.3rem;border-radius:4px;background:${beat?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)'};color:${beat?'#10b981':'#ef4444'};">${beat?'+':''}${(surp*100).toFixed(1)}%</span>`:'-'}</td>
+                    </tr>`;
+                }).join('');
+
+                // 毛利率/營益率/營收成長（來自 financialData）
+                const gm  = fd.grossMargins?.raw, om = fd.operatingMargins?.raw, rg = fd.revenueGrowth?.raw;
+                const marginPills = [
+                    gm  != null ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(59,130,246,0.1);color:#60a5fa;font-size:0.75rem;">毛利率 ${(gm*100).toFixed(1)}%</span>` : '',
+                    om  != null ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.1);color:#a5b4fc;font-size:0.75rem;">營益率 ${(om*100).toFixed(1)}%</span>` : '',
+                    rg  != null ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:${rg>=0?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)'};color:${rg>=0?'#10b981':'#ef4444'};font-size:0.75rem;">營收成長 ${(rg*100).toFixed(1)}%</span>` : '',
+                ].filter(Boolean).join('');
+
+                return `<div style="background:linear-gradient(135deg,rgba(15,30,60,0.65),rgba(10,20,40,0.85));
+                    border:1px solid rgba(59,130,246,0.2);border-left:3px solid rgba(251,191,36,0.5);
+                    border-radius:12px;padding:1rem 1.25rem;margin-bottom:0.75rem;">
+                    <!-- Header -->
+                    <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;margin-bottom:0.75rem;border-bottom:1px solid rgba(255,255,255,0.07);padding-bottom:0.6rem;">
+                        <span style="font-weight:800;color:#f1f5f9;font-size:1rem;">${h.symbol}</span>${proxyLabel}
+                        ${recKey ? `<span style="padding:0.18rem 0.6rem;border-radius:6px;background:${recColor}22;color:${recColor};font-weight:700;font-size:0.8rem;">${recLabel}</span>` : ''}
+                        ${nAna > 0 ? `<span style="color:#64748b;font-size:0.76rem;">${nAna} 位分析師</span>` : ''}
+                        ${tgtMean ? `<span style="color:#60a5fa;font-size:0.8rem;">目標價 $${tgtMean.toFixed(2)} <span style="color:${upside&&parseFloat(upside)>=0?'#10b981':'#ef4444'};">${upside!=null?(parseFloat(upside)>=0?'↑+':'↓')+upside+'%':''}</span></span>` : ''}
+                        ${tgtLow&&tgtHigh ? `<span style="color:#64748b;font-size:0.75rem;">$${tgtLow.toFixed(0)}–$${tgtHigh.toFixed(0)}</span>` : ''}
                     </div>
-                    <div style="color:#e2e8f0;font-size:0.88rem;line-height:1.45;">${item.title}</div>
-                </div>`;
-            }).join('');
-        }
-
-        function newssentiment(title) {
-            if (!title) return 'neutral';
-            const t = title.toLowerCase();
-            const pos = ['beat','surge','jump','rise','gain','record','strong','exceed','upgrade','bullish','profit','expand','rally','boost','soar','high','上漲','突破','超越','成長','獲利','上調'];
-            const neg = ['miss','fall','drop','cut','loss','weak','decline','downgrade','bearish','risk','warning','disappoint','plunge','crash','below','lower','下跌','虧損','警告','風險','衰退','下調'];
-            let p=0, n=0;
-            pos.forEach(w => { if (t.includes(w)) p++; });
-            neg.forEach(w => { if (t.includes(w)) n++; });
-            return p > n ? 'positive' : n > p ? 'negative' : 'neutral';
-        }
-
-        function sentimentBadge(s) {
-            if (s==='positive') return '<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:0.12rem 0.45rem;border-radius:5px;font-size:0.74rem;font-weight:700;">📈 利多</span>';
-            if (s==='negative') return '<span style="background:rgba(239,68,68,0.15);color:#ef4444;padding:0.12rem 0.45rem;border-radius:5px;font-size:0.74rem;font-weight:700;">📉 利空</span>';
-            return '<span style="background:rgba(100,116,139,0.15);color:#94a3b8;padding:0.12rem 0.45rem;border-radius:5px;font-size:0.74rem;font-weight:700;">📊 中性</span>';
-        }
-
-        function showNewsModal(item) {
-            const modal = document.getElementById('news-modal');
-            if (!modal) return;
-            const dt = new Date(item.providerPublishTime * 1000);
-            const dtStr = dt.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-            const sent = newssentiment(item.title);
-            const holding = holdings.find(h => h.symbol === item._holdingSymbol);
-            let pnlHtml = '';
-            if (holding) {
-                const pct = ((holding.currentPrice - holding.costPrice) / holding.costPrice * 100).toFixed(1);
-                const col = parseFloat(pct) >= 0 ? '#10b981' : '#ef4444';
-                pnlHtml = `<div style="margin-top:0.75rem;padding:0.5rem 0.75rem;background:rgba(15,30,60,0.5);border-radius:8px;font-size:0.82rem;color:#94a3b8;">
-                    持倉狀況：${item._holdingSymbol} 目前損益 <span style="color:${col};font-weight:700;">${pct>=0?'+':''}${pct}%</span>　現價 ${holding.currentPrice}
-                </div>`;
-            }
-            let analysisText = '';
-            if (sent==='positive') {
-                analysisText = `本則新聞對 <strong>${item._holdingSymbol}</strong> 呈正面訊號。`;
-                const t = item.title.toLowerCase();
-                if (t.includes('beat')||t.includes('exceed')) analysisText += ' 超越預期的表現通常帶動股價上漲，可關注後續追漲空間。';
-                else if (t.includes('upgrade')) analysisText += ' 機構升評代表分析師對未來業績更有信心，屬正面訊號。';
-                else if (t.includes('acqui')||t.includes('merger')) analysisText += ' 併購消息需評估是否有利長期價值，觀察市場反應後再決策。';
-                else analysisText += ' 建議結合技術面確認進場時機。';
-            } else if (sent==='negative') {
-                analysisText = `本則新聞對 <strong>${item._holdingSymbol}</strong> 呈負面訊號。`;
-                const t = item.title.toLowerCase();
-                if (t.includes('miss')) analysisText += ' 財報不如預期可能引發股價下壓，觀察跌幅是否已充分反應。';
-                else if (t.includes('downgrade')) analysisText += ' 機構調降評等請注意是否基本面惡化，建議暫時觀望。';
-                else if (t.includes('risk')||t.includes('warning')) analysisText += ' 風險警示需謹慎，評估持倉比重是否需調整。';
-                else analysisText += ' 負面消息可能帶動短期股價走弱，建議設好停損。';
-            } else {
-                analysisText = `本則新聞對 <strong>${item._holdingSymbol}</strong> 呈中性訊號，建議參考技術面指標判斷方向。`;
-            }
-
-            document.getElementById('news-modal-content').innerHTML = `
-                <div style="margin-bottom:1rem;">
-                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
-                        <span style="background:rgba(251,191,36,0.15);color:#fbbf24;padding:0.15rem 0.55rem;border-radius:6px;font-size:0.82rem;font-weight:700;">${item._holdingSymbol}</span>
-                        ${sentimentBadge(sent)}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <!-- 左：財報EPS -->
+                        <div>
+                            <div style="color:#fbbf24;font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">📋 近4季 EPS</div>
+                            ${eh.length > 0 ? `<table style="width:100%;border-collapse:collapse;">
+                                <thead><tr style="border-bottom:1px solid rgba(251,191,36,0.2);">
+                                    <th style="padding:0.2rem 0.45rem;text-align:left;color:#64748b;font-size:0.74rem;font-weight:600;">季度</th>
+                                    <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">預估</th>
+                                    <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">實際</th>
+                                    <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">驚喜</th>
+                                </tr></thead>
+                                <tbody>${earningsRows}</tbody>
+                            </table>` : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">無歷史財報數據</div>'}
+                            ${marginPills ? `<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;">${marginPills}</div>` : ''}
+                        </div>
+                        <!-- 右：評級異動 -->
+                        <div>
+                            <div style="color:#fbbf24;font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">🏦 近30天券商評級</div>
+                            ${recentUpg.length > 0 ? recentUpg.map(u => {
+                                const dt = new Date(u.epochGradeDate*1000).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'});
+                                const isUp = u.action==='up'||u.action==='init', isDn = u.action==='down';
+                                const col = isUp?'#10b981':isDn?'#ef4444':'#94a3b8';
+                                const arrow = isUp?'↑':isDn?'↓':'→';
+                                const actLabel = actionZh(u.action);
+                                const toLabel  = gradeZh(u.toGrade);
+                                const fromLabel = (u.fromGrade && u.fromGrade !== u.toGrade) ? gradeZh(u.fromGrade) : '';
+                                return `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem;flex-wrap:wrap;">
+                                    <span style="color:#64748b;font-size:0.73rem;white-space:nowrap;">${dt}</span>
+                                    <span style="color:#e2e8f0;font-size:0.77rem;font-weight:600;">${u.firm||''}</span>
+                                    <span style="padding:0.05rem 0.3rem;border-radius:3px;background:${isUp?'rgba(16,185,129,0.1)':isDn?'rgba(239,68,68,0.1)':'rgba(100,116,139,0.1)'};color:${col};font-weight:700;font-size:0.75rem;">${actLabel}</span>
+                                    <span style="color:${col};font-size:0.77rem;">${arrow} ${toLabel}</span>
+                                    ${fromLabel?`<span style="color:#64748b;font-size:0.72rem;">(原: ${fromLabel})</span>`:''}
+                                </div>`;
+                            }).join('') : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">近30天無評級異動</div>'}
+                        </div>
                     </div>
-                    <h3 style="color:#f1f5f9;font-size:1rem;font-weight:700;margin:0 0 0.4rem 0;line-height:1.5;">${item.title}</h3>
-                    <div style="color:#64748b;font-size:0.8rem;">${item.publisher||''} &nbsp;·&nbsp; ${dtStr}</div>
-                </div>
-                <div style="background:rgba(15,30,60,0.5);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:0.9rem 1rem;margin-bottom:1rem;">
-                    <div style="color:#fbbf24;font-size:0.83rem;font-weight:700;margin-bottom:0.45rem;">📊 新聞分析</div>
-                    <div style="color:#e2e8f0;font-size:0.87rem;line-height:1.7;">${analysisText}</div>
-                    ${pnlHtml}
-                </div>
-                <a href="${item.link}" target="_blank" rel="noopener noreferrer"
-                   style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.6rem 1rem;
-                          background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(37,99,235,0.3));
-                          color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:8px;
-                          font-weight:600;font-size:0.85rem;text-decoration:none;">🔗 閱讀完整報導</a>`;
-            modal.style.display = 'flex';
-        }
+                </div>`;
+            }).filter(Boolean).join('');
 
-        function hideNewsModal() { document.getElementById('news-modal').style.display = 'none'; }
+            container.innerHTML = html || '<div style="text-align:center;padding:3rem;color:#64748b;">無法取得分析數據</div>';
+        }
 
         // ==================== Tab 5：總體經濟 ====================
         let _macroLoaded = false;

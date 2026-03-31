@@ -180,6 +180,49 @@ for sym in symbols:
         except Exception:
             pass
 
+        # ── 季度 EPS 歷史（供前端財報分析 Tab 使用）──────────────────
+        earnings_history = []
+        try:
+            ed = t.earnings_dates
+            if ed is not None and not ed.empty:
+                # 動態找欄位名稱（yfinance 不同版本欄位名稱略有差異）
+                col_actual = next((c for c in ed.columns if 'Reported' in c or ('EPS' in c and 'Estimate' not in c)), None)
+                col_est    = next((c for c in ed.columns if 'Estimate' in c), None)
+                col_surp   = next((c for c in ed.columns if 'Surprise' in c), None)
+                if col_actual:
+                    reported = ed[ed[col_actual].notna()].copy()
+                    reported = reported.sort_index()  # 由舊到新
+                    for date, row in reported.iterrows():
+                        try:
+                            dt = pd.Timestamp(date)
+                            # 統一轉換為美東時間（避免 UTC 跨日造成季度判斷錯誤）
+                            if dt.tzinfo is not None:
+                                import pytz as _ptz2
+                                dt = dt.tz_convert('America/New_York').replace(tzinfo=None)
+                            q_num = (dt.month - 1) // 3 + 1
+                            eps_actual = safe_float(row[col_actual])
+                            eps_est    = safe_float(row[col_est]) if col_est else None
+                            surp_pct   = None
+                            if col_surp and pd.notna(row.get(col_surp, None)):
+                                surp_pct = safe_float(float(row[col_surp]) / 100)
+                            elif eps_actual is not None and eps_est is not None and eps_est != 0:
+                                surp_pct = safe_float((eps_actual - eps_est) / abs(eps_est))
+                            earnings_history.append({
+                                'quarter':      f'{dt.year} Q{q_num}',
+                                'eps_estimate': eps_est,
+                                'eps_actual':   eps_actual,
+                                'surprise_pct': surp_pct,
+                            })
+                        except Exception:
+                            pass
+                print(f'    earnings_history: {len(earnings_history)} quarters', flush=True)
+        except Exception as e:
+            print(f'    earnings_dates error: {e}', flush=True)
+
+        # ── 毛利率 / 營益率 ──────────────────────────────────────────
+        gross_margin     = safe_float(info.get('grossMargins'))
+        operating_margin = safe_float(info.get('operatingMargins'))
+
         # ── 技術面 ──────────────────────────────────────────
         daily_k = daily_d = daily_cross = None
         weekly_k = weekly_d = weekly_cross = None
@@ -260,20 +303,23 @@ for sym in symbols:
             pass
 
         result[sym] = {
-            # 基本面
-            'pe':          info.get('trailingPE'),
-            'fpe':         info.get('forwardPE'),
-            'peg':         info.get('trailingPegRatio'),
-            'ps':          info.get('priceToSalesTrailing12Months'),
-            'pb':          info.get('priceToBook'),
-            'rev_yoy':     info.get('revenueGrowth'),
-            'rev_fwd':     rev_fwd,
-            'hist_avg_pe': hist_avg_pe,
-            'eps_ttm':     info.get('trailingEps'),
-            'eps_cur_q':   eps_cur_q,
-            'eps_next_q2': eps_next_q,
-            'eps_cur_y':   info.get('epsCurrentYear'),
-            'eps_next_y':  info.get('epsForward'),
+            # 基本面（全部透過 safe_float 防止 NaN 寫入 JSON）
+            'pe':               safe_float(info.get('trailingPE')),
+            'fpe':              safe_float(info.get('forwardPE')),
+            'peg':              safe_float(info.get('trailingPegRatio')),
+            'ps':               safe_float(info.get('priceToSalesTrailing12Months')),
+            'pb':               safe_float(info.get('priceToBook')),
+            'rev_yoy':          safe_float(info.get('revenueGrowth')),
+            'rev_fwd':          rev_fwd,
+            'hist_avg_pe':      hist_avg_pe,
+            'eps_ttm':          safe_float(info.get('trailingEps')),
+            'eps_cur_q':        eps_cur_q,
+            'eps_next_q2':      eps_next_q,
+            'eps_cur_y':        safe_float(info.get('epsCurrentYear')),
+            'eps_next_y':       safe_float(info.get('epsForward')),
+            'gross_margin':     gross_margin,
+            'operating_margin': operating_margin,
+            'earnings_history': earnings_history,   # 季度 EPS 歷史
             'prev_close':      safe_float(prev_close),
             'prev_prev_close': prev_prev_close,
             # 技術面（日/週/小時）

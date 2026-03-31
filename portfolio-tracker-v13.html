@@ -1454,14 +1454,9 @@
             const ctrl = document.getElementById('analysis-ctrl');
             if (ctrl) ctrl.style.display = (n === 2 || n === 3) ? 'block' : 'none';
 
-            // 切換到基本面/技術面時自動載入（表格空白 或 資料已超過 30 分鐘）
+            // 切換到基本面/技術面時自動載入（快取是否有效由 loadAnalysis 內部判斷）
             if ((n === 2 || n === 3) && holdings.length > 0) {
-                const tbody = document.getElementById('fund-tbody');
-                const isEmpty = !tbody || tbody.innerHTML.trim() === '';
-                const isStale = Date.now() - _lastAnalysisLoad > 30 * 60 * 1000;
-                if (isEmpty || isStale) {
-                    loadAnalysis(isStale);
-                }
+                loadAnalysis(false, false);
             }
             // 切換到財報分析 Tab 時自動載入（首次）
             if (n === 4 && holdings.length > 0 && !_earningsLoaded) {
@@ -1688,8 +1683,19 @@
             // ══════════════════════════════════════════════════════════════════
             try {
                 if (!window._fundJsonCache) {
-                    const r = await fetch('./data/fundamentals.json');
-                    window._fundJsonCache = r.ok ? await r.json() : {};
+                    // cache:'no-cache' → 強制驗證伺服器端是否有新版本（ETag/Last-Modified），
+                    // 確保 GitHub Actions 每次推送的新 fundamentals.json 不被瀏覽器舊快取覆蓋
+                    const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    if (r.ok) {
+                        // Python 的 JSON 序列化可能包含 NaN/Infinity（非標準 JSON），需先替換為 null
+                        const txt = await r.text();
+                        const cleaned = txt.replace(/:\s*NaN/g, ': null')
+                                           .replace(/:\s*Infinity/g, ': null')
+                                           .replace(/:\s*-Infinity/g, ': null');
+                        window._fundJsonCache = JSON.parse(cleaned);
+                    } else {
+                        window._fundJsonCache = {};
+                    }
                 }
                 const f = window._fundJsonCache?.data?.[symbol];
                 if (f && !f.error) {
@@ -1789,67 +1795,30 @@
                     }
                 } catch(_) {}
             }
-            // ②-b + ③ 並行抓取：quote（基本面）+ 三個週期 K 線圖
-            // 同時嘗試 query1/v6 和 query2/v7 兩個 URL，取第一個回傳有效資料的結果。
-            // _rv() 同時支援直接數值（v6格式）和 {raw,fmt} 物件（quoteSummary格式）。
-            const _rv = f => {
-                if (f == null) return null;
-                if (typeof f === 'object' && f.raw != null) return f.raw;
-                if (typeof f === 'number') return f;
-                if (typeof f === 'string') { const n = parseFloat(f); return isNaN(n) ? null : n; }
-                return null;
-            };
-            const _needFund = (pe === null);
-            // 同時打出多個 quote URL，用 Promise.any 取第一個有效回應
-            const _quoteFetch = _needFund ? Promise.any([
-                yfFetch(`https://query1.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(symbol)}`).then(r => {
-                    if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty');
-                    return r;
-                }),
-                yfFetch(`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(symbol)}`).then(r => {
-                    if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty');
-                    return r;
-                }),
-                yfFetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`).then(r => {
-                    if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty');
-                    return r;
-                }),
-            ]).catch(() => null) : Promise.resolve(null);
-
-            const [_quoteRaw, weeklyData, dailyData, hourlyData] = await Promise.all([
-                _quoteFetch,
-                yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=2y`).catch(() => null),
+            // ②-b + ③ 並行抓取三個週期 K 線圖
+            // 週線加入 events=earnings → 免認證取得各季 EPS Actual/Estimate
+            // Yahoo Finance v6/v7/v10 quote API 均需 crumb 認證，已全面停用。
+            const [weeklyData, dailyData, hourlyData] = await Promise.all([
+                yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=2y&events=earnings`).catch(() => null),
                 yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`).catch(() => null),
                 yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1h&range=5d`).catch(() => null)
             ]);
 
-            // 處理 quote 基本面結果（_rv 同時支援直接數值與 {raw,fmt} 格式）
-            if (_needFund && _quoteRaw) {
-                const q = _quoteRaw?.quoteResponse?.result?.[0];
-                if (q) {
-                    pe  = _rv(q.trailingPE)                                ?? null;
-                    fpe = _rv(q.forwardPE)                                 ?? null;
-                    peg = _rv(q.pegRatio)                                  ?? null;
-                    ps  = _rv(q.priceToSalesTrailing12Months)              ?? null;
-                    fund = {
-                        pb:               _rv(q.priceToBook)               ?? null,
-                        hist_avg_pe:      null,
-                        rev_yoy:          _rv(q.revenueGrowth)             ?? null,
-                        rev_fwd:          null,
-                        gross_margin:     _rv(q.grossMargins)              ?? null,
-                        operating_margin: _rv(q.operatingMargins)          ?? null,
-                        eps_ttm:          _rv(q.epsTrailingTwelveMonths)   ?? null,
-                        eps_cur_q:        null,
-                        eps_next_q:       null,
-                        eps_cur_y:        _rv(q.epsForward)                ?? null,
-                        eps_next_y:       null,
-                    };
-                    eps_ttm    = fund.eps_ttm;
-                    eps_cur_q  = fund.eps_cur_q;
-                    eps_next_q = fund.eps_next_q;
-                    eps_cur_y  = fund.eps_cur_y;
-                    eps_next_y = fund.eps_next_y;
-                    console.log(`[基本面] ${symbol} PE=${pe} FPE=${fpe} EPS=${eps_ttm}`);
+            // 從週線 earnings events 計算 TTM EPS 及本益比（完全免認證）
+            if (pe === null) {
+                const eventsMap = weeklyData?.chart?.result?.[0]?.events?.earnings ?? {};
+                const sortedEps = Object.entries(eventsMap)
+                    .sort(([a], [b]) => Number(a) - Number(b))
+                    .map(([, e]) => e.epsActual ?? e.actual ?? null)
+                    .filter(v => v != null);
+                if (sortedEps.length >= 1) {
+                    eps_ttm = parseFloat(sortedEps.slice(-4).reduce((a, b) => a + b, 0).toFixed(4));
+                    fund = { ...fund, eps_ttm };
+                    const mktPrice = weeklyData?.chart?.result?.[0]?.meta?.regularMarketPrice;
+                    if (mktPrice != null && eps_ttm > 0) {
+                        pe = parseFloat((mktPrice / eps_ttm).toFixed(2));
+                    }
+                    console.log(`[基本面] ${symbol} EPS_TTM=${eps_ttm} PE=${pe}`);
                 }
             }
 
@@ -1910,6 +1879,49 @@
 
 
 
+        // ==================== 技術面專用抓取（供1小時背景刷新使用）====================
+        async function fetchTechDataFromYahoo(symbol) {
+            const BASE1 = 'https://query1.finance.yahoo.com';
+            const [weeklyData, dailyData, hourlyData] = await Promise.all([
+                yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1wk&range=2y&events=earnings`).catch(() => null),
+                yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`).catch(() => null),
+                yfFetch(`${BASE1}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1h&range=5d`).catch(() => null)
+            ]);
+            const weeklyQ = weeklyData?.chart?.result?.[0]?.indicators?.quote?.[0] ?? {};
+            const dailyQ  = dailyData?.chart?.result?.[0]?.indicators?.quote?.[0]  ?? {};
+            const hourlyQ = hourlyData?.chart?.result?.[0]?.indicators?.quote?.[0] ?? {};
+            const weeklyKD = calcKD(weeklyQ.high, weeklyQ.low, weeklyQ.close);
+            const dailyKD  = calcKD(dailyQ.high,  dailyQ.low,  dailyQ.close);
+            const hourlyKD = calcKD(hourlyQ.high, hourlyQ.low, hourlyQ.close);
+            const kdCross  = kd => kd ? (kd.crossUp ? 'golden' : kd.crossDown ? 'death' : 'none') : 'none';
+            const weeklyC  = weeklyQ.close, dailyC = dailyQ.close, hourlyC = hourlyQ.close;
+            // prevClose & marketOpenedToday
+            const dailyTs  = dailyData?.chart?.result?.[0]?.timestamp ?? [];
+            const lastTs   = dailyTs[dailyTs.length - 1];
+            const todayET  = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York'});
+            const barET    = lastTs ? new Date(lastTs*1000).toLocaleDateString('en-US',{timeZone:'America/New_York'}) : '';
+            const opened   = (todayET === barET);
+            const valid    = Array.isArray(dailyC) ? dailyC.filter(c => c != null) : [];
+            const adjC     = valid.slice();
+            if (!opened) { while (adjC.length >= 2 && adjC[adjC.length-1] === adjC[adjC.length-2]) adjC.pop(); }
+            let prevClose = null, prevPrevClose = null;
+            if (opened) {
+                if (adjC.length >= 2) prevClose     = adjC[adjC.length - 2];
+                if (adjC.length >= 3) prevPrevClose = adjC[adjC.length - 3];
+            } else {
+                if (adjC.length >= 1) prevClose     = adjC[adjC.length - 1];
+                if (adjC.length >= 2) prevPrevClose = adjC[adjC.length - 2];
+            }
+            return {
+                weekly_k: weeklyKD?.k ?? null, weekly_d: weeklyKD?.d ?? null, weekly_cross: kdCross(weeklyKD),
+                daily_k:  dailyKD?.k  ?? null, daily_d:  dailyKD?.d  ?? null, daily_cross:  kdCross(dailyKD),
+                hourly_k: hourlyKD?.k ?? null, hourly_d: hourlyKD?.d ?? null, hourly_cross: kdCross(hourlyKD),
+                weekly_macd: calcMACD(weeklyC), daily_macd: calcMACD(dailyC), hourly_macd: calcMACD(hourlyC),
+                weekly_rsi:  calcRSI(weeklyC),  daily_rsi:  calcRSI(dailyC),  hourly_rsi:  calcRSI(hourlyC),
+                prevClose, prevPrevClose, marketOpenedToday: opened
+            };
+        }
+
         // ==================== 後端網址設定 ====================
         function setBackendUrl() {
             const current = localStorage.getItem('backend_url') || '';
@@ -1956,14 +1968,29 @@
             }
         })();
 
-        // ==================== Analysis Cache (sessionStorage, 1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v5';
-        const _CACHE_TTL = 60 * 60 * 1000;
-        function _loadCache() {
-            try { const r = JSON.parse(sessionStorage.getItem(_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
+        // ==================== Analysis Cache (localStorage, 基本面4hr / 技術面1hr TTL) ====================
+        const _CACHE_KEY = 'pf_analysis_v6';   // 版本號更新以清除舊快取
+        const _FUND_TTL  = 4 * 60 * 60 * 1000; // 基本面：4 小時
+        const _TECH_TTL  = 1 * 60 * 60 * 1000; // 技術面：1 小時
+        function _loadCacheRaw() {
+            try { return JSON.parse(localStorage.getItem(_CACHE_KEY)||'{}'); } catch { return {}; }
         }
+        function _loadCache() {
+            // 供「基本面過期」路徑：fund TTL 未到期才返回快取資料
+            const r = _loadCacheRaw();
+            return (Date.now() - (r.fund_ts||0) < _FUND_TTL) ? (r.data||{}) : {};
+        }
+        function _isFundFresh() { const r = _loadCacheRaw(); return (Date.now() - (r.fund_ts||0) < _FUND_TTL); }
+        function _isTechFresh() { const r = _loadCacheRaw(); return (Date.now() - (r.tech_ts||0) < _TECH_TTL); }
         function _saveCache(data) {
-            try { sessionStorage.setItem(_CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch {}
+            // 完整抓取後呼叫，同時更新基本面 & 技術面時間戳
+            const now = Date.now();
+            try { localStorage.setItem(_CACHE_KEY, JSON.stringify({fund_ts:now, tech_ts:now, data})); } catch {}
+        }
+        function _saveTechCache(data) {
+            // 技術面專用刷新後呼叫，僅更新 tech_ts（保留 fund_ts 不變）
+            const r = _loadCacheRaw();
+            try { localStorage.setItem(_CACHE_KEY, JSON.stringify({...r, tech_ts:Date.now(), data})); } catch {}
         }
 
         // ==================== Main Analysis Loader ====================
@@ -2000,43 +2027,88 @@
                     (r.isProxy ? '<br><small style="color:#f59e0b;font-size:0.72rem;">' + r.query + ' (原型)</small>' : '') + '</td>' +
                 '<td colspan="' + colspan + '" style="text-align:center; color:#64748b; font-size:0.82rem; padding:0.5rem;">' + msg + '</td></tr>';
 
-            fundTbody.innerHTML = rows.map(r => loadingRow(r, 15, '⏳ 查詢中...')).join('');
-            techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 查詢中...')).join('').replace(/arow-/g, 'trow-');
-
-            // 載入快取（Shift+Click 強制重新整理）
-            const cache = forceRefresh ? {} : _loadCache();
-            const allResults = { ...cache };
+            // ── 判斷快取狀態（基本面4hr / 技術面1hr）──
+            const fundFresh = !forceRefresh && _isFundFresh();
+            const techFresh = !forceRefresh && _isTechFresh();
             const uniqueQueries = [...new Set(rows.map(r => r.query))];
-            const toFetch = uniqueQueries.filter(s => !allResults[s]);
 
-            for (let i = 0; i < toFetch.length; i++) {
-                const sym = toFetch[i];
-                const prog = '⏳ 查詢中（' + (i+1) + '/' + toFetch.length + '）...';
-                rows.filter(r => r.query === sym).forEach(r => {
-                    const fe = document.getElementById('arow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
-                    const te = document.getElementById('trow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
-                    if (fe) { fe.cells[1].colSpan = 15; fe.cells[1].textContent = prog; }
-                    if (te) { te.cells[1].colSpan = 10; te.cells[1].textContent = prog; }
-                });
-                try {
-                    allResults[sym] = await fetchSymbolDataFromYahoo(sym);
-                } catch(e) {
-                    allResults[sym] = { _error: e.message };
+            // 初始資料：從原始快取（localStorage）取，無論哪條路徑都先有基礎值
+            let allResults = { ...(_loadCacheRaw().data || {}) };
+
+            if (fundFresh && techFresh) {
+                // ── 快取完全有效 → 直接渲染，不發任何 API 請求 ──
+                // （直接 fall through 到 Render 區塊）
+
+            } else if (fundFresh && !techFresh) {
+                // ── 技術面過期 → 只重抓 KD/MACD/RSI + prevClose ──
+                if (!silent) {
+                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 15, '⏳ 更新技術面...')).join('');
+                    techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 更新技術面...')).join('').replace(/arow-/g, 'trow-');
                 }
-                if (i < toFetch.length - 1) await new Promise(res => setTimeout(res, 200));
+                for (let i = 0; i < uniqueQueries.length; i++) {
+                    const sym = uniqueQueries[i];
+                    if (!silent) {
+                        const prog = '⏳ 更新技術面（' + (i+1) + '/' + uniqueQueries.length + '）...';
+                        rows.filter(r => r.query === sym).forEach(r => {
+                            const te = document.getElementById('trow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
+                            if (te) { te.cells[1].colSpan = 10; te.cells[1].textContent = prog; }
+                        });
+                    }
+                    try {
+                        const tech = await fetchTechDataFromYahoo(sym);
+                        allResults[sym] = { ...(allResults[sym] || {}), ...tech };
+                    } catch(_) {}
+                    if (i < uniqueQueries.length - 1) await new Promise(res => setTimeout(res, 200));
+                }
+                // 槓桿 ETF：用自身日線取技術面 & prevClose
+                const proxyRowsT = rows.filter(r => r.isProxy);
+                for (let pi = 0; pi < proxyRowsT.length; pi++) {
+                    try {
+                        const tech = await fetchTechDataFromYahoo(proxyRowsT[pi].holding);
+                        allResults[proxyRowsT[pi].holding] = { ...(allResults[proxyRowsT[pi].holding] || {}), ...tech };
+                    } catch(_) {}
+                    if (pi < proxyRowsT.length - 1) await new Promise(res => setTimeout(res, 200));
+                }
+                _saveTechCache(allResults);
+
+            } else {
+                // ── 基本面（或全部）過期 → 完整重抓 ──
+                fundTbody.innerHTML = rows.map(r => loadingRow(r, 15, '⏳ 查詢中...')).join('');
+                techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 查詢中...')).join('').replace(/arow-/g, 'trow-');
+
+                const cache = forceRefresh ? {} : _loadCache();
+                allResults = { ...cache };
+                const toFetch = uniqueQueries.filter(s => !allResults[s]);
+
+                for (let i = 0; i < toFetch.length; i++) {
+                    const sym = toFetch[i];
+                    const prog = '⏳ 查詢中（' + (i+1) + '/' + toFetch.length + '）...';
+                    rows.filter(r => r.query === sym).forEach(r => {
+                        const fe = document.getElementById('arow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
+                        const te = document.getElementById('trow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
+                        if (fe) { fe.cells[1].colSpan = 15; fe.cells[1].textContent = prog; }
+                        if (te) { te.cells[1].colSpan = 10; te.cells[1].textContent = prog; }
+                    });
+                    try {
+                        allResults[sym] = await fetchSymbolDataFromYahoo(sym);
+                    } catch(e) {
+                        allResults[sym] = { _error: e.message };
+                    }
+                    if (i < toFetch.length - 1) await new Promise(res => setTimeout(res, 200));
+                }
+                _saveCache(allResults);
+
+                // ── 偵測未在 fundamentals.json 中的新標的（GitHub Pages 模式）──
+                if (!_isLocal && !BACKEND_URL && window._fundJsonCache?.data) {
+                    const fundData = window._fundJsonCache.data;
+                    const missing = uniqueQueries.filter(s => !fundData[s] && s !== 'BTC-USD');
+                    if (missing.length > 0) _showMissingFundNotice(missing);
+                }
             }
-            _saveCache(allResults);
 
-            // ── 偵測未在 fundamentals.json 中的新標的（GitHub Pages 模式）──
-            if (!_isLocal && !BACKEND_URL && window._fundJsonCache?.data) {
-                const fundData = window._fundJsonCache.data;
-                const missing = uniqueQueries.filter(s => !fundData[s] && s !== 'BTC-USD');
-                if (missing.length > 0) _showMissingFundNotice(missing);
-            }
+            // ── 毛利率/營益率：v8/chart events 不含此資訊；quoteSummary 需 crumb 已停用 ──
 
-            // ── 毛利率/營益率：v6/quote 若有提供則已在 ②-b 填入；quoteSummary 需 crumb 已停用 ──
-
-            // ── Render ──
+            // ── Render ──（全量重建表格，支援快取直接命中時表格為空的情況）
             const fmt  = v => (v != null && !isNaN(v)) ? parseFloat(v).toFixed(2) : '-';
             const fmtp = v => (v != null && !isNaN(v)) ? (parseFloat(v)*100).toFixed(1) + '%' : '-';
             const tr   = (v, a) => '<td style="padding:0.5rem 0.6rem; text-align:' + (a||'right') + '; color:#e2e8f0;">' + v + '</td>';
@@ -2047,128 +2119,141 @@
                 const lbl = up ? '▲ 黃金交叉' : dn ? '▼ 死亡交叉' : (parseFloat(k)>parseFloat(dv) ? 'K>D' : 'K<D');
                 return '<span class="'+(up?'kd-up':dn?'kd-down':'kd-neu')+'">'+ lbl +'</span><br><small style="color:#64748b;font-size:0.75rem;">K:'+parseFloat(k).toFixed(1)+' D:'+parseFloat(dv).toFixed(1)+'</small>';
             };
-
+            const fundRowsHtml = [], techRowsHtml = [];
             rows.forEach(r => {
-                const fid = 'arow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_');
-                const tid = 'trow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_');
-                const fe  = document.getElementById(fid);
-                const te  = document.getElementById(tid);
-                const d   = allResults[r.query];
-                const symTd = '<td style="padding:0.5rem 0.6rem; font-weight:700; color:#f1f5f9;">' + r.holding +
+                const rowId  = r.holding.replace(/[^a-zA-Z0-9]/g,'_');
+                const d      = allResults[r.query];
+                const symTd  = '<td style="padding:0.5rem 0.6rem; font-weight:700; color:#f1f5f9;">' + r.holding +
                     (r.isProxy ? '<br><small style="color:#f59e0b;font-size:0.72rem;">' + r.query + ' (原型)</small>' : '') + '</td>';
+                const rowStyle = 'style="border-bottom:1px solid rgba(255,255,255,0.05);"';
 
                 if (!d || d._error) {
                     const errMsg = '❌ ' + (d?._error||'無數據').split('\n')[0];
-                    if (fe) fe.innerHTML = symTd + '<td colspan="15" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">' + errMsg + '</td>';
-                    if (te) te.innerHTML = symTd + '<td colspan="10" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">' + errMsg + '</td>';
+                    fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}<td colspan="15" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
+                    techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}<td colspan="10" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
                     return;
                 }
 
-                // 基本面表（含毛利率、營益率）
-                if (fe) fe.innerHTML = symTd +
+                // 基本面行
+                fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}` +
                     tr(fmt(d.pe)) + tr(fmt(d.hist_avg_pe)) + tr(fmt(d.fpe)) +
                     tr(fmt(d.peg)) + tr(fmt(d.ps)) + tr(fmt(d.pb)) +
                     tr(fmtp(d.rev_yoy)) + tr(fmtp(d.rev_fwd)) +
                     tr(fmtp(d.gross_margin)) + tr(fmtp(d.operating_margin)) +
-                    tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y));
+                    tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) + '</tr>');
 
-                // 技術面表（含綜合評價）
-                if (te) te.innerHTML = symTd +
+                // 技術面行
+                techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}` +
                     trc(buildKD(d.hourly_k, d.hourly_d, d.hourly_cross)) +
                     trc(buildKD(d.daily_k,  d.daily_d,  d.daily_cross))  +
                     trc(buildKD(d.weekly_k, d.weekly_d, d.weekly_cross)) +
                     trc(macdBadge(d.hourly_macd)) + trc(macdBadge(d.daily_macd)) + trc(macdBadge(d.weekly_macd)) +
                     trc(rsiBadge(d.hourly_rsi))   + trc(rsiBadge(d.daily_rsi))   + trc(rsiBadge(d.weekly_rsi)) +
-                    '<td style="padding:0.5rem 0.6rem; text-align:center; background:rgba(251,191,36,0.04);">' + techSummaryBadge(d) + '</td>';
+                    '<td style="padding:0.5rem 0.6rem; text-align:center; background:rgba(251,191,36,0.04);">' + techSummaryBadge(d) + '</td></tr>');
             });
+            fundTbody.innerHTML = fundRowsHtml.join('');
+            techTbody.innerHTML = techRowsHtml.join('');
 
             btn.textContent = '🔄 更新分析數據'; btn.disabled = false;
 
             // ── 儲存 prevClose / prevPrevClose / marketOpenedToday 至本地暫存 ──
+            // 代理/槓桿 ETF 用自己的 key（r.holding），普通股用 r.query
             rows.forEach(r => {
-                const d = allResults[r.query];
-                if (!r.isProxy) {
-                    if (d?.prevClose         != null) _tmpPrevClose[r.holding]     = d.prevClose;
-                    if (d?.prevPrevClose     != null) _tmpPrevPrevClose[r.holding] = d.prevPrevClose;
-                    if (d?.marketOpenedToday != null) _tmpMarketOpened[r.holding]  = d.marketOpenedToday;
+                const d = r.isProxy ? allResults[r.holding] : allResults[r.query];
+                if (d) {
+                    if (d.prevClose         != null) _tmpPrevClose[r.holding]     = d.prevClose;
+                    if (d.prevPrevClose     != null) _tmpPrevPrevClose[r.holding] = d.prevPrevClose;
+                    if (d.marketOpenedToday != null) _tmpMarketOpened[r.holding]  = d.marketOpenedToday;
                 }
             });
 
-            // ── 補抓 prevClose / prevPrevClose（非代理股，快取遺漏時）──────────
-            {
-                const BASE1_pc = 'https://query1.finance.yahoo.com';
-                const missingSyms = [...new Set(
-                    rows.filter(r => !r.isProxy && (
-                        _tmpPrevClose[r.holding] == null ||
-                        _tmpPrevPrevClose[r.holding] == null ||
-                        _tmpPrevClose[r.holding] === _tmpPrevPrevClose[r.holding]
-                    )).map(r => ({ holding: r.holding, query: r.query }))
-                        .filter((v, i, a) => a.findIndex(x => x.holding === v.holding) === i)
-                )];
-                for (let mi = 0; mi < missingSyms.length; mi++) {
-                    const { holding, query } = missingSyms[mi];
-                    try {
-                        const qd = await yfFetch(`${BASE1_pc}/v8/finance/chart/${holding}?interval=1d&range=5d`);
-                        const ch = qd?.chart?.result?.[0];
-                        const tss = ch?.timestamp ?? [];
-                        const closes = (ch?.indicators?.quote?.[0]?.close ?? []).filter(v => v != null);
-                        const todayET = new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'});
-                        const barET = tss.length ? new Date(tss[tss.length - 1] * 1000).toLocaleDateString('en-US', {timeZone: 'America/New_York'}) : '';
-                        const opened = (todayET === barET);
-                        _tmpMarketOpened[holding] = opened;
-                        // 去除幻影重複 bar
-                        const adjCl = closes.slice();
-                        if (!opened) { while (adjCl.length >= 2 && adjCl[adjCl.length-1] === adjCl[adjCl.length-2]) adjCl.pop(); }
-                        if (opened) {
-                            if (adjCl.length >= 2) _tmpPrevClose[holding]     = adjCl[adjCl.length - 2];
-                            if (adjCl.length >= 3) _tmpPrevPrevClose[holding] = adjCl[adjCl.length - 3];
-                        } else {
-                            if (adjCl.length >= 1) _tmpPrevClose[holding]     = adjCl[adjCl.length - 1];
-                            if (adjCl.length >= 2) _tmpPrevPrevClose[holding] = adjCl[adjCl.length - 2];
-                        }
-                        // 回填 allResults 讓下次快取也有值
-                        if (allResults[query]) {
-                            allResults[query].prevClose         = _tmpPrevClose[holding] ?? allResults[query].prevClose;
-                            allResults[query].prevPrevClose     = _tmpPrevPrevClose[holding] ?? allResults[query].prevPrevClose;
-                            allResults[query].marketOpenedToday = opened;
-                        }
-                    } catch(_) {}
-                    if (mi < missingSyms.length - 1) await new Promise(res => setTimeout(res, 150));
-                }
-                // 更新快取（含補抓後的 prevClose）
-                _saveCache(allResults);
-            }
-
-            // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
-            const BASE1_lev = 'https://query1.finance.yahoo.com';
-            const proxyRows = rows.filter(r => r.isProxy);
-            for (let pi = 0; pi < proxyRows.length; pi++) {
-                const r = proxyRows[pi];
-                try {
-                    const data  = await yfFetch(`${BASE1_lev}/v8/finance/chart/${r.holding}?interval=1d&range=5d`);
-                    const res0  = data?.chart?.result?.[0];
-                    const ts    = res0?.timestamp ?? [];
-                    const rawCloses = res0?.indicators?.quote?.[0]?.close ?? [];
-                    const closes = rawCloses.filter(c => c != null);
-
-                    const lastTs   = ts[ts.length - 1];
-                    const todayET  = new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'});
-                    const barET    = lastTs ? new Date(lastTs * 1000).toLocaleDateString('en-US', {timeZone: 'America/New_York'}) : '';
-                    const todayOpened = (todayET === barET);
-                    _tmpMarketOpened[r.holding] = todayOpened;
-
-                    const adjCls = closes.slice();
-                    if (!todayOpened) { while (adjCls.length >= 2 && adjCls[adjCls.length-1] === adjCls[adjCls.length-2]) adjCls.pop(); }
-
-                    if (todayOpened) {
-                        if (adjCls.length >= 2) _tmpPrevClose[r.holding]     = adjCls[adjCls.length - 2];
-                        if (adjCls.length >= 3) _tmpPrevPrevClose[r.holding] = adjCls[adjCls.length - 3];
-                    } else {
-                        if (adjCls.length >= 1) _tmpPrevClose[r.holding]     = adjCls[adjCls.length - 1];
-                        if (adjCls.length >= 2) _tmpPrevPrevClose[r.holding] = adjCls[adjCls.length - 2];
+            // ── 補抓 prevClose（只在有資料更新時執行，快取完全有效時跳過）──
+            if (!fundFresh || !techFresh) {
+                // 非代理股：補抓 prevClose 遺漏的情況
+                {
+                    const BASE1_pc = 'https://query1.finance.yahoo.com';
+                    const missingSyms = [...new Set(
+                        rows.filter(r => !r.isProxy && (
+                            _tmpPrevClose[r.holding] == null ||
+                            _tmpPrevPrevClose[r.holding] == null ||
+                            _tmpPrevClose[r.holding] === _tmpPrevPrevClose[r.holding]
+                        )).map(r => ({ holding: r.holding, query: r.query }))
+                            .filter((v, i, a) => a.findIndex(x => x.holding === v.holding) === i)
+                    )];
+                    for (let mi = 0; mi < missingSyms.length; mi++) {
+                        const { holding, query } = missingSyms[mi];
+                        try {
+                            const qd = await yfFetch(`${BASE1_pc}/v8/finance/chart/${holding}?interval=1d&range=5d`);
+                            const ch = qd?.chart?.result?.[0];
+                            const tss = ch?.timestamp ?? [];
+                            const closes = (ch?.indicators?.quote?.[0]?.close ?? []).filter(v => v != null);
+                            const todayET = new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'});
+                            const barET = tss.length ? new Date(tss[tss.length - 1] * 1000).toLocaleDateString('en-US', {timeZone: 'America/New_York'}) : '';
+                            const opened = (todayET === barET);
+                            _tmpMarketOpened[holding] = opened;
+                            const adjCl = closes.slice();
+                            if (!opened) { while (adjCl.length >= 2 && adjCl[adjCl.length-1] === adjCl[adjCl.length-2]) adjCl.pop(); }
+                            if (opened) {
+                                if (adjCl.length >= 2) _tmpPrevClose[holding]     = adjCl[adjCl.length - 2];
+                                if (adjCl.length >= 3) _tmpPrevPrevClose[holding] = adjCl[adjCl.length - 3];
+                            } else {
+                                if (adjCl.length >= 1) _tmpPrevClose[holding]     = adjCl[adjCl.length - 1];
+                                if (adjCl.length >= 2) _tmpPrevPrevClose[holding] = adjCl[adjCl.length - 2];
+                            }
+                            if (allResults[query]) {
+                                allResults[query].prevClose         = _tmpPrevClose[holding] ?? allResults[query].prevClose;
+                                allResults[query].prevPrevClose     = _tmpPrevPrevClose[holding] ?? allResults[query].prevPrevClose;
+                                allResults[query].marketOpenedToday = opened;
+                            }
+                        } catch(_) {}
+                        if (mi < missingSyms.length - 1) await new Promise(res => setTimeout(res, 150));
                     }
-                } catch(_) {}
-                if (pi < proxyRows.length - 1) await new Promise(res => setTimeout(res, 300));
+                }
+
+                // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
+                // 技術面刷新路徑已用 fetchTechDataFromYahoo 處理，此區段僅在完整抓取時執行
+                if (!fundFresh) {
+                    const BASE1_lev = 'https://query1.finance.yahoo.com';
+                    const proxyRows = rows.filter(r => r.isProxy);
+                    for (let pi = 0; pi < proxyRows.length; pi++) {
+                        const r = proxyRows[pi];
+                        try {
+                            const data  = await yfFetch(`${BASE1_lev}/v8/finance/chart/${r.holding}?interval=1d&range=5d`);
+                            const res0  = data?.chart?.result?.[0];
+                            const ts    = res0?.timestamp ?? [];
+                            const rawCloses = res0?.indicators?.quote?.[0]?.close ?? [];
+                            const closes = rawCloses.filter(c => c != null);
+                            const lastTs   = ts[ts.length - 1];
+                            const todayET  = new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'});
+                            const barET    = lastTs ? new Date(lastTs * 1000).toLocaleDateString('en-US', {timeZone: 'America/New_York'}) : '';
+                            const todayOpened = (todayET === barET);
+                            _tmpMarketOpened[r.holding] = todayOpened;
+                            const adjCls = closes.slice();
+                            if (!todayOpened) { while (adjCls.length >= 2 && adjCls[adjCls.length-1] === adjCls[adjCls.length-2]) adjCls.pop(); }
+                            if (todayOpened) {
+                                if (adjCls.length >= 2) _tmpPrevClose[r.holding]     = adjCls[adjCls.length - 2];
+                                if (adjCls.length >= 3) _tmpPrevPrevClose[r.holding] = adjCls[adjCls.length - 3];
+                            } else {
+                                if (adjCls.length >= 1) _tmpPrevClose[r.holding]     = adjCls[adjCls.length - 1];
+                                if (adjCls.length >= 2) _tmpPrevPrevClose[r.holding] = adjCls[adjCls.length - 2];
+                            }
+                            // 儲存至 allResults 讓後續快取可直接使用（不重抓 ETF prevClose）
+                            allResults[r.holding] = {
+                                prevClose: _tmpPrevClose[r.holding] ?? null,
+                                prevPrevClose: _tmpPrevPrevClose[r.holding] ?? null,
+                                marketOpenedToday: todayOpened
+                            };
+                        } catch(_) {}
+                        if (pi < proxyRows.length - 1) await new Promise(res => setTimeout(res, 300));
+                    }
+                }
+
+                // ── 最終快取存檔（含補抓後的 prevClose & ETF prevClose）──
+                if (!fundFresh) {
+                    _saveCache(allResults);      // 完整路徑：更新兩個 timestamp
+                } else {
+                    _saveTechCache(allResults);  // 技術面路徑：只更新 tech_ts
+                }
             }
 
             // 所有資料抓取完畢 → 一次性替換全域快取，避免分析期間自動更新顯示空白
@@ -2214,7 +2299,7 @@
             })();
             // 啟動每分鐘自動更新報價
             startAutoRefresh();
-            // 啟動每30分鐘自動更新基本面 & 技術面
+            // 啟動後台自動更新（技術面1hr / 基本面4hr，由快取TTL決定刷新範圍）
             startAutoAnalysis();
             // 有持倉時：延遲 2 秒靜默預載分析（讓主畫面先渲染完）
             if (hadSaved && holdings.length > 0) {
@@ -2311,7 +2396,7 @@
             showImportToast('✅ symbols.json 已下載，請替換 data/symbols.json 後推送至 GitHub', 4000);
         }
 
-        // ── 每小時自動更新基本面 & 技術面 ──
+        // ── 後台自動更新：技術面每1小時、基本面每4小時（由 loadAnalysis 快取判斷決定更新範圍）──
         let _autoAnalysisTimer = null;
         function startAutoAnalysis() {
             if (_autoAnalysisTimer) clearInterval(_autoAnalysisTimer);
@@ -2319,25 +2404,26 @@
                 if (holdings.length === 0) return;
                 const btn = document.getElementById('analysis-btn');
                 if (btn?.disabled) return; // 已在更新中，跳過
-                await loadAnalysis(true, true); // forceRefresh=true, silent=true
-                // 更新「分析更新時間」顯示
+                // forceRefresh=false → 讓 loadAnalysis 依快取 TTL 決定更新範圍
+                // 技術面(1hr)或基本面(4hr)過期時自動刷新；均有效時直接跳過
+                await loadAnalysis(false, true); // silent=true 不顯示 loading 狀態
                 const statusEl = document.getElementById('backend-status');
                 if (statusEl) {
                     const t = new Date().toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-                    statusEl.textContent = `⏱ 自動更新 ${t}`;
+                    statusEl.textContent = `⏱ 後台更新 ${t}`;
                 }
-            }, 1800000); // 每 30 分鐘
+            }, 60 * 60 * 1000); // 每 1 小時觸發一次（判斷是否需要更新）
         }
 
         // ==================== Tab 4：財報分析 & 券商評級 ====================
         let _earningsLoaded = false;
-        const _QS_CACHE_KEY = 'pf_qs_v2';
-        const _QS_CACHE_TTL = 3 * 60 * 60 * 1000; // 3 小時
+        const _QS_CACHE_KEY = 'pf_qs_v3';          // 版本號更新以清除舊快取
+        const _QS_CACHE_TTL = 4 * 60 * 60 * 1000; // 財報分析：4 小時
         function _loadQsCache() {
-            try { const r = JSON.parse(sessionStorage.getItem(_QS_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _QS_CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
+            try { const r = JSON.parse(localStorage.getItem(_QS_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _QS_CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
         }
         function _saveQsCache(data) {
-            try { sessionStorage.setItem(_QS_CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch {}
+            try { localStorage.setItem(_QS_CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch {}
         }
 
         async function loadEarningsAnalysis(forceRefresh) {
@@ -2351,65 +2437,110 @@
             const allQs = { ...cache };
             const toFetch = symbols.filter(s => !allQs[s]);
 
-            // 每批 3 個標的同時抓取：
-            //   - v8/finance/chart?events=earnings → 近4季 EPS 實際 vs 預估（不需認證）
-            //   - v6/finance/quote               → 分析師評級、目標股價、利潤率（不需認證）
-            // Yahoo Finance v10/quoteSummary 需要 crumb，已停用。
-            const BATCH = 3;
-            for (let i = 0; i < toFetch.length; i += BATCH) {
-                const batch = toFetch.slice(i, i + BATCH);
-                if (statusEl) statusEl.textContent =
-                    `(${Math.min(i + BATCH, toFetch.length)}/${toFetch.length}) 查詢 ${batch.join(', ')}...`;
-                await Promise.all(batch.map(async sym => {
-                    try {
-                        const [chartData, quoteData] = await Promise.all([
-                            yfFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1mo&range=2y&events=earnings`).catch(() => null),
-                            Promise.any([
-                                yfFetch(`https://query1.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(sym)}`).then(r => { if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty'); return r; }),
-                                yfFetch(`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(sym)}`).then(r => { if (!r?.quoteResponse?.result?.[0]?.symbol) throw new Error('empty'); return r; }),
-                            ]).catch(() => null)
-                        ]);
-                        if (!chartData && !quoteData) { allQs[sym] = { _error: '無法取得數據' }; return; }
+            // 逐一查詢（循序，避免代理 rate limit）
+            // 使用週線 v8/chart?events=earnings → 免認證取得近8季 EPS Actual/Estimate
+            // Yahoo Finance v6/v7/v10 quote API 均需 crumb 認證，已全面停用。
+            for (let i = 0; i < toFetch.length; i++) {
+                const sym = toFetch[i];
+                if (statusEl) statusEl.textContent = `(${i+1}/${toFetch.length}) 查詢 ${sym}...`;
+                try {
+                    const chartData = await yfFetch(
+                        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1wk&range=2y&events=earnings`
+                    ).catch(() => null);
+                    if (!chartData) { allQs[sym] = { _error: '無法取得數據' }; continue; }
 
-                        // 從 chart events 轉換成 earningsHistory.history 格式（與 quoteSummary 相同結構）
-                        const rawEvents = chartData?.chart?.result?.[0]?.events?.earnings ?? {};
-                        const earningsHistoryArr = Object.entries(rawEvents)
-                            .sort(([a],[b]) => Number(a) - Number(b))
-                            .map(([ts, e]) => {
-                                const surpRaw = e.epsSurprisePct ?? e.surprisePct ?? null;
-                                const d = new Date(Number(ts) * 1000);
-                                const qNum = Math.ceil((d.getMonth() + 1) / 3);
-                                return {
-                                    epsActual:       { raw: e.epsActual   ?? e.actual   ?? null },
-                                    epsEstimate:     { raw: e.epsEstimate ?? e.estimate ?? null },
-                                    surprisePercent: { raw: surpRaw != null ? surpRaw / 100 : null },
-                                    quarter:         { fmt: `${d.getFullYear()} Q${qNum}` }
-                                };
-                            });
+                    // 從 chart events 轉換成 earningsHistory.history 格式
+                    const rawEvents = chartData?.chart?.result?.[0]?.events?.earnings ?? {};
+                    const earningsHistoryArr = Object.entries(rawEvents)
+                        .sort(([a],[b]) => Number(a) - Number(b))
+                        .map(([ts, e]) => {
+                            const actualVal = e.epsActual  ?? e.actual  ?? null;
+                            const estVal    = e.epsEstimate ?? e.estimate ?? null;
+                            const surpRaw   = e.epsSurprisePct ?? e.surprisePct ?? null;
+                            const calcSurp  = (actualVal != null && estVal != null && estVal !== 0)
+                                ? (actualVal - estVal) / Math.abs(estVal) : null;
+                            const d = new Date(Number(ts) * 1000);
+                            const qNum = Math.ceil((d.getMonth() + 1) / 3);
+                            return {
+                                epsActual:       { raw: actualVal },
+                                epsEstimate:     { raw: estVal },
+                                surprisePercent: { raw: surpRaw != null ? surpRaw / 100 : calcSurp },
+                                quarter:         { fmt: `${d.getFullYear()} Q${qNum}` }
+                            };
+                        });
 
-                        // 從 v6/quote 取分析師共識、目標股價、利潤率
-                        const q = quoteData?.quoteResponse?.result?.[0] ?? {};
-                        allQs[sym] = {
-                            earningsHistory:          { history: earningsHistoryArr },
-                            upgradeDowngradeHistory:  { history: [] }, // v6 不提供評級異動
-                            financialData: {
-                                recommendationKey:        q.recommendationKey                       ?? '',
-                                numberOfAnalystOpinions:  { raw: q.numberOfAnalystOpinions          ?? 0 },
-                                targetMeanPrice:          q.targetMeanPrice  != null ? { raw: q.targetMeanPrice  } : null,
-                                targetLowPrice:           q.targetLowPrice   != null ? { raw: q.targetLowPrice   } : null,
-                                targetHighPrice:          q.targetHighPrice  != null ? { raw: q.targetHighPrice  } : null,
-                                grossMargins:             q.grossMargins     != null ? { raw: q.grossMargins     } : null,
-                                operatingMargins:         q.operatingMargins != null ? { raw: q.operatingMargins } : null,
-                                revenueGrowth:            q.revenueGrowth    != null ? { raw: q.revenueGrowth    } : null,
-                            },
-                        };
-                    } catch(e) {
-                        allQs[sym] = { _error: e.message.split('\n')[0] };
-                    }
-                }));
-                if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 300));
+                    allQs[sym] = {
+                        earningsHistory:         { history: earningsHistoryArr },
+                        upgradeDowngradeHistory: { history: [] },
+                        financialData: {
+                            recommendationKey: '', numberOfAnalystOpinions: { raw: 0 },
+                            targetMeanPrice: null, targetLowPrice: null, targetHighPrice: null,
+                            grossMargins: null, operatingMargins: null, revenueGrowth: null,
+                        },
+                    };
+                } catch(e) {
+                    allQs[sym] = { _error: e.message.split('\n')[0] };
+                }
+                if (i < toFetch.length - 1) await new Promise(r => setTimeout(r, 400));
             }
             _saveQsCache(allQs);
+
+            // ── 從 fundamentals.json 補充遺漏的季度 EPS 歷史與財務指標 ──────
+            // 原因：CORS 代理不回傳 Yahoo Finance 的 events.earnings 欄位；
+            //       Python 腳本透過 yfinance.earnings_dates 直接取得並存入 fundamentals.json
+            if (!window._fundJsonCache) {
+                try {
+                    const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    if (r.ok) {
+                        const txt = await r.text();
+                        const cleaned = txt.replace(/:\s*NaN/g, ': null')
+                                           .replace(/:\s*Infinity/g, ': null')
+                                           .replace(/:\s*-Infinity/g, ': null');
+                        window._fundJsonCache = JSON.parse(cleaned);
+                    } else { window._fundJsonCache = {}; }
+                } catch { window._fundJsonCache = {}; }
+            }
+            for (const sym of symbols) {
+                // 若此 symbol 完全無資料，建立空殼（避免 renderEarningsTab 跳過）
+                if (!allQs[sym]) {
+                    allQs[sym] = {
+                        earningsHistory: { history: [] },
+                        upgradeDowngradeHistory: { history: [] },
+                        financialData: { recommendationKey: '', numberOfAnalystOpinions: { raw: 0 } }
+                    };
+                }
+                if (allQs[sym]._error) continue;
+                const fj = window._fundJsonCache?.data?.[sym];
+                if (!fj) continue;
+                // 補充季度 EPS 歷史（API 空結果時從 fundamentals.json 讀取）
+                const eh = allQs[sym].earningsHistory?.history ?? [];
+                if (eh.length === 0 && fj.earnings_history?.length > 0) {
+                    allQs[sym].earningsHistory = {
+                        history: fj.earnings_history.map(e => ({
+                            epsActual:       { raw: e.eps_actual },
+                            epsEstimate:     { raw: e.eps_estimate },
+                            surprisePercent: { raw: e.surprise_pct },
+                            quarter:         { fmt: e.quarter }
+                        }))
+                    };
+                }
+                // 補充財務指標
+                const fd = allQs[sym].financialData || {};
+                allQs[sym].financialData = fd;
+                if (fd.grossMargins?.raw    == null && fj.gross_margin     != null) fd.grossMargins    = { raw: fj.gross_margin };
+                if (fd.operatingMargins?.raw == null && fj.operating_margin != null) fd.operatingMargins = { raw: fj.operating_margin };
+                if (fd.revenueGrowth?.raw   == null && fj.rev_yoy          != null) fd.revenueGrowth   = { raw: fj.rev_yoy };
+                // 附加估值摘要供 renderEarningsTab 顯示
+                allQs[sym]._fund = {
+                    pe: fj.pe, fpe: fj.fpe, peg: fj.peg, ps: fj.ps, pb: fj.pb,
+                    eps_ttm:  fj.eps_ttm,  eps_cur_q:  fj.eps_cur_q,
+                    eps_next_q: fj.eps_next_q2,
+                    eps_cur_y: fj.eps_cur_y, eps_next_y: fj.eps_next_y,
+                    rev_yoy: fj.rev_yoy, rev_fwd: fj.rev_fwd,
+                    gross_margin: fj.gross_margin, operating_margin: fj.operating_margin,
+                    hist_avg_pe: fj.hist_avg_pe
+                };
+            }
 
             // 同步毛利率/營益率（若 v6/quote 有提供）到基本面快取
             const analysisCache = _loadCache();
@@ -2523,13 +2654,39 @@
                     </tr>`;
                 }).join('');
 
-                // 毛利率/營益率/營收成長（來自 financialData）
+                // 毛利率/營益率/營收成長（來自 financialData 或 _fund）
                 const gm  = fd.grossMargins?.raw, om = fd.operatingMargins?.raw, rg = fd.revenueGrowth?.raw;
                 const marginPills = [
                     gm  != null ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(59,130,246,0.1);color:#60a5fa;font-size:0.75rem;">毛利率 ${(gm*100).toFixed(1)}%</span>` : '',
                     om  != null ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.1);color:#a5b4fc;font-size:0.75rem;">營益率 ${(om*100).toFixed(1)}%</span>` : '',
                     rg  != null ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:${rg>=0?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)'};color:${rg>=0?'#10b981':'#ef4444'};font-size:0.75rem;">營收成長 ${(rg*100).toFixed(1)}%</span>` : '',
                 ].filter(Boolean).join('');
+
+                // 估值 & EPS 預估（來自 fundamentals.json）
+                const fnd = qs._fund || {};
+                const fmtV = (v, decimals=2) => v != null ? v.toFixed(decimals) : '-';
+                const fmtP = (v) => v != null ? `${(v*100).toFixed(1)}%` : '-';
+                const valuationPills = [
+                    fnd.pe  != null ? `<span title="本益比(TTM)" style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(251,191,36,0.08);color:#fbbf24;font-size:0.74rem;cursor:default;">PE ${fmtV(fnd.pe)}</span>` : '',
+                    fnd.fpe != null ? `<span title="預期本益比" style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(251,191,36,0.08);color:#f59e0b;font-size:0.74rem;cursor:default;">FPE ${fmtV(fnd.fpe)}</span>` : '',
+                    fnd.ps  != null ? `<span title="股價營收比" style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(148,163,184,0.08);color:#94a3b8;font-size:0.74rem;cursor:default;">PS ${fmtV(fnd.ps)}</span>` : '',
+                    fnd.pb  != null ? `<span title="股價淨值比" style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(148,163,184,0.08);color:#94a3b8;font-size:0.74rem;cursor:default;">PB ${fmtV(fnd.pb)}</span>` : '',
+                    fnd.peg != null ? `<span title="本益成長比" style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(148,163,184,0.08);color:#94a3b8;font-size:0.74rem;cursor:default;">PEG ${fmtV(fnd.peg)}</span>` : '',
+                    fnd.rev_fwd != null ? `<span title="預期營收成長" style="padding:0.1rem 0.4rem;border-radius:4px;background:${fnd.rev_fwd>=0?'rgba(16,185,129,0.08)':'rgba(239,68,68,0.08)'};color:${fnd.rev_fwd>=0?'#10b981':'#ef4444'};font-size:0.74rem;cursor:default;">預期營收 ${fmtP(fnd.rev_fwd)}</span>` : '',
+                ].filter(Boolean).join('');
+
+                // EPS 預估行（curQ / nextQ / curY / nextY）
+                const epsRow = (fnd.eps_cur_q != null || fnd.eps_next_q != null || fnd.eps_cur_y != null || fnd.eps_next_y != null) ? `
+                    <div style="margin-top:0.5rem;padding-top:0.45rem;border-top:1px solid rgba(255,255,255,0.06);">
+                        <div style="color:#64748b;font-size:0.72rem;margin-bottom:0.3rem;">EPS 預估</div>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            ${fnd.eps_ttm    != null ? `<span style="font-size:0.76rem;color:#e2e8f0;">TTM <b style="color:#fbbf24;">${fmtV(fnd.eps_ttm)}</b></span>` : ''}
+                            ${fnd.eps_cur_q  != null ? `<span style="font-size:0.76rem;color:#e2e8f0;">本季 <b style="color:#60a5fa;">${fmtV(fnd.eps_cur_q)}</b></span>` : ''}
+                            ${fnd.eps_next_q != null ? `<span style="font-size:0.76rem;color:#e2e8f0;">下季 <b style="color:#60a5fa;">${fmtV(fnd.eps_next_q)}</b></span>` : ''}
+                            ${fnd.eps_cur_y  != null ? `<span style="font-size:0.76rem;color:#e2e8f0;">今年 <b style="color:#a5b4fc;">${fmtV(fnd.eps_cur_y)}</b></span>` : ''}
+                            ${fnd.eps_next_y != null ? `<span style="font-size:0.76rem;color:#e2e8f0;">明年 <b style="color:#a5b4fc;">${fmtV(fnd.eps_next_y)}</b></span>` : ''}
+                        </div>
+                    </div>` : '';
 
                 return `<div style="background:linear-gradient(135deg,rgba(15,30,60,0.65),rgba(10,20,40,0.85));
                     border:1px solid rgba(59,130,246,0.2);border-left:3px solid rgba(251,191,36,0.5);
@@ -2542,6 +2699,8 @@
                         ${tgtMean ? `<span style="color:#60a5fa;font-size:0.8rem;">目標價 $${tgtMean.toFixed(2)} <span style="color:${upside&&parseFloat(upside)>=0?'#10b981':'#ef4444'};">${upside!=null?(parseFloat(upside)>=0?'↑+':'↓')+upside+'%':''}</span></span>` : ''}
                         ${tgtLow&&tgtHigh ? `<span style="color:#64748b;font-size:0.75rem;">$${tgtLow.toFixed(0)}–$${tgtHigh.toFixed(0)}</span>` : ''}
                     </div>
+                    <!-- 估值指標列 -->
+                    ${valuationPills ? `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.75rem;">${valuationPills}</div>` : ''}
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                         <!-- 左：財報EPS -->
                         <div>
@@ -2554,8 +2713,9 @@
                                     <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">驚喜</th>
                                 </tr></thead>
                                 <tbody>${earningsRows}</tbody>
-                            </table>` : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">無歷史財報數據</div>'}
+                            </table>` : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">暫無季度 EPS 歷史（資料更新中）</div>'}
                             ${marginPills ? `<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;">${marginPills}</div>` : ''}
+                            ${epsRow}
                         </div>
                         <!-- 右：評級異動 -->
                         <div>
@@ -2642,6 +2802,44 @@
                 macroNews = (nd?.news||[]).filter(n => (n.providerPublishTime||0) >= cutoff);
             } catch(e) {}
 
+            // 翻譯新聞標題為繁體中文（使用 MyMemory 免費 API，並以 localStorage 快取24hr避免重複翻譯）
+            if (macroNews.length > 0) {
+                try {
+                    if (statusEl) statusEl.textContent = '翻譯新聞標題...';
+                    const _tCacheKey = 'pf_news_trans_v1';
+                    let tCache = {};
+                    try {
+                        const raw = JSON.parse(localStorage.getItem(_tCacheKey)||'{}');
+                        tCache = (Date.now() - (raw.ts||0) < 24*3600*1000) ? (raw.data||{}) : {};
+                    } catch(_) {}
+                    let tUpdated = false;
+                    for (const item of macroNews) {
+                        const orig = item.title || '';
+                        if (!orig) { item.titleZh = orig; continue; }
+                        if (tCache[orig]) { item.titleZh = tCache[orig]; continue; }
+                        try {
+                            const r = await fetch(
+                                `https://api.mymemory.translated.net/get?q=${encodeURIComponent(orig)}&langpair=en|zh-TW`,
+                                { signal: AbortSignal.timeout(6000) }
+                            );
+                            if (r.ok) {
+                                const d = await r.json();
+                                const zh = d?.responseData?.translatedText || orig;
+                                item.titleZh = zh;
+                                tCache[orig] = zh;
+                                tUpdated = true;
+                            } else {
+                                item.titleZh = orig;
+                            }
+                        } catch(_) { item.titleZh = orig; }
+                        await new Promise(r => setTimeout(r, 300)); // 避免 rate limit
+                    }
+                    if (tUpdated) {
+                        try { localStorage.setItem(_tCacheKey, JSON.stringify({ts:Date.now(), data:tCache})); } catch(_) {}
+                    }
+                } catch(_) {}
+            }
+
             renderMacroTab(results, macroNews);
             _macroLoaded = true;
             if (btn) { btn.textContent = '🔄 更新總經數據'; btn.disabled = false; }
@@ -2691,7 +2889,8 @@
                             onmouseover="this.style.borderColor='rgba(59,130,246,0.4)'"
                             onmouseout="this.style.borderColor='rgba(59,130,246,0.15)'">
                             <div style="color:#64748b;font-size:0.74rem;margin-bottom:0.2rem;">${item.publisher||''} · ${dtStr}</div>
-                            <div style="color:#e2e8f0;font-size:0.85rem;">${item.title}</div>
+                            <div style="color:#e2e8f0;font-size:0.85rem;">${item.titleZh || item.title}</div>
+                            ${item.titleZh && item.titleZh !== item.title ? `<div style="color:#475569;font-size:0.73rem;margin-top:0.15rem;">${item.title}</div>` : ''}
                         </div>`;
                     }).join('');
                 }

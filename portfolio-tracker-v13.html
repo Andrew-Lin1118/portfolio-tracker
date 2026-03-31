@@ -773,11 +773,15 @@
 
         function renderTable(stats) {
             const tbodyHTML = stats.holdingsWithStats.sort((a,b) => b.valueTotalUSD - a.valueTotalUSD).map((h,i) => {
-                const pnl = h.valueTotalUSD - h.costTotalUSD;
+                const pnl    = h.valueTotalUSD - h.costTotalUSD;
+                const pnlTWD = h.valueTotalTWD - h.costTotalTWD;
                 const isProfit = pnl >= 0;
+                const pnlPct = currency==='USD'
+                    ? (h.costTotalUSD  > 0 ? (pnl    / h.costTotalUSD  * 100).toFixed(2) : '0.00')
+                    : (h.costTotalTWD  > 0 ? (pnlTWD / h.costTotalTWD  * 100).toFixed(2) : '0.00');
                 const priceCcy = (h.market==='HK'||h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol) ? 'HK$' : h.market==='TW' ? 'NT$' : '$';
                 const displayValue = currency==='USD' ? fmtAmt(h.valueTotalUSD,'USD') : fmtAmt(h.valueTotalTWD,'TWD');
-                const displayPnl   = currency==='USD' ? fmtPnl(pnl,'USD') : fmtPnl(pnl,'TWD');
+                const displayPnl   = currency==='USD' ? fmtPnl(pnl,'USD') : fmtPnl(pnlTWD,'TWD');
                 const bg = i%2===0 ? 'rgba(15,30,60,0.3)' : 'rgba(10,20,40,0.2)';
 
                 // 昨日漲跌
@@ -812,7 +816,7 @@
                     ${dayPnlCell}
                     <td style="padding:0.55rem 0.75rem;text-align:right;">${displayValue}</td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;color:${isProfit?'#10b981':'#ef4444'};">${displayPnl}</td>
-                    <td style="padding:0.55rem 0.75rem;text-align:right;color:${isProfit?'#10b981':'#ef4444'};"><span style="padding:0.2rem 0.5rem;border-radius:6px;background:${isProfit?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};">${isProfit?'+':''}${((pnl/h.costTotalUSD)*100).toFixed(2)}%</span></td>
+                    <td style="padding:0.55rem 0.75rem;text-align:right;color:${isProfit?'#10b981':'#ef4444'};"><span style="padding:0.2rem 0.5rem;border-radius:6px;background:${isProfit?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};">${isProfit?'+':''}${pnlPct}%</span></td>
                 </tr>`;
             }).join('');
 

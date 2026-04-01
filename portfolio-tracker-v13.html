@@ -942,6 +942,13 @@
             const total = pieData.reduce((sum, d) => sum + d.value, 0);
             if (total > 0) pieData.forEach(d => d.value = (d.value / total) * 100);
 
+            // 按百分比降冪排列；其他 固定最後
+            pieData.sort((a, b) => {
+                if (a.name === '其他') return 1;
+                if (b.name === '其他') return -1;
+                return b.value - a.value;
+            });
+
             const colors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
             const pieColors = pieData.map((d, i) => d.isCash ? cashColor : colors[i % colors.length]);
 

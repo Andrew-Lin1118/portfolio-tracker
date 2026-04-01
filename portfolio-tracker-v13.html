@@ -257,7 +257,14 @@
 
         <!-- Pie Chart -->
         <div id="pie-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; display:none;">
-            <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin-bottom:1.5rem;">持倉分布圖</h2>
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.5rem;">
+                <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">持倉分布圖</h2>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="color:#94a3b8; font-size:0.875rem;">現金（TWD）：</span>
+                    <input type="number" id="cash-twd-input" min="0" placeholder="0" oninput="saveCash(); renderAll();"
+                        style="width:140px; padding:0.35rem 0.6rem; background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.2); border-radius:6px; color:#f1f5f9; font-size:0.875rem;">
+                </div>
+            </div>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:2rem; align-items:start;">
                 <div><canvas id="pieCanvas" width="400" height="400"></canvas></div>
                 <div style="padding-top:0;">
@@ -910,18 +917,33 @@
 
         function renderPie(stats) {
             const pieSection = document.getElementById('pie-section');
-            pieSection.style.display = holdings.length > 0 ? 'block' : 'none';
-            if (holdings.length === 0) return;
+            const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+            pieSection.style.display = (holdings.length > 0 || cashTWD > 0) ? 'block' : 'none';
+            if (holdings.length === 0 && cashTWD <= 0) return;
 
-            let pieData = stats.holdingsWithStats.filter(h => h.percentage >= 1).map(h => ({ name: h.symbol, value: h.percentage }));
-            let others = stats.holdingsWithStats.filter(h => h.percentage < 1).reduce((sum, h) => sum + h.percentage, 0);
+            const grandTotal = stats.totalValueTWD + cashTWD;
+            // 將股票佔比縮放至含現金的總量
+            const stockScale = (grandTotal > 0 && stats.totalValueTWD > 0) ? stats.totalValueTWD / grandTotal : 1;
+            const adjHoldings = stats.holdingsWithStats.map(h => ({ name: h.symbol, value: h.percentage * stockScale }));
+
+            let pieData = adjHoldings.filter(d => d.value >= 1);
+            let others = adjHoldings.filter(d => d.value < 1).reduce((sum, d) => sum + d.value, 0);
             if (others > 0) pieData.push({ name: '其他', value: others });
+
+            // 現金欄
+            const cashColor = '#22c55e';
+            let cashEntry = null;
+            if (cashTWD > 0 && grandTotal > 0) {
+                cashEntry = { name: '現金', value: (cashTWD / grandTotal) * 100, isCash: true };
+                pieData.push(cashEntry);
+            }
 
             // 再次強制 100%
             const total = pieData.reduce((sum, d) => sum + d.value, 0);
             if (total > 0) pieData.forEach(d => d.value = (d.value / total) * 100);
 
             const colors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
+            const pieColors = pieData.map((d, i) => d.isCash ? cashColor : colors[i % colors.length]);
 
             if (chartInstance) chartInstance.destroy();
             const ctx = document.getElementById('pieCanvas');
@@ -929,19 +951,25 @@
                 type: 'pie',
                 data: {
                     labels: pieData.map(d => d.name),
-                    datasets: [{ data: pieData.map(d => d.value), backgroundColor: pieData.map((_,i) => colors[i % colors.length]), borderColor: '#0a1628', borderWidth: 3 }]
+                    datasets: [{ data: pieData.map(d => d.value), backgroundColor: pieColors, borderColor: '#0a1628', borderWidth: 3 }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
 
-            const legendHTML = pieData.map((d, i) => `
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.22rem 0.55rem; background:rgba(15,23,42,0.3); border-radius:4px; font-size:0.82rem; border-left:3px solid ${colors[i % colors.length]};">
-                    <div style="display:flex; align-items:center; gap:0.35rem;">
-                        <div style="width:7px;height:7px;border-radius:2px;background:${colors[i % colors.length]};flex-shrink:0;"></div>
-                        <span style="color:#e2e8f0;font-weight:600;">${d.name}</span>
+            const legendHTML = pieData.map((d, i) => {
+                const color = pieColors[i];
+                const subLabel = d.isCash
+                    ? `<span style="color:#94a3b8;font-size:0.75rem;margin-left:0.25rem;">(${cashTWD.toLocaleString('zh-TW', {maximumFractionDigits:0})} TWD)</span>`
+                    : '';
+                return `
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.22rem 0.55rem; background:rgba(15,23,42,0.3); border-radius:4px; font-size:0.82rem; border-left:3px solid ${color};">
+                    <div style="display:flex; align-items:center; gap:0.35rem; flex-wrap:wrap;">
+                        <div style="width:7px;height:7px;border-radius:2px;background:${color};flex-shrink:0;"></div>
+                        <span style="color:#e2e8f0;font-weight:600;">${d.name}</span>${subLabel}
                     </div>
                     <span style="color:#3b82f6;font-weight:600;white-space:nowrap;">${d.value.toFixed(2)}%</span>
-                </div>`).join('');
+                </div>`;
+            }).join('');
             document.getElementById('pie-legend').innerHTML = legendHTML;
         }
 
@@ -955,6 +983,19 @@
             document.getElementById('rate-usd-twd').textContent = exchangeRates.USD_TWD.toFixed(2);
             document.getElementById('rate-hkd-twd').textContent = exchangeRates.HKD_TWD.toFixed(4);
             saveToStorage(); // v13：每次畫面更新同步儲存
+        }
+
+        // ==================== 現金 ====================
+        const PT_CASH_KEY = 'pt_v13_cash';
+        function saveCash() {
+            const v = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+            if (v > 0) localStorage.setItem(PT_CASH_KEY, v);
+            else localStorage.removeItem(PT_CASH_KEY);
+        }
+        function loadCash() {
+            const v = parseFloat(localStorage.getItem(PT_CASH_KEY)) || 0;
+            const el = document.getElementById('cash-twd-input');
+            if (el && v > 0) el.value = v;
         }
 
         // ==================== v13 LocalStorage 持久化 ====================
@@ -2344,6 +2385,7 @@
             // v13：優先從 localStorage 還原上次持倉
             const hadSaved = loadFromStorage();
             _storageReady = true;  // 還原完成，開放寫入
+            loadCash();
             setCurrency(currency); // 同步按鈕高亮（預設 TWD，或從 localStorage 還原的值）
             renderAll();
             if (hadSaved) {

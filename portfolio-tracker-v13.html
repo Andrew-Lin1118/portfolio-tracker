@@ -323,6 +323,29 @@
                 <span style="color:#10b981; font-size:0.8rem; white-space:nowrap;">✓ 已設定</span>
             </div>
         </div>
+
+        <!-- 跨裝置同步 -->
+        <div class="glass-card" style="padding:1rem 1.5rem; margin-top:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.4rem;">
+                <span style="color:#fbbf24; font-size:0.85rem; font-weight:600;">☁️ 跨裝置同步（GitHub Gist）</span>
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <span id="sync-status" style="font-size:0.78rem; color:#64748b;"></span>
+                    <a href="https://github.com/settings/tokens/new?scopes=gist&description=PortfolioTracker" target="_blank" style="font-size:0.75rem; color:#60a5fa; text-decoration:none; white-space:nowrap;">取得 Token ↗</a>
+                </div>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.6rem;">
+                <input id="sync-token" type="password" placeholder="GitHub Personal Access Token（gist 範圍）"
+                    onchange="saveSyncSettings()"
+                    style="flex:2; min-width:180px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#e2e8f0; font-size:0.82rem;">
+                <input id="sync-gist-id" type="text" placeholder="Gist ID（首次推送後自動填入）"
+                    onchange="saveSyncSettings()"
+                    style="flex:1; min-width:140px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#e2e8f0; font-size:0.82rem;">
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <button onclick="syncPush()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬆ 推送至雲端</button>
+                <button onclick="syncPull()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬇ 從雲端拉取</button>
+            </div>
+        </div>
     </div>
 
         </div><!-- /tab-pane-1 -->
@@ -997,6 +1020,110 @@
             document.getElementById('rate-usd-twd').textContent = exchangeRates.USD_TWD.toFixed(2);
             document.getElementById('rate-hkd-twd').textContent = exchangeRates.HKD_TWD.toFixed(4);
             saveToStorage(); // v13：每次畫面更新同步儲存
+        }
+
+        // ==================== 跨裝置同步（GitHub Gist） ====================
+        const PT_SYNC_TOKEN_KEY = 'pt_v13_sync_token';
+        const PT_SYNC_GIST_KEY  = 'pt_v13_sync_gist';
+        const SYNC_FILENAME     = 'portfolio-tracker-v13.json';
+
+        function loadSyncSettings() {
+            const token  = localStorage.getItem(PT_SYNC_TOKEN_KEY) || '';
+            const gistId = localStorage.getItem(PT_SYNC_GIST_KEY)  || '';
+            const te = document.getElementById('sync-token');
+            const ge = document.getElementById('sync-gist-id');
+            if (te) te.value = token;
+            if (ge) ge.value = gistId;
+        }
+        function saveSyncSettings() {
+            const token  = (document.getElementById('sync-token')?.value   || '').trim();
+            const gistId = (document.getElementById('sync-gist-id')?.value || '').trim();
+            token  ? localStorage.setItem(PT_SYNC_TOKEN_KEY, token)  : localStorage.removeItem(PT_SYNC_TOKEN_KEY);
+            gistId ? localStorage.setItem(PT_SYNC_GIST_KEY,  gistId) : localStorage.removeItem(PT_SYNC_GIST_KEY);
+        }
+        function _buildSyncPayload() {
+            return JSON.stringify({
+                holdings,
+                sheetUrl: document.getElementById('sheet-url')?.value || '',
+                currency,
+                exchangeRates,
+                cashTWD: parseFloat(document.getElementById('cash-twd-input')?.value) || 0,
+                savedAt: new Date().toISOString()
+            }, null, 2);
+        }
+        async function syncPush() {
+            saveSyncSettings();
+            const token  = (document.getElementById('sync-token')?.value   || '').trim();
+            let   gistId = (document.getElementById('sync-gist-id')?.value || '').trim();
+            const statusEl = document.getElementById('sync-status');
+            if (!token)              { showWarnToast('⚠️ 請先填入 GitHub Token'); return; }
+            if (holdings.length===0) { showWarnToast('⚠️ 尚無持倉可同步'); return; }
+            statusEl.textContent = '⏳ 推送中…'; statusEl.style.color = '#fbbf24';
+            const body = { description: 'Portfolio Tracker v13', files: { [SYNC_FILENAME]: { content: _buildSyncPayload() } } };
+            try {
+                let res;
+                if (gistId) {
+                    res = await fetch(`https://api.github.com/gists/${gistId}`, {
+                        method: 'PATCH',
+                        headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json', Accept: 'application/vnd.github.v3+json' },
+                        body: JSON.stringify(body)
+                    });
+                } else {
+                    body.public = false;
+                    res = await fetch('https://api.github.com/gists', {
+                        method: 'POST',
+                        headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json', Accept: 'application/vnd.github.v3+json' },
+                        body: JSON.stringify(body)
+                    });
+                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (!gistId) {
+                    gistId = data.id;
+                    const ge = document.getElementById('sync-gist-id');
+                    if (ge) ge.value = gistId;
+                    localStorage.setItem(PT_SYNC_GIST_KEY, gistId);
+                }
+                const t = new Date().toLocaleTimeString('zh-TW');
+                statusEl.textContent = `✓ 已推送 ${t}`; statusEl.style.color = '#10b981';
+                showImportToast(`☁️ 已成功推送至雲端（${holdings.length} 筆）`, 2500);
+            } catch(e) {
+                statusEl.textContent = `✗ 推送失敗`; statusEl.style.color = '#ef4444';
+                showWarnToast(`⚠️ 推送失敗：${e.message}`);
+            }
+        }
+        async function syncPull() {
+            saveSyncSettings();
+            const token  = (document.getElementById('sync-token')?.value   || '').trim();
+            const gistId = (document.getElementById('sync-gist-id')?.value || '').trim();
+            const statusEl = document.getElementById('sync-status');
+            if (!token)  { showWarnToast('⚠️ 請先填入 GitHub Token'); return; }
+            if (!gistId) { showWarnToast('⚠️ 請填入 Gist ID'); return; }
+            statusEl.textContent = '⏳ 拉取中…'; statusEl.style.color = '#fbbf24';
+            try {
+                const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+                    headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const content = data.files?.[SYNC_FILENAME]?.content;
+                if (!content) throw new Error('找不到同步檔案');
+                const state = JSON.parse(content);
+                if (state.holdings?.length > 0) holdings = state.holdings;
+                if (state.sheetUrl) { const e = document.getElementById('sheet-url'); if (e) e.value = state.sheetUrl; }
+                if (state.currency) { currency = state.currency; setCurrency(currency); }
+                if (state.cashTWD > 0) {
+                    const e = document.getElementById('cash-twd-input');
+                    if (e) { e.value = state.cashTWD; saveCash(); }
+                }
+                saveToStorage(); renderAll();
+                const t = new Date().toLocaleTimeString('zh-TW');
+                statusEl.textContent = `✓ 已拉取 ${t}`; statusEl.style.color = '#10b981';
+                showImportToast(`☁️ 已從雲端拉取 ${state.holdings?.length||0} 筆持倉`, 3000);
+            } catch(e) {
+                statusEl.textContent = `✗ 拉取失敗`; statusEl.style.color = '#ef4444';
+                showWarnToast(`⚠️ 拉取失敗：${e.message}`);
+            }
         }
 
         // ==================== 現金 ====================
@@ -2399,6 +2526,7 @@
             // v13：優先從 localStorage 還原上次持倉
             const hadSaved = loadFromStorage();
             _storageReady = true;  // 還原完成，開放寫入
+            loadSyncSettings();
             loadCash();
             setCurrency(currency); // 同步按鈕高亮（預設 TWD，或從 localStorage 還原的值）
             renderAll();

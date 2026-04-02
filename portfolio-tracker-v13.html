@@ -190,6 +190,13 @@
     </style>
 </head>
 <body>
+    <!-- 橫向鎖定提示 -->
+    <div id="rotate-overlay" style="display:none; position:fixed; inset:0; z-index:99999; background:#0a1628; flex-direction:column; align-items:center; justify-content:center; gap:1.2rem; text-align:center; padding:2rem;">
+        <div style="font-size:3.5rem; animation:float 2s ease-in-out infinite;">📱</div>
+        <div style="color:#fbbf24; font-size:1.3rem; font-weight:700;">請直立使用</div>
+        <div style="color:#94a3b8; font-size:0.9rem;">請將裝置轉回直立模式以獲得最佳瀏覽體驗</div>
+    </div>
+
     <!-- 背景裝飾 -->
     <div style="position:fixed; top:0; left:0; right:0; bottom:0; background-image:linear-gradient(rgba(251,191,36,0.03) 1px, transparent 1px),linear-gradient(90deg, rgba(251,191,36,0.03) 1px, transparent 1px); background-size:50px 50px; pointer-events:none; z-index:0;"></div>
     <div style="position:fixed; top:10%; right:10%; width:300px; height:300px; background:radial-gradient(circle, rgba(251,191,36,0.15) 0%, transparent 70%); border-radius:50%; filter:blur(60px); pointer-events:none; z-index:0; animation:float 6s ease-in-out infinite;"></div>
@@ -2428,7 +2435,19 @@
                 setTimeout(() => loadAnalysis(false, true), 2000);
             }
         }
-        window.onload = init;
+        // ==================== 直立鎖定 ====================
+        function _checkOrientation() {
+            const overlay = document.getElementById('rotate-overlay');
+            if (!overlay) return;
+            // 只在手機/平板（短邊 < 900px）且橫向時才顯示
+            const landscape = window.innerWidth > window.innerHeight;
+            const mobile    = Math.min(window.innerWidth, window.innerHeight) < 900;
+            overlay.style.display = (landscape && mobile) ? 'flex' : 'none';
+        }
+        window.addEventListener('resize', _checkOrientation);
+        window.addEventListener('orientationchange', () => setTimeout(_checkOrientation, 100));
+
+        window.onload = () => { init(); _checkOrientation(); };
 
         // ==================== 每分鐘自動更新報價 ====================
         let _autoRefreshTimer = null;

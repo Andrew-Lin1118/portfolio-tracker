@@ -2515,7 +2515,11 @@
             const _hasMissingPrev = rows.some(r => !r.isProxy && (
                 _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
             ));
-            if (!fundFresh || !techFresh || _hasMissingPrev) {
+            // 槓桿 ETF 缺失也要觸發外層 if（移到外層，避免被 _hasMissingPrev=false 短路）
+            const _hasMissingProxyPrev = rows.some(r => r.isProxy && (
+                _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
+            ));
+            if (!fundFresh || !techFresh || _hasMissingPrev || _hasMissingProxyPrev) {
                 // 非代理股：補抓 prevClose 遺漏的情況
                 {
                     const BASE1_pc = 'https://query1.finance.yahoo.com';
@@ -2558,11 +2562,7 @@
                 }
 
                 // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
-                // 快取有效時若 prevPrevClose 仍缺失也補抓（例如假日 API 失敗後的快取）
-                const _hasMissingProxyPrev = rows.some(r => r.isProxy && (
-                    _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
-                ));
-                if (!fundFresh || _hasMissingProxyPrev) {
+                if (_hasMissingProxyPrev) {
                     const BASE1_lev = 'https://query1.finance.yahoo.com';
                     const proxyRows = rows.filter(r => r.isProxy);
                     for (let pi = 0; pi < proxyRows.length; pi++) {
@@ -2606,7 +2606,22 @@
                                 prevPrevClose: _tmpPrevPrevClose[r.holding] ?? null,
                                 marketOpenedToday: todayOpened
                             };
-                        } catch(_) {}
+                        } catch(_) {
+                            // yfFetch 失敗備援：用原型股昨日漲跌幅 ×2 估算 ETF prevPrevClose
+                            if (_tmpPrevPrevClose[r.holding] == null) {
+                                const _uSym     = LEVERAGED_MAP[r.holding];
+                                const _uPrev    = _tmpPrevClose[_uSym]     ?? null;
+                                const _uPrevPrev= _tmpPrevPrevClose[_uSym] ?? null;
+                                const _ePrev    = _tmpPrevClose[r.holding] ?? null;
+                                if (_uPrev != null && _uPrevPrev != null && _uPrev > 0 && _ePrev != null && _ePrev > 0) {
+                                    const _uPct = (_uPrev - _uPrevPrev) / _uPrevPrev; // 原型股昨日漲跌幅
+                                    const _ePct = _uPct * 2;                           // 2x ETF 近似值
+                                    _tmpPrevPrevClose[r.holding] = _ePrev / (1 + _ePct);
+                                    if (!allResults[r.holding]) allResults[r.holding] = {};
+                                    allResults[r.holding].prevPrevClose = _tmpPrevPrevClose[r.holding];
+                                }
+                            }
+                        }
                         if (pi < proxyRows.length - 1) await new Promise(res => setTimeout(res, 300));
                     }
                 }

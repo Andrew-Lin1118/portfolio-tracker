@@ -2451,8 +2451,11 @@
                 }
 
                 // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
-                // 技術面刷新路徑已用 fetchTechDataFromYahoo 處理，此區段僅在完整抓取時執行
-                if (!fundFresh) {
+                // 快取有效時若 prevPrevClose 仍缺失也補抓（例如假日 API 失敗後的快取）
+                const _hasMissingProxyPrev = rows.some(r => r.isProxy && (
+                    _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
+                ));
+                if (!fundFresh || _hasMissingProxyPrev) {
                     const BASE1_lev = 'https://query1.finance.yahoo.com';
                     const proxyRows = rows.filter(r => r.isProxy);
                     for (let pi = 0; pi < proxyRows.length; pi++) {

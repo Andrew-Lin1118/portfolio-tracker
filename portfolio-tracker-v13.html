@@ -3189,15 +3189,20 @@
         // ==================== Tab 5：總體經濟 ====================
         let _macroLoaded = false;
         const MACRO_SYMBOLS = [
-            { symbol:'^GSPC',    name:'S&P 500',       cat:'股市' },
-            { symbol:'^IXIC',    name:'Nasdaq',         cat:'股市' },
-            { symbol:'^SOX',     name:'費城半導體',     cat:'股市' },
-            { symbol:'^VIX',     name:'恐慌指數 VIX',   cat:'情緒' },
-            { symbol:'^TNX',     name:'10年期美債殖利率',cat:'利率' },
-            { symbol:'DX-Y.NYB', name:'美元指數',       cat:'外匯' },
-            { symbol:'GC=F',     name:'黃金',           cat:'商品' },
-            { symbol:'CL=F',     name:'原油 (WTI)',     cat:'商品' },
-            { symbol:'BTC-USD',  name:'Bitcoin',        cat:'加密' },
+            { symbol:'^GSPC',     name:'S&P 500',          cat:'股市' },
+            { symbol:'^IXIC',     name:'Nasdaq',            cat:'股市' },
+            { symbol:'^SOX',      name:'費城半導體',        cat:'股市' },
+            { symbol:'^VIX',      name:'恐慌指數 VIX',      cat:'情緒' },
+            { symbol:'_CNN_FG',   name:'CNN恐懼貪婪指數',   cat:'情緒', special:'cnn_fg'    },
+            { symbol:'_CRYPT_FG', name:'加密貨幣恐慌指數',  cat:'情緒', special:'crypto_fg' },
+            { symbol:'^TNX',      name:'10年期美債殖利率',  cat:'利率' },
+            { symbol:'^IRX',      name:'1年期美債殖利率',   cat:'利率' },
+            { symbol:'DX-Y.NYB',  name:'美元指數',          cat:'外匯' },
+            { symbol:'GC=F',      name:'黃金',              cat:'商品' },
+            { symbol:'SI=F',      name:'白銀',              cat:'商品' },
+            { symbol:'CL=F',      name:'原油 (WTI)',        cat:'商品' },
+            { symbol:'BTC-USD',   name:'Bitcoin',           cat:'加密' },
+            { symbol:'ETH-USD',   name:'Ethereum (ETH)',    cat:'加密' },
         ];
 
         async function loadMacro(forceRefresh) {
@@ -3224,10 +3229,40 @@
             if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
             if (perfDiv) perfDiv.innerHTML = '<div style="text-align:center;padding:2rem;color:#64748b;">⏳ 抓取總經數據中...</div>';
 
+            const _fgLabel = { zh: {'Extreme Fear':'極度恐懼','Fear':'恐懼','Neutral':'中性','Greed':'貪婪','Extreme Greed':'極度貪婪'} };
             const results = [];
             for (let i = 0; i < MACRO_SYMBOLS.length; i++) {
                 const m = MACRO_SYMBOLS[i];
                 if (statusEl) statusEl.textContent = `(${i+1}/${MACRO_SYMBOLS.length}) ${m.name}...`;
+
+                // ── 特殊指數：CNN 恐懼貪婪 & 加密恐慌 ──
+                if (m.special === 'cnn_fg') {
+                    try {
+                        const r = await fetch('https://production.dataviz.cnn.io/index/fearandgreed/graphdata', { signal: AbortSignal.timeout(7000) });
+                        const d = await r.json();
+                        const score = d?.fear_and_greed?.score;
+                        const rating = d?.fear_and_greed?.rating || '';
+                        const label = _fgLabel.zh[rating] || rating;
+                        results.push({ ...m, price: score != null ? Math.round(score) : null, label, chg1d:null, chg7d:null });
+                    } catch(_) { results.push({ ...m, price:null, label:null, chg1d:null, chg7d:null }); }
+                    if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 350));
+                    continue;
+                }
+                if (m.special === 'crypto_fg') {
+                    try {
+                        const r = await fetch('https://api.alternative.me/fng/?limit=1', { signal: AbortSignal.timeout(7000) });
+                        const d = await r.json();
+                        const item = d?.data?.[0];
+                        const score = item ? parseInt(item.value) : NaN;
+                        const rating = item?.value_classification || '';
+                        const label = _fgLabel.zh[rating] || rating;
+                        results.push({ ...m, price: !isNaN(score) ? score : null, label, chg1d:null, chg7d:null });
+                    } catch(_) { results.push({ ...m, price:null, label:null, chg1d:null, chg7d:null }); }
+                    if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 350));
+                    continue;
+                }
+
+                // ── 一般 Yahoo Finance 標的 ──
                 try {
                     const data = await yfFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(m.symbol)}?interval=1d&range=10d`);
                     const ch = data?.chart?.result?.[0];
@@ -3344,17 +3379,35 @@
                     const bg  = pos ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)';
                     return `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:${bg};color:${col};font-size:0.76rem;">${label}:${pos?'+':''}${v.toFixed(2)}%</span>`;
                 };
+                const fgColor = score => {
+                    if (score == null) return '#64748b';
+                    if (score <= 25) return '#ef4444';
+                    if (score <= 45) return '#f97316';
+                    if (score <= 55) return '#fbbf24';
+                    if (score <= 75) return '#10b981';
+                    return '#22c55e';
+                };
                 perfDiv.innerHTML = cats.map(cat => {
                     const items = data.filter(d => d.cat === cat);
                     return `<div style="margin-bottom:1.25rem;">
                         <div style="color:#fbbf24;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">${cat}</div>
                         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.5rem;">
-                        ${items.map(item => `
+                        ${items.map(item => {
+                            const isFG = !!item.label;
+                            const col  = isFG ? fgColor(item.price) : null;
+                            const priceStr = item.price != null
+                                ? (isFG ? item.price : item.price.toFixed(2))
+                                : '-';
+                            const bottomRow = isFG
+                                ? `<span style="padding:0.1rem 0.45rem;border-radius:4px;background:${col}22;color:${col};font-size:0.76rem;font-weight:600;">${item.label || '-'}</span>`
+                                : `${pctCell(item.chg1d,'今日')}${pctCell(item.chg7d,'7天')}`;
+                            return `
                             <div class="macro-card">
                                 <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.2rem;">${item.name}</div>
-                                <div style="color:#f1f5f9;font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">${item.price != null ? item.price.toFixed(2) : '-'}</div>
-                                <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">${pctCell(item.chg1d,'今日')}${pctCell(item.chg7d,'7天')}</div>
-                            </div>`).join('')}
+                                <div style="color:${isFG ? col : '#f1f5f9'};font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">${priceStr}</div>
+                                <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">${bottomRow}</div>
+                            </div>`;
+                        }).join('')}
                         </div>
                     </div>`;
                 }).join('') + generateMacroAnalysis(data);

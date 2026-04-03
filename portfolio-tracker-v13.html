@@ -2404,8 +2404,11 @@
                 }
             });
 
-            // ── 補抓 prevClose（只在有資料更新時執行，快取完全有效時跳過）──
-            if (!fundFresh || !techFresh) {
+            // ── 補抓 prevClose（快取有效時若 prevPrevClose 仍缺失也補抓，例如假日 API 失敗後的快取）──
+            const _hasMissingPrev = rows.some(r => !r.isProxy && (
+                _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
+            ));
+            if (!fundFresh || !techFresh || _hasMissingPrev) {
                 // 非代理股：補抓 prevClose 遺漏的情況
                 {
                     const BASE1_pc = 'https://query1.finance.yahoo.com';

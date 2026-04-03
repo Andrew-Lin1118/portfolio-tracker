@@ -2529,7 +2529,42 @@
             const _hasMissingProxyPrev = rows.some(r => r.isProxy && (
                 _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
             ));
-            if (!fundFresh || !techFresh || _hasMissingPrev || _hasMissingProxyPrev) {
+            // 快取跨天時 marketOpenedToday 可能過期（例如週三快取 true→週四/假日休市應為 false）
+            const _cacheRaw2   = _loadCacheRaw();
+            const _lastSaveET  = _cacheRaw2.tech_ts
+                ? new Date(_cacheRaw2.tech_ts).toLocaleDateString('en-US', {timeZone:'America/New_York'}) : '';
+            const _todayET_mkt = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York'});
+            const _marketOpenStale = (_lastSaveET !== _todayET_mkt);
+            if (!fundFresh || !techFresh || _hasMissingPrev || _hasMissingProxyPrev || _marketOpenStale) {
+                // ── marketOpenedToday 刷新（快取跨天時）──
+                if (_marketOpenStale) {
+                    const _dowET = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York', weekday:'short'});
+                    const _isWeekendET = (_dowET === 'Sat' || _dowET === 'Sun');
+                    if (_isWeekendET) {
+                        // 週末：直接標記全部為未開盤（不需要 CORS）
+                        rows.forEach(r => {
+                            _tmpMarketOpened[r.holding] = false;
+                            if (allResults[r.holding]) allResults[r.holding].marketOpenedToday = false;
+                            if (allResults[r.query])   allResults[r.query].marketOpenedToday   = false;
+                        });
+                    } else {
+                        // 平日（可能是假日）：用單一樣本 yfFetch 判斷，結果套用全部標的
+                        const _sRow = rows.find(r => !r.isProxy);
+                        if (_sRow) {
+                            try {
+                                const _sd  = await yfFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${_sRow.holding}?interval=1d&range=5d`);
+                                const _sts = _sd?.chart?.result?.[0]?.timestamp ?? [];
+                                const _bET = _sts.length ? new Date(_sts[_sts.length-1]*1000).toLocaleDateString('en-US',{timeZone:'America/New_York'}) : '';
+                                const _openedNow = (_todayET_mkt === _bET);
+                                rows.forEach(r => {
+                                    _tmpMarketOpened[r.holding] = _openedNow;
+                                    if (allResults[r.holding]) allResults[r.holding].marketOpenedToday = _openedNow;
+                                    if (allResults[r.query])   allResults[r.query].marketOpenedToday   = _openedNow;
+                                });
+                            } catch(_) {}
+                        }
+                    }
+                }
                 // 非代理股：補抓 prevClose 遺漏的情況
                 {
                     const BASE1_pc = 'https://query1.finance.yahoo.com';

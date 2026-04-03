@@ -1982,8 +1982,8 @@
                         let prevPrevClose = f.prev_prev_close ?? null;
                         let marketOpenedToday = null; // 預設未知
 
-                        // JSON 缺 prevClose（舊版 JSON 或 yfinance 未回傳）→ 快速抓 5-day chart 補充
-                        if (prevClose == null) {
+                        // JSON 缺 prevClose 或 prevPrevClose → 快速抓 5-day chart 補充
+                        if (prevClose == null || prevPrevClose == null) {
                             try {
                                 const qd  = await yfFetch(`${BASE1}/v8/finance/chart/${symbol}?interval=1d&range=5d`);
                                 const ch  = qd?.chart?.result?.[0];
@@ -1998,11 +1998,11 @@
                                     while (adjC.length >= 2 && adjC[adjC.length-1] === adjC[adjC.length-2]) adjC.pop();
                                 }
                                 if (marketOpenedToday) {
-                                    if (adjC.length >= 2) prevClose     = adjC[adjC.length - 2];
-                                    if (adjC.length >= 3) prevPrevClose = adjC[adjC.length - 3];
+                                    if (prevClose     == null && adjC.length >= 2) prevClose     = adjC[adjC.length - 2];
+                                    if (prevPrevClose == null && adjC.length >= 3) prevPrevClose = adjC[adjC.length - 3];
                                 } else {
-                                    if (adjC.length >= 1) prevClose     = adjC[adjC.length - 1];
-                                    if (adjC.length >= 2) prevPrevClose = adjC[adjC.length - 2];
+                                    if (prevClose     == null && adjC.length >= 1) prevClose     = adjC[adjC.length - 1];
+                                    if (prevPrevClose == null && adjC.length >= 2) prevPrevClose = adjC[adjC.length - 2];
                                 }
                             } catch(_) {}
                         }

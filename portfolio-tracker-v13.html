@@ -2486,6 +2486,32 @@
             });
 
             // ── 補抓 prevClose（快取有效時若 prevPrevClose 仍缺失也補抓，例如假日 API 失敗後的快取）──
+            // Step 0：先從 fundamentals.json 直接補（不需要 CORS，手機也能用）
+            try {
+                let _fjCache = window._fundJsonCache;
+                if (!_fjCache) {
+                    const _fjR = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    if (_fjR.ok) {
+                        const _fjTxt = await _fjR.text();
+                        _fjCache = JSON.parse(_fjTxt.replace(/:\s*NaN/g, ': null').replace(/:\s*Infinity/g, ': null'));
+                        window._fundJsonCache = _fjCache;
+                    }
+                }
+                if (_fjCache?.data) {
+                    rows.filter(r => !r.isProxy).forEach(r => {
+                        const fj = _fjCache.data[r.query];
+                        if (!fj) return;
+                        if (_tmpPrevClose[r.holding]     == null && fj.prev_close      != null) _tmpPrevClose[r.holding]     = fj.prev_close;
+                        if (_tmpPrevPrevClose[r.holding] == null && fj.prev_prev_close != null) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
+                        // 同步回 allResults 讓快取存檔也更新
+                        if (allResults[r.query]) {
+                            if (allResults[r.query].prevClose     == null && fj.prev_close      != null) allResults[r.query].prevClose     = fj.prev_close;
+                            if (allResults[r.query].prevPrevClose == null && fj.prev_prev_close != null) allResults[r.query].prevPrevClose = fj.prev_prev_close;
+                        }
+                    });
+                }
+            } catch(_) {}
+
             const _hasMissingPrev = rows.some(r => !r.isProxy && (
                 _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
             ));

@@ -965,19 +965,40 @@
                                 <div class="mono" style="font-size:1.1rem;font-weight:600;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':'-'}${priceCcy}${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
                                 <div class="mono" style="font-size:0.95rem;margin-top:0.15rem;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':''}${(pnl/h.costTotalUSD*100).toFixed(2)}%</span></div>
                                 ${(function() {
-                                    if (h.dayChangePct == null) return '';
-                                    const cp = h.dayChangePct >= 0;
-                                    const col = cp ? '#10b981' : '#ef4444';
-                                    const bgc = cp ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
-                                    const dp = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
-                                    const dpStr = currency==='USD'
-                                        ? (dp>=0?'+':'-')+'$'+Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2})
-                                        : (dp>=0?'+':'-')+'NT$'+Math.abs(Math.round(dp)).toLocaleString('en-US');
-                                    return '<div style="margin-top:0.4rem;padding-top:0.35rem;border-top:1px solid rgba(255,255,255,0.08);">'
-                                        + '<div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">今日損益</div>'
-                                        + '<div class="mono" style="font-size:0.9rem;color:'+col+';">'
-                                        + '<span style="padding:0.15rem 0.4rem;border-radius:4px;background:'+bgc+';">'+(cp?'+':'')+h.dayChangePct.toFixed(2)+'%</span>'
-                                        + '&nbsp;'+dpStr+'</div></div>';
+                                    const parts = [];
+                                    // ── 昨日漲跌 ──
+                                    if (h.prevDayChangePct != null) {
+                                        const pp  = h.prevDayChangePct >= 0;
+                                        const pc  = pp ? '#6ee7b7' : '#fca5a5';
+                                        const pb  = pp ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
+                                        parts.push(
+                                            '<div style="margin-top:0.4rem;padding-top:0.35rem;border-top:1px solid rgba(255,255,255,0.08);">'
+                                            + '<div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">昨日漲跌</div>'
+                                            + '<div class="mono" style="font-size:0.9rem;color:'+pc+';">'
+                                            + '<span style="padding:0.15rem 0.4rem;border-radius:4px;background:'+pb+';">'+(pp?'+':'')+h.prevDayChangePct.toFixed(2)+'%</span>'
+                                            + '</div></div>'
+                                        );
+                                    }
+                                    // ── 今日漲跌 + 今日損益 ──
+                                    if (h.dayChangePct != null) {
+                                        const cp  = h.dayChangePct >= 0;
+                                        const col = cp ? '#10b981' : '#ef4444';
+                                        const bgc = cp ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
+                                        const dp  = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
+                                        const dpStr = currency==='USD'
+                                            ? (dp>=0?'+':'-')+'$'+Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2})
+                                            : (dp>=0?'+':'-')+'NT$'+Math.abs(Math.round(dp)).toLocaleString('en-US');
+                                        parts.push(
+                                            '<div style="margin-top:0.4rem;padding-top:0.35rem;border-top:1px solid rgba(255,255,255,0.08);">'
+                                            + '<div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">今日漲跌</div>'
+                                            + '<div class="mono" style="font-size:0.9rem;color:'+col+';">'
+                                            + '<span style="padding:0.15rem 0.4rem;border-radius:4px;background:'+bgc+';font-weight:600;">'+(cp?'+':'')+h.dayChangePct.toFixed(2)+'%</span>'
+                                            + '</div>'
+                                            + '<div class="mono" style="font-size:0.82rem;color:'+col+';margin-top:0.2rem;">'+dpStr+'</div>'
+                                            + '</div>'
+                                        );
+                                    }
+                                    return parts.join('');
                                 })()}
                             </div>
                             <button onclick="deleteHolding(${h.id})" class="btn-delete" title="刪除">🗑️</button>

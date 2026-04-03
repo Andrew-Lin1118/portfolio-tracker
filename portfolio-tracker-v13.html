@@ -2254,7 +2254,14 @@
                     }
                     try {
                         const tech = await fetchTechDataFromYahoo(sym);
-                        allResults[sym] = { ...(allResults[sym] || {}), ...tech };
+                        const _old = allResults[sym] || {};
+                        allResults[sym] = {
+                            ..._old, ...tech,
+                            // API 失敗回傳 null 時保留舊快取值，避免覆蓋正常資料
+                            prevClose:         tech.prevClose         ?? _old.prevClose         ?? null,
+                            prevPrevClose:     tech.prevPrevClose     ?? _old.prevPrevClose     ?? null,
+                            marketOpenedToday: tech.marketOpenedToday ?? _old.marketOpenedToday ?? null,
+                        };
                     } catch(_) {}
                     if (i < uniqueQueries.length - 1) await new Promise(res => setTimeout(res, 200));
                 }
@@ -2264,7 +2271,13 @@
                     const _psym = proxyRowsT[pi].holding;
                     try {
                         const tech = await fetchTechDataFromYahoo(_psym);
-                        allResults[_psym] = { ...(allResults[_psym] || {}), ...tech };
+                        const _old = allResults[_psym] || {};
+                        allResults[_psym] = {
+                            ..._old, ...tech,
+                            prevClose:         tech.prevClose         ?? _old.prevClose         ?? null,
+                            prevPrevClose:     tech.prevPrevClose     ?? _old.prevPrevClose     ?? null,
+                            marketOpenedToday: tech.marketOpenedToday ?? _old.marketOpenedToday ?? null,
+                        };
                     } catch(_) {}
                     // range=5d 偵測今日是否開盤；開盤時再用 range=1d chartPreviousClose 取昨收
                     // （range=1d chartPreviousClose 可跨越空白交易日，比 close array 更可靠）

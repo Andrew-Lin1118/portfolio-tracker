@@ -633,6 +633,16 @@
                     totalPrevDayPnLTWD += prevDayPnlTWD;
                     hasPrevDayPnL = true;
                 }
+                // 槓桿 ETF 備援：若 prevPrevClose 無法取得，用原型股昨日漲跌幅 ×2 估算（不計損益金額）
+                if (prevDayChangePct == null && LEVERAGED_MAP[h.symbol]) {
+                    const _uSym = LEVERAGED_MAP[h.symbol];
+                    const _uPC  = window._prevCloseCache?.[_uSym]     ?? null;
+                    const _uPPC = window._prevPrevCloseCache?.[_uSym] ?? null;
+                    if (_uPC != null && _uPPC != null && _uPC > 0 && _uPPC > 0) {
+                        prevDayChangePct = (_uPC - _uPPC) / _uPPC * 200; // 2× 槓桿近似值
+                        hasPrevDayPnL = true;
+                    }
+                }
                 // 當日損益：若 _marketOpenedToday 明確為 false（槓桿 ETF 今日未開盤）則跳過
                 const _mkt = window._marketOpenedToday;
                 const marketNotOpened = (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false);

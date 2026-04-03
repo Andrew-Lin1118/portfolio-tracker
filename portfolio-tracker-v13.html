@@ -289,12 +289,20 @@
             </div>
             <p id="trade-hint" style="color:#64748b; font-size:0.85rem; margin-bottom:1.5rem; margin-top:-0.5rem;">買入時若代碼已存在將自動加倉並重算加權平均成本</p>
             <div id="trade-form-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
-                <div><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">市場</label><select id="form-market"><option value="US">🇺🇸 美股</option><option value="TW">🇹🇼 台股</option><option value="HK">🇭🇰 港股</option></select></div>
-                <div><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">股票代碼 *</label><input id="form-symbol" type="text" placeholder="例: AAPL, 2330, 0700" style="text-transform:uppercase;"></div>
-                <div><label id="form-qty-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入股數 *</label><input id="form-quantity" type="number" step="0.0001" placeholder="數量"></div>
+                <div id="form-market-wrap"><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">市場</label><select id="form-market"><option value="US">🇺🇸 美股</option><option value="TW">🇹🇼 台股</option><option value="HK">🇭🇰 港股</option></select></div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">股票代碼 *</label>
+                    <input id="form-symbol" type="text" placeholder="例: AAPL, 2330, 0700" style="text-transform:uppercase;">
+                    <select id="form-symbol-sell" onchange="updateSellQtyHint()" style="display:none; width:100%; padding:0.5rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#f1f5f9; font-size:0.9rem;"></select>
+                </div>
+                <div>
+                    <label id="form-qty-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入股數 *</label>
+                    <input id="form-quantity" type="number" step="0.0001" placeholder="數量">
+                    <div id="sell-qty-hint" style="display:none; color:#fbbf24; font-size:0.78rem; margin-top:0.35rem;"></div>
+                </div>
                 <div><label id="form-price-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入價格 *</label><input id="form-cost" type="number" step="0.0001" placeholder="此次買入均價"></div>
             </div>
-            <button onclick="addHolding()" style="margin-top:1.5rem; width:100%; padding:0.85rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem;">▲ 確認買入</button>
+            <button id="confirm-trade-btn" onclick="addHolding()" style="margin-top:1.5rem; width:100%; padding:0.85rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem;">▲ 確認買入</button>
         </div>
 
         <!-- Holdings Table -->
@@ -704,6 +712,41 @@
             document.getElementById('form-qty-label').textContent = type === 'buy' ? '買入股數 *' : '賣出股數 *';
             document.getElementById('form-price-label').textContent = type === 'buy' ? '買入價格 *' : '賣出價格 *';
             document.getElementById('trade-hint').textContent = type === 'buy' ? '買入時若代碼已存在將自動加倉並重算加權平均成本' : '賣出時將從持倉中扣除股數，賣至歸零將移除該持倉';
+            const symbolInput  = document.getElementById('form-symbol');
+            const symbolSelect = document.getElementById('form-symbol-sell');
+            const sellQtyHint  = document.getElementById('sell-qty-hint');
+            const marketWrap   = document.getElementById('form-market-wrap');
+            const confirmBtn   = document.getElementById('confirm-trade-btn');
+            if (type === 'sell') {
+                // 用現有持倉填充下拉選單
+                const sorted = holdings.slice().sort((a,b) => a.symbol.localeCompare(b.symbol));
+                symbolSelect.innerHTML = sorted.length > 0
+                    ? sorted.map(h => `<option value="${h.symbol}">${h.symbol}（持有 ${h.quantity} 股）</option>`).join('')
+                    : '<option value="">— 尚無持倉 —</option>';
+                symbolInput.style.display  = 'none';
+                symbolSelect.style.display = '';
+                marketWrap.style.display   = 'none';          // 賣出無需選市場（從持倉自動判斷）
+                sellQtyHint.style.display  = 'block';
+                confirmBtn.textContent = '▼ 確認賣出';
+                confirmBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+                confirmBtn.style.color = '#fff';
+                updateSellQtyHint();
+            } else {
+                symbolInput.style.display  = '';
+                symbolSelect.style.display = 'none';
+                marketWrap.style.display   = '';
+                sellQtyHint.style.display  = 'none';
+                confirmBtn.textContent = '▲ 確認買入';
+                confirmBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                confirmBtn.style.color = '#0a1628';
+            }
+        }
+        function updateSellQtyHint() {
+            const sel  = document.getElementById('form-symbol-sell');
+            const hint = document.getElementById('sell-qty-hint');
+            if (!sel || !hint) return;
+            const h = holdings.find(x => x.symbol === sel.value);
+            hint.textContent = h ? `目前持有：${h.quantity} 股（成本 ${h.costPrice}）` : '';
         }
 
         // ==================== 渲染 ====================
@@ -1190,21 +1233,23 @@
 
         // ==================== 操作 ====================
         function addHolding() {
-            const symbol = document.getElementById('form-symbol').value.trim().toUpperCase();
-            const quantity = parseFloat(document.getElementById('form-quantity').value);
+            const isBuy = tradeType === 'buy';
+            const symbol = isBuy
+                ? document.getElementById('form-symbol').value.trim().toUpperCase()
+                : document.getElementById('form-symbol-sell').value.trim().toUpperCase();
+            const quantity  = parseFloat(document.getElementById('form-quantity').value);
             const costPrice = parseFloat(document.getElementById('form-cost').value);
-            const market = document.getElementById('form-market').value;
+            const market    = isBuy ? document.getElementById('form-market').value : (holdings.find(h=>h.symbol===symbol)?.market || 'US');
             if (!symbol || !quantity || !costPrice) return alert('請填寫所有必要欄位');
             saveHistory();
             const existingIndex = holdings.findIndex(h => h.symbol === symbol);
-            const isBuy = tradeType === 'buy';
             if (!isBuy) {
                 if (existingIndex === -1) return alert('找不到持倉，無法賣出');
                 const existing = holdings[existingIndex];
                 const remain = existing.quantity - quantity;
-                if (remain < 0) return alert('賣出數量超過持有股數');
+                if (remain < 0) return alert(`賣出數量超過持有股數（目前持有 ${existing.quantity} 股）`);
                 if (remain <= 0.000001) holdings.splice(existingIndex, 1);
-                else holdings[existingIndex].quantity = remain;
+                else holdings[existingIndex].quantity = parseFloat(remain.toFixed(6));
             } else {
                 if (existingIndex !== -1) {
                     const existing = holdings[existingIndex];
@@ -1216,11 +1261,13 @@
                     holdings.push({ id: Date.now(), symbol, market, name: '', quantity, costPrice, currentPrice: costPrice, addedDate: new Date().toISOString() });
                 }
             }
-            alert(isBuy ? `✅ 已處理 ${symbol}` : `✅ 已賣出 ${symbol}`);
+            alert(isBuy ? `✅ 已買入 ${symbol}` : `✅ 已賣出 ${symbol}`);
             document.getElementById('form-symbol').value = '';
             document.getElementById('form-quantity').value = '';
             document.getElementById('form-cost').value = '';
             renderAll();
+            // 賣出後重新整理下拉選單
+            if (!isBuy) setTradeType('sell');
         }
 
         function updateQuantity(id, newQty) { const parsed = parseFloat(newQty); if (isNaN(parsed)) return; saveHistory(); const h = holdings.find(item => item.id === id); if (h) h.quantity = parsed; renderAll(); }

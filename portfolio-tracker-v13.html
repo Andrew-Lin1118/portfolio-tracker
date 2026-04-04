@@ -2748,7 +2748,17 @@
         window.addEventListener('resize', _checkOrientation);
         window.addEventListener('orientationchange', () => setTimeout(_checkOrientation, 100));
 
-        window.onload = () => { init(); _checkOrientation(); };
+        // 嘗試 API 硬鎖直立（PWA standalone 模式下有效）
+        function _tryLockPortrait() {
+            try {
+                if (screen?.orientation?.lock) {
+                    screen.orientation.lock('portrait').catch(() => {});
+                }
+            } catch(_) {}
+        }
+        document.addEventListener('click', () => _tryLockPortrait(), { once: true });
+
+        window.onload = () => { init(); _checkOrientation(); _tryLockPortrait(); };
 
         // ==================== 每分鐘自動更新報價 ====================
         let _autoRefreshTimer = null;

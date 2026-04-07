@@ -2740,9 +2740,10 @@
         function _checkOrientation() {
             const overlay = document.getElementById('rotate-overlay');
             if (!overlay) return;
-            // 只在手機/平板（短邊 < 900px）且橫向時才顯示
-            const landscape = window.innerWidth > window.innerHeight;
-            const mobile    = Math.min(window.innerWidth, window.innerHeight) < 900;
+            // 只在手機/平板（短邊 < 900px 且有觸控）且橫向時才顯示；電腦版一律不顯示
+            const landscape   = window.innerWidth > window.innerHeight;
+            const touchDevice = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+            const mobile      = Math.min(window.innerWidth, window.innerHeight) < 900 && touchDevice;
             overlay.style.display = (landscape && mobile) ? 'flex' : 'none';
         }
         window.addEventListener('resize', _checkOrientation);

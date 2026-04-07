@@ -2748,8 +2748,13 @@
         window.addEventListener('resize', _checkOrientation);
         window.addEventListener('orientationchange', () => setTimeout(_checkOrientation, 100));
 
-        // 嘗試 API 硬鎖直立（PWA standalone 模式下有效）
+        // 嘗試 API 硬鎖直立（僅手機/平板，PWA standalone 模式下有效）
+        function _isMobileDevice() {
+            return Math.min(window.innerWidth, window.innerHeight) < 900
+                && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+        }
         function _tryLockPortrait() {
+            if (!_isMobileDevice()) return; // 電腦版不介入
             try {
                 if (screen?.orientation?.lock) {
                     screen.orientation.lock('portrait').catch(() => {});

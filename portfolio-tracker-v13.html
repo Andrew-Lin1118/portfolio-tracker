@@ -3664,55 +3664,76 @@
         }
 
         async function silentRefreshPrices() {
-            const sheetUrl = (document.getElementById('sheet-url')?.value || '').trim();
-            if (!sheetUrl || !sheetUrl.includes('docs.google.com')) return;
+            const prices = {}, mergedRates = {};
+
+            // ── 優先：data/prices.json（GitHub Actions 每 5 分鐘更新，同域無 CORS）──
             try {
-                const ratePromise = fetch('https://open.er-api.com/v6/latest/USD').then(r=>r.json()).catch(()=>null);
-                const controller  = new AbortController();
-                const tid = setTimeout(() => controller.abort(), 10000);
-                let res;
-                try { res = await fetch(sheetUrl, { signal: controller.signal }); }
-                catch(e) { clearTimeout(tid); return; }
-                clearTimeout(tid);
-                if (!res.ok) return;
-                const csvText = await res.text();
-                if (csvText.trim().startsWith('<')) return;
-
-                const prices = {}, sheetRates = {};
-                csvText.trim().split(/\r?\n/).forEach(line => {
-                    const cols = line.trim().split(',').map(c => c.replace(/"/g,'').trim());
-                    const val  = parseFloat(cols[1]);
-                    if (!cols[0] || isNaN(val) || val <= 0) return;
-                    if      (cols[0] === 'USD_TWD') sheetRates.USD_TWD = val;
-                    else if (cols[0] === 'HKD_TWD') sheetRates.HKD_TWD = val;
-                    else prices[cols[0]] = val;
-                });
-
-                // 更新匯率
-                const rateData = await ratePromise;
-                if (sheetRates.USD_TWD) exchangeRates.USD_TWD = sheetRates.USD_TWD;
-                if (sheetRates.HKD_TWD) exchangeRates.HKD_TWD = sheetRates.HKD_TWD;
-                if (!sheetRates.USD_TWD && rateData?.rates?.TWD && rateData?.rates?.HKD) {
-                    exchangeRates.USD_TWD = parseFloat(rateData.rates.TWD.toFixed(4));
-                    exchangeRates.HKD_TWD = parseFloat((rateData.rates.TWD / rateData.rates.HKD).toFixed(4));
+                const pjRes = await fetch('./data/prices.json', { cache: 'no-store' });
+                if (pjRes.ok) {
+                    const pj = await pjRes.json();
+                    const ageMs = Date.now() - new Date(pj.generated ?? 0).getTime();
+                    if (ageMs < 30 * 60 * 1000) {           // 30 分鐘內視為有效
+                        Object.assign(prices, pj.prices ?? {});
+                        if (pj.rates?.USD_TWD) mergedRates.USD_TWD = pj.rates.USD_TWD;
+                        if (pj.rates?.HKD_TWD) mergedRates.HKD_TWD = pj.rates.HKD_TWD;
+                    }
                 }
-                syncRateInputs();
+            } catch(_) {}
 
-                // 靜默更新股價（不存入 undo 歷史）
-                let updated = 0;
-                holdings.forEach(h => {
-                    const np = prices[h.symbol];
-                    if (np != null && !isNaN(np) && np > 0) { h.currentPrice = parseFloat(np); updated++; }
-                });
-                if (updated > 0 || Object.keys(sheetRates).length > 0) {
-                    renderAll();
-                    const now = new Date().toLocaleTimeString('zh-TW');
-                    const el = document.getElementById('auto-refresh-time');
-                    if (el) el.textContent = now;
-                    const rateEl = document.getElementById('rate-source');
-                    if (rateEl) rateEl.textContent = `✓ 自動更新（${now}）`;
-                }
-            } catch(e) { /* 靜默失敗 */ }
+            // ── 備援：Google Sheet CSV（可含使用者自訂標的 / 手動補價）──
+            const sheetUrl = (document.getElementById('sheet-url')?.value || '').trim();
+            if (sheetUrl && sheetUrl.includes('docs.google.com')) {
+                try {
+                    const controller = new AbortController();
+                    const tid = setTimeout(() => controller.abort(), 10000);
+                    let res;
+                    try { res = await fetch(sheetUrl, { signal: controller.signal }); }
+                    catch(_) { clearTimeout(tid); res = null; }
+                    clearTimeout(tid);
+                    if (res?.ok) {
+                        const csvText = await res.text();
+                        if (!csvText.trim().startsWith('<')) {
+                            csvText.trim().split(/\r?\n/).forEach(line => {
+                                const cols = line.trim().split(',').map(c => c.replace(/"/g,'').trim());
+                                const val  = parseFloat(cols[1]);
+                                if (!cols[0] || isNaN(val) || val <= 0) return;
+                                if      (cols[0] === 'USD_TWD') mergedRates.USD_TWD = val;
+                                else if (cols[0] === 'HKD_TWD') mergedRates.HKD_TWD = val;
+                                else prices[cols[0]] = val;   // Sheet 可覆蓋 prices.json
+                            });
+                        }
+                    }
+                } catch(_) {}
+            }
+
+            // ── 匯率更新 ──
+            if (!mergedRates.USD_TWD) {
+                try {
+                    const rd = await fetch('https://open.er-api.com/v6/latest/USD').then(r=>r.json()).catch(()=>null);
+                    if (rd?.rates?.TWD && rd?.rates?.HKD) {
+                        mergedRates.USD_TWD = parseFloat(rd.rates.TWD.toFixed(4));
+                        mergedRates.HKD_TWD = parseFloat((rd.rates.TWD / rd.rates.HKD).toFixed(4));
+                    }
+                } catch(_) {}
+            }
+            if (mergedRates.USD_TWD) exchangeRates.USD_TWD = mergedRates.USD_TWD;
+            if (mergedRates.HKD_TWD) exchangeRates.HKD_TWD = mergedRates.HKD_TWD;
+            syncRateInputs();
+
+            // ── 股價寫入 ──
+            let updated = 0;
+            holdings.forEach(h => {
+                const np = prices[h.symbol];
+                if (np != null && !isNaN(np) && np > 0) { h.currentPrice = parseFloat(np); updated++; }
+            });
+            if (updated > 0 || Object.keys(mergedRates).length > 0) {
+                renderAll();
+                const now = new Date().toLocaleTimeString('zh-TW');
+                const el = document.getElementById('auto-refresh-time');
+                if (el) el.textContent = now;
+                const rateEl = document.getElementById('rate-source');
+                if (rateEl) rateEl.textContent = `✓ 自動更新（${now}）`;
+            }
         }
 
         // ── 字體大小調整 ──

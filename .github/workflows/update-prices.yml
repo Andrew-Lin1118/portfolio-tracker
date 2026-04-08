@@ -2,8 +2,10 @@ name: Update Prices
 
 on:
   schedule:
-    # 每 5 分鐘，週一~五 13:00-21:00 UTC（涵蓋美東 DST/非 DST 開盤 9:30AM-4PM）
+    # 週一~五：每 5 分鐘，13:00-21:00 UTC（美股盤中）
     - cron: '*/5 13-21 * * 1-5'
+    # 週六日：每 15 分鐘，全天（BTC 24/7 交易）
+    - cron: '*/15 * * * 0,6'
   workflow_dispatch:   # 允許手動觸發
 
 jobs:

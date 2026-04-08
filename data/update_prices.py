@@ -13,18 +13,48 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(ROOT, 'price_symbols.json'), encoding='utf-8') as f:
     symbols = json.load(f)
 
-prices = {}
-for sym in symbols:
+def fetch_price(sym):
+    """三層備援抓現價：fast_info → info dict → download 1m bar"""
+    # 層 1: fast_info（最快）
     try:
         fi = yf.Ticker(sym).fast_info
-        price = getattr(fi, 'last_price', None)
-        if price is None or price != price:          # None 或 NaN
-            price = getattr(fi, 'previous_close', None)
-        if price and float(price) > 0:
-            prices[sym] = round(float(price), 4)
-        print(f'  {sym}: {prices.get(sym, "N/A")}', flush=True)
-    except Exception as e:
-        print(f'  {sym}: ERROR {e}', flush=True)
+        for attr in ('last_price', 'previous_close'):
+            v = getattr(fi, attr, None)
+            if v is not None and v == v and float(v) > 0:   # not None, not NaN
+                return round(float(v), 4)
+    except Exception:
+        pass
+    # 層 2: info dict（加密貨幣 / 部分 ETF 較可靠）
+    try:
+        info = yf.Ticker(sym).info
+        for key in ('regularMarketPrice', 'currentPrice', 'previousClose',
+                    'regularMarketPreviousClose'):
+            v = info.get(key)
+            if v and float(v) > 0:
+                return round(float(v), 4)
+    except Exception:
+        pass
+    # 層 3: 下載最近 1 分鐘 K 棒取最後收盤價
+    try:
+        import pandas as pd
+        df = yf.download(sym, period='1d', interval='1m',
+                         progress=False, auto_adjust=True)
+        if not df.empty:
+            closes = df['Close'].dropna()
+            if not closes.empty:
+                v = float(closes.iloc[-1])
+                if v > 0:
+                    return round(v, 4)
+    except Exception:
+        pass
+    return None
+
+prices = {}
+for sym in symbols:
+    price = fetch_price(sym)
+    if price:
+        prices[sym] = price
+    print(f'  {sym}: {prices.get(sym, "N/A")}', flush=True)
     time.sleep(0.25)
 
 # 匯率（open.er-api.com，免費，無需 API key）

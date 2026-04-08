@@ -3699,7 +3699,7 @@
                                 if (!cols[0] || isNaN(val) || val <= 0) return;
                                 if      (cols[0] === 'USD_TWD') mergedRates.USD_TWD = val;
                                 else if (cols[0] === 'HKD_TWD') mergedRates.HKD_TWD = val;
-                                else prices[cols[0]] = val;   // Sheet 可覆蓋 prices.json
+                                else if (!(cols[0] in prices)) prices[cols[0]] = val; // Sheet 只補 prices.json 沒有的標的
                             });
                         }
                     }

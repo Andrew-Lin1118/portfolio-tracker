@@ -2735,6 +2735,10 @@
             if (hadSaved && holdings.length > 0) {
                 setTimeout(() => loadAnalysis(false, true), 2000);
             }
+            // 啟動時立即抓一次報價（不等 60 秒 timer）
+            if (hadSaved && holdings.length > 0) {
+                setTimeout(() => silentRefreshPrices(), 1500);
+            }
         }
         // ==================== 直立鎖定 ====================
         function _checkOrientation() {

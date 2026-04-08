@@ -2511,12 +2511,13 @@
                     rows.filter(r => !r.isProxy).forEach(r => {
                         const fj = _fjCache.data[r.query];
                         if (!fj) return;
-                        if (_tmpPrevClose[r.holding]     == null && fj.prev_close      != null) _tmpPrevClose[r.holding]     = fj.prev_close;
-                        if (_tmpPrevPrevClose[r.holding] == null && fj.prev_prev_close != null) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
+                        // 快取跨天時也強制從 fundamentals.json 更新（不只填 null）
+                        if (fj.prev_close      != null) _tmpPrevClose[r.holding]     = fj.prev_close;
+                        if (fj.prev_prev_close != null) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
                         // 同步回 allResults 讓快取存檔也更新
                         if (allResults[r.query]) {
-                            if (allResults[r.query].prevClose     == null && fj.prev_close      != null) allResults[r.query].prevClose     = fj.prev_close;
-                            if (allResults[r.query].prevPrevClose == null && fj.prev_prev_close != null) allResults[r.query].prevPrevClose = fj.prev_prev_close;
+                            if (fj.prev_close      != null) allResults[r.query].prevClose     = fj.prev_close;
+                            if (fj.prev_prev_close != null) allResults[r.query].prevPrevClose = fj.prev_prev_close;
                         }
                     });
                 }
@@ -2548,8 +2549,9 @@
                             if (allResults[r.query])   allResults[r.query].marketOpenedToday   = false;
                         });
                     } else {
-                        // 平日（可能是假日）：用單一樣本 yfFetch 判斷，結果套用全部標的
-                        const _sRow = rows.find(r => !r.isProxy);
+                        // 平日（可能是假日）：用一般股票（非加密貨幣）做樣本 yfFetch 判斷
+                        const _CRYPTO = new Set(['BTC-USD','ETH-USD','LTC-USD','BNB-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD']);
+                        const _sRow = rows.find(r => !r.isProxy && !_CRYPTO.has(r.holding));
                         if (_sRow) {
                             try {
                                 const _sd  = await yfFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${_sRow.holding}?interval=1d&range=5d`);
@@ -2557,12 +2559,28 @@
                                 const _bET = _sts.length ? new Date(_sts[_sts.length-1]*1000).toLocaleDateString('en-US',{timeZone:'America/New_York'}) : '';
                                 const _openedNow = (_todayET_mkt === _bET);
                                 rows.forEach(r => {
+                                    if (_CRYPTO.has(r.holding)) return; // 加密貨幣 24/7，單獨處理
                                     _tmpMarketOpened[r.holding] = _openedNow;
                                     if (allResults[r.holding]) allResults[r.holding].marketOpenedToday = _openedNow;
                                     if (allResults[r.query])   allResults[r.query].marketOpenedToday   = _openedNow;
                                 });
                             } catch(_) {}
                         }
+                        // 加密貨幣 24/7 永遠為開盤
+                        rows.filter(r => _CRYPTO.has(r.holding)).forEach(r => {
+                            _tmpMarketOpened[r.holding] = true;
+                            if (allResults[r.holding]) allResults[r.holding].marketOpenedToday = true;
+                            if (allResults[r.query])   allResults[r.query].marketOpenedToday   = true;
+                        });
+                    }
+                    // 週末也要把加密貨幣標回 true
+                    if (_isWeekendET) {
+                        const _CRYPTO2 = new Set(['BTC-USD','ETH-USD','LTC-USD','BNB-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD']);
+                        rows.filter(r => _CRYPTO2.has(r.holding)).forEach(r => {
+                            _tmpMarketOpened[r.holding] = true;
+                            if (allResults[r.holding]) allResults[r.holding].marketOpenedToday = true;
+                            if (allResults[r.query])   allResults[r.query].marketOpenedToday   = true;
+                        });
                     }
                 }
                 // 非代理股：補抓 prevClose 遺漏的情況

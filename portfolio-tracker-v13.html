@@ -2536,7 +2536,18 @@
                 ? new Date(_cacheRaw2.tech_ts).toLocaleDateString('en-US', {timeZone:'America/New_York'}) : '';
             const _todayET_mkt = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York'});
             const _marketOpenStale = (_lastSaveET !== _todayET_mkt);
-            if (!fundFresh || !techFresh || _hasMissingPrev || _hasMissingProxyPrev || _marketOpenStale) {
+            // 快取跨天時：清空槓桿 ETF 的舊 prevClose/prevPrevClose，強制重新 yfFetch
+            if (_marketOpenStale) {
+                rows.filter(r => r.isProxy).forEach(r => {
+                    _tmpPrevClose[r.holding]     = null;
+                    _tmpPrevPrevClose[r.holding] = null;
+                });
+            }
+            // 重新計算 _hasMissingProxyPrev（可能因清空而變 true）
+            const _hasMissingProxyPrevFinal = rows.some(r => r.isProxy && (
+                _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
+            ));
+            if (!fundFresh || !techFresh || _hasMissingPrev || _hasMissingProxyPrevFinal || _marketOpenStale) {
                 // ── marketOpenedToday 刷新（快取跨天時）──
                 if (_marketOpenStale) {
                     const _dowET = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York', weekday:'short'});
@@ -2625,7 +2636,7 @@
                 }
 
                 // 槓桿 ETF：必須抓自身日線取昨收（原型股昨收≠ETF昨收）
-                if (_hasMissingProxyPrev) {
+                if (_hasMissingProxyPrevFinal) {
                     const BASE1_lev = 'https://query1.finance.yahoo.com';
                     const proxyRows = rows.filter(r => r.isProxy);
                     for (let pi = 0; pi < proxyRows.length; pi++) {

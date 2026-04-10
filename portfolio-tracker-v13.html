@@ -2527,6 +2527,19 @@
                 }
             } catch(_) {}
 
+            // Step 0.5：從 prices.json 補 proxy ETF 的 prevClose（不需 CORS，同域檔案）
+            try {
+                const _pjCache = window._priceJsonCache;
+                if (_pjCache?.prev_closes) {
+                    rows.filter(r => r.isProxy).forEach(r => {
+                        const pc = _pjCache.prev_closes[r.holding];
+                        if (pc != null && pc > 0) {
+                            if (_tmpPrevClose[r.holding] == null) _tmpPrevClose[r.holding] = pc;
+                        }
+                    });
+                }
+            } catch(_) {}
+
             const _hasMissingPrev = rows.some(r => !r.isProxy && (
                 _tmpPrevClose[r.holding] == null || _tmpPrevPrevClose[r.holding] == null
             ));
@@ -3709,6 +3722,7 @@
                         Object.assign(prices, pj.prices ?? {});
                         if (pj.rates?.USD_TWD) mergedRates.USD_TWD = pj.rates.USD_TWD;
                         if (pj.rates?.HKD_TWD) mergedRates.HKD_TWD = pj.rates.HKD_TWD;
+                        window._priceJsonCache = pj;        // Step 0.5 用：proxy ETF prevClose
                     }
                 }
             } catch(_) {}

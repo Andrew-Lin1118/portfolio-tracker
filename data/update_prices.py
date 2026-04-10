@@ -49,12 +49,35 @@ def fetch_price(sym):
         pass
     return None
 
+def fetch_prev_close(sym):
+    """抓昨收價（前一交易日收盤）：fast_info.previous_close → info dict"""
+    try:
+        fi = yf.Ticker(sym).fast_info
+        v = getattr(fi, 'previous_close', None)
+        if v is not None and v == v and float(v) > 0:
+            return round(float(v), 4)
+    except Exception:
+        pass
+    try:
+        info = yf.Ticker(sym).info
+        for key in ('regularMarketPreviousClose', 'previousClose'):
+            v = info.get(key)
+            if v and float(v) > 0:
+                return round(float(v), 4)
+    except Exception:
+        pass
+    return None
+
 prices = {}
+prev_closes = {}
 for sym in symbols:
     price = fetch_price(sym)
     if price:
         prices[sym] = price
-    print(f'  {sym}: {prices.get(sym, "N/A")}', flush=True)
+    pc = fetch_prev_close(sym)
+    if pc:
+        prev_closes[sym] = pc
+    print(f'  {sym}: price={prices.get(sym,"N/A")}  prev_close={prev_closes.get(sym,"N/A")}', flush=True)
     time.sleep(0.25)
 
 # 匯率（open.er-api.com，免費，無需 API key）
@@ -75,9 +98,10 @@ except Exception as e:
     print(f'  Rates ERROR: {e}', flush=True)
 
 output = {
-    'generated': datetime.now(timezone.utc).isoformat(),
-    'prices':    prices,
-    'rates':     rates,
+    'generated':   datetime.now(timezone.utc).isoformat(),
+    'prices':      prices,
+    'prev_closes': prev_closes,   # 昨收價，供前端 prevCloseCache 使用（避免 CORS yfFetch 失敗）
+    'rates':       rates,
 }
 
 out_path = os.path.join(ROOT, 'prices.json')

@@ -2508,19 +2508,20 @@
                     }
                 }
                 if (_fjCache?.data) {
-                    // 非代理股 + 代理股（若 fundamentals.json 有收錄，如 9747.HK/7709.HK）
                     rows.forEach(r => {
-                        // 代理股優先用自身 key；若無則嘗試 query（底層股）
-                        const fj = _fjCache.data[r.holding] ?? _fjCache.data[r.query];
+                        // 代理股（槓桿 ETF）：只能用自身 key（不可 fallback 到 r.query/底層股，
+                        //   否則會把 SOXX 的昨收 ~$368 塞進 USD ETF 的 prevClose，造成今日漲跌 -84%）
+                        // 非代理股：r.holding === r.query，兩者相同
+                        const fjKey = r.isProxy ? r.holding : r.query;
+                        const fj = _fjCache.data[fjKey];
                         if (!fj) return;
                         // 快取跨天時也強制從 fundamentals.json 更新（不只填 null）
                         if (fj.prev_close      != null) _tmpPrevClose[r.holding]     = fj.prev_close;
                         if (fj.prev_prev_close != null) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
                         // 同步回 allResults 讓快取存檔也更新
-                        const _aKey = r.isProxy ? r.holding : r.query;
-                        if (allResults[_aKey]) {
-                            if (fj.prev_close      != null) allResults[_aKey].prevClose     = fj.prev_close;
-                            if (fj.prev_prev_close != null) allResults[_aKey].prevPrevClose = fj.prev_prev_close;
+                        if (allResults[fjKey]) {
+                            if (fj.prev_close      != null) allResults[fjKey].prevClose     = fj.prev_close;
+                            if (fj.prev_prev_close != null) allResults[fjKey].prevPrevClose = fj.prev_prev_close;
                         }
                     });
                 }

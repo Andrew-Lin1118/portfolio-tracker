@@ -2508,16 +2508,19 @@
                     }
                 }
                 if (_fjCache?.data) {
-                    rows.filter(r => !r.isProxy).forEach(r => {
-                        const fj = _fjCache.data[r.query];
+                    // 非代理股 + 代理股（若 fundamentals.json 有收錄，如 9747.HK/7709.HK）
+                    rows.forEach(r => {
+                        // 代理股優先用自身 key；若無則嘗試 query（底層股）
+                        const fj = _fjCache.data[r.holding] ?? _fjCache.data[r.query];
                         if (!fj) return;
                         // 快取跨天時也強制從 fundamentals.json 更新（不只填 null）
                         if (fj.prev_close      != null) _tmpPrevClose[r.holding]     = fj.prev_close;
                         if (fj.prev_prev_close != null) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
                         // 同步回 allResults 讓快取存檔也更新
-                        if (allResults[r.query]) {
-                            if (fj.prev_close      != null) allResults[r.query].prevClose     = fj.prev_close;
-                            if (fj.prev_prev_close != null) allResults[r.query].prevPrevClose = fj.prev_prev_close;
+                        const _aKey = r.isProxy ? r.holding : r.query;
+                        if (allResults[_aKey]) {
+                            if (fj.prev_close      != null) allResults[_aKey].prevClose     = fj.prev_close;
+                            if (fj.prev_prev_close != null) allResults[_aKey].prevPrevClose = fj.prev_prev_close;
                         }
                     });
                 }

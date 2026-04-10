@@ -288,18 +288,28 @@ for sym in symbols:
             d10 = t.history(period='10d', interval='1d')
             if not d10.empty:
                 closes10 = d10['Close'].dropna().tolist()
-                # 判斷今日是否有 K 棒（比對最後一根日期與今日 UTC-4 近似）
+                # 依交易所選擇正確時區判斷今日是否有 K 棒
                 last_bar_date = d10.index[-1]
-                if hasattr(last_bar_date, 'tz_localize'):
-                    last_bar_date = last_bar_date.tz_localize(None)
                 import pytz as _ptz
-                et = _ptz.timezone('America/New_York')
-                now_et_date = datetime.now(_ptz.utc).astimezone(et).date()
+                if sym.endswith('.KS') or sym.endswith('.KQ'):
+                    _tz_name = 'Asia/Seoul'
+                elif sym.endswith('.HK'):
+                    _tz_name = 'Asia/Hong_Kong'
+                elif sym.endswith('.T') or sym.endswith('.TW') or sym.endswith('.TWO'):
+                    _tz_name = 'Asia/Taipei'
+                else:
+                    _tz_name = 'America/New_York'
+                _local_tz = _ptz.timezone(_tz_name)
+                now_local_date = datetime.now(_ptz.utc).astimezone(_local_tz).date()
                 try:
-                    last_et_date = pd.Timestamp(last_bar_date).tz_localize('UTC').tz_convert(et).date()
+                    # yfinance index 通常已帶 tz；若無則先定位 UTC 再轉換
+                    _ts = pd.Timestamp(last_bar_date)
+                    if _ts.tzinfo is None:
+                        _ts = _ts.tz_localize('UTC')
+                    last_local_date = _ts.tz_convert(_local_tz).date()
                 except Exception:
-                    last_et_date = pd.Timestamp(last_bar_date).date()
-                today_open = (last_et_date == now_et_date)
+                    last_local_date = pd.Timestamp(last_bar_date).date()
+                today_open = (last_local_date == now_local_date)
 
                 if today_open:
                     # closes[-1]=今日進行中, [-2]=昨日, [-3]=前日

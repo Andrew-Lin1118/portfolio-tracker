@@ -127,7 +127,15 @@
         /* 持倉一覽 row 互動高亮 */
         #holdings-table tbody tr { cursor: pointer; }
         #holdings-table tbody tr:hover td { background: rgba(255,204,128,0.08) !important; transition: background 0.15s; }
-        #holdings-table tbody tr.hrow-selected td { background: rgba(255,204,128,0.18) !important; }
+        /* click-lock：不透明深色底，避免凍結欄透出後方 badge 造成文字干擾 */
+        #holdings-table tbody tr.hrow-selected td {
+            background: rgba(58, 42, 8, 0.97) !important;
+            border-top: 1px solid rgba(255,204,128,0.35) !important;
+            border-bottom: 1px solid rgba(255,204,128,0.35) !important;
+        }
+        #holdings-table tbody tr.hrow-selected td:first-child {
+            border-left: 3px solid #fbbf24 !important;
+        }
 
         /* 字體大小調整按鈕：寬螢幕隱藏 */
         #font-ctrl { display:flex; }

@@ -117,6 +117,18 @@
         .macro-card { background:rgba(15,30,60,0.5); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:0.75rem; transition: all 0.2s; }
         .macro-card:hover { border-color: rgba(59,130,246,0.4); }
 
+        /* 基本面/技術面表頭凍結（overflow-y scroll context 內生效） */
+        #tab-pane-2 table thead th,
+        #tab-pane-3 table thead th {
+            position: sticky; top: 0;
+            background: #0d1d36;
+            z-index: 4;
+        }
+        /* 持倉一覽 row 互動高亮 */
+        #holdings-table tbody tr { cursor: pointer; }
+        #holdings-table tbody tr:hover td { background: rgba(255,204,128,0.08) !important; transition: background 0.15s; }
+        #holdings-table tbody tr.hrow-selected td { background: rgba(255,204,128,0.18) !important; }
+
         /* 字體大小調整按鈕：寬螢幕隱藏 */
         #font-ctrl { display:flex; }
         @media (min-width: 900px) { #font-ctrl { display:none; } }
@@ -254,7 +266,8 @@
             <button onclick="exportHoldings()" style="flex:1; min-width:150px; padding:0.75rem 1.5rem; background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;">📥 匯出持倉數據</button>
             <button onclick="refreshAllData()" id="refresh-btn" style="flex:1; min-width:180px; padding:0.75rem 1.5rem; background:rgba(16,185,129,0.1); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span id="refresh-icon" style="display:inline-block;">🔄</span><span id="refresh-text">一鍵更新報價 + 匯率</span></button>
             <button onclick="manualPriceReview()" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">✏️ 手動輸入報價</button>
-            <button onclick="undoLastAction()" id="undo-btn" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">↩ 還原上一步 <span id="undo-count">(0)</span></button>
+            <button onclick="undoLastAction()" id="undo-btn" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">↩ 上一步 (0)</button>
+            <button onclick="redoLastAction()" id="redo-btn" disabled style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(100,116,139,0.1); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:8px; font-weight:600; opacity:0.4;">↪ 下一步 (0)</button>
         </div>
         <!-- 自動更新狀態列 -->
         <div id="auto-refresh-status" style="display:none; text-align:right; font-size:0.75rem; color:#64748b; margin-bottom:1.5rem; padding-right:0.25rem;">
@@ -268,7 +281,7 @@
                 <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">持倉分布圖</h2>
                 <div style="display:flex; align-items:center; gap:0.5rem;">
                     <span style="color:#94a3b8; font-size:0.875rem;">現金（TWD）：</span>
-                    <input type="number" id="cash-twd-input" min="0" placeholder="0" oninput="saveCash(); renderAll();"
+                    <input type="number" id="cash-twd-input" min="0" placeholder="0" onchange="saveCash(); renderAll();"
                         style="width:140px; padding:0.35rem 0.6rem; background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.2); border-radius:6px; color:#f1f5f9; font-size:0.875rem;">
                 </div>
             </div>
@@ -308,7 +321,10 @@
         <!-- Holdings Table -->
         <div id="table-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; overflow-x:auto; display:none;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.5rem;">
-                <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">📊 持倉一覽</h2>
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">📊 持倉一覽</h2>
+                    <button id="holdings-table-toggle-btn" onclick="toggleHoldingsTable()" style="padding:0.25rem 0.65rem; font-size:0.78rem; background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">▲ 隱藏</button>
+                </div>
                 <div style="display:flex; gap:1rem; font-size:0.8rem; color:#64748b;"><span>USD/TWD <strong id="rate-usd-twd" style="color:#fbbf24;">31.50</strong></span><span>HKD/TWD <strong id="rate-hkd-twd" style="color:#fbbf24;">4.0500</strong></span></div>
             </div>
             <table id="holdings-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;"></table>
@@ -317,8 +333,15 @@
         <!-- Holdings Detail -->
         <div class="glass-card" style="padding:2rem;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
-                <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">持倉明細 (<span id="holdings-count">0</span>)</h2>
-                <div style="color:#94a3b8; font-size:0.85rem;">點擊綠色/藍色欄位可編輯</div>
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">持倉明細 (<span id="holdings-count">0</span>)</h2>
+                    <button id="holdings-detail-toggle-btn" onclick="toggleHoldingsDetail()" style="padding:0.25rem 0.65rem; font-size:0.78rem; background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">▲ 隱藏持倉</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    <button onclick="expandAllCards()" style="padding:0.25rem 0.65rem; font-size:0.78rem; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">▼ 展開全部</button>
+                    <button onclick="collapseAllCards()" style="padding:0.25rem 0.65rem; font-size:0.78rem; background:rgba(100,116,139,0.15); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">▲ 收合全部</button>
+                    <span style="color:#94a3b8; font-size:0.82rem;">展開後可編輯欄位</span>
+                </div>
             </div>
             <div id="holdings-list"></div>
         </div>
@@ -376,7 +399,7 @@
                 <div id="fund-backend-note" style="display:none; margin-bottom:0.75rem; padding:0.6rem 1rem; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:8px; font-size:0.82rem; color:#f59e0b;">
                     ⚠ 基本面數據需要後端支援。請點「⚙️ 後端設定」填入 Render.com 網址，或在本機執行 server.py。
                 </div>
-                <div style="overflow-x:auto;">
+                <div style="overflow-x:auto; overflow-y:auto; max-height:65vh;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.85rem; min-width:1350px;">
                         <thead>
                             <tr style="border-bottom:2px solid rgba(251,191,36,0.35);">
@@ -410,7 +433,7 @@
         <div id="tab-pane-3" class="tab-pane" style="padding-top:1rem;">
             <div class="glass-card" style="padding:1.5rem 2rem;">
                 <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0 0 1rem 0;">🔬 技術面指標</h2>
-                <div style="overflow-x:auto;">
+                <div style="overflow-x:auto; overflow-y:auto; max-height:65vh;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.85rem; min-width:950px;">
                         <thead>
                             <tr style="border-bottom:2px solid rgba(251,191,36,0.35);">
@@ -554,6 +577,81 @@
         let currency = 'TWD';
         let exchangeRates = { USD_TWD: 31.5, HKD_TWD: 4.05 };
         let tradeType = 'buy';
+        let _selectedHoldingSymbol = null;  // v15.037 click-lock 高亮
+        let _holdingsTableHidden  = false;  // v15.029 持倉一覽隱藏
+        let _holdingsDetailHidden = false;  // v15.028 持倉明細隱藏
+        let _sortCol = 'value';   // v15.020 排序欄位：'symbol'|'value'|'pnl'|'pnlPct'
+        let _sortDir = -1;        // 1=升冪, -1=降冪
+        let _pieSnapshot = null;   // v15.033 圓餅圖快照，條件重繪用
+        let _expandedCards = new Set(); // v15.017 已展開的卡片 id
+
+        function toggleHoldingCard(id) {
+            if (_expandedCards.has(id)) _expandedCards.delete(id);
+            else _expandedCards.add(id);
+            const body = document.querySelector(`#hcard-${id} .hcard-body`);
+            const icon = document.querySelector(`#hcard-${id} .hcard-icon`);
+            if (body) body.style.display = _expandedCards.has(id) ? 'block' : 'none';
+            if (icon) icon.textContent = _expandedCards.has(id) ? '▲' : '▼';
+        }
+        function expandAllCards() {
+            holdings.forEach(h => _expandedCards.add(h.id));
+            renderHoldingsDetail({ holdingsWithStats: _lastStats?.holdingsWithStats ?? [] });
+        }
+        function collapseAllCards() {
+            _expandedCards.clear();
+            renderHoldingsDetail({ holdingsWithStats: _lastStats?.holdingsWithStats ?? [] });
+        }
+        let _lastStats = null;    // 供 expand/collapseAllCards 使用
+        const _cardFpCache = {}; // v15.022 卡片指紋快取
+
+        function _cardFingerprint(h) {
+            return [
+                h.symbol, h.quantity, h.costPrice, h.currentPrice,
+                h.dayChangePct?.toFixed(2) ?? '-',
+                h.prevDayChangePct?.toFixed(2) ?? '-',
+                h.valueTotalUSD?.toFixed(2),
+                h.percentage?.toFixed(2),
+                currency,
+                _expandedCards.has(h.id) ? '1' : '0'
+            ].join('|');
+        }
+
+        function sortHoldings(col) {
+            if (_sortCol === col) { _sortDir = -_sortDir; }
+            else { _sortCol = col; _sortDir = -1; }
+            renderAll();
+        }
+
+        function toggleHoldingsTable() {
+            _holdingsTableHidden = !_holdingsTableHidden;
+            const btn = document.getElementById('holdings-table-toggle-btn');
+            const tbl = document.getElementById('holdings-table');
+            if (btn) btn.textContent = _holdingsTableHidden ? '▼ 顯示' : '▲ 隱藏';
+            if (tbl) tbl.style.display = _holdingsTableHidden ? 'none' : '';
+        }
+        function toggleHoldingsDetail() {
+            _holdingsDetailHidden = !_holdingsDetailHidden;
+            const btn = document.getElementById('holdings-detail-toggle-btn');
+            const lst = document.getElementById('holdings-list');
+            if (btn) btn.textContent = _holdingsDetailHidden ? '▼ 顯示持倉' : '▲ 隱藏持倉';
+            if (lst) lst.style.display = _holdingsDetailHidden ? 'none' : '';
+        }
+
+        function _applyHoldingRowSelection() {
+            document.querySelectorAll('#holdings-table tbody tr').forEach(tr => {
+                tr.classList.toggle('hrow-selected', tr.dataset.symbol === _selectedHoldingSymbol);
+            });
+        }
+        document.addEventListener('click', e => {
+            const tr = e.target.closest('#holdings-table tbody tr');
+            if (tr) {
+                const sym = tr.dataset.symbol;
+                _selectedHoldingSymbol = (_selectedHoldingSymbol === sym) ? null : sym;
+                _applyHoldingRowSelection();
+            } else if (!e.target.closest('#table-section')) {
+                if (_selectedHoldingSymbol) { _selectedHoldingSymbol = null; _applyHoldingRowSelection(); }
+            }
+        }, true);
         let priceReviewData = null;
         let chartInstance = null;
         let currentDeleteId = null;
@@ -694,15 +792,31 @@
         }
 
         // ==================== 工具函數 ====================
+        let _redoStack = [];  // v15.021 Redo 堆疊
+        function _refreshUndoRedo() {
+            const ub = document.getElementById('undo-btn');
+            const rb = document.getElementById('redo-btn');
+            if (ub) ub.textContent = `↩ 上一步 (${history.length})`;
+            if (rb) { rb.textContent = `↪ 下一步 (${_redoStack.length})`; rb.style.opacity = _redoStack.length ? '1' : '0.4'; rb.disabled = !_redoStack.length; }
+        }
         function saveHistory() {
-            if (history.length >= 10) history.shift();
+            if (history.length >= 50) history.shift();  // v15.021：上限 10→50
             history.push(JSON.parse(JSON.stringify(holdings)));
-            document.getElementById('undo-count').textContent = `(${history.length})`;
+            _redoStack = [];   // 執行新操作，清空 Redo
+            _refreshUndoRedo();
         }
         function undoLastAction() {
-            if (history.length === 0) return alert('已無可還原步驟');
+            if (history.length === 0) return;
+            _redoStack.push(JSON.parse(JSON.stringify(holdings)));
             holdings = history.pop();
-            document.getElementById('undo-count').textContent = `(${history.length})`;
+            _refreshUndoRedo();
+            renderAll();
+        }
+        function redoLastAction() {
+            if (_redoStack.length === 0) return;
+            history.push(JSON.parse(JSON.stringify(holdings)));
+            holdings = _redoStack.pop();
+            _refreshUndoRedo();
             renderAll();
         }
         function setCurrency(c) {
@@ -858,7 +972,17 @@
         }
 
         function renderTable(stats) {
-            const tbodyHTML = stats.holdingsWithStats.sort((a,b) => b.valueTotalUSD - a.valueTotalUSD).map((h,i) => {
+            const _sortFn = (a, b) => {
+                let va, vb;
+                if (_sortCol === 'symbol')  { va = a.symbol;  vb = b.symbol;  return _sortDir * va.localeCompare(vb); }
+                if (_sortCol === 'pnl')     { va = a.valueTotalUSD - a.costTotalUSD; vb = b.valueTotalUSD - b.costTotalUSD; }
+                else if (_sortCol==='pnlPct') { va = a.costTotalUSD>0?(a.valueTotalUSD-a.costTotalUSD)/a.costTotalUSD:0; vb = b.costTotalUSD>0?(b.valueTotalUSD-b.costTotalUSD)/b.costTotalUSD:0; }
+                else { va = a.valueTotalUSD; vb = b.valueTotalUSD; } // 'value' default
+                return _sortDir * (vb - va);
+            };
+            const _si = (col) => _sortCol===col ? (_sortDir===-1?'▼':'▲') : '⇅';
+            const _thStyle = 'padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;cursor:pointer;user-select:none;white-space:nowrap;';
+            const tbodyHTML = stats.holdingsWithStats.slice().sort(_sortFn).map((h,i) => {
                 const pnl    = h.valueTotalUSD - h.costTotalUSD;
                 const pnlTWD = h.valueTotalTWD - h.costTotalTWD;
                 const isProfit = pnl >= 0;
@@ -892,7 +1016,7 @@
                     dayPnlCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:'+(dpp?'#10b981':'#ef4444')+';">'+dpStr+'</td>';
                 }
 
-                return `<tr style="background:${bg};">
+                return `<tr data-symbol="${h.symbol}" style="background:${bg};">
                     <td style="padding:0.55rem 0.75rem;font-weight:600;">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.symbol}<br><small style="color:#64748b;">${h.name||''}</small></td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;">${h.quantity.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;color:#94a3b8;">${priceCcy}${h.costPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
@@ -917,16 +1041,16 @@
 
             document.getElementById('holdings-table').innerHTML = `
                 <thead><tr>
-                    <th style="padding:0.6rem 0.75rem;text-align:left;color:#fbbf24;">代碼</th>
+                    <th onclick="sortHoldings('symbol')" style="${_thStyle}text-align:left;">代碼 ${_si('symbol')}</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">持有股數</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">成本價</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">現價</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#94a3b8;">昨日漲跌</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">今日漲跌</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">今日損益</th>
-                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">市值 (${currency})</th>
-                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">總損益 (${currency})</th>
-                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">總損益%</th>
+                    <th onclick="sortHoldings('value')"  style="${_thStyle}">市值 (${currency}) ${_si('value')}</th>
+                    <th onclick="sortHoldings('pnl')"    style="${_thStyle}">總損益 (${currency}) ${_si('pnl')}</th>
+                    <th onclick="sortHoldings('pnlPct')" style="${_thStyle}">總損益% ${_si('pnlPct')}</th>
                 </tr></thead>
                 <tbody>${tbodyHTML}</tbody>
                 <tfoot><tr style="background:rgba(251,191,36,0.08);">
@@ -937,86 +1061,121 @@
                     <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${currency==='USD'?fmtPnl(stats.totalPnL,'USD'):fmtPnl(stats.totalPnLTWD,'TWD')}</td>
                     <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${stats.totalPnL>=0?'+':''}${stats.totalPnLPercent.toFixed(2)}%</td>
                 </tr></tfoot>`;
+            _applyHoldingRowSelection();
         }
 
-        function renderHoldingsDetail(stats) {
-            const container = document.getElementById('holdings-list');
-            container.innerHTML = stats.holdingsWithStats.sort((a,b) => b.valueTotalUSD - a.valueTotalUSD).map((h, i) => {
-                const pnl = h.valueTotalUSD - h.costTotalUSD;
+        function _buildCardHTML(h, i) {
+                const pnl      = h.valueTotalUSD - h.costTotalUSD;
+                const pnlTWD   = h.valueTotalTWD - h.costTotalTWD;
                 const isProfit = pnl >= 0;
                 const priceCcy = (h.market==='HK'||h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol) ? 'HK$' : h.market==='TW' ? 'NT$' : '$';
-                return `
-                <div class="holding-row" style="animation-delay:${i*0.05}s;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
-                        <div style="flex:1; min-width:200px;">
-                            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem; flex-wrap:wrap;">
-                                <span class="market-badge">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.market}</span>
-                                <span class="mono" style="color:#f1f5f9;font-size:1.1rem;font-weight:600;">${h.symbol}</span>
-                                <span style="padding:0.25rem 0.5rem;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.75rem;font-weight:600;color:#60a5fa;">${h.percentage.toFixed(2)}%</span>
-                            </div>
-                            ${h.name ? `<div style="color:#94a3b8;font-size:0.9rem;">${h.name}</div>` : ''}
-                            <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
+                const expanded = _expandedCards.has(h.id);
+
+                // ── 今日漲跌標籤（header 常駐顯示）
+                const todayTag = h.dayChangePct != null ? (() => {
+                    const cp = h.dayChangePct >= 0;
+                    return `<span style="padding:0.15rem 0.45rem;border-radius:5px;background:${cp?'rgba(16,185,129,0.18)':'rgba(239,68,68,0.18)'};color:${cp?'#10b981':'#ef4444'};font-size:0.82rem;font-weight:700;">${cp?'+':''}${h.dayChangePct.toFixed(2)}%</span>`;
+                })() : '';
+
+                // ── 總損益標籤（header 常駐顯示）
+                const pnlTag = `<span class="${isProfit?'profit':'loss'}" style="font-size:0.9rem;font-weight:700;">${isProfit?'+':''}${(h.costTotalUSD>0?pnl/h.costTotalUSD*100:0).toFixed(2)}%</span>`;
+
+                // ── 可折疊 body ──
+                const bodyHTML = (() => {
+                    const parts = [];
+                    // 數量 / 成本價 / 現價 / 成本總額 / 市值
+                    parts.push(`
+                        <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid rgba(255,255,255,0.08);">
+                            <div style="display:flex;align-items:center;gap:0.5rem;">
                                 <span style="color:#64748b;font-size:0.85rem;">持有</span>
                                 <input type="number" step="0.01" value="${h.quantity}" onchange="updateQuantity(${h.id}, this.value)" style="width:100px;padding:0.25rem 0.5rem;font-size:0.85rem;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:4px;color:#e2e8f0;">
                                 <span style="color:#64748b;font-size:0.85rem;">股</span>
                             </div>
-                        </div>
-                        <div style="flex:1; min-width:250px;">
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.9rem;">
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">成本價</div><input type="number" step="0.01" value="${h.costPrice}" onchange="updateCostPrice(${h.id}, this.value)" style="width:120px;padding:0.5rem;font-size:0.9rem;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:6px;color:#e2e8f0;"></div>
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">現價</div><input type="number" step="0.01" value="${h.currentPrice}" onchange="updateCurrentPrice(${h.id}, this.value)" style="width:120px;padding:0.5rem;font-size:0.9rem;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:#e2e8f0;"></div>
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">成本總額</div><div class="mono">${priceCcy}${h.costTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2})}</div></div>
-                                <div><div style="color:#94a3b8;margin-bottom:0.25rem;">市值</div><div class="mono">${priceCcy}${h.valueTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2})}</div></div>
+                            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.65rem;font-size:0.88rem;flex:1;min-width:260px;">
+                                <div><div style="color:#94a3b8;margin-bottom:0.2rem;">成本價</div><input type="number" step="0.01" value="${h.costPrice}" onchange="updateCostPrice(${h.id}, this.value)" style="width:110px;padding:0.4rem 0.5rem;font-size:0.88rem;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:5px;color:#e2e8f0;"></div>
+                                <div><div style="color:#94a3b8;margin-bottom:0.2rem;">現價</div><input type="number" step="0.01" value="${h.currentPrice}" onchange="updateCurrentPrice(${h.id}, this.value)" style="width:110px;padding:0.4rem 0.5rem;font-size:0.88rem;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:5px;color:#e2e8f0;"></div>
+                                <div><div style="color:#94a3b8;margin-bottom:0.2rem;">成本總額</div><div class="mono" style="font-size:0.88rem;">${priceCcy}${h.costTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2})}</div></div>
+                                <div><div style="color:#94a3b8;margin-bottom:0.2rem;">市值</div><div class="mono" style="font-size:0.88rem;">${priceCcy}${h.valueTotalUSD.toLocaleString('en-US',{minimumFractionDigits:2})}</div></div>
                             </div>
+                        </div>`);
+                    // 昨日漲跌
+                    if (h.prevDayChangePct != null) {
+                        const pp = h.prevDayChangePct >= 0;
+                        parts.push(`<div style="margin-top:0.5rem;"><span style="color:#64748b;font-size:0.78rem;">昨日漲跌 </span><span class="mono" style="color:${pp?'#6ee7b7':'#fca5a5'};font-size:0.85rem;">${pp?'+':''}${h.prevDayChangePct.toFixed(2)}%</span></div>`);
+                    }
+                    // 今日損益金額
+                    if (h.dayChangePct != null) {
+                        const cp = h.dayChangePct >= 0;
+                        const dp = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
+                        const dpStr = currency==='USD' ? (dp>=0?'+':'-')+'$'+Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2}) : (dp>=0?'+':'-')+'NT$'+Math.abs(Math.round(dp)).toLocaleString('en-US');
+                        parts.push(`<div style="margin-top:0.25rem;"><span style="color:#64748b;font-size:0.78rem;">今日損益 </span><span class="mono" style="color:${cp?'#10b981':'#ef4444'};font-size:0.85rem;font-weight:700;">${dpStr}</span></div>`);
+                    }
+                    // 刪除按鈕
+                    parts.push(`<div style="margin-top:0.75rem;"><button onclick="deleteHolding(${h.id})" class="btn-delete" title="刪除">🗑️ 刪除</button></div>`);
+                    return parts.join('');
+                })();
+
+                return `
+                <div class="holding-row" id="hcard-${h.id}" style="animation-delay:${i*0.05}s;padding:1rem 1.25rem;">
+                    <div class="hcard-header" onclick="toggleHoldingCard(${h.id})" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                            <span class="market-badge">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.market}</span>
+                            <span class="mono" style="color:#f1f5f9;font-size:1rem;font-weight:700;">${h.symbol}</span>
+                            ${h.name ? `<span style="color:#94a3b8;font-size:0.82rem;">${h.name}</span>` : ''}
+                            <span style="padding:0.15rem 0.45rem;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.75rem;color:#60a5fa;">${h.percentage.toFixed(2)}%</span>
                         </div>
-                        <div style="display:flex; align-items:center; gap:1rem;">
-                            <div style="text-align:right;">
-                                <div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">總損益</div>
-                                <div class="mono" style="font-size:1.1rem;font-weight:600;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':'-'}${priceCcy}${Math.abs(pnl).toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>
-                                <div class="mono" style="font-size:0.95rem;margin-top:0.15rem;"><span class="${isProfit?'profit':'loss'}">${isProfit?'+':''}${(pnl/h.costTotalUSD*100).toFixed(2)}%</span></div>
-                                ${(function() {
-                                    const parts = [];
-                                    // ── 昨日漲跌 ──
-                                    if (h.prevDayChangePct != null) {
-                                        const pp  = h.prevDayChangePct >= 0;
-                                        const pc  = pp ? '#6ee7b7' : '#fca5a5';
-                                        const pb  = pp ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)';
-                                        parts.push(
-                                            '<div style="margin-top:0.4rem;padding-top:0.35rem;border-top:1px solid rgba(255,255,255,0.08);">'
-                                            + '<div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">昨日漲跌</div>'
-                                            + '<div class="mono" style="font-size:0.9rem;color:'+pc+';">'
-                                            + '<span style="padding:0.15rem 0.4rem;border-radius:4px;background:'+pb+';">'+(pp?'+':'')+h.prevDayChangePct.toFixed(2)+'%</span>'
-                                            + '</div></div>'
-                                        );
-                                    }
-                                    // ── 今日漲跌 + 今日損益 ──
-                                    if (h.dayChangePct != null) {
-                                        const cp  = h.dayChangePct >= 0;
-                                        const col = cp ? '#10b981' : '#ef4444';
-                                        const bgc = cp ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
-                                        const dp  = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
-                                        const dpStr = currency==='USD'
-                                            ? (dp>=0?'+':'-')+'$'+Math.abs(dp).toLocaleString('en-US',{minimumFractionDigits:2})
-                                            : (dp>=0?'+':'-')+'NT$'+Math.abs(Math.round(dp)).toLocaleString('en-US');
-                                        parts.push(
-                                            '<div style="margin-top:0.4rem;padding-top:0.35rem;border-top:1px solid rgba(255,255,255,0.08);">'
-                                            + '<div style="color:#64748b;font-size:0.78rem;margin-bottom:0.15rem;">今日漲跌</div>'
-                                            + '<div class="mono" style="font-size:0.9rem;color:'+col+';">'
-                                            + '<span style="padding:0.15rem 0.4rem;border-radius:4px;background:'+bgc+';font-weight:600;">'+(cp?'+':'')+h.dayChangePct.toFixed(2)+'%</span>'
-                                            + '</div>'
-                                            + '<div class="mono" style="font-size:0.82rem;color:'+col+';margin-top:0.2rem;">'+dpStr+'</div>'
-                                            + '</div>'
-                                        );
-                                    }
-                                    return parts.join('');
-                                })()}
-                            </div>
-                            <button onclick="deleteHolding(${h.id})" class="btn-delete" title="刪除">🗑️</button>
+                        <div style="display:flex;align-items:center;gap:0.75rem;">
+                            ${pnlTag} ${todayTag}
+                            <span class="hcard-icon" style="color:#64748b;font-size:0.9rem;">${expanded?'▲':'▼'}</span>
                         </div>
                     </div>
+                    <div class="hcard-body" style="display:${expanded?'block':'none'};">${bodyHTML}</div>
                 </div>`;
-            }).join('');
+        }
+
+        // v15.022：差異更新——指紋不變的卡片直接重用 DOM，避免每次靜默更新都全量重建
+        function renderHoldingsDetail(stats) {
+            const container = document.getElementById('holdings-list');
+            const sorted = stats.holdingsWithStats.slice().sort((a,b) => b.valueTotalUSD - a.valueTotalUSD);
+            const fragment = document.createDocumentFragment();
+
+            sorted.forEach((h, i) => {
+                const fp = _cardFingerprint(h);
+                const existingEl = document.getElementById(`hcard-${h.id}`);
+                if (existingEl && _cardFpCache[h.id] === fp) {
+                    // 指紋相同：直接移入 fragment（保留 DOM、保留 input focus）
+                    fragment.appendChild(existingEl);
+                } else {
+                    // 指紋不同：重建卡片
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = _buildCardHTML(h, i).trim();
+                    fragment.appendChild(tmp.firstElementChild);
+                    _cardFpCache[h.id] = fp;
+                }
+            });
+
+            container.innerHTML = ''; // 清除剩餘（已刪除的持倉）
+            container.appendChild(fragment);
             document.getElementById('holdings-count').textContent = holdings.length;
+        }
+
+        // v15.033：條件重繪判斷，避免每分鐘靜默更新都 destroy/rebuild Chart.js
+        function _shouldRenderPie(stats) {
+            const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+            const grandTotal = stats.totalValueTWD + cashTWD;
+            const now = Date.now();
+            if (!_pieSnapshot) return true;                               // 首次
+            if (_pieSnapshot.holdingsCount !== holdings.length) return true; // 持倉筆數變化
+            if (_pieSnapshot.currency !== currency) return true;          // 幣別切換
+            if (Math.abs(_pieSnapshot.cashTWD - cashTWD) > 1) return true; // 現金變化
+            if (now - _pieSnapshot.lastForcedAt > 30 * 60 * 1000) return true; // 30分強制
+            // 各標的佔比變化 > 0.5%
+            for (const h of stats.holdingsWithStats) {
+                const share = grandTotal > 0 ? (h.valueTWD ?? h.valueTotalTWD) / grandTotal * 100 : 0;
+                const prev  = _pieSnapshot.shares[h.symbol] ?? 0;
+                if (Math.abs(share - prev) > 0.5) return true;
+            }
+            return false;
         }
 
         function renderPie(stats) {
@@ -1030,8 +1189,8 @@
             const stockScale = (grandTotal > 0 && stats.totalValueTWD > 0) ? stats.totalValueTWD / grandTotal : 1;
             const adjHoldings = stats.holdingsWithStats.map(h => ({ name: h.symbol, value: h.percentage * stockScale }));
 
-            let pieData = adjHoldings.filter(d => d.value >= 1);
-            let others = adjHoldings.filter(d => d.value < 1).reduce((sum, d) => sum + d.value, 0);
+            let pieData = adjHoldings.filter(d => d.value >= 0.5);
+            let others = adjHoldings.filter(d => d.value < 0.5).reduce((sum, d) => sum + d.value, 0);
             if (others > 0) pieData.push({ name: '其他', value: others });
 
             // 現金欄
@@ -1082,17 +1241,36 @@
                 </div>`;
             }).join('');
             document.getElementById('pie-legend').innerHTML = legendHTML;
+
+            // 更新快照（下次比對用）
+            const cashTWD2 = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+            const grand2   = stats.totalValueTWD + cashTWD2;
+            const shares2  = {};
+            stats.holdingsWithStats.forEach(h => {
+                shares2[h.symbol] = grand2 > 0 ? (h.valueTWD ?? h.valueTotalTWD) / grand2 * 100 : 0;
+            });
+            _pieSnapshot = { holdingsCount: holdings.length, currency, cashTWD: cashTWD2, shares: shares2, lastForcedAt: Date.now() };
         }
 
         function renderAll() {
             const stats = calculateStats();
+            _lastStats = stats;
             renderStats(stats);
             renderTable(stats);
             renderHoldingsDetail(stats);
-            renderPie(stats);
+            if (_shouldRenderPie(stats)) renderPie(stats);
             document.getElementById('table-section').style.display = holdings.length > 0 ? 'block' : 'none';
             document.getElementById('rate-usd-twd').textContent = exchangeRates.USD_TWD.toFixed(2);
             document.getElementById('rate-hkd-twd').textContent = exchangeRates.HKD_TWD.toFixed(4);
+            // 重套用隱藏狀態（renderTable/renderHoldingsDetail 重建 DOM 後需恢復）
+            const _tbl = document.getElementById('holdings-table');
+            const _lst = document.getElementById('holdings-list');
+            const _tbtn = document.getElementById('holdings-table-toggle-btn');
+            const _dbtn = document.getElementById('holdings-detail-toggle-btn');
+            if (_tbl)  _tbl.style.display  = _holdingsTableHidden  ? 'none' : '';
+            if (_lst)  _lst.style.display  = _holdingsDetailHidden ? 'none' : '';
+            if (_tbtn) _tbtn.textContent   = _holdingsTableHidden  ? '▼ 顯示'    : '▲ 隱藏';
+            if (_dbtn) _dbtn.textContent   = _holdingsDetailHidden ? '▼ 顯示持倉' : '▲ 隱藏持倉';
             saveToStorage(); // v13：每次畫面更新同步儲存
         }
 
@@ -1217,20 +1395,24 @@
         const PT_STORAGE_KEY = 'pt_v13_state';
 
         let _storageReady = false; // 初始化完成前不允許存檔
+        let _saveTimer = null;     // v15.022 防抖計時器
 
         function saveToStorage() {
             if (!_storageReady) return;      // init 完成前不存
             if (holdings.length === 0) return; // 持倉為空時絕不覆蓋已存資料
-            try {
-                const state = {
-                    holdings,
-                    sheetUrl: document.getElementById('sheet-url')?.value || '',
-                    currency,
-                    exchangeRates,
-                    savedAt: new Date().toISOString()
-                };
-                localStorage.setItem(PT_STORAGE_KEY, JSON.stringify(state));
-            } catch(e) { /* 超出容量時靜默失敗 */ }
+            clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(() => {
+                try {
+                    const state = {
+                        holdings,
+                        sheetUrl: document.getElementById('sheet-url')?.value || '',
+                        currency,
+                        exchangeRates,
+                        savedAt: new Date().toISOString()
+                    };
+                    localStorage.setItem(PT_STORAGE_KEY, JSON.stringify(state));
+                } catch(e) { /* 超出容量時靜默失敗 */ }
+            }, 500);
         }
 
         function loadFromStorage() {
@@ -2748,6 +2930,7 @@
             loadSyncSettings();
             loadCash();
             setCurrency(currency); // 同步按鈕高亮（預設 TWD，或從 localStorage 還原的值）
+            _refreshUndoRedo();    // 初始化 Undo/Redo 按鈕狀態
             renderAll();
             if (hadSaved) {
                 showImportToast(`✅ 已還原上次持倉（${holdings.length} 筆）`, 3500);
@@ -3709,6 +3892,20 @@
             </div>`;
         }
 
+        // v15.030：.TW 後綴彈性匹配——Sheet 可能存 00675L.TW，持倉存 00675L
+        function _lookupPrice(sym, priceMap) {
+            if (priceMap[sym] != null) return priceMap[sym];
+            const withTW = sym + '.TW';
+            if (priceMap[withTW] != null) return priceMap[withTW];
+            if (sym.endsWith('.TW') && priceMap[sym.slice(0,-3)] != null) return priceMap[sym.slice(0,-3)];
+            return null;
+        }
+        function _hasPriceKey(sym, priceMap) {
+            return (sym in priceMap)
+                || ((sym + '.TW') in priceMap)
+                || (sym.endsWith('.TW') && sym.slice(0,-3) in priceMap);
+        }
+
         async function silentRefreshPrices() {
             const prices = {}, mergedRates = {};
 
@@ -3734,7 +3931,7 @@
                     const controller = new AbortController();
                     const tid = setTimeout(() => controller.abort(), 10000);
                     let res;
-                    try { res = await fetch(sheetUrl, { signal: controller.signal }); }
+                    try { res = await fetch(sheetUrl, { signal: controller.signal, cache: 'no-store' }); }
                     catch(_) { clearTimeout(tid); res = null; }
                     clearTimeout(tid);
                     if (res?.ok) {
@@ -3746,7 +3943,7 @@
                                 if (!cols[0] || isNaN(val) || val <= 0) return;
                                 if      (cols[0] === 'USD_TWD') mergedRates.USD_TWD = val;
                                 else if (cols[0] === 'HKD_TWD') mergedRates.HKD_TWD = val;
-                                else if (!(cols[0] in prices)) prices[cols[0]] = val; // Sheet 只補 prices.json 沒有的標的
+                                else if (!_hasPriceKey(cols[0], prices)) prices[cols[0]] = val; // Sheet 只補 prices.json 沒有的標的（含 .TW 變體）
                             });
                         }
                     }
@@ -3770,7 +3967,7 @@
             // ── 股價寫入 ──
             let updated = 0;
             holdings.forEach(h => {
-                const np = prices[h.symbol];
+                const np = _lookupPrice(h.symbol, prices);
                 if (np != null && !isNaN(np) && np > 0) { h.currentPrice = parseFloat(np); updated++; }
             });
             if (updated > 0 || Object.keys(mergedRates).length > 0) {

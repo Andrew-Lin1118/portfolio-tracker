@@ -589,7 +589,7 @@
         let _holdingsTableHidden  = false;  // v15.029 持倉一覽隱藏
         let _holdingsDetailHidden = false;  // v15.028 持倉明細隱藏
         let _sortCol = 'value';   // v15.020 排序欄位：'symbol'|'value'|'pnl'|'pnlPct'
-        let _sortDir = -1;        // 1=升冪, -1=降冪
+        let _sortDir = 1;         // 1=降冪(大到小), -1=升冪(小到大)；預設市值降冪
         let _pieSnapshot = null;   // v15.033 圓餅圖快照，條件重繪用
         let _expandedCards = new Set(); // v15.017 已展開的卡片 id
 
@@ -626,7 +626,7 @@
 
         function sortHoldings(col) {
             if (_sortCol === col) { _sortDir = -_sortDir; }
-            else { _sortCol = col; _sortDir = -1; }
+            else { _sortCol = col; _sortDir = col === 'symbol' ? -1 : 1; } // 數字欄預設降冪，代碼欄預設 A→Z
             renderAll();
         }
 

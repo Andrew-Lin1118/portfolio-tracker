@@ -411,6 +411,7 @@
                         <thead>
                             <tr style="border-bottom:2px solid rgba(251,191,36,0.35);">
                                 <th style="padding:0.55rem 0.6rem; text-align:left; color:#fbbf24; white-space:nowrap;">持倉代碼</th>
+                                <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">下次財報</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">本益比 (PE)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">歷史均PE</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">預期本益比 (FPE)</th>
@@ -426,7 +427,6 @@
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (近4季)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (全年預估)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (明年預估)</th>
-                                <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">下次財報</th>
                             </tr>
                         </thead>
                         <tbody id="fund-tbody">
@@ -2669,12 +2669,13 @@
                     return `<span style="color:#fbbf24;font-weight:600;">${d.next_earnings_date}</span><br>${badge}`;
                 })();
                 fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}` +
+                    trc(nextEarnings) +
                     tr(fmt(d.pe)) + tr(fmt(d.hist_avg_pe)) + tr(fmt(d.fpe)) +
                     tr(fmt(d.peg)) + tr(fmt(d.ps)) + tr(fmt(d.pb)) +
                     tr(fmtp(d.rev_yoy)) + tr(fmtp(d.rev_fwd)) +
                     tr(fmtp(d.gross_margin)) + tr(fmtp(d.operating_margin)) +
                     tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) +
-                    trc(nextEarnings) + '</tr>');
+                    '</tr>');
 
                 // 技術面行
                 techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}` +

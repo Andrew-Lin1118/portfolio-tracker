@@ -301,19 +301,21 @@ for sym in symbols:
             print(f'    hourly tech error: {e}', flush=True)
 
         # 昨收價 & 前日收盤價（用於前端計算當日/前日漲跌）
-        prev_close = info.get('regularMarketPreviousClose') or info.get('previousClose')
-        # fast_info 備援（yfinance 新版部分 ticker 的 info 可能缺欄位）
-        if not prev_close:
-            try:
-                prev_close = getattr(t.fast_info, 'previous_close', None) or None
-            except Exception:
-                pass
-
+        # 優先從 history 取精確收盤（避免 regularMarketPreviousClose 在盤後
+        # 仍指向「前一交易日」而非當日收盤的時序問題）
+        prev_close = None
         prev_prev_close = None
         try:
             d10 = t.history(period='10d', interval='1d')
             if not d10.empty:
                 closes10 = d10['Close'].dropna().tolist()
+
+                # ── 去除 yfinance 盤後插入的幻影重複 bar ──
+                # （未開盤時 API 常在尾端補一條與前日相同的 bar，
+                #   若不去除會造成 prevClose == prevPrevClose → 昨日漲跌 0%）
+                while len(closes10) >= 2 and closes10[-1] == closes10[-2]:
+                    closes10.pop()
+
                 # 依交易所選擇正確時區判斷今日是否有 K 棒
                 last_bar_date = d10.index[-1]
                 import pytz as _ptz
@@ -328,7 +330,6 @@ for sym in symbols:
                 _local_tz = _ptz.timezone(_tz_name)
                 now_local_date = datetime.now(_ptz.utc).astimezone(_local_tz).date()
                 try:
-                    # yfinance index 通常已帶 tz；若無則先定位 UTC 再轉換
                     _ts = pd.Timestamp(last_bar_date)
                     if _ts.tzinfo is None:
                         _ts = _ts.tz_localize('UTC')
@@ -338,19 +339,26 @@ for sym in symbols:
                 today_open = (last_local_date == now_local_date)
 
                 if today_open:
-                    # closes[-1]=今日進行中, [-2]=昨日, [-3]=前日
-                    if not prev_close and len(closes10) >= 2:
-                        prev_close = safe_float(closes10[-2])
-                    if len(closes10) >= 3:
-                        prev_prev_close = safe_float(closes10[-3])
+                    # closes[-1]=今日進行中, [-2]=昨日收盤(prevClose), [-3]=前日(prevPrevClose)
+                    if len(closes10) >= 2: prev_close      = safe_float(closes10[-2])
+                    if len(closes10) >= 3: prev_prev_close = safe_float(closes10[-3])
                 else:
-                    # closes[-1]=昨日, [-2]=前日
-                    if not prev_close and len(closes10) >= 1:
-                        prev_close = safe_float(closes10[-1])
-                    if len(closes10) >= 2:
-                        prev_prev_close = safe_float(closes10[-2])
+                    # closes[-1]=最近收盤(prevClose), [-2]=前日(prevPrevClose)
+                    if len(closes10) >= 1: prev_close      = safe_float(closes10[-1])
+                    if len(closes10) >= 2: prev_prev_close = safe_float(closes10[-2])
+
+                print(f'    prevClose={prev_close}  prevPrevClose={prev_prev_close}  today_open={today_open}', flush=True)
         except Exception:
             pass
+
+        # 備援：history 失敗時才使用 info 欄位
+        if not prev_close:
+            prev_close = info.get('regularMarketPreviousClose') or info.get('previousClose')
+            if not prev_close:
+                try:
+                    prev_close = getattr(t.fast_info, 'previous_close', None) or None
+                except Exception:
+                    pass
 
         result[sym] = {
             # 基本面（全部透過 safe_float 防止 NaN 寫入 JSON）

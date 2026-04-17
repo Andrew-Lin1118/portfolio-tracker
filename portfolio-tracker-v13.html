@@ -273,7 +273,6 @@
             <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span style="font-size:18px;">📤</span>匯入持倉數據</button>
             <button onclick="exportHoldings()" style="flex:1; min-width:150px; padding:0.75rem 1.5rem; background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;">📥 匯出持倉數據</button>
             <button onclick="refreshAllData()" id="refresh-btn" style="flex:1; min-width:180px; padding:0.75rem 1.5rem; background:rgba(16,185,129,0.1); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span id="refresh-icon" style="display:inline-block;">🔄</span><span id="refresh-text">一鍵更新報價 + 匯率</span></button>
-            <button onclick="manualPriceReview()" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">✏️ 手動輸入報價</button>
             <button onclick="undoLastAction()" id="undo-btn" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">↩ 上一步 (0)</button>
             <button onclick="redoLastAction()" id="redo-btn" disabled style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(100,116,139,0.1); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:8px; font-weight:600; opacity:0.4;">↪ 下一步 (0)</button>
         </div>
@@ -427,10 +426,11 @@
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (近4季)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (全年預估)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (明年預估)</th>
+                                <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">下次財報</th>
                             </tr>
                         </thead>
                         <tbody id="fund-tbody">
-                            <tr><td colspan="16" style="text-align:center; padding:3rem; color:#64748b;">點擊「更新分析數據」開始載入</td></tr>
+                            <tr><td colspan="17" style="text-align:center; padding:3rem; color:#64748b;">⏳ 載入分析數據中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2056,13 +2056,11 @@
                 const os = typeof r==='object' ? r.oversold   : parseFloat(r)<=30;
                 if (ob) return -w*2; if (os) return w*2; return 0;
             };
-            score += scoreKD(d.hourly_cross, d.hourly_k, d.hourly_d, 1);
+            // 小時數據不納入綜合評價（v15: 僅參考日線 / 週線）
             score += scoreKD(d.daily_cross,  d.daily_k,  d.daily_d,  2);
             score += scoreKD(d.weekly_cross, d.weekly_k, d.weekly_d, 3);
-            score += scoreMACD(d.hourly_macd, 1);
             score += scoreMACD(d.daily_macd,  2);
             score += scoreMACD(d.weekly_macd, 3);
-            score += scoreRSI(d.hourly_rsi, 1);
             score += scoreRSI(d.daily_rsi,  2);
             score += scoreRSI(d.weekly_rsi, 3);
             return score;
@@ -2464,7 +2462,7 @@
             if (holdings.length === 0) { if (!silent) alert('請先匯入持倉數據'); return; }
 
             const btn = document.getElementById('analysis-btn');
-            btn.textContent = '載入中...'; btn.disabled = true;
+            if (!silent) { btn.textContent = '載入中...'; btn.disabled = true; }
 
             // 使用本地暫存快取，分析完成前保留舊值讓自動更新仍可顯示損益
             // （只有在所有資料抓取完畢後才一次性替換全域快取）
@@ -2508,7 +2506,7 @@
             } else if (fundFresh && !techFresh) {
                 // ── 技術面過期 → 只重抓 KD/MACD/RSI + prevClose ──
                 if (!silent) {
-                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 15, '⏳ 更新技術面...')).join('');
+                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 16, '⏳ 更新技術面...')).join('');
                     techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 更新技術面...')).join('').replace(/arow-/g, 'trow-');
                 }
                 for (let i = 0; i < uniqueQueries.length; i++) {
@@ -2591,8 +2589,10 @@
 
             } else {
                 // ── 基本面（或全部）過期 → 完整重抓 ──
-                fundTbody.innerHTML = rows.map(r => loadingRow(r, 15, '⏳ 查詢中...')).join('');
-                techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 查詢中...')).join('').replace(/arow-/g, 'trow-');
+                if (!silent) {
+                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 16, '⏳ 查詢中...')).join('');
+                    techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 查詢中...')).join('').replace(/arow-/g, 'trow-');
+                }
 
                 const cache = forceRefresh ? {} : _loadCache();
                 allResults = { ...cache };
@@ -2601,10 +2601,10 @@
                 for (let i = 0; i < toFetch.length; i++) {
                     const sym = toFetch[i];
                     const prog = '⏳ 查詢中（' + (i+1) + '/' + toFetch.length + '）...';
-                    rows.filter(r => r.query === sym).forEach(r => {
+                    if (!silent) rows.filter(r => r.query === sym).forEach(r => {
                         const fe = document.getElementById('arow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
                         const te = document.getElementById('trow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
-                        if (fe) { fe.cells[1].colSpan = 15; fe.cells[1].textContent = prog; }
+                        if (fe) { fe.cells[1].colSpan = 16; fe.cells[1].textContent = prog; }
                         if (te) { te.cells[1].colSpan = 10; te.cells[1].textContent = prog; }
                     });
                     try {
@@ -2647,18 +2647,22 @@
 
                 if (!d || d._error) {
                     const errMsg = '❌ ' + (d?._error||'無數據').split('\n')[0];
-                    fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}<td colspan="15" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
+                    fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}<td colspan="16" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
                     techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}<td colspan="10" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
                     return;
                 }
 
-                // 基本面行
+                // 基本面行（含下次財報日期）
+                const nextEarnings = d.next_earnings_date
+                    ? `<span style="color:#fbbf24;font-weight:600;">${d.next_earnings_date}</span>`
+                    : '<span style="color:#475569;">-</span>';
                 fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}` +
                     tr(fmt(d.pe)) + tr(fmt(d.hist_avg_pe)) + tr(fmt(d.fpe)) +
                     tr(fmt(d.peg)) + tr(fmt(d.ps)) + tr(fmt(d.pb)) +
                     tr(fmtp(d.rev_yoy)) + tr(fmtp(d.rev_fwd)) +
                     tr(fmtp(d.gross_margin)) + tr(fmtp(d.operating_margin)) +
-                    tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) + '</tr>');
+                    tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) +
+                    trc(nextEarnings) + '</tr>');
 
                 // 技術面行
                 techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}` +
@@ -2968,13 +2972,13 @@
             startAutoEarnings();
             // 啟動總體經濟後台更新（每1hr）
             startAutoMacro();
-            // 有持倉時：延遲 2 秒靜默預載分析（讓主畫面先渲染完）
+            // 啟動時立即靜默預載分析（靜態報表體驗：有快取立即顯示，無快取背景更新）
             if (hadSaved && holdings.length > 0) {
-                setTimeout(() => loadAnalysis(false, true), 2000);
+                loadAnalysis(false, true); // async，不阻塞主執行緒；快取命中時幾乎無延遲
             }
             // 啟動時立即抓一次報價（不等 60 秒 timer）
             if (hadSaved && holdings.length > 0) {
-                setTimeout(() => silentRefreshPrices(), 1500);
+                setTimeout(() => silentRefreshPrices(), 500);
             }
         }
         // ==================== 直立鎖定 ====================

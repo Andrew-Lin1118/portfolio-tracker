@@ -180,8 +180,9 @@ for sym in symbols:
         except Exception:
             pass
 
-        # ── 季度 EPS 歷史（供前端財報分析 Tab 使用）──────────────────
+        # ── 季度 EPS 歷史 + 下次財報日期（供前端使用）──────────────────
         earnings_history = []
+        next_earnings_date = None
         try:
             ed = t.earnings_dates
             if ed is not None and not ed.empty:
@@ -215,7 +216,24 @@ for sym in symbols:
                             })
                         except Exception:
                             pass
-                print(f'    earnings_history: {len(earnings_history)} quarters', flush=True)
+                    # ── 下次財報日期：col_actual 為 NaN 的未來日期中最近的一個 ──
+                    try:
+                        _today = datetime.now(timezone.utc).date()
+                        _future = []
+                        for _idx in ed.index:
+                            try:
+                                _ts = pd.Timestamp(_idx)
+                                if _ts.tzinfo is not None:
+                                    _ts = _ts.tz_localize(None)
+                                if _ts.date() >= _today and pd.isna(ed.loc[_idx, col_actual]):
+                                    _future.append(_ts)
+                            except Exception:
+                                pass
+                        if _future:
+                            next_earnings_date = min(_future).strftime('%Y-%m-%d')
+                    except Exception:
+                        pass
+                print(f'    earnings_history: {len(earnings_history)} quarters, next_earnings_date: {next_earnings_date}', flush=True)
         except Exception as e:
             print(f'    earnings_dates error: {e}', flush=True)
 
@@ -348,7 +366,8 @@ for sym in symbols:
             'target_high_price':   target_high_price,
             'target_median_price': target_median_price,
             'number_of_analysts':  number_of_analysts,
-            'earnings_history': earnings_history,   # 季度 EPS 歷史
+            'earnings_history':    earnings_history,   # 季度 EPS 歷史
+            'next_earnings_date':  next_earnings_date, # 下次財報日期（YYYY-MM-DD，未知則 null）
             'prev_close':      safe_float(prev_close),
             'prev_prev_close': prev_prev_close,
             # 技術面（日/週/小時）

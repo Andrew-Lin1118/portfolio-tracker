@@ -137,9 +137,8 @@
             border-left: 3px solid #fbbf24 !important;
         }
 
-        /* 字體大小調整按鈕：寬螢幕隱藏 */
+        /* 字體大小調整（inline，無固定定位） */
         #font-ctrl { display:flex; }
-        @media (min-width: 900px) { #font-ctrl { display:none; } }
 
         /* ═══════════════════════════════════════
            行動版響應式樣式 (≤640px)
@@ -383,6 +382,19 @@
                 <button onclick="syncPush()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬆ 推送至雲端</button>
                 <button onclick="syncPull()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬇ 從雲端拉取</button>
             </div>
+        </div>
+
+        <!-- 字體大小調整 -->
+        <div id="font-ctrl" class="glass-card" style="padding:0.75rem 1.5rem; margin-top:1rem; justify-content:center; align-items:center; gap:1.2rem;">
+            <span style="color:#94a3b8; font-size:0.82rem; font-weight:600;">🔤 字體大小</span>
+            <button onclick="adjustFontSize(-1)"
+                    style="padding:0.4rem 1rem; background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.35); border-radius:8px;
+                           color:#fbbf24; font-weight:800; font-size:0.95rem; cursor:pointer;">A−</button>
+            <span id="font-size-label"
+                  style="font-size:0.82rem; color:#e2e8f0; min-width:2.5rem; text-align:center;">16px</span>
+            <button onclick="adjustFontSize(1)"
+                    style="padding:0.4rem 1rem; background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.35); border-radius:8px;
+                           color:#fbbf24; font-weight:800; font-size:1rem; cursor:pointer;">A+</button>
         </div>
     </div>
 
@@ -4025,19 +4037,6 @@
         }
     </script>
 
-    <!-- 浮動字體調整 (觸控裝置顯示) -->
-    <div id="font-ctrl" style="position:fixed; bottom:1.5rem; right:0.75rem; z-index:998;
-         background:rgba(8,18,35,0.93); border:1.5px solid rgba(251,191,36,0.45);
-         border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.6);
-         display:flex; flex-direction:column; align-items:center; user-select:none;">
-        <button onclick="adjustFontSize(1)"
-                style="padding:0.55rem 1rem; background:none; border:none; border-bottom:1px solid rgba(251,191,36,0.2);
-                       color:#fbbf24; font-weight:800; font-size:1rem; cursor:pointer; width:100%; text-align:center;">A+</button>
-        <span id="font-size-label"
-              style="font-size:0.65rem; color:#64748b; padding:0.2rem 0.5rem; line-height:1.4;">16px</span>
-        <button onclick="adjustFontSize(-1)"
-                style="padding:0.55rem 1rem; background:none; border:none; border-top:1px solid rgba(251,191,36,0.2);
-                       color:#fbbf24; font-weight:800; font-size:0.85rem; cursor:pointer; width:100%; text-align:center;">A-</button>
-    </div>
+
 </body>
 </html>

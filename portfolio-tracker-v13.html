@@ -2433,7 +2433,7 @@
         })();
 
         // ==================== Analysis Cache (localStorage, 基本面4hr / 技術面1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v8';   // v8：修正 Step0 誤將底層股昨收塞進槓桿 ETF，強制清除舊快取
+        const _CACHE_KEY = 'pf_analysis_v9';   // v9：新增 next_earnings_date 欄位，強制清除舊快取使新欄位生效
         const _FUND_TTL  = 4 * 60 * 60 * 1000; // 基本面：4 小時
         const _TECH_TTL  = 1 * 60 * 60 * 1000; // 技術面：1 小時
         function _loadCacheRaw() {

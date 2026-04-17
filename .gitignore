@@ -9,3 +9,38 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# ── Fubon bot credentials & config ───────────────────────────
+# 絕對不可 commit：含明文 API key、憑證密碼、身份證號
+fubon_bot/config.yaml
+fubon_bot/config.old*
+fubon_bot/config.yaml.skel_*
+fubon_bot/config.yaml.bak*
+
+# Fubon bot one-off / setup scripts（含硬編碼真實帳號，不適合進 repo）
+fubon_bot/setup_wizard.py
+fubon_bot/verify_equity.py
+fubon_bot/check_sync.py
+fubon_bot/quick_check.py
+fubon_bot/fix_and_reorder.py
+fubon_bot/update_state.py
+
+# ── Pionex bot（同樣含 credentials，整個排除）───────────
+pionex_bot/
+
+# ── Runtime state / logs ─────────────────────────────────────
+fmx_state.json
+fmx_live_quotes.json
+fmx_quote_debug.json
+fubon_bot/logs/
+logs/
+log/
+
+# ── 本地備份（含 credentials，不要進 repo）────────────
+fmx_trader_*/
+fmx_trader_*.zip
+fmx_simulator_*/
+fmx_simulator_*.zip
+
+# ── IDE / Agent tooling ──────────────────────────────────
+.claude/

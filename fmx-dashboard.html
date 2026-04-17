@@ -1,0 +1,4469 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FMX 微台策略監控</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2230; --border: #30363d;
+    --gold: #d4a017; --gold2: #f0c040; --green: #26a269; --red: #e05252;
+    --text: #e6edf3; --muted: #8b949e; --blue: #388bfd; --orange: #e8a838;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; min-height: 100vh; }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(90deg, #0a0e1a 0%, #1a1400 50%, #0a0e1a 100%);
+    border-bottom: 1px solid var(--gold);
+    padding: 10px 18px; display: flex; align-items: center; gap: 12px;
+  }
+  header h1 { font-size: 16px; color: var(--gold2); font-weight: 700; letter-spacing: 1px; }
+  .header-badge {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--muted);
+  }
+  #statusDot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #444; margin-left: auto; flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+  }
+  #statusDot.running { background: var(--green); color: var(--green); }
+  #statusDot.stopped { background: var(--red); color: var(--red); }
+  #statusLabel { font-size: 11px; color: var(--muted); }
+  #lastRefresh { font-size: 11px; color: var(--muted); margin-left: 6px; }
+
+  /* ── Layout ── */
+  .layout { display: flex; height: calc(100vh - 47px); overflow: hidden; }
+  .left-panel  { width: 220px; min-width: 140px; max-width: 380px; flex-shrink: 0; }
+  .center-panel { flex: 1; min-width: 300px; }
+  .right-panel { width: 230px; min-width: 160px; max-width: 400px; flex-shrink: 0; }
+
+  /* ── Drag handle (左右) ── */
+  .drag-handle {
+    width: 5px; background: var(--border); cursor: col-resize; flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .drag-handle:hover, .drag-handle.dragging { background: var(--gold); }
+
+  /* ── Row Drag Handle (上下高度調整) ── */
+  .row-drag-handle {
+    height: 6px; background: var(--border); cursor: row-resize; flex-shrink: 0;
+    position: relative; transition: background 0.15s; z-index: 10;
+  }
+  .row-drag-handle::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%,-50%);
+    width: 36px; height: 2px;
+    background: #444; border-radius: 2px; transition: background 0.15s;
+  }
+  .row-drag-handle:hover, .row-drag-handle.dragging { background: #1e2430; }
+  .row-drag-handle:hover::after, .row-drag-handle.dragging::after { background: var(--gold); }
+
+  /* ── Left Panel ── */
+  .left-panel {
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .panel-section { padding: 6px 10px 5px; border-bottom: 1px solid var(--border); }
+  .panel-section:last-child { border-bottom: none; }
+  .section-title { font-size: 9px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+
+  .btn-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; min-width: 70px; padding: 4px 5px; border: 1px solid var(--border);
+    border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;
+    background: var(--surface2); color: var(--text); transition: all 0.15s;
+  }
+  .btn:hover { filter: brightness(1.2); }
+  .btn.green  { background: #1a3a24; border-color: var(--green); color: var(--green); }
+  .btn.red    { background: #3a1a1a; border-color: var(--red); color: var(--red); }
+  .btn.gold   { background: #2a1f00; border-color: var(--gold); color: var(--gold2); }
+  .btn.blue   { background: #0d2040; border-color: var(--blue); color: var(--blue); }
+
+  .form-group { margin-bottom: 4px; }
+  .form-group label { display: block; font-size: 9px; color: var(--muted); margin-bottom: 1px; }
+  .form-group input, .form-group select {
+    width: 100%; padding: 3px 6px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text); font-size: 11px;
+  }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--gold); }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+  .toggle-label { font-size: 10px; color: var(--muted); }
+  .toggle-switch { position: relative; width: 30px; height: 16px; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; background: #333; border-radius: 16px; cursor: pointer; transition: .2s;
+  }
+  .slider::before {
+    content: ''; position: absolute; height: 10px; width: 10px; left: 3px; top: 3px;
+    background: #888; border-radius: 50%; transition: .2s;
+  }
+  input:checked + .slider { background: #1a3a24; }
+  input:checked + .slider::before { transform: translateX(14px); background: var(--green); }
+
+  /* ── Center Panel ── */
+  .center-panel { background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+
+  .badges { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; }
+  .badge {
+    padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
+    border: 1px solid; letter-spacing: 0.5px;
+  }
+  .badge.green  { background: #0e2016; border-color: var(--green); color: var(--green); }
+  .badge.red    { background: #200e0e; border-color: var(--red); color: var(--red); }
+  .badge.gold   { background: #1e1500; border-color: var(--gold); color: var(--gold2); }
+  .badge.blue   { background: #0a1828; border-color: var(--blue); color: var(--blue); }
+  .badge.gray   { background: #1a1a1a; border-color: #555; color: #888; }
+
+  .chart-wrapper { position: relative; flex: 1; min-height: 160px; padding: 0 12px 6px; }
+  .chart-wrapper canvas { width: 100% !important; height: 100% !important; cursor: grab; }
+  .chart-wrapper canvas.panning { cursor: grabbing; }
+
+  .chart-divider { height: 1px; background: var(--border); margin: 0 12px; }
+  .chart-small { position: relative; height: 90px; padding: 4px 12px 6px; flex-shrink: 0; }
+  .chart-label { font-size: 10px; color: var(--muted); padding: 4px 12px 0; flex-shrink: 0; }
+
+  /* ── Right Panel ── */
+  .right-panel {
+    background: var(--surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+
+  .stat-card {
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+  }
+  .stat-card .label { font-size: 9px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+  .stat-card .value { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.2px; line-height: 1.15; }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.red   { color: var(--red); }
+  .stat-card .value.gold  { color: var(--gold2); }
+  .stat-card .value#statLivePrice { font-size: 22px; letter-spacing: -0.4px; }
+  .stat-card .sub { font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 0.1px; line-height: 1.2; }
+
+  .stat-row { display: flex; }
+  .stat-row .stat-card { flex: 1; }
+  .stat-row .stat-card + .stat-card { border-left: 1px solid var(--border); }
+
+  .signal-box {
+    margin: 6px; padding: 6px 10px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--surface2);
+    text-align: center;
+  }
+  .signal-box .signal-label { font-size: 9px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+  .signal-box .signal-value { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; }
+  .signal-box.hold   { border-color: #555; }
+  .signal-box.hold   .signal-value { color: var(--muted); }
+  .signal-box.buy    { border-color: var(--green); background: #0e2016; }
+  .signal-box.buy    .signal-value { color: var(--green); }
+  .signal-box.sell   { border-color: var(--red); background: #200e0e; }
+  .signal-box.sell   .signal-value { color: var(--red); }
+
+  .log-panel { flex: 1; overflow-y: auto; padding: 8px 12px; }
+  .log-item { font-size: 11px; color: var(--muted); padding: 3px 0; border-bottom: 1px solid #1f252d; line-height: 1.45; letter-spacing: 0.1px; }
+  .log-item .ts { color: #555; margin-right: 4px; }
+  .log-item.info  .msg { color: var(--text); }
+  .log-item.buy   .msg { color: var(--green); }
+  .log-item.sell  .msg { color: var(--red); }
+  .log-item.warn  .msg { color: var(--orange); }
+
+  /* ── Sync Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; display: none;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--gold);
+    border-radius: 8px; padding: 20px 24px; min-width: 320px;
+  }
+  .modal-box h3 { font-size: 14px; color: var(--gold2); margin-bottom: 14px; }
+  .modal-box .form-group { margin-bottom: 10px; }
+  .modal-box .btn-row { margin-top: 16px; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #222; border: 1px solid var(--gold); border-radius: 6px;
+    padding: 8px 18px; font-size: 12px; color: var(--gold2);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 999;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── Inventory Table ── */
+  .inv-section {
+    border-top: 1px solid var(--border); background: var(--surface);
+    display: flex; flex-direction: column; height: 160px; flex-shrink: 0; overflow: hidden;
+  }
+  .inv-header {
+    display: flex; align-items: center; gap: 8px; padding: 5px 12px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .inv-header .section-title { margin-bottom: 0; }
+  .inv-refresh { font-size: 10px; color: var(--blue); cursor: pointer; margin-left: auto; padding: 2px 8px;
+    border: 1px solid var(--blue); border-radius: 3px; background: transparent; }
+  .inv-refresh:hover { background: #0d2040; }
+  .inv-table-wrap { overflow-y: auto; flex: 1; }
+  table.inv { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.inv th {
+    position: sticky; top: 0; background: var(--surface2); color: var(--muted);
+    font-weight: 600; font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase;
+    padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  table.inv th:first-child, table.inv td:first-child { text-align: left; }
+  table.inv td { font-size: 12px; padding: 5px 8px; border-bottom: 1px solid #1a1f28; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  table.inv tr:hover td { background: #1c2230; }
+  table.inv .up   { color: var(--green); }
+  table.inv .down { color: var(--red); }
+  table.inv .sym  { color: var(--gold2); font-weight: 700; }
+  table.inv .name { color: var(--muted); font-size: 10px; }
+  .inv-empty { text-align: center; color: var(--muted); padding: 20px; font-size: 11px; }
+
+  /* ── Product Selector ── */
+  .prod-chips { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 4px; }
+  .prod-chip {
+    padding: 1px 6px; border-radius: 8px; font-size: 9px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+    transition: all 0.1s;
+  }
+  .prod-chip.active { border-color: var(--gold); color: var(--gold2); background: #2a1f00; }
+  .prod-chip:hover  { border-color: var(--blue); color: var(--blue); }
+
+  /* ── Fubon Quote Card (right panel) ── */
+  .fubon-quote-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px;
+    padding: 4px 10px 6px; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .fq-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .fq-label { font-size: 9px; font-weight: 500; letter-spacing: 0.3px; color: var(--muted); }
+  .fq-val   { font-size: 11px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .fq-val.up   { color: var(--green); }
+  .fq-val.down { color: var(--red);   }
+  .fq-val.gold { color: var(--gold2); }
+
+  /* ── Margin Table (Fubon format) ── */
+  .margin-section {
+    border-top: 1px solid var(--border); flex-shrink: 0;
+    background: var(--surface2);
+  }
+  .margin-section .inv-header { padding: 5px 10px; }
+  table.margin-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.margin-tbl th {
+    background: var(--surface2); color: var(--muted); font-weight: 600;
+    padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--border);
+    white-space: nowrap; font-size: 10px;
+  }
+  table.margin-tbl th:first-child { text-align: left; }
+  table.margin-tbl td { padding: 5px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid #1a1f28; }
+  table.margin-tbl td:first-child { text-align: left; color: var(--muted); font-size: 10px; }
+  table.margin-tbl .av  { color: var(--green); font-weight: 700; }
+  table.margin-tbl .eq  { color: var(--gold2); font-weight: 700; }
+  table.margin-tbl .up  { color: var(--green); }
+  table.margin-tbl .dn  { color: var(--red);   }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+  /* ══════════════════════════════════════════════════════
+     MOBILE LAYOUT  (≤ 767px)
+     ══════════════════════════════════════════════════════ */
+  @media (max-width: 767px) {
+    /* ── 全域基準 ── */
+    body { font-size: 13px; -webkit-font-smoothing: antialiased; }
+
+    /* ── Header ── */
+    header { padding: 9px 14px; gap: 8px; }
+    header h1 { font-size: 14px; letter-spacing: 0.3px; }
+    .header-badge { font-size: 10px; padding: 2px 7px; }
+    #lastRefresh { display: none; }
+
+    /* ── 主佈局 ── */
+    .layout { flex-direction: column; height: calc(100vh - 46px - 58px); overflow: hidden; }
+    .drag-handle, .row-drag-handle { display: none !important; }
+    .left-panel, .center-panel, .right-panel {
+      width: 100% !important; min-width: unset !important; max-width: unset !important;
+      height: 100% !important; border: none !important; display: none; overflow-y: auto;
+    }
+    .left-panel.mob-active, .center-panel.mob-active, .right-panel.mob-active { display: flex; }
+
+    /* ── 監控 tab：一致比例尺 ── */
+    .stat-card { padding: 8px 14px; }
+    .stat-card .label {
+      font-size: 9px; font-weight: 600; letter-spacing: 0.6px;
+      text-transform: uppercase; margin-bottom: 3px;
+    }
+    .stat-card .value { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.2px; line-height: 1.15; }
+    .stat-card .value#statLivePrice { font-size: 22px; letter-spacing: -0.4px; }
+    .stat-card .sub { font-size: 9px; margin-top: 2px; letter-spacing: 0.1px; line-height: 1.2; }
+
+    /* 訊號框 */
+    .signal-box { margin: 6px 10px; padding: 7px 12px; }
+    .signal-box .signal-label { font-size: 9px; letter-spacing: 0.6px; text-transform: uppercase; }
+    .signal-box .signal-value { font-size: 14px; font-weight: 700; letter-spacing: 0.3px; }
+
+    /* 日誌 */
+    .log-panel { max-height: 100px; }
+    .log-item  { font-size: 10px; }
+
+    /* 富邦報價 grid */
+    .fubon-quote-grid { grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 10px 14px; }
+    .fq-label { font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
+    .fq-val   { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* ── 圖表 tab ── */
+    .center-panel.mob-active { flex-direction: column; }
+    .badges { flex-wrap: wrap; gap: 4px; padding: 6px 10px; }
+    .badge  { font-size: 10px; letter-spacing: 0.3px; }
+    #chartArea { flex: 1; min-height: 0; }
+    .chart-wrapper { flex: 1; min-height: 180px; }
+    .chart-small { height: 80px !important; }
+    .chart-label { font-size: 10px; letter-spacing: 0.3px; }
+
+    /* 行情表格 */
+    .inv-section { height: 160px !important; }
+    .inv-header .section-title { font-size: 10px; letter-spacing: 0.8px; }
+    table.inv th { font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase; padding: 5px 6px; }
+    table.inv td { font-size: 11px; padding: 5px 6px; font-variant-numeric: tabular-nums; }
+    table.margin-tbl th { font-size: 9px; letter-spacing: 0.5px; padding: 5px 6px; }
+    table.margin-tbl td { font-size: 11px; padding: 5px 6px; font-variant-numeric: tabular-nums; }
+
+    /* ── 控制 tab ── */
+    .panel-section { padding: 14px 16px 12px; }
+    .section-title { font-size: 10px; letter-spacing: 1px; margin-bottom: 10px; }
+    .btn { padding: 11px 8px; font-size: 15px; font-weight: 600; border-radius: 7px; }
+    .form-group { margin-bottom: 10px; }
+    .form-group label { font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .form-group input, .form-group select { font-size: 16px; padding: 9px 11px; border-radius: 6px; }
+    .toggle-label { font-size: 12px; }
+
+    /* ────────────────────────────────────────────────────
+       英雄卡 typographic scale：
+         34px → 期貨報價主數字
+         14px → 漲跌幅
+         10px → 標籤（uppercase + letter-spacing）
+         17px → 次要指標（P&L、槓桿）
+    ──────────────────────────────────────────────────── */
+    .mob-hero {
+      background: linear-gradient(160deg, #0a0c14 0%, #130e00 60%, #0d1117 100%);
+      border-bottom: 1px solid rgba(212,160,23,.35);
+      padding: 16px 18px 14px;
+      flex-shrink: 0;
+    }
+    .mob-hero .hero-symbol {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 4px;
+    }
+    .mob-hero .hero-price {
+      font-size: 34px; font-weight: 700; letter-spacing: -1px;
+      font-variant-numeric: tabular-nums; line-height: 1; color: var(--gold2);
+    }
+    .mob-hero .hero-chg {
+      font-size: 14px; font-weight: 600; letter-spacing: 0.1px; margin-top: 4px;
+    }
+    .mob-hero .hero-divider {
+      height: 1px; background: rgba(255,255,255,.06); margin: 12px 0;
+    }
+    .mob-hero .hero-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 0; }
+    .mob-hero .hero-item { display: flex; flex-direction: column; gap: 3px; }
+    .mob-hero .hero-item .hi {
+      font-size: 9px; font-weight: 600; letter-spacing: 0.8px;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .mob-hero .hero-item .hv {
+      font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums;
+      letter-spacing: -0.3px; line-height: 1.1;
+    }
+
+    /* ── 底部導覽列 ── */
+    .mob-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 58px;
+      background: rgba(22,27,34,.96); border-top: 1px solid var(--border);
+      display: flex; z-index: 200;
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    }
+    .mob-nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 3px;
+      background: none; border: none; border-top: 2px solid transparent;
+      cursor: pointer; color: var(--muted);
+      font-size: 10px; font-weight: 500; letter-spacing: 0.3px;
+      transition: color 0.2s, border-color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mob-nav-btn .nav-icon { font-size: 19px; line-height: 1; }
+    .mob-nav-btn.active { color: var(--gold2); border-top-color: var(--gold); }
+  }
+
+  /* 桌面：隱藏手機專用元素 */
+  @media (min-width: 768px) {
+    .mob-nav  { display: none !important; }
+    .mob-hero { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ FMX 微台動態槓桿策略監控</h1>
+  <span class="header-badge" id="headerSymbol">MXFR1</span>
+  <span class="header-badge" id="modeLabel">DRY RUN</span>
+  <div id="statusDot" class="stopped"></div>
+  <span id="statusLabel">已停止</span>
+  <span id="lastRefresh"></span>
+  <a href="stock-dashboard.html" style="margin-left:12px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none;color:#4fd080;background:#001a0a;border:1px solid var(--green);border-radius:5px;letter-spacing:0.3px;transition:opacity .15s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">📈 台股</a>
+</header>
+
+<div class="layout" id="mainLayout">
+
+  <!-- ── LEFT PANEL ── -->
+  <div class="left-panel" id="leftPanel">
+
+    <div class="panel-section">
+      <div class="section-title">操作控制</div>
+      <div class="btn-row">
+        <button class="btn green" onclick="ctrlBot('start')">▶ 啟動</button>
+        <button class="btn red"   onclick="ctrlBot('stop')">■ 停止</button>
+      </div>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn green" onclick="ctrlBot('add_leverage')">↑ 加槓桿</button>
+        <button class="btn red"   onclick="ctrlBot('deleverage')">↓ 降槓桿</button>
+      </div>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn" style="border-color:#7c3aed;color:#a78bfa;background:#1a0e30"
+                onclick="openRolloverModal()">🔄 轉倉</button>
+        <button class="btn red" onclick="confirmReset()">⚠ 重置倉位</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">模式設定</div>
+      <div class="toggle-row">
+        <span class="toggle-label">模擬模式 (Dry Run)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="dryRunToggle" checked onchange="applySettings()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">自動刷新 (30s)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh()">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">交易標的</div>
+      <div class="prod-chips" id="prodChips">
+        <span class="prod-chip active" data-code="MXFR1" onclick="selectProduct(this)">微台 MXF</span>
+        <span class="prod-chip" data-code="TXFR1"  onclick="selectProduct(this)">大台 TX</span>
+        <span class="prod-chip" data-code="MTXR1"  onclick="selectProduct(this)">小台 MTX</span>
+        <span class="prod-chip" data-code="GDF"    onclick="selectProduct(this)">黃金 GDF</span>
+        <span class="prod-chip" data-code="BRF"    onclick="selectProduct(this)">原油 BRF</span>
+      </div>
+      <div class="form-group">
+        <label>自訂代碼 (富邦 SDK 代碼)</label>
+        <input type="text" id="cfgSymbol" value="MXFR1" placeholder="e.g. MXFR1"
+               onchange="document.getElementById('headerSymbol').textContent=this.value.toUpperCase()">
+      </div>
+      <div class="form-group">
+        <label>每點價值 (NTD/點)</label>
+        <input type="number" id="cfgMult" value="10" step="10" min="1">
+      </div>
+      <div class="form-group">
+        <label>維持保證金 / 口 (NTD)</label>
+        <input type="number" id="cfgMaint" value="18300" step="100">
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">策略參數</div>
+      <div class="form-group">
+        <label>目標槓桿 (x)</label>
+        <input type="number" id="cfgLeverage" value="5" step="0.5" min="1" max="10">
+      </div>
+      <div class="form-group" style="opacity:0.5">
+        <label>DCA 跌幅門檻 (%) <span style="font-size:11px;color:#888">[已停用]</span></label>
+        <input type="number" id="cfgDca" value="5" step="0.5" min="1" disabled>
+      </div>
+      <div class="form-group">
+        <label>降槓桿觸發 / 最大槓桿 (x)</label>
+        <input type="number" id="cfgMaxLev" value="6" step="0.1" min="1">
+      </div>
+      <div class="form-group">
+        <label>加槓桿觸發槓桿 (x)</label>
+        <input type="number" id="cfgPyramid" value="4.9" step="0.1" min="1">
+      </div>
+      <div class="form-group">
+        <label>手續費 / 口 (NTD)</label>
+        <input type="number" id="cfgFee" value="50" step="10">
+      </div>
+      <button class="btn gold" style="width:100%;margin-top:4px" onclick="applySettings()">套用設定</button>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">手動下單設定</div>
+      <div class="form-group">
+        <label>加/減槓桿口數</label>
+        <input type="number" id="cfgLots" value="1" min="1" step="1">
+      </div>
+      <div class="form-group">
+        <label>委託類型</label>
+        <select id="cfgOrderType">
+          <option value="limit" selected>限價</option>
+          <option value="market">市價</option>
+        </select>
+      </div>
+      <div class="form-group" id="spreadGroup">
+        <label>限價偏移 (點)</label>
+        <input type="number" id="cfgSpread" value="5" min="1" step="1" oninput="refreshLimitDisplay()">
+      </div>
+      <!-- 即時報價區塊 -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 7px;margin-top:3px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <span style="font-size:8px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:0.8px">富邦即時報價</span>
+          <span id="quoteTs" style="font-size:8px;color:var(--muted)">—</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:5px;margin-bottom:3px">
+          <span id="orderLivePrice" style="font-size:14px;font-weight:700;color:var(--gold2)">—</span>
+          <span id="orderLiveChg"   style="font-size:10px;font-weight:700;color:var(--muted)"></span>
+        </div>
+        <div style="display:flex;gap:3px">
+          <div style="flex:1;background:#1a3a24;border:1px solid var(--green);border-radius:3px;padding:2px 0;text-align:center">
+            <div style="font-size:8px;color:var(--muted)">買入限價</div>
+            <div id="calcLimitBuy" style="font-size:11px;font-weight:700;color:var(--green)">—</div>
+          </div>
+          <div style="flex:1;background:#3a1a1a;border:1px solid var(--red);border-radius:3px;padding:2px 0;text-align:center">
+            <div style="font-size:8px;color:var(--muted)">賣出限價</div>
+            <div id="calcLimitSell" style="font-size:11px;font-weight:700;color:var(--red)">—</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:3px;margin-top:3px">
+          <div style="flex:1;text-align:center">
+            <span style="font-size:8px;color:var(--muted)">買價 </span>
+            <span id="orderBid" style="font-size:9px;font-weight:700;color:var(--green)">—</span>
+          </div>
+          <div style="flex:1;text-align:center">
+            <span style="font-size:8px;color:var(--muted)">賣價 </span>
+            <span id="orderAsk" style="font-size:9px;font-weight:700;color:var(--red)">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">順勢濾網</div>
+      <div class="toggle-row">
+        <span class="toggle-label">啟用順勢濾網</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="filterToggle" checked onchange="applySettings()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label>突破買入週期 N (日高)</label>
+        <input type="number" id="cfgHighPeriod" value="10" min="1" step="1">
+      </div>
+      <div class="form-group">
+        <label>清倉均線週期 M (日MA)</label>
+        <input type="number" id="cfgLowPeriod" value="100" min="1" step="1">
+      </div>
+      <div style="font-size:9px;color:var(--muted);line-height:1.35;margin-top:3px">
+        <b style="color:var(--gold)">買入</b>：價格突破近 N 日高<br>
+        <b style="color:var(--red)">清倉</b>：價格跌破 M 日移動平均線
+      </div>
+    </div>
+
+  </div><!-- end left-panel -->
+
+  <div class="drag-handle" id="dragL"></div>
+
+  <!-- ── CENTER PANEL ── -->
+  <div class="center-panel" id="centerPanel">
+
+    <div class="badges">
+      <span class="badge gray" id="badgeEMA">年線 —</span>
+      <span class="badge gray" id="badgeLeverage">槓桿 —</span>
+      <span class="badge gray" id="badgeLiq">強平距離 —</span>
+      <span class="badge gray" id="badgeSignal">訊號 —</span>
+      <span class="badge gray" id="badgeFilterHi" style="display:none">10日高 —</span>
+      <span class="badge gray" id="badgeFilterLo" style="display:none">100日MA —</span>
+      <span class="badge gray" id="badgeZoom" style="cursor:pointer;margin-left:auto;border-color:#555"
+            onclick="resetChartZoom()" title="還原縮放 (雙擊圖表)&#10;滾輪: Y軸縮放 | Shift+滾輪: X軸縮放">⊕ 還原縮放</span>
+      <span style="margin-left:8px;display:inline-flex;gap:3px;align-items:center">
+        <span style="font-size:9px;color:#555;margin-right:2px">分K:</span>
+        <button id="btnK5"    onclick="switchKInterval('min5')"    title="5分K線"
+          style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #555;background:#0d1420;color:#888;cursor:pointer">5分</button>
+        <button id="btnK15"   onclick="switchKInterval('min15')"   title="15分K線"
+          style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #555;background:#0d1420;color:#888;cursor:pointer">15分</button>
+        <button id="btnKhour" onclick="switchKInterval('hourly')"  title="60分K線"
+          style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #555;background:#0d1420;color:#888;cursor:pointer">時K</button>
+        <span style="font-size:9px;color:#555;margin-left:4px;margin-right:2px">日:</span>
+        <button id="btnKday"  onclick="switchKInterval('daily')"   title="日K線"
+          style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #4a9eff;background:#0d1420;color:#4a9eff;cursor:pointer">日K</button>
+        <button id="btnKweek" onclick="switchKInterval('weekly')"  title="週K線"
+          style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #555;background:#0d1420;color:#888;cursor:pointer">週K</button>
+        <button id="btnKmon"  onclick="switchKInterval('monthly')" title="月K線"
+          style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #555;background:#0d1420;color:#888;cursor:pointer">月K</button>
+      </span>
+    </div>
+
+    <!-- ── 圖表區（可上下拖曳調整高度）── -->
+    <div id="chartArea" style="display:flex;flex-direction:column;overflow:hidden;min-height:120px;flex:1;position:relative">
+      <!-- K線懸停資訊固定在左上角 -->
+      <div id="chartHoverInfo" style="display:none;position:absolute;top:8px;left:8px;z-index:10;
+           background:#1c2230;border:1px solid #30363d;border-radius:6px;padding:7px 10px;
+           font-size:10px;line-height:1.6;color:#8b949e;pointer-events:none;min-width:110px;
+           white-space:pre"></div>
+      <div class="chart-wrapper" style="flex:1;min-height:80px">
+        <canvas id="priceChart"></canvas>
+      </div>
+      <div class="chart-label" style="display:flex;align-items:center;gap:8px">
+        RSI 技術指標
+        <span id="rsiValue" style="font-size:11px;font-weight:700;color:var(--orange)"></span>
+        <span id="rsiSignal" style="font-size:10px;padding:1px 6px;border-radius:3px;display:none"></span>
+      </div>
+      <div class="chart-small" id="leverageChartWrap" style="height:100px">
+        <canvas id="leverageChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ▒▒ 行分隔拖曳條 1：圖表 ↕ 期交所行情 ── -->
+    <div class="row-drag-handle" id="rowDrag1" title="拖曳調整高度"></div>
+
+    <!-- 台灣期交所行情 -->
+    <div class="inv-section" id="invSection1">
+      <div class="inv-header">
+        <span class="section-title">期交所行情</span>
+        <span id="invTs" style="font-size:10px;color:var(--muted)"></span>
+        <span style="display:inline-flex;gap:2px;margin-left:8px">
+          <button id="btnMonthNear" onclick="switchMonthView('near')" style="font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid var(--gold);background:#2a1f00;color:var(--gold2);cursor:pointer">近月</button>
+          <button id="btnMonthNext" onclick="switchMonthView('next')" style="font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid #555;background:transparent;color:#888;cursor:pointer">次月</button>
+          <button id="btnMonthAll"  onclick="switchMonthView('all')"  style="font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid #555;background:transparent;color:#888;cursor:pointer">全部</button>
+        </span>
+        <button class="inv-refresh" onclick="fetchAndRenderInventory()">⟳ 更新</button>
+      </div>
+      <div class="inv-table-wrap">
+        <table class="inv">
+          <thead>
+            <tr>
+              <th>商品</th>
+              <th>名稱</th>
+              <th>月份</th>
+              <th>現價</th>
+              <th>漲跌</th>
+              <th>漲跌%</th>
+              <th>成交量</th>
+              <th>未平倉</th>
+            </tr>
+          </thead>
+          <tbody id="invBody">
+            <tr><td colspan="8" class="inv-empty">載入中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ▒▒ 行分隔拖曳條 2：期交所行情 ↕ 富邦庫存 ── -->
+    <div class="row-drag-handle" id="rowDrag2" title="拖曳調整高度"></div>
+
+    <!-- 富邦帳戶實際庫存 -->
+    <div class="inv-section" id="invSection2" style="height:180px;max-height:none;flex-shrink:0">
+      <div class="inv-header">
+        <span class="section-title">富邦期貨帳戶庫存</span>
+        <span id="posAccount" style="font-size:10px;color:var(--gold)"></span>
+        <span id="posTs" style="font-size:10px;color:var(--muted);margin-left:6px"></span>
+        <span id="sdkSyncBadge" style="display:none;font-size:9px;padding:1px 6px;border-radius:3px;background:#0e2016;border:1px solid var(--green);color:var(--green);margin-left:4px">SDK 已同步</span>
+        <button class="inv-refresh" style="margin-left:4px;border-color:var(--gold);color:var(--gold)" onclick="openSyncModal()">⚡ 同步</button>
+        <button class="inv-refresh" onclick="fetchAndRenderPositions(true)">⟳ 更新</button>
+      </div>
+      <div class="inv-table-wrap">
+        <table class="inv">
+          <thead>
+            <tr>
+              <th>代碼</th>
+              <th>名稱</th>
+              <th>月份</th>
+              <th>方向</th>
+              <th>口數</th>
+              <th>可交易</th>
+              <th>均價</th>
+              <th>現價</th>
+              <th>未實現損益</th>
+            </tr>
+          </thead>
+          <tbody id="posBody">
+            <tr><td colspan="9" class="inv-empty">點擊「更新」查詢帳戶庫存（需登入富邦）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- 保證金摘要列（嵌在庫存下方，合併顯示） -->
+      <div id="marginBar" style="display:none;padding:6px 10px;border-top:1px solid #1f252d;background:#0e1117">
+        <span id="marginAccount" style="display:none"></span>
+        <div id="marginSummary" style="display:flex;flex-wrap:wrap;gap:4px 16px;font-size:11px;color:var(--muted)"></div>
+      </div>
+    </div>
+
+  </div><!-- end center-panel -->
+
+  <div class="drag-handle" id="dragR"></div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="right-panel" id="rightPanel">
+
+    <!-- ▼ 手機英雄卡（桌面隱藏） -->
+    <div class="mob-hero" id="mobHero">
+      <div class="hero-symbol" id="mobHeroSymbol">MXFR1 · 微台期貨</div>
+      <div class="hero-price" id="mobHeroPrice">—</div>
+      <div class="hero-chg"   id="mobHeroChg"></div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta">
+        <div class="hero-item">
+          <span class="hi">未實現損益</span>
+          <span class="hv" id="mobHeroUnreal">—</span>
+        </div>
+        <div class="hero-item" style="align-items:flex-end">
+          <span class="hi">槓桿</span>
+          <span class="hv" id="mobHeroLev">—</span>
+        </div>
+        <div class="hero-item">
+          <span class="hi">帳戶淨值</span>
+          <span class="hv" id="mobHeroEquity">—</span>
+        </div>
+        <div class="hero-item" style="align-items:flex-end">
+          <span class="hi">強平距離</span>
+          <span class="hv" id="mobHeroLiq" style="color:var(--red)">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-card" style="background:#1a1f0a;border-color:var(--gold);padding-bottom:6px">
+      <div class="label" id="quoteSrcLabel">即時報價</div>
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <div class="value gold" id="statLivePrice">—</div>
+        <div style="font-size:12px;font-weight:700" id="statLiveChg"></div>
+      </div>
+      <div class="sub" id="statLiveInfo"></div>
+    </div>
+    <!-- Fubon 詳細報價 grid -->
+    <div class="fubon-quote-grid" id="fubonQuoteGrid" style="display:none">
+      <div class="fq-row"><span class="fq-label">開盤</span><span class="fq-val" id="fqOpen">—</span></div>
+      <div class="fq-row"><span class="fq-label">昨收/參考</span><span class="fq-val" id="fqRef">—</span></div>
+      <div class="fq-row"><span class="fq-label">最高</span><span class="fq-val up" id="fqHigh">—</span></div>
+      <div class="fq-row"><span class="fq-label">最低</span><span class="fq-val down" id="fqLow">—</span></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="label">帳戶權益數 (估算)</div>
+      <div class="value" id="statEquity">—</div>
+      <div class="sub" id="statEquitySub"></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="label" style="color:var(--green)">可用保證金</div>
+      <div class="value" id="statAvailMargin">—</div>
+      <div class="sub" id="statAvailMarginSub"></div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="label">目前口數</div>
+        <div class="value gold" id="statContracts">—</div>
+        <div class="sub">口</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">現在槓桿</div>
+        <div class="value" id="statLeverage">—</div>
+        <div class="sub" id="statLeverageSub"></div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="label">均攤成本</div>
+        <div class="value" id="statAvgCost">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label" style="color:#388bfd">100 EMA</div>
+        <div class="value" id="statEMA">—</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="label">強平價</div>
+      <div class="value red" id="statLiqPrice">—</div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="label" title="槓桿低於 pyramid_trigger 時加碼回目標槓桿，依目前權益反推的觸發價">加槓桿價格</div>
+        <div class="value green" id="statPyramidPx">—</div>
+        <div class="sub" id="statPyramidPxSub"></div>
+      </div>
+      <div class="stat-card">
+        <div class="label" title="槓桿高於 max_leverage 時減碼回目標槓桿，依目前權益反推的觸發價">減槓桿價格</div>
+        <div class="value red" id="statDeleveragePx">—</div>
+        <div class="sub" id="statDeleveragePxSub"></div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="label">未實現損益</div>
+        <div class="value" id="statUnreal">—</div>
+        <div class="sub" id="statUnrealPct"></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">已實現損益</div>
+        <div class="value" id="statRealized">—</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="label">建倉日期</div>
+      <div class="value" style="font-size:13px" id="statCreated">—</div>
+    </div>
+
+    <div class="signal-box hold" id="signalBox">
+      <div class="signal-label">目前訊號</div>
+      <div class="signal-value" id="signalText">HOLD</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px" id="signalReason"></div>
+    </div>
+
+    <div class="panel-section" style="border-top:1px solid var(--border)">
+      <div class="section-title">最近日誌</div>
+    </div>
+    <div class="log-panel" id="logPanel"></div>
+
+  </div><!-- end right-panel -->
+
+</div><!-- end layout -->
+
+<div id="toast"></div>
+
+<!-- ── 重置倉位確認 Modal ── -->
+<div id="resetModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center">
+  <div style="background:#1a1d2e;border:1px solid var(--red);border-radius:12px;padding:28px 32px;max-width:340px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.6)">
+    <div style="font-size:28px;margin-bottom:12px">⚠️</div>
+    <div style="font-size:16px;font-weight:700;color:var(--red);margin-bottom:8px">重置倉位</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.6">
+      此操作將清除所有策略持倉狀態。<br>確定要繼續嗎？
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center">
+      <button onclick="document.getElementById('resetModal').style.display='none'"
+              style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:#0d1117;color:var(--text);cursor:pointer;font-size:14px">
+        取消
+      </button>
+      <button onclick="document.getElementById('resetModal').style.display='none';ctrlBot('reset')"
+              style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--red);background:#2d0e0e;color:var(--red);cursor:pointer;font-size:14px;font-weight:700">
+        確認重置
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 手機底部導覽列（桌面隱藏）── -->
+<nav class="mob-nav" id="mobNav">
+  <button class="mob-nav-btn active" id="mobTab0" onclick="mobSwitch(0)">
+    <span class="nav-icon">📊</span>監控
+  </button>
+  <button class="mob-nav-btn" id="mobTab1" onclick="mobSwitch(1)">
+    <span class="nav-icon">📈</span>圖表
+  </button>
+  <button class="mob-nav-btn" id="mobTab2" onclick="mobSwitch(2)">
+    <span class="nav-icon">📋</span>庫存
+  </button>
+  <button class="mob-nav-btn" id="mobTab3" onclick="mobSwitch(3)">
+    <span class="nav-icon">⚙️</span>控制
+  </button>
+</nav>
+
+<!-- 轉倉 Modal -->
+<div class="modal-overlay" id="rolloverModal" onclick="if(event.target===this)closeRolloverModal()">
+  <div class="modal-box" style="min-width:340px">
+    <h3>🔄 轉倉（近月 → 次月）</h3>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">
+      將近月持倉平倉，並以相同口數在次月合約開新倉。<br>
+      <span style="color:var(--orange)">⚠ 此操作會執行兩筆委託，請確認後再送出。</span>
+    </p>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 10px;margin-bottom:12px;font-size:11px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted)">近月合約</span>
+        <span id="rolloverNearSym" style="color:var(--orange);font-weight:700">—</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;color:var(--muted);margin:4px 0">↓ 平倉　→　開倉 ↓</div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted)">次月合約</span>
+        <span id="rolloverNextSym" style="color:var(--green);font-weight:700">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;border-top:1px solid var(--border);padding-top:6px">
+        <span style="color:var(--muted)">目前持倉口數</span>
+        <span id="rolloverCurLots" style="color:var(--gold2);font-weight:700">—</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>轉倉口數（空白 = 全部持倉）</label>
+      <input type="number" id="rolloverLots" value="" placeholder="留空=全部" min="1" step="1"
+             style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>委託類型</label>
+      <select id="rolloverOrderType" onchange="toggleRolloverSpread()"
+              style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+        <option value="limit" selected>限價</option>
+        <option value="market">市價</option>
+      </select>
+    </div>
+    <div class="form-group" id="rolloverSpreadGroup">
+      <label>限價偏移 (點)</label>
+      <input type="number" id="rolloverSpread" value="5" min="1" step="1"
+             style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+    </div>
+    <div class="btn-row" style="display:flex;gap:8px">
+      <button class="btn gold" style="flex:1" onclick="doRollover()">🔄 確認轉倉</button>
+      <button class="btn" style="flex:1" onclick="closeRolloverModal()">✕ 取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 同步倉位 Modal -->
+<div class="modal-overlay" id="syncModal" onclick="if(event.target===this)closeSyncModal()">
+  <div class="modal-box">
+    <h3>⚡ 手動同步倉位到策略狀態</h3>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">
+      將富邦犀利的真實數據填入，覆蓋策略估算值，讓兩邊數據一致。
+    </p>
+    <div class="form-group">
+      <label>實際口數</label>
+      <input type="number" id="syncContracts" value="5" min="0" step="1" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>均攤成本（元/口）</label>
+      <input type="number" id="syncAvgCost" value="" placeholder="e.g. 34861" step="0.1" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>現價（元，選填）</label>
+      <input type="number" id="syncCurPrice" value="" placeholder="e.g. 34884" step="0.1" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+    </div>
+    <div class="form-group">
+      <label>帳戶權益數（選填）</label>
+      <input type="number" id="syncEquity" value="" placeholder="e.g. 329603" step="1" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+    </div>
+    <div class="btn-row" style="display:flex;gap:8px">
+      <button class="btn gold" style="flex:1" onclick="doManualSync()">✔ 確認同步</button>
+      <button class="btn" style="flex:1" onclick="closeSyncModal()">✕ 取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════
+const BASE = '';           // same origin (served by server.py)
+let autoRefreshTimer = null;
+let priceChartObj   = null;
+let leverageChartObj = null;
+// leverageHistory removed — now using RSI chart
+let _shiftHeld = false;   // Shift 鍵狀態（用於切換縮放模式：Shift=僅Y軸，預設=XY整體）
+document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true; });
+document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; });
+
+// ── TAIFEX 商品對照表 ──────────────────────────────────
+// fubon : 富邦 SDK 代碼 (下單用)
+// taifex: TAIFEX Open API Contract code (期交所行情)
+//         null = 期交所公開行情不提供
+// yf    : Yahoo Finance symbol (走勢圖)
+// mult  : 每點價值 NTD  /  maint: 維持保證金/口 NTD
+
+// 各商品最低合理報價（低於此值的 SDK 數據視為錯誤欄位，不採用）
+const _PROD_MIN_PX = {
+  MXFR1: 10000, TXFR1: 10000, MTXR1: 10000,
+  TE: 500, TF: 200, ZEF: 50, ZFF: 20,
+  GDF: 1000, BRF: 30,
+};
+
+const PRODUCTS = {
+  // mis: TAIFEX MIS 即時行情 base code（不含月份）
+  // fallbackMis: MXF 不在期交所公開行情中，改用 TX/TXF 的參考價計算漲跌
+  'MXFR1': { name: '微型台指期貨', taifex: null,  mis: 'MXF', fallbackMis: ['TXF','TX','MTX'], yf: '^TWII', mult: 10,   maint: 18300 },
+  'TXFR1': { name: '台股期貨(大台)',taifex: 'TX',  mis: 'TXF', yf: '^TWII', mult: 200,  maint: 366000 },
+  'MTXR1': { name: '小型台指期貨', taifex: 'MTX', mis: 'MTX', yf: '^TWII', mult: 50,   maint: 91500 },
+  'TE':    { name: '電子期貨',     taifex: 'TE',  mis: 'TE',  yf: null,    mult: 4000, maint: 511000 },
+  'TF':    { name: '金融期貨',     taifex: 'TF',  mis: 'TF',  yf: null,    mult: 1000, maint: 103000 },
+  // GDF: 100g 黃金期貨，報價單位 NTD/g；BRF: 200桶布蘭特，報價單位 NTD/桶
+  // yfScale：將 Yahoo Finance 國際報價（USD）轉換為 TAIFEX 台幣報價，以對齊 K 線 Y 軸刻度
+  'GDF':   { name: '黃金期貨',     taifex: 'GDF', mis: 'GDF', yf: 'GC=F',  yfScale: 1.029, mult: 100,  maint: 40000, dp: 1 },
+  'BRF':   { name: '布蘭特原油',   taifex: 'BRF', mis: 'BRF', yf: 'BZ=F',  yfScale: 32,    mult: 200,  maint: 55000, dp: 1 },
+  'ZEF':   { name: '小型電子期貨', taifex: 'ZEF', mis: 'ZEF', yf: null,    mult: 2000, maint: 63875 },
+  'ZFF':   { name: '小型金融期貨', taifex: 'ZFF', mis: 'ZFF', yf: null,    mult: 500,  maint: 25750 },
+};
+
+// 把持倉 symbol（如 FITM / MXFE6 / TXFE6）映射到 PRODUCTS key，用於取得乘數等
+// 注意：TXF 必須在 TF 之前判斷（否則 'TXFE6'.startsWith('TF') 為 false 反而沒事，
+// 但保持明確前綴優先原則較安全）。
+function _symbolToProductKey(sym) {
+  if (!sym) return null;
+  const s = String(sym).toUpperCase();
+  if (s === 'FITM' || s === 'MXFR1' || s.startsWith('MXF')) return 'MXFR1';
+  if (s === 'TXFR1' || s.startsWith('TXF')) return 'TXFR1';
+  if (s === 'MTXR1' || s.startsWith('MTX')) return 'MTXR1';
+  if (s.startsWith('GDF')) return 'GDF';
+  if (s.startsWith('BRF')) return 'BRF';
+  if (s.startsWith('ZEF')) return 'ZEF';
+  if (s.startsWith('ZFF')) return 'ZFF';
+  if (s.startsWith('TF'))  return 'TF';
+  if (s.startsWith('TE'))  return 'TE';
+  return null;
+}
+
+// 以「實際庫存」計算整體槓桿名義本金 notional = Σ(qty × mult × price)
+// 優先使用各商品的即時行情價（daemon cache），退而使用 SDK 回報的 cur_price。
+// 回傳：{ notional, lots, detail: [{symbol, prodKey, qty, mult, px, notional}] }
+// 若無任何持倉資料，回傳 null。
+// livePriceOverride: 當 currentSymbol 為持倉商品時，用最新 live price 取代 cache
+//                    的 last（讓主圖更新時槓桿也即時跳動）
+function _computePortfolioNotional(livePriceOverride = null) {
+  if (!Array.isArray(_sdkPositions) || _sdkPositions.length === 0) return null;
+  let notional = 0;
+  let lots = 0;
+  const detail = [];
+  for (const p of _sdkPositions) {
+    const prodKey = _symbolToProductKey(p.symbol);
+    if (!prodKey) continue;
+    const qty = Math.abs(Number(p.qty) || 0);
+    if (!qty) continue;
+    const mult = PRODUCTS[prodKey]?.mult ?? 10;
+    // 取價優先順序：若是當前切換的商品且有 live override → 用 live；
+    // 否則用 daemon cache (_sdkMktQuotesCache) 的最新價；再退 SDK 回報的 cur_price
+    let px = null;
+    if (prodKey === currentSymbol && livePriceOverride != null) {
+      px = Number(livePriceOverride);
+    }
+    if (px == null || !isFinite(px) || px <= 0) {
+      const cached = _sdkMktQuotesCache?.quotes?.[prodKey];
+      if (cached && !cached.error && cached.last != null) px = Number(cached.last);
+    }
+    if (px == null || !isFinite(px) || px <= 0) {
+      if (p.cur_price != null) px = Number(p.cur_price);
+    }
+    if (px == null || !isFinite(px) || px <= 0) continue;
+    const n = qty * mult * px;
+    notional += n;
+    lots    += qty;
+    detail.push({ symbol: p.symbol, prodKey, qty, mult, px, notional: n });
+  }
+  if (!detail.length) return null;
+  return { notional, lots, detail };
+}
+
+let currentSymbol    = 'MXFR1';
+let taifexCache      = [];   // raw TAIFEX market data
+let taifexFetchTs    = 0;
+let _sdkAvgPrice         = null; // 富邦 SDK 庫存回報的均價（優先用於圖表）
+let _sdkContracts        = null; // 富邦 SDK 庫存回報的口數
+let _sdkEquity           = null; // 富邦 SDK 帳戶淨值（即時計算槓桿用）
+let _sdkPosUnreal        = null; // 富邦 SDK 庫存查詢時的官方未實現 P&L（與庫存表一致）
+let _sdkPosPriceRef      = null; // 庫存查詢當下的期貨市場價（供即時 delta 調整用）
+let _sdkPositions        = null; // 富邦 SDK 完整庫存陣列（每筆含 symbol/qty/cur_price/avg_price）
+                                 // 供「以庫存計算槓桿」用，避免切換商品時槓桿跳動
+let _sdkPositionPriceMap = {};   // {prodKey: market_price} — 庫存查詢時各商品的即時價
+                                 // 供行情表優先顯示，避免與庫存表價格不同步
+let _monthView       = 'near'; // 'near' | 'next' | 'all' — 期交所行情月份篩選
+let _taifexAllMonths = {};    // {code: [{month, row}, ...]} — 各商品所有月份資料
+
+// ════════════════════════════════════════════════════════
+//  UTILITIES
+// ════════════════════════════════════════════════════════
+function fmt(n, dec=0) {
+  if (n == null || n === '' || isNaN(n)) return '—';
+  return Number(n).toLocaleString('zh-TW', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+/** 即時強平價計算（正確公式：以當前價格為基準，含浮動損益）
+ *  liq = price - (equity - contracts × maint) / (contracts × mult) */
+function _calcLiqPx(price, state) {
+  const contracts = _sdkContracts ?? state?.contracts;
+  const equity    = _sdkEquity    ?? state?.equity;
+  const mult      = PRODUCTS[currentSymbol]?.mult  ?? 10;
+  const maint     = PRODUCTS[currentSymbol]?.maint ?? 18300;
+  if (!contracts || !equity || !price) return null;
+  const totalMaint = contracts * maint;
+  if (equity <= totalMaint) return null;
+  return price - (equity - totalMaint) / (contracts * mult);
+}
+
+/** 反推觸發價：於哪個價位會使 leverage = targetLev
+ *
+ *  推導：
+ *    leverage(P) = N·P·M / equity(P)
+ *    equity(P)   = cash + N·(P − avg)·M   （cash 不隨價格變動）
+ *  令 leverage(P) = T：
+ *    N·P·M = T·(cash + N·(P − avg)·M)
+ *    ⇒ P = T·(N·avg·M − cash) / (N·M·(T − 1))
+ *
+ *  注意：當有未實現獲利時，cash < N·avg·M（因為保證金成本 > 現金餘額），
+ *        分子為正；T>1 → 分母正。
+ *        DELEVERAGE（T=6）價格會「低於」當前價（跌價→獲利縮水→淨值跌得比
+ *        exposure 快→槓桿升高）；PYRAMID（T=4.9）價格會「高於」當前價。
+ */
+function _calcLeverageTriggerPx(targetLev, state) {
+  const contracts = _sdkContracts ?? state?.contracts;
+  const avg       = _sdkAvgPrice  ?? state?.avg_cost;
+  const equity    = _sdkEquity    ?? state?.equity;
+  // 使用 SDK 的即時未實現，若無則用 state
+  const unreal    = _sdkPosUnreal ?? state?.unrealized;
+  const mult      = PRODUCTS[currentSymbol]?.mult ?? 10;
+  if (!contracts || !avg || !equity || targetLev == null || targetLev <= 1) return null;
+  if (unreal == null) return null;
+  const cash = equity - unreal;               // 現金部位（不隨價格變動）
+  const num  = targetLev * (contracts * avg * mult - cash);
+  const den  = contracts * mult * (targetLev - 1);
+  if (den === 0) return null;
+  return num / den;
+}
+function fmtPct(n, dec=2) {
+  if (n == null || isNaN(n)) return '—';
+  const v = Number(n);
+  return (v >= 0 ? '+' : '') + v.toFixed(dec) + '%';
+}
+function colorClass(n) { return n >= 0 ? 'green' : 'red'; }
+
+function toast(msg, dur=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// ════════════════════════════════════════════════════════
+//  PRODUCT SELECTOR
+// ════════════════════════════════════════════════════════
+function selectProduct(el) {
+  document.querySelectorAll('.prod-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const code = el.dataset.code;
+  _applyProductSwitch(code);
+}
+
+// 點選市場行情列切換商品（列點擊 handler）
+function selectProductFromRow(sym) {
+  if (!PRODUCTS[sym]) return;
+  // 同步 prod-chip 高亮
+  document.querySelectorAll('.prod-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.code === sym);
+  });
+  _applyProductSwitch(sym);
+}
+
+function switchMonthView(mode) {
+  _monthView = mode;
+  // 按鈕樣式切換
+  ['btnMonthNear','btnMonthNext','btnMonthAll'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const active = (id === 'btnMonthNear' && mode === 'near')
+                || (id === 'btnMonthNext' && mode === 'next')
+                || (id === 'btnMonthAll'  && mode === 'all');
+    btn.style.borderColor = active ? 'var(--gold)' : '#555';
+    btn.style.background  = active ? '#2a1f00' : 'transparent';
+    btn.style.color       = active ? 'var(--gold2)' : '#888';
+  });
+  // 重新渲染
+  renderInventory(taifexCache, null, _misCache);
+}
+
+function _applyProductSwitch(code) {
+  currentSymbol = code;
+  document.getElementById('cfgSymbol').value       = code;
+  document.getElementById('headerSymbol').textContent = code;
+  const p = PRODUCTS[code];
+  if (p) {
+    document.getElementById('cfgMult').value  = p.mult;
+    document.getElementById('cfgMaint').value = p.maint;
+  }
+  // 右上角即時報價面板（SDK 來源）
+  updateLivePrice(taifexCache);
+  // 重新 fetch K線（使用該商品的 yf ticker）
+  lastChartData  = null;
+  lastChartFetch = 0;
+  fetchState().then(state => {
+    fetchChartData(_kInterval).then(cd => {
+      if (cd) {
+        lastChartData = cd;
+        renderPriceChart(cd, state);
+        renderLeverageChart(state?.leverage, cd);
+      }
+    });
+  });
+  renderInventory(taifexCache);  // re-render with new row highlighted
+}
+
+// ════════════════════════════════════════════════════════
+//  FETCH TAIFEX MARKET DATA
+// ════════════════════════════════════════════════════════
+async function fetchTaifexMarket(force = false) {
+  const now = Date.now();
+  // cache 3 minutes
+  if (!force && taifexCache.length && now - taifexFetchTs < 3 * 60 * 1000) {
+    return taifexCache;
+  }
+  try {
+    const url = 'https://openapi.taifex.com.tw/v1/DailyMarketReportFut';
+    const proxied = `${BASE}/proxy?url=${encodeURIComponent(url)}`;
+    const r = await fetch(proxied, { signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined });
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    // ── 收集所有月份資料（供近月/次月/全部切換）──
+    // key: `${code}_${month}_${session}`
+    const allGroups = {};
+    for (const row of data) {
+      const session = row.TradingSession;
+      if (session !== '一般' && session !== '夜盤') continue;
+      const code  = row.Contract;
+      const month = row['ContractMonth(Week)'] || '';
+      const key   = `${code}_${month}_${session}`;
+      allGroups[key] = row;
+    }
+    // 按 code+month 合併（夜盤覆蓋日盤 price）
+    const allByCodeMonth = {};
+    for (const row of Object.values(allGroups)) {
+      const code    = row.Contract;
+      const month   = row['ContractMonth(Week)'] || '';
+      const session = row.TradingSession;
+      const cmKey   = `${code}_${month}`;
+      if (!allByCodeMonth[cmKey]) {
+        allByCodeMonth[cmKey] = { ...row, _night: session === '夜盤' };
+      } else if (session === '夜盤' && row.Last && row.Last !== '-') {
+        allByCodeMonth[cmKey] = { ...allByCodeMonth[cmKey],
+          Last: row.Last, Change: row.Change, '%': row['%'], Volume: row.Volume, _night: true };
+      }
+    }
+    // 整理成 {code: [{month, ...row},...]} 並按月份排序
+    const allMonths = {};
+    for (const row of Object.values(allByCodeMonth)) {
+      const code = row.Contract;
+      if (!allMonths[code]) allMonths[code] = [];
+      allMonths[code].push(row);
+    }
+    for (const code of Object.keys(allMonths)) {
+      allMonths[code].sort((a, b) => (a['ContractMonth(Week)'] || '').localeCompare(b['ContractMonth(Week)'] || ''));
+    }
+    _taifexAllMonths = allMonths;
+
+    // Keep 一般 (day) and 夜盤 (night) sessions, nearest month per code+session
+    const groups = {};   // key = `${code}_${session}`
+    for (const row of data) {
+      const session = row.TradingSession;
+      if (session !== '一般' && session !== '夜盤') continue;
+      const key = `${row.Contract}_${session}`;
+      if (!groups[key] || row['ContractMonth(Week)'] < groups[key]['ContractMonth(Week)']) {
+        groups[key] = row;
+      }
+    }
+    // Merge: if night session exists for same contract, prefer it for price (more recent)
+    const merged = {};
+    for (const row of Object.values(groups)) {
+      const code    = row.Contract;
+      const session = row.TradingSession;
+      if (!merged[code]) {
+        merged[code] = { ...row, _night: session === '夜盤' };
+      } else {
+        // Night session overrides day session price/volume if it has data
+        if (session === '夜盤' && row.Last && row.Last !== '-') {
+          merged[code] = { ...merged[code],
+            Last:   row.Last,
+            Change: row.Change,
+            '%':    row['%'],
+            Volume: row.Volume,
+            _night: true,
+          };
+        }
+      }
+    }
+    taifexCache = Object.values(merged);
+    taifexFetchTs = now;
+    return taifexCache;
+  } catch(e) {
+    console.warn('fetchTaifexMarket error', e);
+    return taifexCache;  // return stale
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  CHART ZOOM HELPERS
+// ════════════════════════════════════════════════════════
+function _onChartZoom(chart) {
+  const x = chart.scales.x;
+  if (!x) return;
+  // 所有時框統一 category scale：min/max 為索引
+  const bars = Math.max(1, Math.round(x.max - x.min));
+  const el = document.getElementById('badgeZoom');
+  if (el) {
+    const cfg = _K_CONFIGS[_kInterval] || {};
+    let label;
+    if (cfg.intraday) {
+      label = cfg.interval === '60m'
+        ? `${bars}根 (~${Math.round(bars / 6)}日)`
+        : cfg.interval === '15m'
+          ? `${bars}根 (~${Math.round(bars * 15 / 60)}h)`
+          : `${bars}根`;
+    } else {
+      label = bars >= 250 ? `${(bars / 250).toFixed(1)}年` : bars >= 20 ? `${Math.round(bars / 20)}個月` : `${bars}日`;
+    }
+    el.textContent = `⊕ ${label}  還原`;
+    el.style.borderColor = 'var(--gold)';
+    el.style.color       = 'var(--gold2)';
+  }
+  // 自動調整K棒寬度（縮放後重算，避免重疊或過窄）
+  const ds = chart.data.datasets[0];
+  if (ds) {
+    ds.maxBarThickness = _computeMaxBarThickness(chart);
+    chart.update('none');
+  }
+  // 副圖（RSI/槓桿）同步 X 軸
+  if (leverageChartObj) {
+    leverageChartObj.options.scales.x.min = x.min;
+    leverageChartObj.options.scales.x.max = x.max;
+    leverageChartObj.update('none');
+  }
+}
+
+// 依畫布寬度與目前可見K棒數計算適當的 maxBarThickness
+// 支援索引（數字）與標籤（字串）兩種 min/max 格式
+function _computeMaxBarThickness(chart) {
+  if (!chart?.chartArea || !chart?.scales?.x) return _priceChartIsIntraday ? 14 : 10;
+  const xScale = chart.scales.x;
+  const labels = chart.data.labels || [];
+  let visibleBars;
+  if (typeof xScale.min === 'number' && typeof xScale.max === 'number') {
+    // zoom plugin 設定的是索引數字
+    visibleBars = Math.max(1, Math.round(xScale.max - xScale.min) + 1);
+  } else {
+    // _initChartPan 設定的是標籤字串 → 找索引位置
+    const minI = labels.indexOf(String(xScale.min ?? ''));
+    const maxI = labels.indexOf(String(xScale.max ?? ''));
+    visibleBars = (minI >= 0 && maxI > minI) ? (maxI - minI + 1) : Math.max(1, labels.length);
+  }
+  const areaW  = chart.chartArea.right - chart.chartArea.left;
+  const slotPx = areaW / visibleBars;
+  // 最窄 2px、最寬 30px，保留 80% 欄寬（20% 為棒間距）
+  return Math.max(2, Math.min(30, Math.floor(slotPx * 0.80)));
+}
+
+function resetChartZoom() {
+  if (priceChartObj && lastChartData) {
+    // 所有時框統一 category scale：用標籤字串設定範圍
+    const initBars2 = lastChartData._initBars || 90;
+    const dates2    = lastChartData.dates;
+    const n         = dates2.length;
+    const minLbl    = priceChartObj.scales.x?.labels?.[Math.max(0, n - initBars2)] ?? dates2[Math.max(0, n - initBars2)];
+    const maxLbl    = priceChartObj.scales.x?.labels?.[n - 1] ?? dates2[n - 1];
+    priceChartObj.options.scales.x.min = minLbl;
+    priceChartObj.options.scales.x.max = maxLbl;
+    if (leverageChartObj) {
+      leverageChartObj.options.scales.x.min = minLbl;
+      leverageChartObj.options.scales.x.max = maxLbl;
+      leverageChartObj.update('none');
+    }
+    priceChartObj.resetZoom?.();
+    priceChartObj.update('none');
+  }
+  const el = document.getElementById('badgeZoom');
+  if (el) { el.textContent = '⊕ 還原縮放'; el.style.borderColor = '#555'; el.style.color = '#888'; }
+}
+
+// ════════════════════════════════════════════════════════
+//  K 線滑鼠左鍵拖曳平移（自訂實作，補充 chartjs-plugin-zoom）
+// ════════════════════════════════════════════════════════
+let _panDrag = null;  // { startClientX, startClientY, startMinIdx, startMaxIdx, startYMin, startYMax, areaH }
+
+function _initChartPan(canvas) {
+  if (!canvas) return;
+
+  // ── mousedown：記錄拖曳起點（X + Y 同時記錄）──
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const chart = priceChartObj;
+    if (!chart) return;
+    const labels = chart.data.labels;
+    if (!labels || !labels.length) return;
+
+    const scaleX = chart.scales.x;
+    const scaleY = chart.scales.y;
+    const curMin = scaleX.min;
+    const curMax = scaleX.max;
+    const minIdx = typeof curMin === 'number' ? curMin : labels.indexOf(String(curMin));
+    const maxIdx = typeof curMax === 'number' ? curMax : labels.indexOf(String(curMax));
+    const areaH  = (chart.chartArea?.bottom ?? canvas.clientHeight) - (chart.chartArea?.top ?? 0);
+
+    _panDrag = {
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startMinIdx:  Math.max(0, minIdx),
+      startMaxIdx:  Math.min(labels.length - 1, maxIdx),
+      startYMin:    scaleY?.min ?? null,
+      startYMax:    scaleY?.max ?? null,
+      areaH:        Math.max(1, areaH),
+      isLogY:       chart.options.scales?.y?.type === 'logarithmic',
+      labels,
+    };
+    canvas.classList.add('panning');
+    e.preventDefault();
+  });
+
+  // ── mousemove：X 軸平移 + Y 軸上下移動 ──
+  canvas.addEventListener('mousemove', (e) => {
+    if (!_panDrag || !priceChartObj) return;
+    const chart  = priceChartObj;
+    const labels = _panDrag.labels;
+    const n      = labels.length;
+    const visibleBars = _panDrag.startMaxIdx - _panDrag.startMinIdx;
+    if (visibleBars <= 0) return;
+
+    let didChange = false;
+
+    // ── X 軸平移 ──
+    const areaW = (chart.chartArea?.right ?? canvas.clientWidth) - (chart.chartArea?.left ?? 0);
+    if (areaW > 0) {
+      const dx       = e.clientX - _panDrag.startClientX;
+      const pxPerBar = areaW / visibleBars;
+      const shift    = -Math.round(dx / pxPerBar);
+      let newMin = Math.max(0, Math.min(n - 1 - visibleBars, _panDrag.startMinIdx + shift));
+      let newMax = newMin + visibleBars;
+      if (newMax >= n) { newMax = n - 1; newMin = newMax - visibleBars; }
+      const minLbl = labels[newMin];
+      const maxLbl = labels[newMax];
+      if (chart.options.scales.x.min !== minLbl) {
+        chart.options.scales.x.min = minLbl;
+        chart.options.scales.x.max = maxLbl;
+        // 同步副圖 X 軸
+        if (leverageChartObj) {
+          leverageChartObj.options.scales.x.min = minLbl;
+          leverageChartObj.options.scales.x.max = maxLbl;
+        }
+        // 更新 K 棒寬度
+        const ds = chart.data.datasets[0];
+        if (ds) ds.maxBarThickness = _computeMaxBarThickness(chart);
+        didChange = true;
+      }
+    }
+
+    // ── Y 軸上下移動（對數刻度：在 log 空間等比平移）──
+    const dy  = e.clientY - _panDrag.startClientY;
+    const yMn = _panDrag.startYMin;
+    const yMx = _panDrag.startYMax;
+    if (Math.abs(dy) > 1 && yMn != null && yMx != null && yMn > 0 && yMx > 0) {
+      let newYMin, newYMax;
+      if (_panDrag.isLogY) {
+        // log 空間等比：向下拖 → 看更低的價格（shift > 0）
+        const logRange = Math.log(yMx / yMn);
+        const logShift = (dy / _panDrag.areaH) * logRange;
+        newYMin = yMn * Math.exp(logShift);
+        newYMax = yMx * Math.exp(logShift);
+      } else {
+        const range    = yMx - yMn;
+        const linShift = (dy / _panDrag.areaH) * range;
+        newYMin = yMn + linShift;
+        newYMax = yMx + linShift;
+      }
+      chart.options.scales.y.min = newYMin;
+      chart.options.scales.y.max = newYMax;
+      didChange = true;
+    }
+
+    if (didChange) {
+      chart.update('none');
+      if (leverageChartObj) leverageChartObj.update('none');
+    }
+  });
+
+  // ── mouseup / mouseleave：結束拖曳 ──
+  const endDrag = () => {
+    if (_panDrag) { _panDrag = null; canvas.classList.remove('panning'); }
+  };
+  canvas.addEventListener('mouseup',    endDrag);
+  canvas.addEventListener('mouseleave', endDrag);
+  document.addEventListener('mouseup',  endDrag);
+}
+
+// ════════════════════════════════════════════════════════
+//  TAIFEX MIS 即時行情 (夜盤 / 盤中，每 10 秒刷新)
+// ════════════════════════════════════════════════════════
+let _misCache          = {};    // key: mis base code, near-month only (e.g. 'MXF')
+let _misByCodeMonth    = {};    // key: "code_YYYYMM" (e.g. 'MXF_202605') — ALL months
+let _priceChartIsIntraday = false;
+let _misCacheTs = 0;
+let _misTimer   = null;
+
+// ── TAIFEX 月份字母代碼表（非字母順序，跳過 I/L）──
+// F=1月,G=2月,H=3月,J=4月,K=5月,M=6月,N=7月,Q=8月,U=9月,V=10月,X=11月,Z=12月
+const _TAIFEX_MO_MAP = {F:1,G:2,H:3,J:4,K:5,M:6,N:7,Q:8,U:9,V:10,X:11,Z:12};
+
+// ── Fugle API 月份字母代碼（字母順序 A-L）──
+// 只加入與 TAIFEX 不衝突的字母（A/B/C/D/E/I/L）
+// F/G/H/J/K/M/N/Q/U/V/X/Z 已被 TAIFEX 使用，優先用 TAIFEX 定義
+const _FUGLE_MO_MAP  = {A:1,B:2,C:3,D:4,E:5,I:9,L:12};
+
+// ── 台指系列商品：MXFR1/TXFR1/MTXR1 追蹤同一台股加權指數，effectiveRef 共用 ──
+const _TW_INDEX_KEYS_GLOBAL = new Set(['MXFR1', 'TXFR1', 'MTXR1']);
+
+// ── daemon 時段一致性嚴格判斷 ─────────────────────────────────────
+// 嚴格模式：daemon quote 必須明確標記 _session 且與當前時段一致才接受。
+// 無 _session 欄位或 _stale 為 true 時視為不可信。
+function _daemonSessionOkStrict(q, currNight) {
+  if (!q || q.error) return false;
+  if (q._stale || q._daemonStale) return false;
+  const s = q._session || '';
+  if (!s) return false;
+  const daemonNight = s.includes('afterhours');
+  return currNight ? daemonNight : !daemonNight;
+}
+
+// ── 持倉合約「自己的」昨結算價解析 ─────────────────────────────────
+// daemon（Fugle R1）永遠報「最近交易月份」的合約，若用戶持倉月份 ≠ R1
+// （例如近月剛結算），daemon 的 change 是 R1 合約的變化而非持倉合約。
+// 必須從持倉合約「同月份」的 Last − Change 反推昨結算價。
+//
+// 來源優先序：
+//   1. MIS 即時 _misByCodeMonth[code_YYYYMM]（盤中最即時）
+//   2. TAIFEX 日報表 _taifexAllMonths[code] 找相同月份
+//   3. 台指系列共用 _twIndexEffectiveRef（當持倉月資料全缺時）
+// 回傳：數字 ref，或 null（表示無可信資料）
+function _resolveHeldContractRef(sym, info, misData, twIndexEffectiveRef) {
+  // 解析持倉合約月份
+  let heldMon = '';
+  if (Array.isArray(_sdkPositions)) {
+    const pos = _sdkPositions.find(p => _symbolToProductKey(p.symbol) === sym);
+    if (pos) {
+      heldMon = _normToYYYYMM(pos.contract_month) || _symToMonthYYYYMM(pos.symbol) || '';
+    }
+  }
+  if (!heldMon) return null;
+
+  const tryRow = (row) => {
+    if (!row) return null;
+    const last = parseFloat(String(row.Last   || '').replace(/[,△▲▼\s]/g, '')) || 0;
+    const chg  = parseFloat(String(row.Change || '').replace(/[△▲▼,\s]/g, ''));
+    if (last < 100 || isNaN(chg) || chg === 0) return null;
+    const ref = last - chg;
+    if (ref < 100) return null;
+    // 合理性檢查：同月 ref 應與 last 相近（<10% 差距）
+    if (Math.abs(chg) / ref > 0.10) return null;
+    return ref;
+  };
+
+  const codes = [
+    info.mis,
+    info.mis ? info.mis + 'F' : null,
+    info.taifex,
+    ...(info.fallbackMis || []),
+  ].filter(Boolean);
+
+  // 1. MIS 即時同月份
+  for (const code of codes) {
+    const row = _misByCodeMonth[`${code}_${heldMon}`];
+    const ref = tryRow(row);
+    if (ref) return ref;
+  }
+
+  // 2. TAIFEX 日報表全月份
+  for (const code of codes) {
+    if (!_taifexAllMonths[code]) continue;
+    const row = _taifexAllMonths[code].find(r =>
+      (r['ContractMonth(Week)'] || '').slice(0, 6) === heldMon
+    );
+    const ref = tryRow(row);
+    if (ref) return ref;
+  }
+
+  // 3. 台指系列共用（最後備援）
+  if (_TW_INDEX_KEYS_GLOBAL.has(sym) && twIndexEffectiveRef != null && twIndexEffectiveRef > 1000) {
+    return twIndexEffectiveRef;
+  }
+
+  return null;
+}
+
+// ── 持倉合約月份解析 ────────────────────────────────────────────
+function _heldContractMonth(sym) {
+  if (!Array.isArray(_sdkPositions)) return '';
+  const pos = _sdkPositions.find(p => _symbolToProductKey(p.symbol) === sym);
+  if (!pos) return '';
+  return _normToYYYYMM(pos.contract_month) || _symToMonthYYYYMM(pos.symbol) || '';
+}
+
+// ── 台指系列共用 effectiveRef 計算 ─────────────────────────────
+// 優先 _fubonQuoteCache（5s），再從 sdkMktQuotesCache 的 MXFR1/TXFR1 取
+// 只採用時段一致 (_session 欄位) 的 daemon 資料
+function _computeTwIndexEffectiveRef(currNight) {
+  const fq = _fubonQuoteCache;
+  if (fq && !fq.error && fq.last > 5000 && fq.change != null
+      && _daemonSessionOkStrict(fq, currNight)) {
+    const er = fq.last - fq.change;
+    if (er > 5000) return er;
+  }
+  for (const k of ['MXFR1', 'TXFR1']) {
+    const q = _sdkMktQuotesCache?.quotes?.[k];
+    if (q && !q.error && q.last > 5000 && q.change != null
+        && _daemonSessionOkStrict(q, currNight)) {
+      const er = q.last - q.change;
+      if (er > 5000) return er;
+    }
+  }
+  return null;
+}
+
+/**
+ * Fugle / TAIFEX 合約代碼 → YYYYMM 月份字串
+ * 支援兩種月份編碼：
+ *   TAIFEX: MXFK6 → K=5月 → "202605"
+ *   Fugle:  MXFE6 → E=5月 → "202605"
+ */
+function _symToMonthYYYYMM(s) {
+  if (!s || s.length < 2) return '';
+  const alpha = s.slice(-2, -1).toUpperCase();
+  const yr    = parseInt(s.slice(-1));
+  const mNum  = _TAIFEX_MO_MAP[alpha] ?? _FUGLE_MO_MAP[alpha];
+  if (!mNum || isNaN(yr)) return '';
+  return `${2020 + yr}${String(mNum).padStart(2, '0')}`;
+}
+
+/**
+ * 任意月份格式 → YYYYMM (6位數)
+ * 支援: "202605", "2605", "K6"(TAIFEX alpha), ""
+ */
+function _normToYYYYMM(m) {
+  if (!m) return '';
+  const s = String(m).trim();
+  if (/^\d{6}$/.test(s)) return s;                    // 202605
+  if (/^\d{4}$/.test(s)) return '20' + s;             // 2605 → 202605
+  if (s.length === 2) {                                // K6 (TAIFEX) 或 E6 (Fugle)
+    const alpha = s[0].toUpperCase();
+    const mo = _TAIFEX_MO_MAP[alpha] ?? _FUGLE_MO_MAP[alpha];
+    const yr = parseInt(s[1]);
+    if (mo && !isNaN(yr)) return `${2020 + yr}${String(mo).padStart(2,'0')}`;
+  }
+  return '';
+}
+
+function isNightSession() {
+  const h = new Date().getHours();
+  return h >= 15 || h < 5;   // 15:00 ~ 04:59 為夜盤
+}
+
+async function fetchTaifexMIS(force = false) {
+  const now = Date.now();
+  if (!force && Object.keys(_misCache).length && now - _misCacheTs < 10000) {
+    return _misCache;
+  }
+  try {
+    // 依時段選擇 URL 優先順序：
+    // 夜盤：MarketType=2 → DailyMarketReportFut（跳過無 MarketType，避免拿到日盤資料）
+    // 日盤：MarketType=1 → 無 MarketType → DailyMarketReportFut
+    const misCandidates = isNightSession()
+      ? [
+          `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut&MarketType=2`,
+          `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut`,             // 夜盤備援：無 MarketType 也可能回傳夜盤即時
+          `https://openapi.taifex.com.tw/v1/DailyMarketReportFut`,   // 含夜盤場次資料
+        ]
+      : [
+          `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut&MarketType=1`,
+          `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut`,
+          `https://openapi.taifex.com.tw/v1/DailyMarketReportFut`,
+        ];
+    let data = null;
+    for (const url of misCandidates) {
+      try {
+        const proxied = `${BASE}/proxy?url=${encodeURIComponent(url)}`;
+        const r = await fetch(proxied, {
+          signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined
+        });
+        if (!r.ok) continue;
+        const candidate = await r.json();
+        if (!candidate) continue;
+        // 確認有實際資料列才採用，避免空回應阻斷後備 URL（夜盤 MarketType=2 可能回傳空 JSON）
+        const testRows = candidate?.RtData?.FuturesList
+                      || candidate?.RtData?.Rows
+                      || candidate?.Data?.FuturesList
+                      || (Array.isArray(candidate) ? candidate : []);
+        if (testRows.length > 0) { data = candidate; break; }
+      } catch(_) { continue; }
+    }
+    if (!data) throw new Error('All MIS candidates failed');
+
+    // 相容多種回傳結構
+    let rows = data?.RtData?.FuturesList
+            || data?.RtData?.Rows
+            || data?.Data?.FuturesList
+            || [];
+    // DailyMarketReportFut 格式（Array）
+    if (Array.isArray(data)) rows = data;
+
+    const result = {};
+
+    // 判斷 row 格式：MIS 格式用 SymbolID，日報表用 Contract
+    const isMISFormat = rows.length > 0 && ('SymbolID' in rows[0] || 'Symbol' in rows[0]);
+
+    for (const row of rows) {
+      let code, symId, rawPx, rawChg, rawPct, rawVol, rawOI, month;
+
+      if (isMISFormat) {
+        // TAIFEX MIS 格式
+        // SymbolID 格式：產品代碼 + 月份字母 + 年份數字，例如 'TXFK6'（TAIFEX 5月）
+        // 使用最後兩碼 slice(-2) 作為月份代碼（字母+年份數字），其餘為產品代碼
+        // 不用 /^([A-Z]+)\d/ 正則，避免將月份字母（如 K）誤納入產品代碼
+        symId  = row.SymbolID || row.Symbol || '';
+        if (symId.length < 3) continue;
+        code   = symId.slice(0, -2);   // 'TXFK6' → 'TXF' | 'MXFK6' → 'MXF'
+        rawPx  = (row.CLastPrice || row.LastPrice || '').replace(/,/g, '');
+        rawChg = (row.CDiff || row.PriceChange || '').replace(/,/g, '');
+        rawPct = row.CDiffRate || row.ChangeRate || '';
+        rawVol = (row.CTotalVolume || row.Volume || '').replace(/,/g, '');
+        rawOI  = (row.COI || row.OpenInterest || '').replace(/,/g, '');
+        month  = symId.slice(-2);      // 'TXFK6' → 'K6' | 'TXFE6' → 'E6'（Fugle格式）
+      } else {
+        // DailyMarketReportFut 格式 (夜盤場次過濾)
+        // 夜盤時優先取 '夜盤' 行，但也接受 '一般' 行作為備援（第二輪處理）
+        const expectedSession = isNightSession() ? '夜盤' : '一般';
+        if (row.TradingSession && row.TradingSession !== expectedSession) {
+          // 夜盤時，'一般' 行僅在同商品無 '夜盤' 行時使用（稍後由近月優先邏輯處理）
+          if (!isNightSession()) continue;
+          // 夜盤：若已有該商品的夜盤行資料，跳過一般行
+          const dayCode = row.Contract || '';
+          if (dayCode && result[dayCode]?._night) continue;
+        }
+        code   = row.Contract || '';
+        if (!code) continue;
+        rawPx  = (row.Last   || '').replace(/,/g, '');
+        // DailyMarketReportFut 的 Change 可能含 △/▲/▼ 前綴（如 '△231'），需去除才能 parseFloat
+        rawChg = (row.Change || '').replace(/[△▲▼,\s]/g, '');
+        rawPct = row['%'] || '';
+        rawVol = (row.Volume || '').replace(/,/g, '');
+        rawOI  = (row.OpenInterest || '').replace(/,/g, '');
+        month  = row['ContractMonth(Week)'] || '';
+        // MXF code mapping: daily report may use 'MXF', MIS uses 'MXF'
+      }
+
+      const last = parseFloat(rawPx) || 0;
+      // 合理性驗證：台指系列最低 8000，其他商品最低 1
+      const _codeMinPx = { TX:8000, TXF:8000, MTX:8000, MXF:8000, ZEF:100, ZFF:50, TF:200, TE:500 };
+      const _minPx = _codeMinPx[code] || 1;
+      const lastValid = last > _minPx;
+
+      // 月份標準化 → YYYYMM (供對比和 _misByCodeMonth key 使用)
+      const monthYYYYMM = _normToYYYYMM(month) || month;
+
+      // ── 所有月份快取（供夜盤跨月漲跌修正使用）──
+      if (lastValid && monthYYYYMM) {
+        const cmKey = `${code}_${monthYYYYMM}`;
+        const existing_cm = _misByCodeMonth[cmKey];
+        const rawChgNum = parseFloat(rawChg) || 0;
+        // 優先保留有 change 的夜盤資料
+        if (!existing_cm ||
+            (isNightSession() && !existing_cm._night) ||
+            (rawChgNum !== 0 && parseFloat(existing_cm.Change||'0') === 0)) {
+          _misByCodeMonth[cmKey] = {
+            Last: rawPx, Change: rawChg, '%': rawPct,
+            Volume: rawVol || '—', OpenInterest: rawOI || '—',
+            'ContractMonth(Week)': monthYYYYMM,
+            _night: isNightSession(),
+          };
+        }
+      }
+
+      // 近月優先：同一商品有多個月份時，保留最近月份（月份 YYYYMM 字串比較）
+      const _existing   = result[code];
+      const _existMon   = _existing?.['ContractMonth(Week)'] || '999999';
+      // 只有 month 有實際值時才比較（空字串不算更近）
+      const _isNearer   = monthYYYYMM && (!_existing || monthYYYYMM < _existMon);
+      const _noPrice    = !_existing?.Last;
+      if (!_existing || (_isNearer && lastValid) || (_noPrice && lastValid)) {
+        result[code] = {
+          _mis: true, _code: code,
+          Last:   lastValid ? rawPx : '',   // 不合理的價格清空，不顯示
+          Change: rawChg, '%': rawPct,
+          Volume: rawVol || '—', OpenInterest: rawOI || '—',
+          'ContractMonth(Week)': monthYYYYMM,
+          _night: isNightSession(),
+          _rawLast: rawPx,  // 保留原始值供除錯
+        };
+      }
+    }
+
+    if (Object.keys(result).length > 0) {
+      _misCache   = result;
+      _misCacheTs = now;
+      // 除錯：印出各商品的 code 和原始價格
+      const dbgStr = Object.entries(result).map(([c,v]) => `${c}:${v._rawLast||'?'}`).join(' ');
+      console.log('[MIS]', dbgStr, '@', new Date().toLocaleTimeString('zh-TW'));
+    }
+    return _misCache;
+  } catch(e) {
+    console.warn('fetchTaifexMIS error', e);
+    return _misCache;
+  }
+}
+
+// 啟動 MIS 輪詢（日盤 + 夜盤皆啟用，依時段自動切換 MarketType）
+function startMISPoll() {
+  if (_misTimer) clearInterval(_misTimer);
+  // 立即拉一次
+  fetchTaifexMIS(true).then(mis => {
+    if (Object.keys(mis).length) {
+      Promise.all([fetchState().catch(()=>null)]).then(([st]) => {
+        renderInventory(taifexCache, st, mis);
+        updateLivePrice(taifexCache, mis);
+      });
+    }
+  });
+
+  // 動態間隔：SDK 有資料時 10 秒；夜盤 SDK 無資料時 5 秒（MIS 是夜盤主要來源）
+  const _misPollFn = async () => {
+    // 若 SDK 全部商品皆為 error，立即重新拉一次 market_quotes
+    const _allSdkError = _sdkMktQuotesCache &&
+      Object.values(_sdkMktQuotesCache.quotes || {}).every(q => q.error || q.last == null);
+    if (_allSdkError) {
+      fetchFubonMarketQuotes(true).then(d => {
+        if (d?.quotes) renderInventory(null, null, _misCache);
+      });
+    }
+
+    const mis = await fetchTaifexMIS(true);
+    if (Object.keys(mis).length) {
+      const st = await fetchState().catch(() => null);
+      renderInventory(taifexCache, st, mis);
+      updateLivePrice(taifexCache, mis);
+      document.getElementById('invTs').textContent =
+        '即時 ' + new Date().toLocaleTimeString('zh-TW');
+    }
+    // 夜盤且 SDK 所有商品無資料時縮短間隔為 5 秒
+    const sdkAllError = !_sdkMktQuotesCache ||
+      Object.values(_sdkMktQuotesCache.quotes || {}).every(q => q.error || q.last == null);
+    const interval = (isNightSession() && sdkAllError) ? 5000 : 10000;
+    _misTimer = setTimeout(_misPollFn, interval);
+  };
+  _misTimer = setTimeout(_misPollFn, 10000);
+}
+
+// ════════════════════════════════════════════════════════
+//  NIGHT CHANGE HELPER
+//  夜盤時 SDK 的 change 使用前日收盤作參考，與期交所習慣不符。
+//  此函式嘗試取得「同月份」的 MIS 漲跌數據來修正。
+//  優先順序：
+//    1. _misByCodeMonth[misCode_YYYYMM]  — 完全匹配（同品種同月份）
+//    2. _misByCodeMonth[fallbackCode_YYYYMM] — fallback 商品同月份（如 TXF 代 MXF）
+//    3. taifexCache 日盤收盤計算  — 以 SDK night_price - day_close
+//  回傳 {chg, pct} 或 null（無法修正）
+// ════════════════════════════════════════════════════════
+// ────────────────────────────────────────────────────────
+//  夜盤/結算日漲跌修正
+// ────────────────────────────────────────────────────────
+// 背景：結算日後 Fugle SDK 對 MXF 系列的 previousClose 會錯用結算價當參考，
+//      導致 change/change_pct 嚴重失真（例如顯示 +5.12% 而非實際 +0.64%）。
+// 策略：依序嘗試多個來源換算正確漲跌，先用同指數 R1 比例（最可靠），
+//      再退到 TAIFEX MIS / DailyMarketReportFut。
+//
+// SAFE_PCT_THRESHOLD：超過此 % 視為「異常」，需用其他來源覆蓋 / 跳過。
+//  台指期常態波動 < 3%，結算日的錯誤值 ≈ 4-5%，故設 3.0 較安全。
+function _nightChangeFromMIS(misCode, sdkSymbol, nightPrice, info) {
+  const contractMon  = _symToMonthYYYYMM(sdkSymbol) || '';
+  const SAFE_PCT     = 3.0;
+  const fbCodes      = info?.fallbackMis || [];
+  const dp           = info?.dp || 0;
+  const roundChg     = (v) => dp > 0 ? +Number(v).toFixed(dp) : Math.round(v);
+  const fmtPct       = (p) => (p >= 0 ? '+' : '') + p.toFixed(2) + '%';
+
+  // ── Step 0：用同指數 R1 商品的 change_pct 換算（最穩，TXFR1 不受 Fugle bug 影響）
+  // 台指系列（MXF/TXF/MTX）皆追蹤同一指數，pct 應幾乎相同。
+  // 只有 misCode 是 TX 系列且本身不是 TXF 才需要借用（TXF 自己沒問題）。
+  if (nightPrice > 0 && (misCode === 'MXF' || misCode === 'MTX' || fbCodes.includes('TXF'))) {
+    const tx = _sdkMktQuotesCache?.quotes?.['TXFR1'];
+    if (tx && !tx.error && tx.last != null && tx.change_pct != null
+        && Math.abs(tx.change_pct) < SAFE_PCT) {
+      const refPx = nightPrice / (1 + tx.change_pct / 100);
+      if (refPx > 0) {
+        const c = nightPrice - refPx;
+        return { chg: roundChg(c), pct: fmtPct(tx.change_pct) };
+      }
+    }
+  }
+
+  if (contractMon) {
+    // ── Step 1：MIS 即時 misCode + 同月份
+    const row1 = _misByCodeMonth[`${misCode}_${contractMon}`];
+    if (row1) {
+      const c    = parseFloat((row1.Change || '').replace(/[△▲▼,\s]/g, ''));
+      const pct1 = parseFloat((row1['%']    || '0').replace(/[+%]/g, '')) || 0;
+      if (!isNaN(c) && c !== 0 && Math.abs(pct1) < SAFE_PCT) {
+        return { chg: c, pct: row1['%'] || fmtPct(pct1) };
+      }
+    }
+
+    // ── Step 2：fallbackMis 同月份（如 MXF→TXF）
+    for (const fb of fbCodes) {
+      const row2 = _misByCodeMonth[`${fb}_${contractMon}`];
+      if (!row2) continue;
+      const c    = parseFloat((row2.Change || '').replace(/[△▲▼,\s]/g, ''));
+      const pct2 = parseFloat((row2['%']    || '0').replace(/[+%]/g, '')) || 0;
+      if (!isNaN(c) && c !== 0 && Math.abs(pct2) < SAFE_PCT) {
+        // 用 fallback 的 pct 換算自己的 chg（避免大小台點數差距）
+        if (nightPrice > 0) {
+          const refPx = nightPrice / (1 + pct2 / 100);
+          return { chg: roundChg(nightPrice - refPx), pct: fmtPct(pct2) };
+        }
+        return { chg: c, pct: row2['%'] || fmtPct(pct2) };
+      }
+    }
+
+    // ── Step 3：直接讀 _taifexAllMonths 同月份夜盤行
+    const t3Codes = [
+      ...(info?.taifex ? [] : [misCode]),
+      ...(info?.taifex ? [info.taifex] : []),
+      ...fbCodes,
+    ];
+    for (const pc of t3Codes) {
+      if (!_taifexAllMonths[pc]) continue;
+      const pxRow = _taifexAllMonths[pc].find(r =>
+        r._night && (r['ContractMonth(Week)'] || '').startsWith(contractMon.slice(0, 6))
+      );
+      if (!pxRow || !pxRow.Last || pxRow.Last === '-') continue;
+      const pxLast = parseFloat(String(pxRow.Last).replace(/,/g, ''));
+      const pxChg  = parseFloat(String(pxRow.Change || '').replace(/[△▲▼,\s]/g, ''));
+      if (isNaN(pxLast) || pxLast < 1000 || isNaN(pxChg) || pxChg === 0) continue;
+      const pxRef = pxLast - pxChg;
+      if (pxRef < 1000) continue;
+      const pxPct = pxChg / pxRef * 100;
+      if (Math.abs(pxPct) >= SAFE_PCT) continue;
+      // 用 proxy 的 pct 換算自己的點數
+      if (nightPrice > 0) {
+        const refPx = nightPrice / (1 + pxPct / 100);
+        return { chg: roundChg(nightPrice - refPx), pct: fmtPct(pxPct) };
+      }
+      return { chg: roundChg(pxChg), pct: fmtPct(pxPct) };
+    }
+  }
+
+  // ── 最終回退：用 misCode/fallbackMis 的近月 MIS 資料
+  const nearRow = _misCache[misCode] || _misCache[misCode + 'F'] || null;
+  if (nearRow) {
+    const c    = parseFloat((nearRow.Change || '').replace(/[△▲▼,\s]/g, ''));
+    const pctN = parseFloat((nearRow['%']   || '0').replace(/[+%]/g, '')) || 0;
+    if (!isNaN(c) && c !== 0 && Math.abs(pctN) < SAFE_PCT) {
+      return { chg: c, pct: nearRow['%'] || fmtPct(pctN) };
+    }
+  }
+  for (const fb of fbCodes) {
+    const fbRow = _misCache[fb] || _misCache[fb + 'F'] || _misCache[fb.replace(/F$/, '')] || null;
+    if (!fbRow) continue;
+    const c    = parseFloat((fbRow.Change || '').replace(/[△▲▼,\s]/g, ''));
+    const pctF = parseFloat((fbRow['%']   || '0').replace(/[+%]/g, '')) || 0;
+    if (!isNaN(c) && c !== 0 && Math.abs(pctF) < SAFE_PCT) {
+      if (nightPrice > 0) {
+        const refPx = nightPrice / (1 + pctF / 100);
+        return { chg: roundChg(nightPrice - refPx), pct: fmtPct(pctF) };
+      }
+      return { chg: c, pct: fbRow['%'] || fmtPct(pctF) };
+    }
+  }
+  return null;
+}
+
+// ════════════════════════════════════════════════════════
+//  RENDER INVENTORY TABLE
+// ════════════════════════════════════════════════════════
+function renderInventory(market, state, misData) {
+  const tbody = document.getElementById('invBody');
+  misData = misData || _misCache;   // 預設帶入上次的 MIS 快取
+  const rows = [];
+
+  // ── 時段狀態（此次 render 共用）──────────────────────────────────
+  const _currNight = isNightSession();
+  const _TW_INDEX_KEYS = _TW_INDEX_KEYS_GLOBAL;
+  const _daemonSessionOk = (q) => _daemonSessionOkStrict(q, _currNight);
+
+  // ── 台指系列共用有效參考價（MXFR1/TXFR1/MTXR1 追蹤同一指數）──
+  //   effectiveRef = last − change，反推昨結算價
+  //   只採用時段一致（_session 欄位）的 daemon 資料
+  const _twIndexEffectiveRef = _computeTwIndexEffectiveRef(_currNight);
+
+  // Map daily TAIFEX report by contract code
+  const mktMap = {};
+  for (const row of (market || [])) mktMap[row.Contract] = row;
+
+  for (const [sym, info] of Object.entries(PRODUCTS)) {
+    const tfCode  = info.taifex;          // DailyReport code (e.g. 'TX'), null for MXF
+    const misCode = info.mis;             // MIS real-time code (e.g. 'MXF')
+
+    // 1. 日報表資料（OI / 昨量 / 合約月）
+    const daily = mktMap[tfCode] || null;
+
+    // 2. MIS 即時資料（TXF code in MIS ≈ TX in daily, try both suffixes）
+    const mis   = misData[misCode]
+               || misData[misCode + 'F']     // TX → TXF
+               || misData[misCode?.slice(0,-1)]  // TXF → TX
+               || null;
+
+    // ── 資料來源整合 ──────────────────────────────────────────────────
+    // 優先順序：
+    //   1. SDK 即時（Fugle REST，有 change）→ price + change 全用 SDK
+    //   2. MIS 即時 / 日報表             → price + change 全用 MIS
+    //   3. SDK 持倉（hybrid_position，無 change）→ 只用 price，作最後備援
+    //   4. 單一 SDK 快取（僅策略商品）     → 同上邏輯
+    // 關鍵：hybrid_position 的 market_price 可能是過時值，絕不能覆蓋 MIS 即時價
+    let isFubon = false;
+    const minPx = _PROD_MIN_PX[sym] ?? 0;
+    const isStrategy = (sym === currentSymbol || (sym === 'MXFR1' && !currentSymbol));
+
+    let last = null, chg = null, chgPct = '', vol = '—', oi = '—', month = '—';
+    let night = false, isRt = false;
+    let resolved = false;   // 是否已找到完整資料（price + change）
+
+    // SDK 庫存帶回的即時價（與庫存表同一資料源，優先用於現價顯示）
+    const sdkPosPx = _sdkPositionPriceMap[sym] ?? null;
+    const sdkQ = _sdkMktQuotesCache?.quotes?.[sym];
+
+    // ── 嘗試 0：SDK 持倉現價（_sdk_price，來自 query_hybrid_position）──
+    //   daemon 可能查到錯誤月份（如 TXFE6）而用戶持有 TXFE5，
+    //   _sdk_price 直接來自 SDK 持倉回報，是最準確的合約現價。
+    //   effectiveRef 優先用持倉合約「自己的」同月 ref（_resolveHeldContractRef），
+    //   避免借用 daemon R1 合約的 ref 導致跨月份錯算。
+    if (!resolved && sdkQ && sdkQ._sdk_price != null && sdkQ._sdk_price > (minPx || 0)) {
+      last = sdkQ._sdk_price;
+
+      const heldMon = _heldContractMonth(sym);
+      // 1. 持倉合約自己月份 ref（最準確）
+      let sdkEffRef = _resolveHeldContractRef(sym, info, misData, _twIndexEffectiveRef);
+      // 2. daemon 時段+月份一致時才用 daemon 反推
+      if (sdkEffRef == null
+          && _daemonSessionOk(sdkQ)
+          && sdkQ.last != null && sdkQ.change != null && sdkQ.last > 0) {
+        const qm = _symToMonthYYYYMM(sdkQ.symbol || '') || _normToYYYYMM(sdkQ.month || '');
+        if (!heldMon || !qm || qm === heldMon) {
+          sdkEffRef = sdkQ.last - sdkQ.change;
+        }
+      }
+      // 3. 台指系列共用
+      if (sdkEffRef == null && _TW_INDEX_KEYS.has(sym) && _twIndexEffectiveRef != null) {
+        sdkEffRef = _twIndexEffectiveRef;
+      }
+      if (sdkEffRef != null && sdkEffRef > 1000) {
+        const dp = info.dp || 0;
+        const rawChg = last - sdkEffRef;
+        chg    = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+        const pctVal = (last / sdkEffRef - 1) * 100;
+        chgPct = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%';
+      }
+      // 其他欄位從 daemon 補
+      if (sdkQ.volume != null) vol = Number(sdkQ.volume).toLocaleString('zh-TW');
+      if (sdkQ.open_interest != null) oi = Number(sdkQ.open_interest).toLocaleString('zh-TW');
+      const dm = _symToMonthYYYYMM(sdkQ.symbol);
+      month  = sdkQ.month || dm || '—';
+      night  = _sdkMktQuotesCache?.night ?? _currNight;
+      isRt   = true; isFubon = true; resolved = true;
+    }
+
+    // ── 嘗試 1：SDK 即時報價（Fugle REST，有 change 才算即時）──
+    if (!resolved && sdkQ && !sdkQ.error && sdkQ.last != null && sdkQ.change != null
+        && (minPx === 0 || sdkQ.last >= minPx)) {
+      last     = sdkQ.last;
+      chg      = sdkQ.change;
+      const pc = sdkQ.change_pct;
+      chgPct   = pc != null ? (pc >= 0 ? '+' : '') + pc.toFixed(2) + '%' : '';
+      vol      = sdkQ.volume != null ? Number(sdkQ.volume).toLocaleString('zh-TW') : '—';
+      if (sdkQ.open_interest != null) oi = Number(sdkQ.open_interest).toLocaleString('zh-TW');
+      const dm = _symToMonthYYYYMM(sdkQ.symbol);
+      month    = sdkQ.month || dm || '—';
+      night    = _sdkMktQuotesCache.night ?? isNightSession();
+      isRt     = true; isFubon = true; resolved = true;
+
+      // ── 結算日異常修正：SDK change_pct >3% 視為 Fugle previousClose 異常，
+      //   改用同指數 R1 比例 / TAIFEX 換算正確漲跌 ──
+      if (Math.abs(sdkQ.change_pct ?? 0) >= 3.0) {
+        const _nc = _nightChangeFromMIS(misCode, sdkQ.symbol, last, info);
+        if (_nc) { chg = _nc.chg; chgPct = _nc.pct; }
+      }
+    }
+
+    // ── 嘗試 1b：單一 SDK 快取（僅策略商品，且有 change 才採用）──
+    if (!resolved && isStrategy) {
+      const fq = _fubonQuoteCache;
+      if (fq && !fq.error && fq.last != null && fq.change != null
+          && (minPx === 0 || fq.last >= minPx)) {
+        last     = fq.last;
+        chg      = fq.change;
+        const pc = fq.change_pct;
+        chgPct   = pc != null ? (pc >= 0 ? '+' : '') + pc.toFixed(2) + '%' : '';
+        vol      = fq.volume != null ? Number(fq.volume).toLocaleString('zh-TW') : '—';
+        month    = fq.month || _symToMonthYYYYMM(fq.symbol) || '—';
+        night    = isNightSession();
+        isRt     = true; isFubon = true; resolved = true;
+
+        // ── 結算日異常修正 ──
+        if (Math.abs(fq.change_pct ?? 0) >= 3.0) {
+          const _nc = _nightChangeFromMIS(misCode, fq.symbol, last, info);
+          if (_nc) { chg = _nc.chg; chgPct = _nc.pct; }
+        }
+      }
+    }
+
+    // ── 嘗試 2：MIS 即時 / 日報表（SDK 無資料時才使用）──
+    if (!resolved) {
+      const src = mis || daily;
+      if (src) {
+        const misLast = parseFloat((src.Last   || '').replace(/,/g,'')) || null;
+        const misChg  = parseFloat((src.Change || '').replace(/,/g,'')) || null;
+        const misPct  = src['%'] || '';
+        if (misLast != null && (minPx === 0 || misLast >= minPx)) {
+          last    = misLast;
+          chg     = misChg;
+          chgPct  = misPct;
+          vol     = mis ? (mis.Volume || '—') : (daily?.Volume || '—');
+          oi      = daily?.OpenInterest || mis?.OpenInterest || '—';
+          month   = src['ContractMonth(Week)'] || '—';
+          night   = mis?._night || daily?._night || false;
+          isRt    = !!mis;
+          resolved = true;
+        }
+      }
+    }
+
+    // ── 嘗試 3：SDK 持倉備援（hybrid_position，只有 price 沒有 change）──
+    if (!resolved) {
+      if (sdkQ && !sdkQ.error && sdkQ.last != null && (minPx === 0 || sdkQ.last >= minPx)) {
+        last     = sdkQ.last;
+        vol      = sdkQ.volume != null ? Number(sdkQ.volume).toLocaleString('zh-TW') : '—';
+        if (sdkQ.open_interest != null) oi = Number(sdkQ.open_interest).toLocaleString('zh-TW');
+        const dm = _symToMonthYYYYMM(sdkQ.symbol);
+        month    = sdkQ.month || dm || '—';
+        night    = _sdkMktQuotesCache?.night ?? isNightSession();
+        isRt     = true; isFubon = true;
+      }
+      if (last == null && isStrategy) {
+        const fq = _fubonQuoteCache;
+        if (fq && !fq.error && fq.last != null && (minPx === 0 || fq.last >= minPx)) {
+          last   = fq.last;
+          vol    = fq.volume != null ? Number(fq.volume).toLocaleString('zh-TW') : '—';
+          month  = fq.month || _symToMonthYYYYMM(fq.symbol) || '—';
+          night  = isNightSession();
+          isRt   = true; isFubon = true;
+        }
+      }
+    }
+
+    // ── 補齊 change (A)：SDK 有 ref（前日收盤）但 change 為 null 時，從 ref 計算 ──
+    if (last != null && chg == null && sdkQ?.ref != null && sdkQ.ref > 0) {
+      const dp = info.dp || 0;
+      chg    = dp > 0 ? +(last - sdkQ.ref).toFixed(dp) : Math.round(last - sdkQ.ref);
+      const pctVal = ((last / sdkQ.ref - 1) * 100);
+      chgPct = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%';
+    }
+
+    // ── 補齊 change (B)：用 fallbackMis 的「百分比」推算（不用點數，避免大小台差距）──
+    // MXF（微型台指）不在期交所公開行情中，改用 TX/TXF/MTX 的 % 換算
+    // 重要：fallback 月份必須非過期 + pct < SAFE_PCT，否則跳過（避免結算日異常）
+    if (last != null && chg == null && info.fallbackMis) {
+      const SAFE_PCT_FB = 3.0;
+      const todayYM = (() => { const d = new Date(); return d.getFullYear() * 100 + (d.getMonth() + 1); })();
+      for (const fbCode of info.fallbackMis) {
+        const fbRow = misData[fbCode] || misData[fbCode + 'F'] || null;
+        if (!fbRow) continue;
+        // 跳過過期月份（結算後 _misCache 可能殘留上月資料）
+        const fbMon = parseInt((fbRow['ContractMonth(Week)'] || '').slice(0, 6), 10) || 0;
+        if (fbMon && fbMon < todayYM) continue;
+        const fbPct = parseFloat((fbRow['%'] || '0').replace(/[+%]/g, '')) || 0;
+        if (!fbPct || Math.abs(fbPct) >= SAFE_PCT_FB) continue;
+        const refPx = last / (1 + fbPct / 100);
+        if (refPx > 0) {
+          const dp = info.dp || 0;
+          chg    = dp > 0 ? +(last - refPx).toFixed(dp) : Math.round(last - refPx);
+          chgPct = (fbPct >= 0 ? '+' : '') + fbPct.toFixed(2) + '%';
+          break;
+        }
+      }
+    }
+
+    // ── 補齊 vol/OI：SDK 無資料時從 MIS 或日報表補充 ──
+    if (vol === '—') {
+      const misVol = mis?.Volume;
+      if (misVol && misVol !== '—' && misVol !== '') vol = misVol;
+    }
+    if (oi === '—') {
+      const misOI = mis?.OpenInterest || daily?.OpenInterest;
+      if (misOI && misOI !== '—' && misOI !== '') oi = misOI;
+    }
+
+    // ── 嘗試 1c：策略商品漲跌覆蓋（_fubonQuoteCache 5s，比 sdkMktQuotesCache 12s 更即時）
+    //   若 sdkMktQuotesCache 已設 resolved，但 _fubonQuoteCache 有更新的 change 資料，
+    //   直接覆蓋 chg / chgPct（現價由 sdkPosPx 或 sdkMktQuotesCache 提供，不動）
+    if (isStrategy) {
+      const fq = _fubonQuoteCache;
+      if (fq && !fq.error && fq.change != null) {
+        chg    = fq.change;
+        const pc = fq.change_pct;
+        chgPct = pc != null ? (pc >= 0 ? '+' : '') + pc.toFixed(2) + '%' : chgPct;
+        // 結算日保護：change_pct >= 3% 時嘗試用 MIS 換算修正
+        if (Math.abs(fq.change_pct ?? 0) >= 3.0) {
+          const _nc = _nightChangeFromMIS(misCode, fq.symbol, last, info);
+          if (_nc) { chg = _nc.chg; chgPct = _nc.pct; }
+        }
+      }
+    }
+
+    // ── SDK 庫存現價覆蓋（持倉合約優先，一次到位）────────────────────
+    //   架構：SDK 持倉是「持倉合約」的權威即時價，但 daemon 可能是「不同月份」
+    //   的 R1 合約，不能直接借用 daemon change。必須從持倉合約「自己的」
+    //   月份 Last−Change 反推昨結算價（_resolveHeldContractRef）。
+    //
+    //   優先序：
+    //     1. 持倉合約同月份 MIS/TAIFEX（最可靠）
+    //     2. daemon 時段一致且合約月份一致（_daemonSessionOk）
+    //     3. 台指系列共用 _twIndexEffectiveRef
+    //     4. 皆無 → chg=null 顯示 — （避免誤導）
+    if (sdkPosPx != null && sdkPosPx > 0) {
+      last   = sdkPosPx;
+      isRt   = true;
+      isFubon = true;
+
+      const heldMon = _heldContractMonth(sym);
+      let effectiveRef = null;
+
+      // 1. 持倉合約自己月份 ref（MIS 同月 → TAIFEX 同月；最可靠）
+      effectiveRef = _resolveHeldContractRef(sym, info, misData, _twIndexEffectiveRef);
+
+      // 2. daemon 時段+月份一致時才從 daemon 反推
+      if (effectiveRef == null) {
+        const _monOk = (q) => {
+          if (!heldMon) return true;
+          const qm = _symToMonthYYYYMM(q?.symbol || '') || _normToYYYYMM(q?.month || '');
+          return !qm || qm === heldMon;
+        };
+        const fqSrc = isStrategy ? _fubonQuoteCache : null;
+        if (fqSrc && _daemonSessionOk(fqSrc) && _monOk(fqSrc)
+            && fqSrc.last != null && fqSrc.change != null && fqSrc.last > 0) {
+          effectiveRef = fqSrc.last - fqSrc.change;
+        } else if (sdkQ && _daemonSessionOk(sdkQ) && _monOk(sdkQ)
+            && sdkQ.last != null && sdkQ.change != null && sdkQ.last > 0) {
+          effectiveRef = sdkQ.last - sdkQ.change;
+        }
+      }
+
+      // 3. 台指系列共用（最後備援）
+      if (effectiveRef == null && _TW_INDEX_KEYS.has(sym) && _twIndexEffectiveRef != null) {
+        effectiveRef = _twIndexEffectiveRef;
+      }
+
+      if (effectiveRef != null && effectiveRef > 1000) {
+        const dp = info.dp || 0;
+        const rawChg = last - effectiveRef;
+        chg    = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+        const pctVal = (last / effectiveRef - 1) * 100;
+        chgPct = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%';
+      } else {
+        // 無可信 ref → 清空避免誤導（顯示 —）
+        chg = null; chgPct = '';
+      }
+    }
+
+    // ── 台指系列品質檢查：TXFR1/MTXR1 若 last 與 MXFR1 差距 > 100 點，視為錯誤資料
+    //   改用 MXFR1 的 SDK 現價代入（同指數，正常差距 < 個位數）
+    if (_TW_INDEX_KEYS.has(sym) && sym !== 'MXFR1' && last != null) {
+      const mxfPx = _sdkPositionPriceMap['MXFR1']
+        ?? (_fubonQuoteCache?.last)
+        ?? _sdkMktQuotesCache?.quotes?.['MXFR1']?._sdk_price;
+      if (mxfPx && mxfPx > 0 && Math.abs(last - mxfPx) > 100) {
+        last = mxfPx;
+        isRt = true; isFubon = true;
+        if (_twIndexEffectiveRef && _twIndexEffectiveRef > 1000) {
+          const dp = info.dp || 0;
+          const rawChg = last - _twIndexEffectiveRef;
+          chg    = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+          const pctVal = (last / _twIndexEffectiveRef - 1) * 100;
+          chgPct = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%';
+        }
+      }
+    }
+
+    // ── 近月列：near / all 模式才顯示（next 模式只要次月，不要近月） ──
+    if (_monthView === 'near' || _monthView === 'all') {
+      rows.push({ sym, info, last, chg, chgPct, vol, oi, month, isStrategy, night, isRt, isFubon, _isNearMonth: true });
+    }
+
+    // ── 次月 / 全部月份：從 _taifexAllMonths 追加其他月份的行 ──
+    if (_monthView !== 'near' && info.taifex && _taifexAllMonths[info.taifex]) {
+      const allM = _taifexAllMonths[info.taifex];
+      // nearMonth = 近月的 YYYYMM（優先用商品自己解出來的月份，否則取 allM 中最早且 >= 今天的一筆）
+      const todayYM = (() => {
+        const d = new Date();
+        return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
+      })();
+      let nearMon = month || '';
+      if (!nearMon) {
+        for (const r of allM) {
+          const m = r['ContractMonth(Week)'] || '';
+          if (m && m >= todayYM) { nearMon = m; break; }
+        }
+        if (!nearMon) nearMon = allM[0]?.['ContractMonth(Week)'] || '';
+      }
+      let shownAfterNear = 0;
+      for (let mi = 0; mi < allM.length; mi++) {
+        const mRow = allM[mi];
+        const mMon = mRow['ContractMonth(Week)'] || '';
+        if (!mMon) continue;
+        if (mMon === nearMon) continue;  // 近月已顯示（或被 next 模式跳過），不重複
+        if (mMon < nearMon)  continue;  // 已到期月份，跳過
+        shownAfterNear++;
+        if (_monthView === 'next' && shownAfterNear > 1) break;  // 次月只顯示近月之後的第一個
+        const mLast = parseFloat((mRow.Last || '').replace(/,/g,'')) || null;
+        const mChg  = parseFloat((mRow.Change || '').replace(/,/g,'')) || null;
+        const mPct  = mRow['%'] || '';
+        const mVol  = mRow.Volume || '—';
+        const mOI   = mRow.OpenInterest || '—';
+        rows.push({
+          sym, info, last: mLast, chg: mChg, chgPct: mPct,
+          vol: mVol, oi: mOI, month: mMon, isStrategy: false,
+          night: mRow._night || false, isRt: false, isFubon: false, _isNearMonth: false,
+        });
+      }
+    }
+    // MXF 無 taifex code，但如果選「全部/次月」，可用 fallback 商品的月份補充（TX/TXF/MTX）
+    if (_monthView !== 'near' && !info.taifex && info.fallbackMis) {
+      for (const fbCode of info.fallbackMis) {
+        const tfAll = _taifexAllMonths[fbCode];
+        if (!tfAll || tfAll.length <= 1) continue;
+        const todayYM = (() => {
+          const d = new Date();
+          return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
+        })();
+        let nearMon = month || '';
+        if (!nearMon) {
+          for (const r of tfAll) {
+            const m = r['ContractMonth(Week)'] || '';
+            if (m && m >= todayYM) { nearMon = m; break; }
+          }
+          if (!nearMon) nearMon = tfAll[0]?.['ContractMonth(Week)'] || '';
+        }
+        let shownAfterNear = 0;
+        for (let mi = 0; mi < tfAll.length; mi++) {
+          const mRow = tfAll[mi];
+          const mMon = mRow['ContractMonth(Week)'] || '';
+          if (!mMon) continue;
+          if (mMon === nearMon) continue;
+          if (mMon < nearMon)  continue;  // 已到期月份，跳過
+          shownAfterNear++;
+          if (_monthView === 'next' && shownAfterNear > 1) break;
+          const mLast = parseFloat((mRow.Last || '').replace(/,/g,'')) || null;
+          const mChg  = parseFloat((mRow.Change || '').replace(/,/g,'')) || null;
+          const mPct  = mRow['%'] || '';
+          rows.push({
+            sym, info, last: mLast, chg: mChg, chgPct: mPct,
+            vol: mRow.Volume || '—', oi: mRow.OpenInterest || '—', month: mMon,
+            isStrategy: false, night: mRow._night || false, isRt: false, isFubon: false, _isNearMonth: false,
+          });
+        }
+        break;  // 只用第一個有資料的 fallback
+      }
+    }
+  }
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="inv-empty">無資料，請更新</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const updown  = (r.chg == null || r.chg >= 0) ? 'up' : 'down';
+    const sign    = (r.chg != null && r.chg >= 0) ? '+' : '';
+    const dp      = r.info.dp || 0;   // 小數位數（BRF=2, GDF=1, 台指系列=0）
+    const rtBadge = r.isRt
+      ? ` <span style="font-size:8px;padding:1px 4px;border-radius:2px;background:${r.night ? '#1a1030':'#1a2a1a'};border:1px solid ${r.night ? '#7c3aed':'#26a269'};color:${r.night ? '#a78bfa':'#26a269'}">${r.isFubon ? (r.night ? 'SDK夜' : 'SDK') : r.night ? '夜盤' : '即時'}</span>`
+      : '';
+    const pxStr   = r.last != null
+      ? `<b>${r.last.toLocaleString('zh-TW', {minimumFractionDigits: dp, maximumFractionDigits: dp})}</b>${rtBadge}`
+      : `—${rtBadge}`;
+    const isSel  = r.sym === currentSymbol && r._isNearMonth !== false;
+    // isSubRow：在「近月＋次月同時顯示」的 all 模式才隱藏 sym/name，
+    // next 模式每商品只有一行，必須顯示 sym/name
+    const isSubRow = r._isNearMonth === false && _monthView !== 'next';
+    const trStyle = isSel
+      ? 'style="background:#1a1f0a;cursor:pointer"'
+      : isSubRow
+        ? 'style="cursor:pointer;opacity:0.7"'
+        : 'style="cursor:pointer"';
+    const symDisplay = isSubRow ? '' : r.sym;
+    const nameDisplay = isSubRow ? '' : r.info.name;
+    return `<tr ${trStyle} onclick="selectProductFromRow('${r.sym}')">
+      <td class="sym"${isSel ? ' style="color:var(--gold)"' : ''}>${symDisplay}</td>
+      <td class="name">${nameDisplay}</td>
+      <td>${_normToYYYYMM(r.month) || r.month || '—'}</td>
+      <td>${pxStr}</td>
+      <td class="${updown}">${r.chg != null ? sign + r.chg.toFixed(dp) : '—'}</td>
+      <td class="${updown}">${r.chgPct}</td>
+      <td>${r.vol}</td>
+      <td>${r.oi}</td>
+    </tr>`;
+  }).join('');
+
+  // 時間戳
+  const tsEl = document.getElementById('invTs');
+  if (Object.keys(misData).length) {
+    tsEl.textContent = '即時 ' + new Date().toLocaleTimeString('zh-TW');
+    tsEl.style.color = 'var(--green)';
+  } else if (taifexFetchTs) {
+    tsEl.textContent = new Date(taifexFetchTs).toLocaleTimeString('zh-TW');
+    tsEl.style.color = 'var(--muted)';
+  }
+}
+
+async function fetchAndRenderInventory() {
+  document.getElementById('invBody').innerHTML =
+    '<tr><td colspan="9" class="inv-empty">更新中…</td></tr>';
+  const [market, mis, state] = await Promise.all([
+    fetchTaifexMarket(true),
+    fetchTaifexMIS(true),
+    fetchState(),
+  ]);
+  renderInventory(market, state, mis);
+}
+
+// ════════════════════════════════════════════════════════
+//  POSITION ROW RENDERER  (shared helper)
+// ════════════════════════════════════════════════════════
+function _renderPositionRows(positions) {
+  return positions.map(p => {
+    const pnl    = p.unrealized_pnl;
+    const pnlCls = pnl == null ? '' : pnl >= 0 ? 'up' : 'down';
+    const pnlStr = pnl == null ? '—' : (pnl >= 0 ? '+' : '') + Number(pnl).toLocaleString('zh-TW', {maximumFractionDigits: 0});
+    const dirCls = ['多','B','Buy','buy'].includes(String(p.direction)) ? 'up' : 'down';
+    const dirStr = p.direction === 'B' ? '多' : p.direction === 'S' ? '空' : p.direction || '—';
+    const avgPx  = p.avg_price != null ? Number(p.avg_price).toLocaleString('zh-TW', {maximumFractionDigits: 1}) : '—';
+    const curPx  = p.cur_price != null ? Number(p.cur_price).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '—';
+    const symCode = (p.symbol || '').replace(/R\d$/, '');
+    const isCur  = p.symbol === currentSymbol || symCode === currentSymbol.replace(/R\d$/, '');
+    const isFallback = !!p._source;
+    const rowStyle = isCur  ? 'style="background:#1a1f0a"'
+                   : isFallback ? 'style="opacity:0.7"' : '';
+    const nameStr  = isFallback
+      ? `<span style="font-size:9px;color:var(--orange)">${p.name}</span>`
+      : (p.name || '—');
+    return `<tr ${rowStyle}>
+      <td class="sym">${p.symbol || '—'}</td>
+      <td class="name">${nameStr}</td>
+      <td>${p.contract_month || '—'}</td>
+      <td class="${dirCls}">${dirStr}</td>
+      <td class="sym">${p.qty != null ? p.qty : '—'}</td>
+      <td>${p.tradable != null ? p.tradable : '—'}</td>
+      <td>${avgPx}</td>
+      <td>${curPx}</td>
+      <td class="${pnlCls}">${pnlStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _renderMarginBar(m, accountNo) {
+  const marginBar = document.getElementById('marginBar');
+  const summaryEl = document.getElementById('marginSummary');
+  if (!marginBar || !summaryEl) return;
+  if (!m || !Object.keys(m).some(k => m[k] != null)) {
+    marginBar.style.display = 'none'; return;
+  }
+  marginBar.style.display = '';
+
+  const fmt = v => v != null ? Number(v).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '—';
+  const sign = v => {
+    if (v == null) return { s: '—', c: 'var(--muted)' };
+    const str = (v >= 0 ? '+' : '') + Number(v).toLocaleString('zh-TW', {maximumFractionDigits: 0});
+    return { s: str, c: v >= 0 ? 'var(--green)' : 'var(--red)' };
+  };
+  const unreal  = sign(m.unrealized_pnl);
+  const real    = sign(m.realized_pnl);
+  const acct    = accountNo ? (accountNo.startsWith('F0') ? accountNo : `F026000-${accountNo}`) : '';
+
+  summaryEl.innerHTML = [
+    acct ? `<span style="color:var(--gold)">${acct}</span>` : '',
+    `<span>可用保證金 <b style="color:var(--green)">${fmt(m.available)}</b></span>`,
+    `<span>權益數 <b style="color:var(--gold2)">${fmt(m.equity ?? m.today_balance)}</b></span>`,
+    `<span>本日餘額 ${fmt(m.today_balance)}</span>`,
+    `<span>昨日餘額 ${fmt(m.yesterday_balance)}</span>`,
+    `<span>平倉損益 <b style="color:${real.c}">${real.s}</b></span>`,
+    `<span>未平倉損益 <b style="color:${unreal.c}">${unreal.s}</b></span>`,
+  ].filter(Boolean).join('');
+}
+
+// ════════════════════════════════════════════════════════
+//  FUBON ACCOUNT POSITIONS  →  /fmx/positions
+// ════════════════════════════════════════════════════════
+async function fetchAndRenderPositions(force = false) {
+  const tbody = document.getElementById('posBody');
+  tbody.innerHTML = '<tr><td colspan="9" class="inv-empty">查詢中（需登入富邦，約 5-10 秒）…</td></tr>';
+
+  try {
+    const url = force ? `${BASE}/fmx/positions?refresh=1` : `${BASE}/fmx/positions`;
+    const r   = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(35000) : undefined });
+    const data = await r.json();
+
+    // Update header info (even if error, we may have fallback positions)
+    document.getElementById('posAccount').textContent = data.account ? `F026000-${data.account}` : '';
+    document.getElementById('posTs').textContent      = data.query_ts ? data.query_ts.replace('T', ' ') : '';
+    // Show SDK sync badge if real data returned
+    const isRealSdk = data.account && data.status !== 'loading' && !data.error;
+    document.getElementById('sdkSyncBadge').style.display = isRealSdk ? '' : 'none';
+
+    // Show SDK error / loading warning if present
+    let bannerRow = '';
+    if (data.error) {
+      const isBadEndpoint = data.error.includes('Unexpected token') || data.error.includes('404');
+      if (isBadEndpoint) {
+        tbody.innerHTML = `<tr><td colspan="9" class="inv-empty" style="color:var(--red)">請重啟 server.py 後再試</td></tr>`;
+        return;
+      }
+      const diagArr  = (data._diag || []).concat(data.traceback ? [data.traceback] : []);
+      const diagHtml = diagArr.length ? `<details style="font-size:9px;text-align:left;margin-top:4px;cursor:pointer">
+        <summary style="color:#888">診斷資訊 (點開)</summary>
+        <pre style="white-space:pre-wrap;font-size:9px;color:#888;max-height:120px;overflow-y:auto">${diagArr.join('\n')}</pre>
+        </details>` : '';
+      const invErrStr = (data.inv_errors||[]).map(e=>`<div style="font-size:9px;color:#666">${e}</div>`).join('');
+      bannerRow = `<tr><td colspan="9" style="padding:6px 12px;background:#200e0e">
+        <div style="color:var(--red);font-size:10px">⚠ SDK 查詢失敗: ${data.error}</div>
+        ${invErrStr}${diagHtml}</td></tr>`;
+    } else if (data.status === 'loading') {
+      bannerRow = `<tr><td colspan="9" style="padding:4px 12px;background:#1a1500">
+        <div style="color:var(--gold);font-size:10px">⏳ SDK 查詢中，顯示策略估算值</div></td></tr>`;
+    }
+
+    const positions = data.positions || [];
+    if (!positions.length) {
+      tbody.innerHTML = (bannerRow || '') + '<tr><td colspan="9" class="inv-empty">目前無期貨庫存（策略未建倉）</td></tr>';
+      return;
+    }
+
+    // 快取 SDK 回報的均價，供圖表使用
+    const mxfPos = positions.find(p =>
+      (p.symbol || '').replace(/R\d$/, '') === currentSymbol.replace(/R\d$/, '') ||
+      p.symbol === 'MXFR1' || p.symbol === 'FITM'
+    );
+    if (mxfPos?.avg_price != null) {
+      _sdkAvgPrice = mxfPos.avg_price;
+      // 立即更新均攤成本卡片（updateStats 因 _sdkAvgPrice != null 而跳過，需在此更新）
+      const avgCostEl = document.getElementById('statAvgCost');
+      if (avgCostEl) avgCostEl.textContent = fmt(_sdkAvgPrice);
+      // 若圖表已建立則立即更新均價線
+      if (priceChartObj && lastChartData) {
+        const avgDs = priceChartObj.data.datasets[2];
+        avgDs.data  = lastChartData.dates.map(() => _sdkAvgPrice);
+        priceChartObj.update('none');
+      }
+    }
+
+    tbody.innerHTML = (bannerRow || '') + _renderPositionRows(positions);
+    _renderMarginBar(data.margin || {}, data.account);
+
+    // 快取完整庫存陣列，供「以庫存計算槓桿」用（_computePortfolioNotional）
+    _sdkPositions = positions;
+
+    // 建立 prodKey → market_price 對照表，供行情表與即時損益同步使用
+    // 確保庫存表的「現價」與行情表顯示的價格一致（同一 SDK 資料源）
+    _sdkPositionPriceMap = {};
+    for (const p of positions) {
+      const pk = _symbolToProductKey(p.symbol);
+      if (!pk) continue;
+      const px = p.cur_price ?? p.market_price;
+      if (px != null && Number(px) > 0) {
+        _sdkPositionPriceMap[pk] = Number(px);
+      }
+    }
+
+    // ── 用 SDK 即時淨值更新頂部「帳戶淨值」卡片 ──────────────────────
+    const sdkEquity = data.margin?.equity ?? data.margin?.today_balance;
+    if (sdkEquity != null && sdkEquity > 0) {
+      _sdkEquity = sdkEquity;   // 供即時槓桿計算用
+      // 累計口數（所有部位）
+      const totalContracts = positions.reduce((s, p) => s + Math.abs(p.quantity ?? p.orig_lots ?? 0), 0);
+      if (totalContracts > 0) _sdkContracts = totalContracts;
+      document.getElementById('statEquity').textContent = sdkEquity.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
+      document.getElementById('statEquity').className   = 'value ' + colorClass(sdkEquity - 300000);
+      const _eqLabel = document.getElementById('statEquity').closest('.stat-card')?.querySelector('.label');
+      if (_eqLabel) _eqLabel.textContent = '帳戶權益數 (SDK)';
+      document.getElementById('statEquitySub').textContent =
+        (data.margin.unrealized_pnl != null ? '未實現 ' + (data.margin.unrealized_pnl >= 0 ? '+' : '') +
+          data.margin.unrealized_pnl.toLocaleString('zh-TW', {maximumFractionDigits:0}) + ' | ' : '') +
+        (data.margin.realized_pnl != null ? '已實現 ' + (data.margin.realized_pnl >= 0 ? '+' : '') +
+          data.margin.realized_pnl.toLocaleString('zh-TW', {maximumFractionDigits:0}) : '');
+    }
+
+    // ── 更新可用保證金卡片 ────────────────────────────────────────────
+    const sdkAvail = data.margin?.available;
+    const availEl  = document.getElementById('statAvailMargin');
+    const availSub = document.getElementById('statAvailMarginSub');
+    if (availEl) {
+      if (sdkAvail != null) {
+        availEl.textContent = Number(sdkAvail).toLocaleString('zh-TW', { maximumFractionDigits: 0 });
+        availEl.className   = 'value ' + colorClass(sdkAvail - 50000);
+        // 佔比（可用/權益數）
+        if (sdkEquity && sdkEquity > 0) {
+          const pct = sdkAvail / sdkEquity * 100;
+          if (availSub) availSub.textContent = pct.toFixed(1) + '% vs 權益數';
+        }
+      } else {
+        availEl.textContent = '—';
+        if (availSub) availSub.textContent = '';
+      }
+    }
+
+    // ── 以 SDK 未實現損益為基準，供即時調整用 ────────────────────────
+    // 庫存的 unrealized_pnl 是 Fubon SDK 的官方值（與庫存表一致）
+    // 我們把它存下來，作為即時 P&L 調整的參考起點
+    const sdkMxfPos = positions.find(p =>
+      (p.symbol || '').replace(/R\d$/, '') === currentSymbol.replace(/R\d$/, '') ||
+      p.symbol === 'MXFR1' || p.symbol === 'FITM'
+    );
+    if (data.margin?.unrealized_pnl != null) {
+      _sdkPosUnreal   = data.margin.unrealized_pnl;         // SDK 官方未實現 P&L
+      _sdkPosPriceRef = sdkMxfPos?.market_price ?? null;    // 對應的市場成本參考價
+      // 立即更新右側面板（與庫存表同步）
+      const unrealEl = document.getElementById('statUnreal');
+      if (unrealEl) {
+        unrealEl.textContent = fmt(_sdkPosUnreal);
+        unrealEl.className   = 'value ' + colorClass(_sdkPosUnreal);
+      }
+      const pctEl = document.getElementById('statUnrealPct');
+      if (pctEl && _sdkAvgPrice > 0 && _sdkContracts > 0) {
+        const mult = PRODUCTS[currentSymbol]?.mult ?? 10;
+        const cost = _sdkAvgPrice * _sdkContracts * mult;
+        if (cost > 0) pctEl.textContent = fmtPct(_sdkPosUnreal / cost * 100) + ' vs 均攤(SDK)';
+      }
+    }
+
+  } catch(e) {
+    const hint = e.message.includes('Unexpected token') || e.message.includes('JSON')
+      ? '請重啟 server.py（Ctrl+C → python server.py）後再試'
+      : `連線失敗: ${e.message}`;
+    tbody.innerHTML = `<tr><td colspan="9" class="inv-empty" style="color:var(--red)">${hint}</td></tr>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  FETCH STATE  →  /fmx/state
+// ════════════════════════════════════════════════════════
+async function fetchState() {
+  try {
+    const r = await fetch(`${BASE}/fmx/state`);
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch(e) {
+    console.warn('fetchState error', e);
+    return null;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  FETCH TWII CHART DATA  (proxy → Yahoo Finance)
+// ════════════════════════════════════════════════════════
+let _kInterval = 'daily';   // 'daily' | 'weekly' | 'monthly'
+
+const _K_CONFIGS = {
+  // intraday:true → 改用 category scale（等距，解決分K/時K 壓縮問題）
+  daily:   { interval: '1d',  range: '2y',  initBars: 90,  unit: 'month', label: '日K',  intraday: false },
+  weekly:  { interval: '1wk', range: '5y',  initBars: 52,  unit: 'month', label: '週K',  intraday: false },
+  monthly: { interval: '1mo', range: '10y', initBars: 36,  unit: 'year',  label: '月K',  intraday: false },
+  hourly:  { interval: '60m', range: '60d', initBars: 48,  unit: 'hour',  label: '時K',  intraday: true  },
+  min15:   { interval: '15m', range: '60d', initBars: 64,  unit: 'hour',  label: '15分', intraday: true  },
+  min5:    { interval: '5m',  range: '5d',  initBars: 72,  unit: 'minute',label: '5分',  intraday: true  },
+};
+
+async function fetchChartData(kInterval) {
+  kInterval = kInterval || _kInterval;
+  const cfg = _K_CONFIGS[kInterval] || _K_CONFIGS.daily;
+  // 依目前選定商品取對應的 Yahoo Finance 代碼，無 yf 時回退 ^TWII
+  const prod      = PRODUCTS[currentSymbol];
+  const yfTicker  = prod?.yf || '^TWII';
+  // yfScale：部分商品（BRF/GDF）Yahoo Finance 報價單位（USD）與 TAIFEX 報價單位（NTD）
+  //   GDF: GC=F (USD/oz) × 32/31.1 ≈ NTD/g；BRF: BZ=F (USD/bbl) × ~32 ≈ NTD/bbl
+  const yfScale   = prod?.yfScale ?? 1;
+  const yfEncoded = encodeURIComponent(yfTicker);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yfEncoded}?interval=${cfg.interval}&range=${cfg.range}`;
+  const proxied = `${BASE}/proxy?url=${encodeURIComponent(url)}`;
+  try {
+    const r = await fetch(proxied);
+    const j = await r.json();
+    const res = j.chart?.result?.[0];
+    if (!res) return null;
+    const ts  = res.timestamp;
+    const q   = res.indicators.quote[0];
+    // 所有時框：過濾掉 OHLC 全為 null 的 bar（假日/非交易時段），讓時間軸只顯示實際開盤時間
+    const idx = ts.reduce((acc, _, i) => {
+      if (q.close?.[i] != null || q.open?.[i] != null) acc.push(i);
+      return acc;
+    }, []);
+    const toDate = i => cfg.intraday
+      ? ts[i] * 1000                                      // intraday: ms timestamp
+      : new Date(ts[i] * 1000).toISOString().slice(0,10); // daily+: 'YYYY-MM-DD'
+    const sc = v => (v != null ? +(v * yfScale).toFixed(prod?.dp ?? 0) : null);
+    return {
+      dates:     idx.map(toDate),
+      opens:     idx.map(i => sc(q.open?.[i]  ?? q.close?.[i] ?? null)),
+      closes:    idx.map(i => sc(q.close?.[i] ?? q.open?.[i]  ?? null)),
+      highs:     idx.map(i => sc(q.high?.[i]  ?? q.close?.[i] ?? null)),
+      lows:      idx.map(i => sc(q.low?.[i]   ?? q.close?.[i] ?? null)),
+      _interval: kInterval, _initBars: cfg.initBars, _unit: cfg.unit,
+      _intraday: cfg.intraday || false,
+    };
+  } catch(e) {
+    console.warn('fetchChartData error', e);
+    return null;
+  }
+}
+
+function switchKInterval(interval) {
+  if (_kInterval === interval) return;
+  _kInterval = interval;
+  // 更新按鈕樣式
+  const btns = { daily:'btnKday', weekly:'btnKweek', monthly:'btnKmon',
+                 hourly:'btnKhour', min15:'btnK15', min5:'btnK5' };
+  for (const [k, id] of Object.entries(btns)) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    const active = k === interval;
+    btn.style.borderColor = active ? '#4a9eff' : '#555';
+    btn.style.color       = active ? '#4a9eff' : '#888';
+  }
+  // 強制重新 fetch 並重繪
+  lastChartData  = null;
+  lastChartFetch = 0;
+  fetchState().then(state => {
+    fetchChartData(interval).then(cd => {
+      if (cd) {
+        lastChartData  = cd;
+        lastChartFetch = Date.now();
+        renderPriceChart(cd, state);
+        renderLeverageChart(state?.leverage, cd);
+      }
+    });
+  });
+  toast(`已切換至${_K_CONFIGS[interval]?.label || interval}`);
+}
+
+// ════════════════════════════════════════════════════════
+//  EMA helper
+// ════════════════════════════════════════════════════════
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  const result = new Array(data.length).fill(null);
+  let ema = null;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] == null) continue;
+    if (ema === null) { ema = data[i]; }
+    else { ema = data[i] * k + ema * (1 - k); }
+    result[i] = ema;
+  }
+  return result;
+}
+
+// ════════════════════════════════════════════════════════
+//  ROLLING HIGH / LOW  (for trend filter chart lines)
+// ════════════════════════════════════════════════════════
+function calcRollingHigh(closes, period) {
+  return closes.map((_, i) => {
+    if (i < period) return null;
+    let max = -Infinity;
+    for (let j = i - period; j < i; j++) if (closes[j] != null && closes[j] > max) max = closes[j];
+    return max === -Infinity ? null : max;
+  });
+}
+function calcSMA(data, period) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null;
+    let sum = 0, cnt = 0;
+    for (let j = i - period + 1; j <= i; j++) { if (data[j] != null) { sum += data[j]; cnt++; } }
+    return cnt === period ? sum / period : null;
+  });
+}
+function calcRollingLow(closes, period) {
+  return closes.map((_, i) => {
+    if (i < period) return null;
+    let min = Infinity;
+    for (let j = i - period; j < i; j++) if (closes[j] != null && closes[j] < min) min = closes[j];
+    return min === Infinity ? null : min;
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  RENDER PRICE CHART  (紅綠K線蠟燭圖 + 均線疊加)
+// ════════════════════════════════════════════════════════
+function renderPriceChart(chartData, state) {
+  const canvas = document.getElementById('priceChart');
+  const ctx = canvas.getContext('2d');
+  // 用 Chart 內部 registry 確保 canvas 上的舊圖表都被清除（避免 "Canvas is already in use" 錯誤）
+  const existing = Chart.getChart(canvas);
+  if (existing) { existing.destroy(); }
+  if (priceChartObj) { try { priceChartObj.destroy(); } catch(_){} }
+  priceChartObj = null;
+  if (!chartData) return;
+
+  const { dates, opens, closes, highs, lows } = chartData;
+  const tss = dates.map(d => new Date(d).getTime());
+
+  const ema200   = calcEMA(closes, 100);
+  const avgCost  = _sdkAvgPrice ?? (state?.avg_cost > 0 ? state.avg_cost : null);
+  const livePrice0 = state?.last_price || closes[closes.length - 1];
+  const liqPrice = _calcLiqPx(livePrice0, state);
+
+  const isIntraday = chartData._intraday || false;
+  _priceChartIsIntraday = isIntraday;   // 供 _computeMaxBarThickness / _onChartZoom 使用
+  const filterOn   = !isIntraday && (document.getElementById('filterToggle')?.checked ?? true);
+  const highN      = parseInt(document.getElementById('cfgHighPeriod')?.value || '10');
+  const lowM       = parseInt(document.getElementById('cfgLowPeriod')?.value  || '100');
+  const rollingHi  = filterOn ? calcRollingHigh(highs || closes, highN) : [];
+  const rollingLo  = filterOn ? calcSMA(closes, lowM) : [];  // 改為 MA 清倉線
+
+  const livePrice = state?.last_price;
+  const lastC     = livePrice || closes[closes.length - 1];
+  const initBars  = chartData._initBars || 90;
+  const kUnit     = chartData._unit     || 'month';
+
+  // ── 所有時框統一使用 category scale（等距排列，消除假日/非交易時間空隙）──
+  // dates[i]: intraday = ms timestamp, daily+ = 'YYYY-MM-DD'
+  const kInterval = chartData._interval || 'daily';
+  // catLabels 作為 category key（必須唯一），intraday 用 'MM/dd HH:mm'，
+  // daily+ 直接用原始 'YYYY-MM-DD'（唯一，跨年不重複）
+  const catLabels = dates.map(d => {
+    if (isIntraday) {
+      const dt = new Date(d);
+      const mm = String(dt.getMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getDate()).padStart(2, '0');
+      const hh = String(dt.getHours()).padStart(2, '0');
+      const mi = String(dt.getMinutes()).padStart(2, '0');
+      return `${mm}/${dd} ${hh}:${mi}`;
+    }
+    return d; // 'YYYY-MM-DD'（跨年唯一，不能用 MM/dd 否則重複）
+  });
+  // 顯示用格式化函數（tick callback 使用）
+  const fmtCatLabel = lbl => {
+    if (isIntraday) return lbl;            // 'MM/dd HH:mm'
+    const [y, m, day] = lbl.split('-');
+    if (kInterval === 'monthly') return `${y.slice(2)}/${m}`;
+    return `${m}/${day}`;                  // daily/weekly: 'MM/dd'
+  };
+
+  // X 值統一用 catLabels 字串
+  const xOf = i => catLabels[i];
+
+  // K線資料
+  const candleData = dates.map((_, i) => ({
+    x: xOf(i),
+    o: (opens?.[i]  != null ? opens[i]  : closes[i]) || closes[i],
+    h: (highs?.[i]  != null ? highs[i]  : closes[i]) || closes[i],
+    l: (lows?.[i]   != null ? lows[i]   : closes[i]) || closes[i],
+    c: i === dates.length - 1 ? (lastC ?? closes[i]) : closes[i],
+  }));
+
+  // 疊加線資料
+  const lineData = arr => dates.map((_, i) => ({ x: xOf(i), y: arr[i] !== undefined ? arr[i] : null }));
+
+  // 初始 maxBarThickness：依畫布寬度與初始顯示棒數自動計算
+  // 畫布寬 × 0.88 估算 chart area（扣除 Y軸/邊距），再除以可見 bar 數
+  const _initSlotPx = ((canvas.clientWidth || 900) * 0.88) / Math.max(initBars, 1);
+  const _initMaxBarThick = Math.max(2, Math.min(30, Math.floor(_initSlotPx * 0.75)));
+
+  // ── X 軸設定（category scale 統一處理）──────────────────────────────
+  const n = catLabels.length;
+  const catMinIdx = Math.max(0, n - initBars);
+  // category scale 的 min/max 用標籤字串（用索引有時不生效）
+  const xScaleConfig = {
+    type: 'category',
+    labels: catLabels,
+    min: catLabels[catMinIdx],
+    max: catLabels[n - 1],
+    offset: true,
+    ticks: {
+      color: '#555', font: { size: 10 },
+      maxTicksLimit: isIntraday ? 10 : 8,
+      autoSkip: true, autoSkipPadding: 30,
+      callback: (val) => fmtCatLabel(catLabels[val] ?? String(val)),
+    },
+    grid: { color: '#1f252d' },
+  };
+  const xLimitsConfig = { x: { min: catLabels[0], max: catLabels[n - 1], minRange: isIntraday ? 5 : 3 } };
+
+  priceChartObj = new Chart(ctx, {
+    type: 'candlestick',
+    data: {
+      labels: catLabels,
+      datasets: [
+        {
+          label: '台指 ^TWII',
+          data: candleData,
+          color: { up: '#26a269', down: '#e05252', unchanged: '#8b949e' },
+          borderColor: { up: '#26a269', down: '#e05252', unchanged: '#8b949e' },
+          barPercentage: 0.8,
+          categoryPercentage: 0.8,
+          maxBarThickness: _initMaxBarThick,
+          order: 1,
+        },
+        {
+          type: 'line', label: '100 EMA',
+          data: lineData(ema200),
+          borderColor: '#388bfd', borderWidth: 1.2,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [4, 2], order: 2, hidden: isIntraday,
+        },
+        {
+          type: 'line', label: '均攤成本',
+          data: lineData(dates.map(() => avgCost)),
+          borderColor: '#26a269', borderWidth: 1.2,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [3, 3], order: 3, hidden: isIntraday,
+        },
+        {
+          type: 'line', label: '強平價',
+          data: lineData(dates.map(() => liqPrice)),
+          borderColor: '#e05252', borderWidth: 1.2,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [6, 3], order: 4, hidden: liqPrice == null,
+        },
+        {
+          type: 'line', label: `${highN}日高 (買入線)`,
+          data: lineData(rollingHi),
+          borderColor: '#a855f7', borderWidth: 1.2,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [5, 3], order: 5, hidden: !filterOn || isIntraday,
+        },
+        {
+          type: 'line', label: `${lowM}日MA (清倉線)`,
+          data: lineData(rollingLo),
+          borderColor: '#e8a838', borderWidth: 1.2,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [5, 3], order: 6, hidden: !filterOn || isIntraday,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { color: '#8b949e', font: { size: 10 }, boxWidth: 20, padding: 10 },
+        },
+        tooltip: {
+          enabled: false,   // 停用跟隨滑鼠的浮動框
+          external: (context) => {
+            const infoEl = document.getElementById('chartHoverInfo');
+            if (!infoEl) return;
+            const { tooltip } = context;
+            if (!tooltip || tooltip.opacity === 0 || !tooltip.dataPoints?.length) {
+              infoEl.style.display = 'none';
+              return;
+            }
+            const dp = PRODUCTS[currentSymbol]?.dp || 0;
+            const swatch = (color) =>
+              `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};border:1px solid rgba(255,255,255,0.2);margin-right:5px;vertical-align:middle"></span>`;
+            const f = (v) => Number(v).toLocaleString('zh-TW', {maximumFractionDigits: dp});
+            let html = '';
+            // 標題（日期）
+            const title = tooltip.title?.[0] || '';
+            if (title) html += `<div style="color:#e6edf3;font-weight:700;margin-bottom:3px;font-size:10px">${title}</div>`;
+            for (let i = 0; i < tooltip.dataPoints.length; i++) {
+              const item   = tooltip.dataPoints[i];
+              const colors = tooltip.labelColors?.[i];
+              const bg     = colors?.backgroundColor || colors?.borderColor || '#888';
+              const border = colors?.borderColor || bg;
+              if (item.datasetIndex === 0) {
+                // K棒：用 K 棒顏色（漲紅跌綠）
+                const r  = item.raw;
+                if (!r) continue;
+                const up   = r.c >= r.o;
+                const kClr = up ? '#26a269' : '#e04141';
+                html += `<div>${swatch(kClr)}${up ? '▲' : '▼'} 開:${f(r.o)}</div>`;
+                html += `<div style="margin-left:15px">高:${f(r.h)}&nbsp;&nbsp;低:${f(r.l)}</div>`;
+                html += `<div style="margin-left:15px">收:${f(r.c)}</div>`;
+              } else {
+                const v = item.raw?.y ?? item.raw;
+                if (v == null) continue;
+                html += `<div>${swatch(border)}${item.dataset.label}: ${f(v)}</div>`;
+              }
+            }
+            infoEl.innerHTML = html;
+            infoEl.style.display = 'block';
+          },
+        },
+        zoom: {
+          // 滾輪 → XY 整體縮放（時間+價格同步放大縮小）
+          // Shift + 滾輪 → 僅 Y 軸縮放（微調價格範圍）
+          // 左鍵拖曳 → 移動 K 線顯示範圍（由下方 _initChartPan 自訂實作）
+          zoom:  {
+            wheel: { enabled: true, speed: 0.08 },
+            pinch: { enabled: false },   // pinch 由自訂 pan 處理
+            mode: () => (_shiftHeld ? 'y' : 'xy'),
+            drag: { enabled: false },    // 停用拖曳縮放，改為拖曳平移
+            onZoom: ({ chart }) => _onChartZoom(chart),
+          },
+          pan:   {
+            enabled: true, mode: 'x',
+            modifierKey: null,           // 無需修飾鍵
+            button: 0,                   // 左鍵觸發（作為 touch 備援）
+            onPan: ({ chart }) => _onChartZoom(chart),
+          },
+          limits: xLimitsConfig,
+        },
+      },
+      scales: {
+        x: xScaleConfig,
+        y: (() => {
+          const dp = PRODUCTS[currentSymbol]?.dp || 0;
+          const base = {
+            type: 'linear',
+            position: 'right',
+            ticks: {
+              color: '#555', font: { size: 10 },
+              callback: (v) => v.toLocaleString('zh-TW', { maximumFractionDigits: dp }),
+            },
+            grid: { color: '#1f252d' },
+          };
+          // 線性刻度：上下各留 2% padding
+          const vLows  = lows.filter(v => v != null);
+          const vHighs = highs.filter(v => v != null);
+          if (vLows.length && vHighs.length) {
+            const lo = Math.min(...vLows);
+            const hi = Math.max(...vHighs);
+            const pad = (hi - lo) * 0.02;
+            base.min = lo - pad;
+            base.max = hi + pad;
+          }
+          return base;
+        })(),
+      },
+    },
+  });
+
+  // 首次渲染後依實際 chart area 重算 K棒寬度（初始值是估算，此處更精確）
+  requestAnimationFrame(() => {
+    if (priceChartObj?.data?.datasets?.[0]) {
+      priceChartObj.data.datasets[0].maxBarThickness = _computeMaxBarThickness(priceChartObj);
+      priceChartObj.update('none');
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  RSI 計算 + 圖表  (取代槓桿走勢圖)
+// ════════════════════════════════════════════════════════
+function calcRSI(closes, period) {
+  const rsi = new Array(closes.length).fill(null);
+  if (!closes || closes.length < period + 1) return rsi;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = (closes[i] ?? closes[i-1]) - (closes[i-1] ?? 0);
+    if (diff > 0) gains  += diff;
+    else          losses -= diff;
+  }
+  let avgGain = gains / period, avgLoss = losses / period;
+  rsi[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < closes.length; i++) {
+    if (closes[i] == null || closes[i-1] == null) { rsi[i] = rsi[i-1]; continue; }
+    const diff = closes[i] - closes[i-1];
+    avgGain = (avgGain * (period - 1) + Math.max(diff, 0))  / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period;
+    rsi[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return rsi;
+}
+
+function renderLeverageChart(lev, chartData) {
+  const ctx      = document.getElementById('leverageChart').getContext('2d');
+  const closes   = chartData?.closes;
+  const dates    = chartData?.dates ?? [];
+  const period   = 14;
+  const intraday = chartData?._intraday || false;
+
+  // 資料不足時清空圖表
+  if (!closes || closes.length < period + 1) {
+    if (leverageChartObj) { leverageChartObj.destroy(); leverageChartObj = null; }
+    return;
+  }
+
+  const rsiRaw = calcRSI(closes, period);
+
+  // 與 K 線圖使用相同的 catLabels
+  const rsiCatLabels = dates.map(d => {
+    if (typeof d === 'number' && d > 1e12) {
+      // intraday: timestamp → 'HH:MM' 格式
+      return new Date(d).toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit' });
+    }
+    return d; // daily: 'YYYY-MM-DD' string
+  });
+
+  // 使用索引型資料（避免 parsing:false + category scale + string x 不相容問題）
+  // Chart.js category scale: 直接用 index 作 x，y 為 RSI 值
+  const rsiData  = rsiRaw.map((v, i) => v != null ? { x: i, y: v } : { x: i, y: null });
+  const line70   = rsiRaw.map((_, i) => ({ x: i, y: 70 }));
+  const line50   = rsiRaw.map((_, i) => ({ x: i, y: 50 }));
+  const line30   = rsiRaw.map((_, i) => ({ x: i, y: 30 }));
+
+  // 同步 K 線圖的可視範圍（category scale 用索引）
+  const _rsiInitBars = chartData._initBars || 90;
+  const _rn = dates.length;
+  const xMin = priceChartObj?.scales?.x?.min ?? Math.max(0, _rn - _rsiInitBars);
+  const xMax = priceChartObj?.scales?.x?.max ?? (_rn - 1);
+
+  const lastRSI = [...rsiRaw].reverse().find(v => v != null);
+
+  // 更新標題列
+  const rsiValEl = document.getElementById('rsiValue');
+  const rsiSigEl = document.getElementById('rsiSignal');
+  if (rsiValEl && lastRSI != null) {
+    rsiValEl.textContent = 'RSI(' + period + ') ' + lastRSI.toFixed(1);
+    rsiValEl.style.color = lastRSI >= 70 ? 'var(--red)' : lastRSI <= 30 ? 'var(--green)' : 'var(--orange)';
+  }
+  if (rsiSigEl) {
+    if (lastRSI >= 70) {
+      Object.assign(rsiSigEl.style, { display:'', background:'#3a1a1a', border:'1px solid var(--red)', color:'var(--red)' });
+      rsiSigEl.textContent = '超買⚠';
+    } else if (lastRSI <= 30) {
+      Object.assign(rsiSigEl.style, { display:'', background:'#0e2016', border:'1px solid var(--green)', color:'var(--green)' });
+      rsiSigEl.textContent = '超賣✓';
+    } else {
+      rsiSigEl.style.display = 'none';
+    }
+  }
+
+  // 已有圖表：只更新資料與同步 x 範圍
+  if (leverageChartObj) {
+    leverageChartObj.data.datasets[0].data  = rsiData;
+    leverageChartObj.data.datasets[1].data  = line70;
+    leverageChartObj.data.datasets[2].data  = line30;
+    leverageChartObj.data.datasets[3].data  = line50;
+    leverageChartObj.options.scales.x.min   = xMin;
+    leverageChartObj.options.scales.x.max   = xMax;
+    leverageChartObj.update('none');
+    return;
+  }
+
+  // 初次建立圖表（使用索引型 x，parsing:false 配合數字索引正確定位）
+  leverageChartObj = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [
+        { label: 'RSI('+period+')', data: rsiData, borderColor: '#e8a838', borderWidth: 1.5, pointRadius: 0, tension: 0.2, fill: false, order: 1, parsing: false },
+        { label: '超買70', data: line70, borderColor: 'rgba(224,82,82,0.45)',  borderWidth: 1, borderDash:[4,3], pointRadius:0, fill:false, order:2, parsing:false },
+        { label: '超賣30', data: line30, borderColor: 'rgba(38,162,105,0.45)', borderWidth: 1, borderDash:[4,3], pointRadius:0, fill:false, order:3, parsing:false },
+        { label: '中線50', data: line50, borderColor: 'rgba(100,100,120,0.3)', borderWidth: 1, borderDash:[2,4], pointRadius:0, fill:false, order:4, parsing:false },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          backgroundColor: '#1c2230', borderColor: '#30363d', borderWidth: 1,
+          titleColor: '#8b949e', bodyColor: '#e6edf3',
+          callbacks: {
+            title: items => rsiCatLabels[items[0]?.dataIndex] ?? '',
+            label: item => item.datasetIndex === 0 ? 'RSI: ' + (item.raw?.y != null ? item.raw.y.toFixed(1) : '—') : null,
+            filter: item => item.datasetIndex === 0,
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'linear',   // 索引型：直接用數字，避免 category+string 不相容
+          min: xMin,
+          max: xMax,
+          display: false,
+        },
+        y: {
+          position: 'right', min: 0, max: 100,
+          ticks: { color: '#555', font: { size: 9 }, stepSize: 20 },
+          grid:  { color: '#1a1f28' },
+        },
+      },
+    },
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  UPDATE RIGHT PANEL
+// ════════════════════════════════════════════════════════
+function updateStats(state, chartData) {
+  if (!state) {
+    document.getElementById('statusDot').className = 'stopped';
+    document.getElementById('statusLabel').textContent = '無法連線';
+    return;
+  }
+
+  // Mode label
+  document.getElementById('modeLabel').textContent = state.dry_run ? 'DRY RUN' : 'LIVE';
+
+  // Price / EMA — 優先用圖表最新收盤價（Yahoo Finance 即時），策略檔 state.last_price 可能是舊的日K收盤
+  const chartLast = chartData?.closes?.length
+    ? chartData.closes[chartData.closes.length - 1] : null;
+  const price  = chartLast || state.last_price;
+  const ema200 = state.ema200;
+  document.getElementById('statEMA').textContent   = ema200 ? fmt(ema200) : '—';
+
+  // Equity — 如果 SDK 已提供即時權益數（_sdkEquity），不要用策略檔的舊值覆蓋
+  if (_sdkEquity == null) {
+    const equity = state.equity;
+    const pnlPct = state.initial_capital > 0
+      ? (equity - state.initial_capital) / state.initial_capital * 100 : null;
+    document.getElementById('statEquity').textContent  = equity ? fmt(equity) : '—';
+    document.getElementById('statEquity').className    = 'value ' + colorClass(equity - (state.initial_capital||0));
+    document.getElementById('statEquitySub').textContent = pnlPct != null ? fmtPct(pnlPct) + ' vs 初始資金' : '';
+  }
+
+  // Contracts / Leverage — 如果 SDK 已有即時資料，不覆蓋
+  if (_sdkContracts == null) {
+    document.getElementById('statContracts').textContent = state.contracts ?? '—';
+  }
+  const lev = state.leverage;
+  const levEl = document.getElementById('statLeverage');
+  // 槓桿由 _updateLeverageLive 即時算，state.leverage 當 fallback
+  if (levEl.textContent === '—' || levEl.textContent === '') {
+    levEl.textContent = lev != null ? lev.toFixed(2) + 'x' : '—';
+    levEl.className = 'value ' + (lev > (state.max_leverage || 6) ? 'red' : lev > (state.target_leverage || 5) ? 'gold' : 'green');
+  }
+  document.getElementById('statLeverageSub').textContent =
+    `目標 ${state.target_leverage || 5}x / 上限 ${state.max_leverage || 6}x`;
+
+  // Avg cost / Liq price — SDK 均價優先
+  if (_sdkAvgPrice == null) {
+    document.getElementById('statAvgCost').textContent  = state.avg_cost ? fmt(state.avg_cost) : '—';
+  }
+  const liqEl = document.getElementById('statLiqPrice');
+  liqEl.textContent = state.liq_price ? fmt(state.liq_price) : '—';
+  if (price && state.liq_price) {
+    const liqDist = ((price - state.liq_price) / price * 100).toFixed(1);
+    document.getElementById('badgeLiq').textContent = `強平距離 ${liqDist}%`;
+    document.getElementById('badgeLiq').className =
+      'badge ' + (parseFloat(liqDist) < 5 ? 'red' : parseFloat(liqDist) < 15 ? 'gold' : 'green');
+  }
+
+  // ── 反推加槓桿 / 減槓桿觸發價 ──────────────────────────────
+  const pyramidTrigger = state.pyramid_trigger ?? 4.9;
+  const maxLev         = state.max_leverage    ?? 6.0;
+  const pyramidEl = document.getElementById('statPyramidPx');
+  const pyrSubEl  = document.getElementById('statPyramidPxSub');
+  const deLevEl   = document.getElementById('statDeleveragePx');
+  const deLevSub  = document.getElementById('statDeleveragePxSub');
+  if (state.contracts && state.contracts > 0) {
+    const pxPyramid   = _calcLeverageTriggerPx(pyramidTrigger, state);
+    const pxDeleverage = _calcLeverageTriggerPx(maxLev, state);
+    if (pxPyramid != null && isFinite(pxPyramid)) {
+      pyramidEl.textContent = fmt(pxPyramid);
+      if (price) {
+        const dist = ((pxPyramid - price) / price * 100);
+        pyrSubEl.textContent = (dist >= 0 ? '需漲 ' : '已超過 ') +
+          Math.abs(dist).toFixed(2) + `% (槓桿<${pyramidTrigger}x)`;
+      } else {
+        pyrSubEl.textContent = `槓桿<${pyramidTrigger}x 觸發`;
+      }
+    } else {
+      pyramidEl.textContent = '—';
+      pyrSubEl.textContent  = '';
+    }
+    if (pxDeleverage != null && isFinite(pxDeleverage)) {
+      deLevEl.textContent = fmt(pxDeleverage);
+      if (price) {
+        const dist = ((price - pxDeleverage) / price * 100);
+        deLevSub.textContent = (dist >= 0 ? '需跌 ' : '已超過 ') +
+          Math.abs(dist).toFixed(2) + `% (槓桿>${maxLev}x)`;
+      } else {
+        deLevSub.textContent = `槓桿>${maxLev}x 觸發`;
+      }
+    } else {
+      deLevEl.textContent = '—';
+      deLevSub.textContent = '';
+    }
+  } else {
+    pyramidEl.textContent = '—';
+    pyrSubEl.textContent  = '';
+    deLevEl.textContent   = '—';
+    deLevSub.textContent  = '';
+  }
+
+  // Unrealized / Realized — SDK 已有即時未實現時不覆蓋
+  if (_sdkPosUnreal == null) {
+    const unreal = state.unrealized;
+    document.getElementById('statUnreal').textContent = unreal != null ? fmt(unreal) : '—';
+    document.getElementById('statUnreal').className   = 'value ' + colorClass(unreal);
+    if (state.avg_cost > 0 && price) {
+      const upct = (price / state.avg_cost - 1) * 100;
+      document.getElementById('statUnrealPct').textContent = fmtPct(upct) + ' vs 均攤';
+    }
+  }
+  document.getElementById('statRealized').textContent = state.realized_pnl != null ? fmt(state.realized_pnl) : '—';
+  document.getElementById('statRealized').className   = 'value ' + colorClass(state.realized_pnl);
+  document.getElementById('statCreated').textContent  = state.created_date || '—';
+
+  // Badges
+  if (price && ema200) {
+    const above = price > ema200;
+    document.getElementById('badgeEMA').textContent = above ? '年線之上' : '年線之下';
+    document.getElementById('badgeEMA').className   = 'badge ' + (above ? 'green' : 'red');
+  }
+  // 徽章槓桿優先用 #statLeverage 的即時值（由 _updateLeverageLive 維持），
+  // 只有在尚未算出即時值時才退而用 state.leverage（舊快照）。
+  const liveLevText = (document.getElementById('statLeverage')?.textContent || '').replace('x', '').trim();
+  const liveLev     = parseFloat(liveLevText);
+  const badgeLev    = document.getElementById('badgeLeverage');
+  if (badgeLev) {
+    const useLev = isFinite(liveLev) && liveLev > 0 ? liveLev : lev;
+    if (useLev != null && isFinite(useLev)) {
+      badgeLev.textContent = `槓桿 ${useLev.toFixed(1)}x`;
+      badgeLev.className   = 'badge ' + (useLev > (state.max_leverage || 6) ? 'red' : 'gold');
+    }
+  }
+
+  // Signal
+  const sig  = state.last_signal || 'HOLD';
+  const isFailed = typeof sig === 'string' && sig.endsWith('_FAILED');
+  const sigEl = document.getElementById('signalBox');
+  const sigCls = isFailed            ? 'sell'
+               : sig === 'EXIT'      ? 'sell'
+               : sig === 'CASH'      ? 'hold'
+               : sig === 'ENTRY'     ? 'buy'
+               : sig === 'DELEVERAGE'? 'sell'
+               : (sig === 'PYRAMID' || sig === 'MANUAL_BUY') ? 'buy'
+               : sig === 'MANUAL_SELL' ? 'sell'
+               : 'hold';
+  sigEl.className = 'signal-box ' + sigCls;
+  const sigLabel = {
+    HOLD:'HOLD', CASH:'現金等待', EXIT:'破底清倉', ENTRY:'創高進場',
+    PYRAMID:'加槓桿', DELEVERAGE:'降槓桿',
+    MANUAL_BUY:'手動加槓桿', MANUAL_SELL:'手動降槓桿', ROLLOVER:'轉倉',
+    MANUAL_BUY_FAILED:'⚠ 手動加槓桿失敗', MANUAL_SELL_FAILED:'⚠ 手動降槓桿失敗',
+    PYRAMID_FAILED:'⚠ 加槓桿下單失敗',
+    DELEVERAGE_FAILED:'⚠ 降槓桿下單失敗', ROLLOVER_PARTIAL:'⚠ 轉倉不完整',
+  };
+  document.getElementById('signalText').textContent   = sigLabel[sig] || sig;
+  // 若 state 有 last_error 則合併顯示，避免使用者錯過下單失敗
+  const reasonText = state.last_reason || '';
+  const errorText  = (isFailed && state.last_error) ? ` | 錯誤: ${state.last_error}` : '';
+  document.getElementById('signalReason').textContent = reasonText + errorText;
+  document.getElementById('badgeSignal').textContent  = sigLabel[sig] || sig;
+  document.getElementById('badgeSignal').className    =
+    'badge ' + (isFailed ? 'red'
+             : sig === 'CASH' ? 'gray'
+             : (sig === 'EXIT' || sig === 'DELEVERAGE') ? 'red'
+             : sig === 'HOLD' ? 'gray' : 'blue');
+
+  // Trend filter badges (dedicated elements, don't overwrite EMA/Liq badges)
+  const rh = state.rolling_high, rl = state.rolling_low;
+  const hiEl = document.getElementById('badgeFilterHi');
+  const loEl = document.getElementById('badgeFilterLo');
+  if (rh != null && price) {
+    const above10 = price > rh;
+    hiEl.style.display = '';
+    hiEl.textContent = above10 ? `↑ 突破${state.high_period||10}日高 ✓` : `${state.high_period||10}日高 ${fmt(rh)} 待破`;
+    hiEl.className   = 'badge ' + (above10 ? 'green' : 'gray');
+  } else {
+    hiEl.style.display = 'none';
+  }
+  if (rl != null && price) {
+    const belowMA = price < rl;
+    const maPeriod = state.low_period || 100;
+    loEl.style.display = '';
+    loEl.textContent = belowMA ? `⚠ 跌破${maPeriod}日MA！清倉` : `${maPeriod}日MA ${fmt(rl)} 守穩`;
+    loEl.className   = 'badge ' + (belowMA ? 'red' : 'green');
+  } else {
+    loEl.style.display = 'none';
+  }
+
+  // Status dot
+  const running = state.bot_running === true;
+  document.getElementById('statusDot').className = running ? 'running' : 'stopped';
+  document.getElementById('statusLabel').textContent = running ? '運行中' : '已停止';
+
+  // RSI chart (用主圖的歷史價格資料計算)
+  renderLeverageChart(lev, lastChartData);
+}
+
+// ════════════════════════════════════════════════════════
+//  LOG PANEL
+// ════════════════════════════════════════════════════════
+function updateLog(state) {
+  if (!state?.recent_logs) return;
+  const panel = document.getElementById('logPanel');
+  panel.innerHTML = '';
+  [...state.recent_logs].reverse().forEach(entry => {
+    const div = document.createElement('div');
+    const level = (entry.level || 'info').toLowerCase();
+    const levelClass = level.includes('buy') || level.includes('dca') || level.includes('pyramid') ? 'buy'
+                     : level.includes('sell') || level.includes('delev') ? 'sell'
+                     : level.includes('warn') ? 'warn' : 'info';
+    div.className = `log-item ${levelClass}`;
+    div.innerHTML = `<span class="ts">${entry.time || ''}</span><span class="msg">${entry.msg || entry.message || ''}</span>`;
+    panel.appendChild(div);
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  MAIN REFRESH
+// ════════════════════════════════════════════════════════
+let lastChartData = null;
+let lastChartFetch = 0;
+let _lastFilterOn = true;
+
+async function refresh() {
+  document.getElementById('lastRefresh').textContent = '更新中…';
+
+  // 庫存並行更新（不阻塞主流程；force=false 使用 server 端快取，避免頻繁登入）
+  fetchAndRenderPositions(false).catch(e => console.warn('positions refresh err', e));
+
+  // Fetch state + TAIFEX market in parallel
+  const [state, market] = await Promise.all([
+    fetchState().catch(e => { console.warn('fetchState err', e); return null; }),
+    fetchTaifexMarket().catch(e => { console.warn('fetchTaifexMarket err', e); return null; }),
+  ]);
+
+  // Fetch chart data: intraday 每 30 秒更新，日K+ 每 5 分鐘更新
+  const now = Date.now();
+  const _cfg = _K_CONFIGS[_kInterval] || _K_CONFIGS.daily;
+  const _chartTtl = _cfg.intraday ? 30000 : 5 * 60000;
+  if (!lastChartData || now - lastChartFetch > _chartTtl) {
+    lastChartData = await fetchChartData(_kInterval);
+    lastChartFetch = now;
+    try { renderPriceChart(lastChartData, state); }
+    catch(chartErr) { console.error('[renderPriceChart]', chartErr); }
+  } else if (state) {
+    if (priceChartObj && state.last_price && lastChartData) {
+      // 更新最後一根K棒收盤價（candlestick {x,o,h,l,c} 格式）
+      const ds = priceChartObj.data.datasets[0];
+      const lastCandle = ds.data[ds.data.length - 1];
+      if (lastCandle && typeof lastCandle === 'object' && 'c' in lastCandle) {
+        lastCandle.c = state.last_price;
+        if (state.last_price > lastCandle.h) lastCandle.h = state.last_price;
+        if (state.last_price < lastCandle.l) lastCandle.l = state.last_price;
+      }
+      // 更新均攤成本 / 強平線（category scale：直接更新 y 值，x 保持 catLabel 字串不動）
+      const avgDs      = priceChartObj.data.datasets[2];
+      const liqDs      = priceChartObj.data.datasets[3];
+      const avgCost    = _sdkAvgPrice ?? (state.avg_cost > 0 ? state.avg_cost : null);
+      const newLiqPx   = _calcLiqPx(state.last_price, state);
+      if (avgDs?.data?.length) avgDs.data.forEach(p => { if (p) p.y = avgCost; });
+      if (liqDs?.data?.length) {
+        liqDs.data.forEach(p => { if (p) p.y = newLiqPx; });
+        liqDs.hidden = newLiqPx == null;   // 有強平價才顯示
+      }
+      priceChartObj.update('none');
+    }
+  }
+
+  // Re-render chart if filter toggle changed (force new chart with updated datasets)
+  _lastFilterOn = document.getElementById('filterToggle')?.checked ?? true;
+
+  updateStats(state, lastChartData);
+  updateLog(state);
+  updateLivePrice(market, _misCache);
+  renderInventory(market, state, _misCache);
+
+  // Fubon live quote — 由 startLiveQuotePoll 每秒自動刷新，這裡用快取即可
+  if (_fubonQuoteCache) updateFubonQuoteCard(_fubonQuoteCache);
+
+  document.getElementById('lastRefresh').textContent =
+    '最後更新: ' + new Date().toLocaleTimeString('zh-TW');
+}
+
+// ════════════════════════════════════════════════════════
+//  AUTO REFRESH
+// ════════════════════════════════════════════════════════
+let _posRefreshTimer = null;  // 庫存獨立計時器
+
+function toggleAutoRefresh() {
+  const on = document.getElementById('autoRefreshToggle').checked;
+  clearInterval(autoRefreshTimer);
+  clearInterval(_posRefreshTimer);
+  if (on) {
+    autoRefreshTimer  = setInterval(refresh, 30000);
+    // 每 60 秒強制更新庫存（force=true 重新向 SDK 查詢）
+    _posRefreshTimer  = setInterval(() => {
+      fetchAndRenderPositions(true).catch(e => console.warn('pos auto-refresh err', e));
+    }, 60000);
+    toast('自動刷新已啟動 (行情 30s / 庫存 60s)');
+  } else {
+    toast('自動刷新已停止');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  BOT CONTROL  →  POST /fmx/control
+// ════════════════════════════════════════════════════════
+function confirmReset() {
+  const modal = document.getElementById('resetModal');
+  modal.style.display = 'flex';
+}
+
+async function ctrlBot(action) {
+  const lots      = +document.getElementById('cfgLots').value || 1;
+  const orderType = document.getElementById('cfgOrderType').value;
+  const spread    = +document.getElementById('cfgSpread').value || 5;
+  const dryRun    = document.getElementById('dryRunToggle').checked;
+
+  // 計算調整後的槓桿資訊
+  //   加/減槓桿只影響當前商品(currentSymbol)的口數，
+  //   但整體槓桿要把其他持倉也一起算進去（Σ 各商品 qty×mult×px）
+  let leverageNote = '';
+  if (action === 'add_leverage' || action === 'deleverage') {
+    const equity    = (_sdkEquity ?? parseFloat((document.getElementById('statEquity')?.textContent || '').replace(/,/g, ''))) || 0;
+    // 現價：優先用 _fubonQuoteCache，再用 _sdkMktQuotesCache（statPrice 已移除）
+    const _livePxSrc = (_fubonQuoteCache?.last) ?? (_sdkMktQuotesCache?.quotes?.[currentSymbol]?.last) ?? 0;
+    const livePrice = Number(_livePxSrc) || 0;
+    const curMult   = PRODUCTS[currentSymbol]?.mult ?? 10;
+
+    // 目前各持倉名義本金 + 本商品即時價
+    const port = _computePortfolioNotional(livePrice);
+    const curNotional = port?.notional ?? 0;
+
+    // 當前商品持倉口數（從 _sdkPositions 找；找不到就用 statContracts）
+    const curPos = Array.isArray(_sdkPositions)
+      ? _sdkPositions.find(p => _symbolToProductKey(p.symbol) === currentSymbol)
+      : null;
+    const curLots = curPos
+      ? Math.abs(Number(curPos.qty) || 0)
+      : ((_sdkContracts ?? parseFloat(document.getElementById('statContracts')?.textContent)) || 0);
+
+    const deltaLots  = action === 'add_leverage' ? lots : -Math.min(lots, curLots);
+    const newLots    = curLots + deltaLots;
+    // 新名義本金 = 舊本金 + 當前商品乘數 × 即時價 × 口數增減
+    const newNotional = curNotional + deltaLots * curMult * livePrice;
+    const curLev = equity > 0 && curNotional > 0 ? curNotional / equity : null;
+    const newLev = equity > 0 && newNotional > 0 ? newNotional / equity : null;
+    if (curLev != null && newLev != null) {
+      leverageNote = `\n\n📊 目前 (${currentSymbol})：${curLots} 口，整體槓桿 ${curLev.toFixed(2)}x\n` +
+                     `➡️ 調整後：${newLots} 口，整體槓桿 ${newLev.toFixed(2)}x`;
+    }
+  }
+
+  const confirmActions = {
+    deleverage:     `確定要手動降槓桿 ${lots} 口（${orderType === 'market' ? '市價' : '限價±' + spread + '點'}）？${leverageNote}`,
+    add_leverage:   `確定要手動加槓桿 ${lots} 口（${orderType === 'market' ? '市價' : '限價±' + spread + '點'}）？${leverageNote}`,
+  };
+  if (confirmActions[action] && !confirm(confirmActions[action])) return;
+
+  const payload = { action };
+
+  // Attach settings if action is 'start', 'once', or 'settings'
+  if (action === 'start' || action === 'once' || action === 'settings') {
+    payload.settings = {
+      dry_run:           dryRun,
+      target_leverage:   +document.getElementById('cfgLeverage').value,
+      dca_threshold_pct: +document.getElementById('cfgDca').value,
+      max_leverage:      +document.getElementById('cfgMaxLev').value,
+      pyramid_trigger:   +document.getElementById('cfgPyramid').value,
+      fee_per_lot:       +document.getElementById('cfgFee').value,
+      trend_filter:      document.getElementById('filterToggle').checked,
+      high_period:       +document.getElementById('cfgHighPeriod').value,
+      low_period:        +document.getElementById('cfgLowPeriod').value,
+    };
+  }
+
+  // Attach order settings for manual leverage actions
+  if (action === 'add_leverage' || action === 'deleverage') {
+    payload.lots       = lots;
+    payload.order_type = orderType;
+    payload.spread     = spread;
+    payload.dry_run    = dryRun;
+  }
+
+  try {
+    const r = await fetch(`${BASE}/fmx/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    toast(j.message || j.status || action + ' sent');
+    setTimeout(refresh, 1000);
+  } catch(e) {
+    toast('控制指令失敗: ' + e.message);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  APPLY SETTINGS  →  POST /fmx/control  action=settings
+// ════════════════════════════════════════════════════════
+async function applySettings() {
+  const dry = document.getElementById('dryRunToggle').checked;
+  document.getElementById('modeLabel').textContent = dry ? 'DRY RUN' : 'LIVE';
+  // Re-render chart to show/hide filter lines
+  if (lastChartData) {
+    const state = await fetchState();
+    renderPriceChart(lastChartData, state);
+  }
+  await ctrlBot('settings');
+  toast('設定已套用');
+}
+
+// ════════════════════════════════════════════════════════
+//  DRAGGABLE PANEL RESIZER  (左右 + 上下)
+// ════════════════════════════════════════════════════════
+function initDragHandles() {
+  /* ── 左右拖曳 ── */
+  function makeColDraggable(handleId, panelId, side) {
+    const handle = document.getElementById(handleId);
+    const panel  = document.getElementById(panelId);
+    if (!handle || !panel) return;
+    let startX, startW;
+    handle.addEventListener('mousedown', e => {
+      startX = e.clientX; startW = panel.offsetWidth;
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      const onMove = ev => {
+        const delta = side === 'left' ? ev.clientX - startX : startX - ev.clientX;
+        panel.style.width = Math.max(140, Math.min(480, startW + delta)) + 'px';
+      };
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.body.style.cursor = ''; document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  /* ── 上下拖曳：拖曳條在 topEl 底部，往下 = topEl 變高、bottomEl 變低 ── */
+  function makeRowDraggable(handleId, topElId, bottomElId, minTop=80, minBot=60) {
+    const handle  = document.getElementById(handleId);
+    const topEl   = document.getElementById(topElId);
+    const botEl   = document.getElementById(bottomElId);
+    if (!handle || !topEl) return;
+    let startY, startTopH, startBotH;
+
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      startY     = e.clientY;
+      startTopH  = topEl.offsetHeight;
+      startBotH  = botEl ? botEl.offsetHeight : 0;
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+
+      const onMove = ev => {
+        const delta  = ev.clientY - startY;
+        const newTop = Math.max(minTop, startTopH + delta);
+        topEl.style.height  = newTop + 'px';
+        topEl.style.flex    = 'none';
+        // If bottom element exists, shrink it (but respect minimum)
+        if (botEl) {
+          const newBot = Math.max(minBot, startBotH - delta);
+          botEl.style.height  = newBot + 'px';
+          botEl.style.flex    = 'none';
+        }
+        // Trigger Chart.js resize
+        if (priceChartObj)   priceChartObj.resize();
+        if (leverageChartObj) leverageChartObj.resize();
+      };
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.body.style.cursor = ''; document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  makeColDraggable('dragL', 'leftPanel',  'left');
+  makeColDraggable('dragR', 'rightPanel', 'right');
+  makeRowDraggable('rowDrag1', 'chartArea',   'invSection1', 120, 60);
+  makeRowDraggable('rowDrag2', 'invSection1', 'invSection2', 60,  60);
+}
+
+// ════════════════════════════════════════════════════════
+//  FUBON LIVE QUOTE  →  /fmx/quote  (每 5 秒 fetch、每 1 秒更新 UI)
+// ════════════════════════════════════════════════════════
+let _fubonQuoteTs    = 0;
+let _fubonQuoteCache = null;
+let _quoteFetchBusy  = false;
+
+async function fetchFubonQuote(force = false) {
+  const now = Date.now();
+  if (!force && _fubonQuoteCache && now - _fubonQuoteTs < 5000) {
+    return _fubonQuoteCache;
+  }
+  if (_quoteFetchBusy) return _fubonQuoteCache;   // 避免並發
+  _quoteFetchBusy = true;
+  try {
+    const sym = document.getElementById('cfgSymbol')?.value || 'MXFR1';
+    const r = await fetch(`${BASE}/fmx/quote?symbol=${encodeURIComponent(sym)}`, {
+      signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined
+    });
+    const data = await r.json();
+    if (!data.error) {
+      // ── daemon 資料過期偵測：ts 欄位若超過 5 分鐘，視為 daemon 已停止 ──
+      // 清除 change/ref，讓前端不用過時日盤 effectiveRef 算夜盤漲跌
+      const daemonTs = data.ts ? new Date(data.ts).getTime() : 0;
+      const daemonAgeMs = daemonTs ? (Date.now() - daemonTs) : 99999999;
+      if (daemonAgeMs > 5 * 60 * 1000) {
+        // daemon 超過 5 分鐘沒更新 → 標記過期，清除漲跌避免錯誤計算
+        data._daemonStale = true;
+        data.change       = null;
+        data.change_pct   = null;
+        data.ref          = null;
+        console.warn(`[quote] daemon 資料過期 ${Math.round(daemonAgeMs/60000)} 分鐘，漲跌清空`);
+      } else {
+        data._daemonStale = false;
+      }
+      _fubonQuoteCache = data;
+      _fubonQuoteTs = Date.now();
+    }
+    return data;
+  } catch(e) {
+    return _fubonQuoteCache;
+  } finally {
+    _quoteFetchBusy = false;
+  }
+}
+
+/* 更新右側即時報價卡片（只更新 bid/ask/open/ref/high/low/vol 格，不碰主報價欄位）*/
+function updateFubonQuoteCard(q) {
+  const grid = document.getElementById('fubonQuoteGrid');
+  if (!q || q.error) { grid.style.display = 'none'; return; }
+
+  // 主報價 (statLivePrice / statLiveChg / statLiveInfo / quoteSrcLabel) 由 updateLivePrice SDK 路徑負責
+  const n = v => (v != null ? Number(v).toLocaleString('zh-TW') : '—');
+  document.getElementById('fqBid').textContent  = n(q.bid);
+  document.getElementById('fqAsk').textContent  = n(q.ask);
+  document.getElementById('fqOpen').textContent = n(q.open);
+  document.getElementById('fqRef').textContent  = n(q.ref);
+  document.getElementById('fqHigh').textContent = n(q.high);
+  document.getElementById('fqLow').textContent  = n(q.low);
+  document.getElementById('fqVol').textContent  = n(q.volume);
+  grid.style.display = 'grid';
+}
+
+/* 更新左側下單區的即時限價顯示 */
+function refreshLimitDisplay() {
+  const q = _fubonQuoteCache;
+  if (!q || q.error) return;
+
+  const spread  = parseInt(document.getElementById('cfgSpread')?.value || '5');
+  const last    = q.last   || 0;
+  const bid     = q.bid    || last;
+  const ask     = q.ask    || last;
+  // change 可能為 null（持倉查詢無法提供漲跌），嘗試從 MIS 補齊
+  const misCode = PRODUCTS[currentSymbol]?.mis;
+  const _misRow = _misCache[misCode] || _misCache[misCode + 'F'] || null;
+  const change  = q.change ?? ((_misRow ? parseFloat((_misRow.Change || '').replace(/,/g,'')) : null) || 0);
+  const ageMs   = Date.now() - _fubonQuoteTs;
+
+  // 主報價 (左側下單區)
+  const priceEl = document.getElementById('orderLivePrice');
+  const chgEl   = document.getElementById('orderLiveChg');
+  const tsEl    = document.getElementById('quoteTs');
+  const buyEl   = document.getElementById('calcLimitBuy');
+  const sellEl  = document.getElementById('calcLimitSell');
+  const bidEl   = document.getElementById('orderBid');
+  const askEl   = document.getElementById('orderAsk');
+
+  if (priceEl) {
+    priceEl.textContent = last.toLocaleString('zh-TW');
+    priceEl.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+  if (chgEl) {
+    const sign = change >= 0 ? '+' : '';
+    chgEl.textContent = sign + change.toFixed(0);
+    chgEl.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+  if (tsEl) {
+    const sec = Math.floor(ageMs / 1000);
+    tsEl.textContent = sec < 10 ? '剛更新' : `${sec}s 前`;
+    tsEl.style.color = sec > 30 ? 'var(--orange)' : 'var(--muted)';
+  }
+  if (buyEl)  buyEl.textContent  = (ask + spread).toLocaleString('zh-TW');
+  if (sellEl) sellEl.textContent = (bid - spread).toLocaleString('zh-TW');
+  if (bidEl)  bidEl.textContent  = bid.toLocaleString('zh-TW');
+  if (askEl)  askEl.textContent  = ask.toLocaleString('zh-TW');
+}
+
+/* ── 每 5 秒拉一次數據，每 1 秒刷新顯示 ── */
+let _quoteUiTimer   = null;
+let _quoteFetchTimer = null;
+
+function startLiveQuotePoll() {
+  // 立即拉一次
+  fetchFubonQuote(true).then(q => {
+    if (q) { updateFubonQuoteCard(q); refreshLimitDisplay(); }
+  });
+
+  // 每 5 秒重新 fetch
+  _quoteFetchTimer = setInterval(async () => {
+    const q = await fetchFubonQuote(true);
+    if (q) { updateFubonQuoteCard(q); }
+  }, 5000);
+
+  // 每 1 秒更新 UI 顯示（用快取資料）
+  _quoteUiTimer = setInterval(() => {
+    refreshLimitDisplay();
+    // 同步更新右側卡片時間戳
+    const tsEl = document.getElementById('statLiveInfo');
+    if (tsEl && _fubonQuoteCache && !_fubonQuoteCache.error) {
+      const sec = Math.floor((Date.now() - _fubonQuoteTs) / 1000);
+      tsEl.textContent = sec < 5 ? '剛更新' : `${sec}s 前更新`;
+    }
+  }, 1000);
+}
+
+// ════════════════════════════════════════════════════════
+//  FUBON SDK 批量市場報價  →  /fmx/market_quotes
+//  每 30 秒 fetch，快取後供 renderInventory / updateLivePrice 使用
+// ════════════════════════════════════════════════════════
+let _sdkMktQuotesCache = null;
+let _sdkMktQuotesTs    = 0;
+let _sdkMktQuotesBusy  = false;
+
+async function fetchFubonMarketQuotes(force = false) {
+  const now = Date.now();
+  if (!force && _sdkMktQuotesCache && now - _sdkMktQuotesTs < 10000) return _sdkMktQuotesCache;
+  if (_sdkMktQuotesBusy) return _sdkMktQuotesCache;
+  _sdkMktQuotesBusy = true;
+  try {
+    const r = await fetch(`${BASE}/fmx/market_quotes`, {
+      signal: AbortSignal.timeout ? AbortSignal.timeout(70000) : undefined,
+    });
+    const data = await r.json();
+    if (data.status === 'ok' && data.quotes) {
+      _sdkMktQuotesCache = data;
+      _sdkMktQuotesTs    = data._stale ? _sdkMktQuotesTs : Date.now();
+      const el = document.getElementById('sdkMktBadge');
+      if (el && !data._stale) {
+        el.textContent = 'SDK 剛更新';
+        el.style.color = 'var(--green)';
+      }
+    }
+    return data;
+  } catch (e) {
+    console.warn('market_quotes fetch error:', e);
+    return _sdkMktQuotesCache;
+  } finally {
+    _sdkMktQuotesBusy = false;
+  }
+}
+
+function startFubonMktQuotesPoll() {
+  // 立刻拉一次
+  fetchFubonMarketQuotes(true).then(d => {
+    if (d?.quotes) renderInventory(null, null, _misCache);
+  });
+
+  // 每 10 秒重新 fetch（server 快取 12s，不會重複跑 subprocess）
+  setInterval(async () => {
+    const d = await fetchFubonMarketQuotes(true);
+    if (d?.quotes) renderInventory(null, null, _misCache);
+  }, 10000);
+
+  // 每 1 秒更新報價年齡標籤 + 右側即時報價面板（無論 SDK 快取是否存在都執行）
+  setInterval(() => {
+    if (_sdkMktQuotesCache) {
+      const age   = Math.floor((Date.now() - _sdkMktQuotesTs) / 1000);
+      const label = age < 5 ? '剛更新' : `${age}s 前`;
+      const el = document.getElementById('sdkMktBadge');
+      if (el) {
+        el.textContent = `SDK ${label}`;
+        el.style.color = age > 20 ? 'var(--orange)' : 'var(--green)';
+      }
+    }
+    // 每秒同步更新右側即時報價面板（用快取，不重新 fetch）
+    updateLivePrice(null, _misCache);
+  }, 1000);
+}
+
+// ════════════════════════════════════════════════════════
+//  LIVE PRICE from TAIFEX  (update right panel top card)
+// ════════════════════════════════════════════════════════
+function updateLivePrice(market, misData) {
+  const p       = PRODUCTS[currentSymbol];
+  const tfCode  = p?.taifex;
+  const misCode = p?.mis;
+  const el      = document.getElementById('statLivePrice');
+  const chgEl   = document.getElementById('statLiveChg');
+  const info    = document.getElementById('statLiveInfo');
+  misData = misData || _misCache;
+
+  // ── 優先順序（與 renderInventory 一致）──────────────────────────
+  // 1. SDK 即時（有 change）→ 最優先，與交易邏輯一致
+  // 2. MIS 即時 / 日報表    → SDK 無資料時備援
+  // 3. SDK 持倉（無 change）→ 最後備援
+  const _livePxMin = _PROD_MIN_PX[currentSymbol] ?? 0;
+  let dispLast = null, dispChg = 0, dispPct = '', dispSrc = '';
+
+  // MIS / 日報表
+  const misRow   = misData[misCode] || misData[misCode + 'F'] || null;
+  const dailyRow = (market || []).find(r => r.Contract === tfCode) || null;
+  const taifexRow = misRow || dailyRow;
+
+  // SDK 批量
+  const sdkQ = _sdkMktQuotesCache?.quotes?.[currentSymbol];
+  // SDK 單一（策略商品）
+  const fq   = _fubonQuoteCache;
+
+  // ── 嘗試 1：SDK 即時（有 change 才算即時）──
+  const sdkRealtime = sdkQ && !sdkQ.error && sdkQ.last != null && sdkQ.change != null
+                      && (_livePxMin === 0 || sdkQ.last >= _livePxMin);
+  const fqRealtime  = fq && !fq.error && fq.last != null && fq.change != null
+                      && (_livePxMin === 0 || fq.last >= _livePxMin);
+
+  // ── 時段狀態 + 台指共用 ref（與 renderInventory 同一套邏輯）──────
+  const _curNight = isNightSession();
+  const _twEffRef = _computeTwIndexEffectiveRef(_curNight);
+
+  // 統一 SDK 持倉覆蓋邏輯（sdkRealtime / fqRealtime 共用）
+  //   1. 持倉合約同月份 ref（最準確）
+  //   2. daemon 時段+月份一致時從 daemon 反推
+  //   3. 台指系列共用 ref
+  //   4. 皆無 → 保留原本 dispChg/dispPct（daemon 自己的值）
+  const _applyHeldOverride = (srcQ) => {
+    const sdkPosPx = _sdkPositionPriceMap[currentSymbol];
+    if (!sdkPosPx || sdkPosPx <= 0) return;
+    const heldMon = _heldContractMonth(currentSymbol);
+    let effRef = _resolveHeldContractRef(currentSymbol, p, misData, _twEffRef);
+    if (effRef == null && srcQ && _daemonSessionOkStrict(srcQ, _curNight)
+        && srcQ.last != null && srcQ.change != null && srcQ.last > 0) {
+      const qm = _symToMonthYYYYMM(srcQ.symbol || '') || _normToYYYYMM(srcQ.month || '');
+      if (!heldMon || !qm || qm === heldMon) {
+        effRef = srcQ.last - srcQ.change;
+      }
+    }
+    if (effRef == null && _TW_INDEX_KEYS_GLOBAL.has(currentSymbol) && _twEffRef != null) {
+      effRef = _twEffRef;
+    }
+    if (effRef != null && effRef > 1000) {
+      dispLast = sdkPosPx;
+      const dp = p?.dp || 0;
+      const rawChg = dispLast - effRef;
+      dispChg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+      const pctVal = (dispLast / effRef - 1) * 100;
+      dispPct = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%';
+    }
+  };
+
+  if (sdkRealtime) {
+    dispLast = sdkQ.last;
+    dispChg  = sdkQ.change;
+    dispPct  = sdkQ.change_pct != null ? (sdkQ.change_pct >= 0 ? '+' : '') + sdkQ.change_pct.toFixed(2) + '%' : '';
+    const nightL = (_sdkMktQuotesCache?.night ?? _curNight) ? '🌙夜盤' : '⚡日盤';
+    const vol = sdkQ.volume != null ? Number(sdkQ.volume).toLocaleString('zh-TW') : '—';
+    const oi  = sdkQ.open_interest != null ? Number(sdkQ.open_interest).toLocaleString('zh-TW') : '—';
+    dispSrc  = `${nightL} SDK ｜ ${sdkQ.month || sdkQ.symbol || ''} ｜ 量:${vol} ｜ OI:${oi}`;
+    document.getElementById('quoteSrcLabel').textContent = `即時報價 (富邦SDK ${sdkQ.symbol || currentSymbol})`;
+    // 結算日異常修正：SDK pct >3% 視為異常，改用同指數 R1 換算
+    if (Math.abs(sdkQ.change_pct ?? 0) >= 3.0) {
+      const _nc = _nightChangeFromMIS(misCode, sdkQ.symbol, dispLast, p);
+      if (_nc) { dispChg = _nc.chg; dispPct = _nc.pct; }
+    }
+    // 持倉覆蓋（統一邏輯，與庫存表一致）
+    _applyHeldOverride(sdkQ);
+    _updateLeverageLive(dispLast);
+  } else if (fqRealtime) {
+    dispLast = fq.last;
+    dispChg  = fq.change;
+    dispPct  = fq.change_pct != null ? (fq.change_pct >= 0 ? '+' : '') + fq.change_pct.toFixed(2) + '%' : '';
+    const nightL = _curNight ? '🌙夜盤' : '⚡日盤';
+    dispSrc  = `${nightL} 富邦SDK ｜ ${fq.symbol || currentSymbol}`;
+    document.getElementById('quoteSrcLabel').textContent = `即時報價 (富邦SDK ${fq.symbol || currentSymbol})`;
+    if (Math.abs(fq.change_pct ?? 0) >= 3.0) {
+      const _nc = _nightChangeFromMIS(misCode, fq.symbol, dispLast, p);
+      if (_nc) { dispChg = _nc.chg; dispPct = _nc.pct; }
+    }
+    _applyHeldOverride(fq);
+    _updateLeverageLive(dispLast);
+
+  // ── 嘗試 2：MIS 即時 / 日報表（SDK 無資料時備援）──
+  } else if (taifexRow) {
+    const tLast = parseFloat((taifexRow.Last || '').replace(/,/g,'')) || 0;
+    if (tLast > 0 && (_livePxMin === 0 || tLast >= _livePxMin)) {
+      dispLast = tLast;
+      dispChg  = parseFloat((taifexRow.Change || '').replace(/,/g,'')) || 0;
+      dispPct  = taifexRow['%'] || '';
+      const srcLabel = misRow ? (isNightSession() ? '🌙夜盤即時' : '⚡日盤即時') : '日報表';
+      const mon = taifexRow['ContractMonth(Week)'] || '';
+      dispSrc  = `${srcLabel} ｜ ${mon} ｜ 量:${taifexRow.Volume || '—'} ｜ 未平倉:${taifexRow.OpenInterest || '—'}`;
+      document.getElementById('quoteSrcLabel').textContent = `即時報價 (${misRow ? '期交所MIS' : '日報表'} ${misCode || currentSymbol})`;
+      _updateLeverageLive(tLast);
+    }
+
+  // ── 嘗試 3：SDK 持倉備援（只有 price，無 change）──
+  } else {
+    const sdkHybrid = sdkQ && !sdkQ.error && sdkQ.last != null && (_livePxMin === 0 || sdkQ.last >= _livePxMin);
+    const fqHybrid  = fq && !fq.error && fq.last != null && (_livePxMin === 0 || fq.last >= _livePxMin);
+    if (sdkHybrid) {
+      dispLast = sdkQ.last;
+      const nightL = (_sdkMktQuotesCache?.night ?? isNightSession()) ? '🌙夜盤' : '⚡日盤';
+      dispSrc  = `${nightL} SDK(持倉) ｜ ${sdkQ.symbol || currentSymbol}`;
+      _updateLeverageLive(sdkQ.last);
+    } else if (fqHybrid) {
+      dispLast = fq.last;
+      dispSrc  = `${isNightSession() ? '🌙夜盤' : '⚡日盤'} SDK(持倉) ｜ ${fq.symbol || currentSymbol}`;
+    }
+  }
+
+  // ── 補齊 change (A)：SDK 有 ref 但 change 未帶入時，從 ref 計算 ──
+  if (dispLast != null && dispChg === 0) {
+    const _ref = sdkQ?.ref ?? fq?.ref;
+    if (_ref != null && _ref > 0) {
+      const _dp = p?.dp || 0;
+      dispChg = _dp > 0 ? +(dispLast - _ref).toFixed(_dp) : Math.round(dispLast - _ref);
+      const _pv = ((dispLast / _ref - 1) * 100);
+      dispPct = (_pv >= 0 ? '+' : '') + _pv.toFixed(2) + '%';
+    }
+  }
+
+  // ── 補齊 change (B)：用 fallbackMis 的參考價推算（MXF 不在公開行情中）──
+  if (dispLast != null && dispChg === 0 && p?.fallbackMis) {
+    for (const fbCode of p.fallbackMis) {
+      const fbRow = misData[fbCode] || misData[fbCode + 'F'] || null;
+      if (!fbRow) continue;
+      const fbLast = parseFloat((fbRow.Last   || '').replace(/,/g,'')) || 0;
+      const fbChg  = parseFloat((fbRow.Change || '').replace(/,/g,'')) || 0;
+      if (fbLast > 0 && fbChg !== 0) {
+        const fbRef = fbLast - fbChg;
+        if (fbRef > 0) {
+          dispChg = Math.round(dispLast - fbRef);
+          const pv = ((dispLast / fbRef - 1) * 100);
+          dispPct = (pv >= 0 ? '+' : '') + pv.toFixed(2) + '%';
+          break;
+        }
+      }
+    }
+  }
+
+  if (dispLast == null) {
+    el.textContent = '—'; chgEl.textContent = ''; info.textContent = '(等待報價…)';
+    return;
+  }
+  const dp = p?.dp || 0;  // 小數位數（BRF=2, GDF=1, 台指系列=0）
+  el.textContent    = dispLast.toLocaleString('zh-TW', {minimumFractionDigits: dp, maximumFractionDigits: dp});
+  el.className      = 'value gold';
+  chgEl.textContent = (dispChg >= 0 ? '+' : '') + (typeof dispChg === 'number' ? dispChg.toFixed(dp) : '0') + '  ' + dispPct;
+  chgEl.style.color = dispChg >= 0 ? 'var(--green)' : 'var(--red)';
+  info.textContent  = dispSrc;
+}
+
+// ════════════════════════════════════════════════════════
+//  REAL-TIME LEVERAGE CALCULATION
+// ════════════════════════════════════════════════════════
+function _updateLeverageLive(livePrice) {
+  if (!livePrice) return;
+  // 淨值：優先從 SDK 庫存取，退而讀畫面上的 statEquity
+  const equity = (_sdkEquity ?? parseFloat((document.getElementById('statEquity')?.textContent || '').replace(/,/g,''))) || 0;
+  if (!equity) return;
+
+  // ★ 槓桿以「實際庫存」計算，而非目前切換到的商品。
+  //   Σ(qty × mult × 即時價) / equity — 每個持倉用各自商品的乘數。
+  //   若切換到的是持倉商品，使用 livePrice 取代 cache 以即時跳動。
+  let lev = null;
+  const port = _computePortfolioNotional(livePrice);
+  if (port && port.notional > 0) {
+    lev = port.notional / equity;
+  } else {
+    // fallback：無持倉明細時 → 用 statContracts + 當前商品價格估算
+    const contracts = (_sdkContracts ?? parseFloat(document.getElementById('statContracts')?.textContent)) || 0;
+    if (!contracts) return;
+    const mult = PRODUCTS[currentSymbol]?.mult ?? 10;
+    lev = (contracts * mult * livePrice) / equity;
+  }
+  const levEl  = document.getElementById('statLeverage');
+  if (!levEl) return;
+  levEl.textContent = lev.toFixed(2) + 'x';
+  // 目標/上限從畫面設定讀取
+  const target = parseFloat(document.getElementById('cfgLeverage')?.value) || 5;
+  const maxLev = parseFloat(document.getElementById('cfgMaxLev')?.value)   || 6;
+  levEl.className = 'value ' + (lev > maxLev ? 'red' : lev > target ? 'gold' : 'green');
+
+  // ── 即時同步 K 線徽章的槓桿顯示（避免與右側面板數字不一致）──
+  //   不走 state.leverage（那是 SDK 同步時的靜態快照），而是用這裡剛算出的 live 值。
+  const badgeLev = document.getElementById('badgeLeverage');
+  if (badgeLev) {
+    badgeLev.textContent = `槓桿 ${lev.toFixed(1)}x`;
+    badgeLev.className   = 'badge ' + (lev > maxLev ? 'red' : 'gold');
+  }
+
+  // ── 以下 curPos 是目前切換到的商品的持倉（若未持有則為 null）──
+  const curPos = Array.isArray(_sdkPositions)
+    ? _sdkPositions.find(p => _symbolToProductKey(p.symbol) === currentSymbol)
+    : null;
+  // SDK 持倉欄位可能是 qty / quantity / orig_lots，依序嘗試
+  const contracts = curPos
+    ? Math.abs(Number(curPos.qty ?? curPos.quantity ?? curPos.orig_lots) || 0)
+    : 0;
+  const mult = PRODUCTS[currentSymbol]?.mult ?? 10;
+
+  // ── 即時未實現損益（整體 portfolio，不受切換商品影響）────────────
+  //   策略：直接使用 _sdkPosUnreal（SDK 官方值），避免跨資料源（Fugle daemon vs SDK
+  //   positions market_price）的價格差異造成計算錯誤。
+  //   若需即時更新，delta 以「SDK positions 自帶的 cur_price」為參考，
+  //   而非 Fugle daemon 價格（兩者來自不同系統，可能有數點差異）。
+  let unreal = null;
+  if (_sdkPosUnreal != null && Array.isArray(_sdkPositions)) {
+    let totalDelta = 0;
+    let okDelta = true;
+    for (const p of _sdkPositions) {
+      const pk = _symbolToProductKey(p.symbol);
+      if (!pk) continue;
+      const q = Math.abs(Number(p.qty) || 0);
+      if (!q) continue;
+      const m = PRODUCTS[pk]?.mult ?? 10;
+      // pxRef：庫存查詢當時的 SDK market_price（已含在 _sdkPosUnreal 的計算基礎中）
+      const pxRef = Number(p.cur_price ?? p.market_price ?? 0);
+      if (!isFinite(pxRef) || pxRef <= 0) { okDelta = false; break; }
+      // pxNow：優先用 SDK positions 自帶的 cur_price（同一資料源，不跨系統）
+      //        其次才用 daemon cache（不同系統，可能有幾點差異造成損益跳動）
+      const sdkPosPrice = _sdkPositionPriceMap[pk];
+      let pxNow;
+      if (sdkPosPrice && sdkPosPrice > 0) {
+        // SDK positions 已有現價 → 用它，delta = 0（因為 pxRef === sdkPosPrice）
+        pxNow = sdkPosPrice;
+      } else {
+        const c = _sdkMktQuotesCache?.quotes?.[pk];
+        pxNow = (c && !c.error && c.last != null) ? Number(c.last) : pxRef;
+      }
+      if (!isFinite(pxNow) || pxNow <= 0) continue;
+      totalDelta += (pxNow - pxRef) * q * m;
+    }
+    if (okDelta) unreal = _sdkPosUnreal + totalDelta;
+  }
+  if (unreal == null) {
+    // fallback：只有當前商品且有均攤成本時用均攤估算
+    const avgCost = (_sdkAvgPrice != null)
+      ? _sdkAvgPrice
+      : (parseFloat((document.getElementById('statAvgCost')?.textContent || '').replace(/,/g,'')) || 0);
+    const futPx = _sdkPositionPriceMap[currentSymbol]
+      ?? _sdkMktQuotesCache?.quotes?.[currentSymbol]?.last
+      ?? livePrice;
+    if (avgCost > 0 && futPx > 0 && contracts > 0) unreal = (futPx - avgCost) * contracts * mult;
+  }
+  if (unreal != null) {
+    const unrealEl = document.getElementById('statUnreal');
+    if (unrealEl) {
+      unrealEl.textContent = fmt(unreal);
+      unrealEl.className   = 'value ' + colorClass(unreal);
+    }
+    const unrealPctEl = document.getElementById('statUnrealPct');
+    // 未實現比例用 portfolio 總本金為分母
+    if (unrealPctEl && port && port.notional > 0) {
+      unrealPctEl.textContent = fmtPct(unreal / port.notional * 100) + (_sdkPosUnreal != null ? ' vs 均攤(SDK)' : ' vs 均攤');
+    }
+    // 同步更新手機英雄卡
+    const mobU = document.getElementById('mobHeroUnreal');
+    if (mobU) { mobU.textContent = fmt(unreal); mobU.style.color = unreal >= 0 ? 'var(--green)' : 'var(--red)'; }
+  }
+
+  // ── 即時更新 K 線最後一根收盤價 ──
+  if (priceChartObj) {
+    const ds0 = priceChartObj.data.datasets[0];
+    const lastBar = ds0?.data?.[ds0.data.length - 1];
+    if (lastBar && typeof lastBar === 'object' && 'c' in lastBar) {
+      lastBar.c = livePrice;
+      if (livePrice > lastBar.h) lastBar.h = livePrice;
+      if (livePrice < lastBar.l) lastBar.l = livePrice;
+      priceChartObj.update('none');
+    }
+  }
+
+  // ── 強平價：由 updateStats() 從 fmx_state.json 讀取策略計算值（含初始資金），
+  //   _updateLeverageLive 不覆蓋，以免用 _sdkEquity 算出錯誤結果。
+  //   僅在有持倉時更新 badgeLiq（強平距離），強平價本身不動。
+  if (curPos && contracts > 0) {
+    const liqEl = document.getElementById('statLiqPrice');
+    const liqPxStr = liqEl?.textContent?.replace(/,/g, '') ?? '';
+    const liqPx = parseFloat(liqPxStr) || 0;
+    if (liqPx > 0) {
+      const liqDist = ((livePrice - liqPx) / livePrice * 100).toFixed(1);
+      const badgeLiq = document.getElementById('badgeLiq');
+      if (badgeLiq) {
+        badgeLiq.textContent = `強平距離 ${liqDist}%`;
+        badgeLiq.className = 'badge ' + (parseFloat(liqDist) < 5 ? 'red' : parseFloat(liqDist) < 15 ? 'gold' : 'green');
+      }
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  MANUAL POSITION SYNC
+// ════════════════════════════════════════════════════════
+function openSyncModal() {
+  // Pre-fill from current state if available
+  fetch(`${BASE}/fmx/state`).then(r=>r.json()).then(s => {
+    if (s.contracts != null) document.getElementById('syncContracts').value = s.contracts;
+    if (s.avg_cost)   document.getElementById('syncAvgCost').value  = s.avg_cost.toFixed(1);
+    if (s.last_price) document.getElementById('syncCurPrice').value = s.last_price.toFixed(0);
+    if (s.equity)     document.getElementById('syncEquity').value   = Math.round(s.equity);
+  }).catch(()=>{});
+  document.getElementById('syncModal').classList.add('open');
+}
+function closeSyncModal() {
+  document.getElementById('syncModal').classList.remove('open');
+}
+async function doManualSync() {
+  const payload = {
+    contracts: +document.getElementById('syncContracts').value || 0,
+    avg_cost:  +document.getElementById('syncAvgCost').value  || null,
+    cur_price: +document.getElementById('syncCurPrice').value || null,
+    equity:    +document.getElementById('syncEquity').value   || null,
+  };
+  try {
+    const r = await fetch(`${BASE}/fmx/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    closeSyncModal();
+    toast(j.message || '同步完成');
+    setTimeout(refresh, 800);
+  } catch(e) {
+    toast('同步失敗: ' + e.message);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  ROLLOVER MODAL
+// ════════════════════════════════════════════════════════
+const _MONTH_CODES_JS = {1:'F',2:'G',3:'H',4:'J',5:'K',6:'M',7:'N',8:'Q',9:'U',10:'V',11:'X',12:'Z'};
+
+function _computeNearNextMonth() {
+  // 計算近月 / 次月 YYYYMM 及合約代碼
+  const now    = new Date();
+  let   yr     = now.getFullYear();
+  let   mo     = now.getMonth() + 1;  // 1-based
+
+  // 第三個星期三
+  const thirdWed = (y, m) => {
+    const d = new Date(y, m - 1, 1);
+    const dow = d.getDay();  // 0=Sun,3=Wed
+    const delta = (3 - dow + 7) % 7;
+    return new Date(y, m - 1, 1 + delta + 14);
+  };
+
+  const settle = thirdWed(yr, mo);
+  const today  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (today >= settle) {
+    mo++;
+    if (mo > 12) { mo = 1; yr++; }
+  }
+  const nearYr = yr, nearMo = mo;
+  let   nextMo = mo + 1, nextYr = yr;
+  if (nextMo > 12) { nextMo = 1; nextYr++; }
+
+  const sym = PRODUCTS[currentSymbol];
+  const prefix = currentSymbol.endsWith('R1') || currentSymbol.endsWith('R2')
+    ? currentSymbol.slice(0, -2)
+    : currentSymbol.slice(0, 3);
+  const nearCode = _MONTH_CODES_JS[nearMo] || 'J';
+  const nextCode = _MONTH_CODES_JS[nextMo] || 'K';
+  return {
+    nearMon: `${nearYr}${String(nearMo).padStart(2,'0')}`,
+    nextMon: `${nextYr}${String(nextMo).padStart(2,'0')}`,
+    nearSym: `${prefix}${nearCode}${nearYr % 10}`,
+    nextSym: `${prefix}${nextCode}${nextYr % 10}`,
+  };
+}
+
+function openRolloverModal() {
+  const mm = _computeNearNextMonth();
+
+  // 填入月份資訊
+  const nearEl = document.getElementById('rolloverNearSym');
+  const nextEl = document.getElementById('rolloverNextSym');
+  if (nearEl) nearEl.textContent = `${mm.nearSym}（${mm.nearMon}）`;
+  if (nextEl) nextEl.textContent = `${mm.nextSym}（${mm.nextMon}）`;
+
+  // 填入目前持倉口數
+  fetch(`${BASE}/fmx/state`).then(r=>r.json()).then(s => {
+    const lots = s.contracts ?? _sdkContracts ?? '—';
+    const el = document.getElementById('rolloverCurLots');
+    if (el) el.textContent = lots + (lots !== '—' ? ' 口' : '');
+    // 預設轉倉口數空白（代表全部）
+    document.getElementById('rolloverLots').value = '';
+  }).catch(() => {});
+
+  document.getElementById('rolloverModal').classList.add('open');
+}
+
+function closeRolloverModal() {
+  document.getElementById('rolloverModal').classList.remove('open');
+}
+
+function toggleRolloverSpread() {
+  const isMarket = document.getElementById('rolloverOrderType').value === 'market';
+  document.getElementById('rolloverSpreadGroup').style.display = isMarket ? 'none' : '';
+}
+
+async function doRollover() {
+  const lotsVal    = document.getElementById('rolloverLots').value.trim();
+  const lots       = lotsVal ? parseInt(lotsVal) : null;
+  const orderType  = document.getElementById('rolloverOrderType').value;
+  const spread     = parseFloat(document.getElementById('rolloverSpread').value) || 5;
+  const dryRun     = document.getElementById('dryRunToggle').checked;
+
+  const mm = _computeNearNextMonth();
+  const lotsDesc = lots ? `${lots} 口` : '全部口數';
+  const confirm_ = window.confirm(
+    `確認轉倉？\n\n` +
+    `近月平倉：${mm.nearSym}（${mm.nearMon}）× ${lotsDesc}\n` +
+    `次月開倉：${mm.nextSym}（${mm.nextMon}）× ${lotsDesc}\n\n` +
+    `委託：${orderType === 'market' ? '市價' : `限價 ±${spread}點`}\n` +
+    (dryRun ? '【模擬模式，不實際下單】' : '【⚠ 實單模式，將實際下單！】')
+  );
+  if (!confirm_) return;
+
+  try {
+    const r = await fetch(`${BASE}/fmx/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action:     'rollover',
+        lots:       lots,
+        order_type: orderType,
+        spread:     spread,
+        dry_run:    dryRun,
+      }),
+    });
+    const j = await r.json();
+    closeRolloverModal();
+    toast(j.message || '轉倉指令已送出', 3500);
+    setTimeout(refresh, 3000);  // 3 秒後刷新，讓 bot 有時間執行
+  } catch(e) {
+    toast('轉倉失敗: ' + e.message);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════
+(async () => {
+  initDragHandles();
+
+  // Toggle spread group visibility when order type changes
+  const orderTypeEl = document.getElementById('cfgOrderType');
+  const spreadGroup = document.getElementById('spreadGroup');
+  if (orderTypeEl && spreadGroup) {
+    orderTypeEl.addEventListener('change', () => {
+      spreadGroup.style.display = orderTypeEl.value === 'market' ? 'none' : '';
+    });
+  }
+
+  try {
+    await refresh();
+  } catch(initErr) {
+    console.error('[init] refresh() 失敗:', initErr);
+    const el = document.getElementById('lastRefresh');
+    if (el) el.textContent = '❌ 載入失敗: ' + initErr.message;
+  }
+
+  toggleAutoRefresh();
+  // 雙擊圖表還原縮放
+  document.getElementById('priceChart')?.addEventListener('dblclick', resetChartZoom);
+  // 左鍵拖曳平移 K 線
+  _initChartPan(document.getElementById('priceChart'));
+  // 啟動富邦即時報價輪詢（每 5 秒 fetch、每 1 秒更新 UI）
+  startLiveQuotePoll();
+  // 啟動 TAIFEX MIS 即時行情輪詢（日盤/夜盤皆自動偵測，每 10 秒刷新）
+  startMISPoll();
+  // 啟動富邦 SDK 批量市場報價輪詢（每 10 秒 fetch、每 1 秒 UI 更新）
+  startFubonMktQuotesPoll();
+  // 初始化手機版 tab
+  mobInit();
+})();
+
+// ════════════════════════════════════════════════════════
+//  MOBILE TAB NAVIGATION
+// ════════════════════════════════════════════════════════
+let _mobCurrentTab = 0;
+
+function mobInit() {
+  if (window.innerWidth >= 768) return; // 桌面不執行
+  mobSwitch(0);
+}
+
+function mobSwitch(idx) {
+  if (window.innerWidth >= 768) return;
+  _mobCurrentTab = idx;
+
+  // tab 面板對應
+  const panels = [
+    document.getElementById('rightPanel'),   // 0 監控
+    document.getElementById('centerPanel'),  // 1 圖表
+    null,                                    // 2 庫存 (centerPanel 內部捲動到庫存區)
+    document.getElementById('leftPanel'),    // 3 控制
+  ];
+  const btns = [0,1,2,3].map(i => document.getElementById(`mobTab${i}`));
+
+  // 特殊處理：庫存 tab 顯示 center panel 並捲動到庫存區
+  const showCenter = idx === 1 || idx === 2;
+  panels[0].classList.toggle('mob-active', idx === 0);
+  panels[1].classList.toggle('mob-active', showCenter);
+  panels[3].classList.toggle('mob-active', idx === 3);
+
+  btns.forEach((b, i) => b?.classList.toggle('active', i === idx));
+
+  // 切換到圖表或庫存時刷新 Chart.js（避免 canvas 尺寸 0 的問題）
+  if (showCenter) {
+    setTimeout(() => {
+      priceChartObj?.resize();
+      leverageChartObj?.resize();
+      if (idx === 2) {
+        document.getElementById('invSection2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  }
+
+  // 切換到監控 tab 時更新英雄卡
+  if (idx === 0) _updateMobHero();
+}
+
+// 更新手機英雄卡（大字顯示即時行情）
+function _updateMobHero() {
+  const priceEl  = document.getElementById('mobHeroPrice');
+  const chgEl    = document.getElementById('mobHeroChg');
+  const levEl    = document.getElementById('mobHeroLev');
+  const equityEl = document.getElementById('mobHeroEquity');
+  const liqEl    = document.getElementById('mobHeroLiq');
+  const symEl    = document.getElementById('mobHeroSymbol');
+
+  // 取右側面板現有數值直接鏡像到英雄卡
+  const priceSrc = document.getElementById('statLivePrice')?.textContent;
+  const chgSrc   = document.getElementById('statLiveChg')?.textContent;
+  const levSrc   = document.getElementById('statLeverage')?.textContent;
+  const eqSrc    = document.getElementById('statEquity')?.textContent;
+  const liqSrc   = document.getElementById('statLiqPrice')?.textContent;
+
+  if (priceEl && priceSrc) priceEl.textContent = priceSrc;
+  if (chgEl   && chgSrc)   {
+    chgEl.textContent = chgSrc;
+    const isUp = chgSrc.startsWith('+');
+    const isDn = chgSrc.startsWith('-');
+    chgEl.style.color = isUp ? 'var(--green)' : isDn ? 'var(--red)' : 'var(--muted)';
+  }
+  if (levEl    && levSrc)    levEl.textContent    = levSrc;
+  if (equityEl && eqSrc)     equityEl.textContent = eqSrc;
+  if (liqEl    && liqSrc)    liqEl.textContent    = liqSrc;
+  if (symEl) symEl.textContent = (document.getElementById('headerSymbol')?.textContent || currentSymbol) + ' · 微台期貨';
+}
+
+// 每次 _updateLeverageLive 後更新英雄卡（已在 _updateLeverageLive 裡更新 mobHeroUnreal）
+// 另外每秒同步價格、槓桿等欄位
+setInterval(() => {
+  if (window.innerWidth < 768 && _mobCurrentTab === 0) _updateMobHero();
+}, 1000);
+</script>
+</body>
+</html>

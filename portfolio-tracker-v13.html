@@ -2435,7 +2435,7 @@
         })();
 
         // ==================== Analysis Cache (localStorage, 基本面4hr / 技術面1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v10';  // v10：修正 fetchSymbolDataFromYahoo 回傳物件漏掉 next_earnings_date，強制清快取
+        const _CACHE_KEY = 'pf_analysis_v11';  // v11：下次財報加註剩餘天數 badge，強制清快取以套用新 UI
         const _FUND_TTL  = 4 * 60 * 60 * 1000; // 基本面：4 小時
         const _TECH_TTL  = 1 * 60 * 60 * 1000; // 技術面：1 小時
         function _loadCacheRaw() {
@@ -2654,10 +2654,20 @@
                     return;
                 }
 
-                // 基本面行（含下次財報日期）
-                const nextEarnings = d.next_earnings_date
-                    ? `<span style="color:#fbbf24;font-weight:600;">${d.next_earnings_date}</span>`
-                    : '<span style="color:#475569;">-</span>';
+                // 基本面行（含下次財報日期 + 剩餘天數）
+                const nextEarnings = (() => {
+                    if (!d.next_earnings_date) return '<span style="color:#475569;">-</span>';
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const ne = new Date(d.next_earnings_date + 'T00:00:00');
+                    const days = Math.round((ne - today) / 86400000);
+                    let badge;
+                    if (days < 0)        badge = `<small style="color:#64748b;font-size:0.72rem;">已過 ${-days} 天</small>`;
+                    else if (days === 0) badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">🔴 今天</small>`;
+                    else if (days <= 7)  badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">剩 ${days} 天</small>`;
+                    else if (days <= 30) badge = `<small style="color:#fb923c;font-size:0.72rem;font-weight:600;">剩 ${days} 天</small>`;
+                    else                 badge = `<small style="color:#64748b;font-size:0.72rem;">剩 ${days} 天</small>`;
+                    return `<span style="color:#fbbf24;font-weight:600;">${d.next_earnings_date}</span><br>${badge}`;
+                })();
                 fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}` +
                     tr(fmt(d.pe)) + tr(fmt(d.hist_avg_pe)) + tr(fmt(d.fpe)) +
                     tr(fmt(d.peg)) + tr(fmt(d.ps)) + tr(fmt(d.pb)) +

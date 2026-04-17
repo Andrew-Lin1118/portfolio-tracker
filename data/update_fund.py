@@ -16,6 +16,14 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(ROOT, 'symbols.json'), encoding='utf-8') as f:
     symbols = json.load(f)
 
+# ── 代理標的對應表：HK 掛牌工具 → 真實標的 ───────────────────────────────
+# 用於補充 yfinance 無法取得 HK 代理標的財報日期的情況
+# key = 代理代碼（symbols.json 中的代碼），value = 原型代碼（同在 symbols.json 中）
+PROXY_EARNINGS_MAP = {
+    '7709.HK': '000660.KS',   # 南韓 SK 海力士 ETF → 000660.KS
+    '9747.HK': '005930.KS',   # 南韓三星電子 ETF  → 005930.KS
+}
+
 
 # ── 工具函數 ──────────────────────────────────────────────────────────────
 def safe_float(v, decimals=4):
@@ -388,6 +396,14 @@ for sym in symbols:
         result[sym] = {'error': str(e)}
 
     time.sleep(1.0)   # 避免觸發 rate-limit
+
+# ── 代理標的財報日期補充：從原型標的複製 next_earnings_date ──────────────────
+for proxy_sym, underlying_sym in PROXY_EARNINGS_MAP.items():
+    if (proxy_sym in result and underlying_sym in result
+            and result[proxy_sym].get('next_earnings_date') is None
+            and result[underlying_sym].get('next_earnings_date') is not None):
+        result[proxy_sym]['next_earnings_date'] = result[underlying_sym]['next_earnings_date']
+        print(f'  [{proxy_sym}] next_earnings_date 從 {underlying_sym} 補充: {result[proxy_sym]["next_earnings_date"]}', flush=True)
 
 # ── 寫出 ──────────────────────────────────────────────────────────────────
 output = {

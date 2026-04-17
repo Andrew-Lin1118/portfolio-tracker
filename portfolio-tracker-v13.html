@@ -2214,6 +2214,7 @@
                             gross_margin:    f.gross_margin    ?? null,
                             operating_margin:f.operating_margin?? null,
                             eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
+                            next_earnings_date: f.next_earnings_date ?? null,
                             prevClose, prevPrevClose, marketOpenedToday,
                             daily_k:  f.daily_k  ?? null, daily_d:  f.daily_d  ?? null, daily_cross:  f.daily_cross  ?? 'none',
                             weekly_k: f.weekly_k ?? null, weekly_d: f.weekly_d ?? null, weekly_cross: f.weekly_cross ?? 'none',
@@ -2330,6 +2331,7 @@
                 gross_margin:    fund?.gross_margin    ?? null,
                 operating_margin:fund?.operating_margin?? null,
                 eps_ttm, eps_cur_q, eps_next_q, eps_cur_y, eps_next_y,
+                next_earnings_date: fund?.next_earnings_date ?? null,
                 prevClose, prevPrevClose, marketOpenedToday,
                 weekly_k: weeklyKD?.k ?? null, weekly_d: weeklyKD?.d ?? null, weekly_cross: kdCross(weeklyKD),
                 daily_k:  dailyKD?.k  ?? null, daily_d:  dailyKD?.d  ?? null, daily_cross:  kdCross(dailyKD),
@@ -2433,7 +2435,7 @@
         })();
 
         // ==================== Analysis Cache (localStorage, 基本面4hr / 技術面1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v9';   // v9：新增 next_earnings_date 欄位，強制清除舊快取使新欄位生效
+        const _CACHE_KEY = 'pf_analysis_v10';  // v10：修正 fetchSymbolDataFromYahoo 回傳物件漏掉 next_earnings_date，強制清快取
         const _FUND_TTL  = 4 * 60 * 60 * 1000; // 基本面：4 小時
         const _TECH_TTL  = 1 * 60 * 60 * 1000; // 技術面：1 小時
         function _loadCacheRaw() {

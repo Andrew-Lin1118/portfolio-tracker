@@ -3934,18 +3934,20 @@
         async function silentRefreshPrices() {
             const prices = {}, mergedRates = {};
 
-            // ── 優先：data/prices.json（GitHub Actions 每 5 分鐘更新，同域無 CORS）──
+            // ── 優先：data/prices.json（GitHub Actions 定時更新，同域無 CORS）──
+            // 股價：無論新舊都使用（非市場時段仍顯示昨收）
+            // 匯率：僅在 4 小時內有效（匯率變動較慢，舊值影響較小）
             try {
                 const pjRes = await fetch('./data/prices.json', { cache: 'no-store' });
                 if (pjRes.ok) {
                     const pj = await pjRes.json();
                     const ageMs = Date.now() - new Date(pj.generated ?? 0).getTime();
-                    if (ageMs < 30 * 60 * 1000) {           // 30 分鐘內視為有效
-                        Object.assign(prices, pj.prices ?? {});
+                    Object.assign(prices, pj.prices ?? {});   // 股價：永遠採用（非盤中顯示昨收）
+                    if (ageMs < 4 * 60 * 60 * 1000) {         // 匯率：4 小時內才更新
                         if (pj.rates?.USD_TWD) mergedRates.USD_TWD = pj.rates.USD_TWD;
                         if (pj.rates?.HKD_TWD) mergedRates.HKD_TWD = pj.rates.HKD_TWD;
-                        window._priceJsonCache = pj;        // Step 0.5 用：proxy ETF prevClose
                     }
+                    window._priceJsonCache = pj;               // Step 0.5 用：proxy ETF prevClose
                 }
             } catch(_) {}
 

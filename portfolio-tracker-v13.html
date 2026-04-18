@@ -1365,9 +1365,6 @@
             } catch(_) {}
         }
 
-        // 槓桿倍數（預設 2x；特例在此列出）
-        const LEVERAGE_FACTOR = { 'TSLL': 1.5 };
-
         // 從 Yahoo Finance 抓 5 年日線並轉換成 { 'YYYY-MM-DD': price } 物件
         async function _fetchYfHistory(sym) {
             const enc  = encodeURIComponent(sym);
@@ -1411,46 +1408,12 @@
                     if (i < n - 1) await new Promise(r => setTimeout(r, 300));
                 }
 
-                // ── Step 2：對 LEVERAGED_MAP 中的槓桿 ETF，額外抓基礎標的歷史 ──
-                // 用途：ETF 發行前的日期，以基礎標的報價反推模擬價格
-                const underMaps  = {};   // underSym → { date: price }
-                const leveragedSyms = holdings.map(h => h.symbol).filter(s => LEVERAGED_MAP[s]);
-                const neededUnder  = [...new Set(leveragedSyms.map(s => LEVERAGED_MAP[s]))];
-                let ui = 0;
-                for (const underSym of neededUnder) {
-                    statusEl.textContent = `⏳ 抓取基礎標的 ${++ui}/${neededUnder.length}：${underSym}`;
-                    try { underMaps[underSym] = await _fetchYfHistory(underSym); }
-                    catch(e) { underMaps[underSym] = {}; console.warn(`backfill under skip ${underSym}:`, e); }
-                    await new Promise(r => setTimeout(r, 300));
-                }
-
-                // ── Step 3：計算每個槓桿 ETF 的「錨點」——
-                // 找到 ETF 最早有資料的日期，記錄當日 ETF 收盤價 及 基礎標的收盤價
-                // 未來日期出現 ETF 缺失時，以基礎標的的漲跌幅 × 槓桿 做模擬
-                const etfAnchor = {};   // sym → { etfP0, underP0 }
-                for (const sym of leveragedSyms) {
-                    const underSym  = LEVERAGED_MAP[sym];
-                    const etfDates  = Object.keys(priceMaps[sym] || {}).sort();
-                    if (!etfDates.length) continue;
-                    const firstDate = etfDates[0];
-                    const etfP0     = priceMaps[sym][firstDate];
-                    // 取基礎標的在 firstDate（或最近前一日）的收盤
-                    const underDates = Object.keys(underMaps[underSym] || {}).sort();
-                    let underP0 = null;
-                    for (const d of underDates) {
-                        if (d <= firstDate) underP0 = underMaps[underSym][d];
-                        else break;
-                    }
-                    if (etfP0 && underP0) etfAnchor[sym] = { firstDate, etfP0, underP0 };
-                }
-
-                // ── Step 4：合併所有日期（ETF + 基礎標的），建立完整時間軸 ──
+                // ── Step 2：建立完整時間軸（所有標的日期的聯集）──
                 const allDates = new Set();
-                [...Object.values(priceMaps), ...Object.values(underMaps)]
-                    .forEach(m => Object.keys(m).forEach(d => allDates.add(d)));
+                Object.values(priceMaps).forEach(m => Object.keys(m).forEach(d => allDates.add(d)));
                 const sortedDates = [...allDates].sort();
 
-                // ── Step 5：預計算固定成本 ──
+                // ── Step 3：預計算固定成本 ──
                 let fixedCostUSD = 0;
                 holdings.forEach(h => {
                     const isHK_HKD = (h.market === 'HK' || h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol);
@@ -1463,56 +1426,35 @@
                 const fixedCostTWD = Math.round(fixedCostUSD * exchangeRates.USD_TWD);
                 fixedCostUSD = Math.round(fixedCostUSD * 100) / 100;
 
-                // ── Step 6：逐日計算市值 ──
+                // ── Step 4：逐日計算市值（無報價視為持有現金，以成本計算）──
                 statusEl.textContent = `⏳ 計算 ${sortedDates.length} 個交易日市值...`;
-                const ffPrice    = {};   // sym → 最近已知 ETF 收盤（forward-fill）
-                const ffUnder    = {};   // underSym → 最近已知基礎標的收盤
-                const hist       = {};
+                const ffPrice = {};   // sym → 最近已知收盤（forward-fill）
+                const hist    = {};
 
                 for (const date of sortedDates) {
-                    // 更新 forward-fill 快取
+                    // 更新 forward-fill 快取（只有實際有資料的日期才更新）
                     for (const h of holdings) {
-                        const sym = h.symbol;
-                        if (priceMaps[sym]?.[date] != null) ffPrice[sym] = priceMaps[sym][date];
-                    }
-                    for (const underSym of neededUnder) {
-                        if (underMaps[underSym]?.[date] != null) ffUnder[underSym] = underMaps[underSym][date];
+                        if (priceMaps[h.symbol]?.[date] != null)
+                            ffPrice[h.symbol] = priceMaps[h.symbol][date];
                     }
 
                     let totalValueUSD = 0;
-                    let missingCount  = 0;
+                    let anyData       = false;
 
                     for (const h of holdings) {
-                        const sym      = h.symbol;
-                        let   price    = ffPrice[sym] ?? null;
-
-                        // ── 若 ETF 尚未發行（無收盤價），用基礎標的模擬 ──
-                        if (!price && etfAnchor[sym]) {
-                            const { firstDate, etfP0, underP0 } = etfAnchor[sym];
-                            if (date < firstDate) {
-                                const underSym = LEVERAGED_MAP[sym];
-                                const underNow = ffUnder[underSym] ?? null;
-                                if (underNow && underP0 > 0) {
-                                    const lev   = LEVERAGE_FACTOR[sym] ?? 2;
-                                    const ratio = underNow / underP0;
-                                    // 以錨點 ETF 價格 × (基礎標的漲跌比例)^槓桿 做反推
-                                    price = etfP0 * Math.pow(ratio, lev);
-                                }
-                            }
-                        }
-
-                        if (!price) { missingCount++; continue; }
-
+                        // 有歷史報價 → 用市價；無報價（商品尚未發行）→ 視為現金，以成本計
+                        const price    = ffPrice[h.symbol] ?? h.costPrice;
                         const isHK_HKD = (h.market === 'HK' || h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol);
                         const isTW     = h.market === 'TW';
                         const native   = h.quantity * price;
                         if (isHK_HKD)      totalValueUSD += native * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
                         else if (isTW)     totalValueUSD += native / exchangeRates.USD_TWD;
                         else               totalValueUSD += native;
+                        if (ffPrice[h.symbol]) anyData = true;
                     }
 
-                    // 超過一半標的仍無資料 → 時間太早，跳過
-                    if (missingCount > n / 2) continue;
+                    // 所有標的都還沒有任何報價 → 日期太早，跳過
+                    if (!anyData) continue;
 
                     const totalValueTWD = Math.round(totalValueUSD * exchangeRates.USD_TWD);
                     const pnlPct        = fixedCostUSD > 0 ? (totalValueUSD - fixedCostUSD) / fixedCostUSD * 100 : 0;
@@ -1526,7 +1468,7 @@
                     };
                 }
 
-                // ── Step 7：合併並儲存（已有快照優先，不被回推資料覆蓋）──
+                // ── Step 5：合併並儲存（已有快照優先，不被回推資料覆蓋）──
                 const existing = {};
                 try { Object.assign(existing, JSON.parse(localStorage.getItem(PT_ASSET_HISTORY_KEY) || '{}')); } catch(_) {}
                 const merged = { ...hist, ...existing };

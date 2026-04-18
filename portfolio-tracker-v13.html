@@ -244,6 +244,7 @@
             <button class="tab-btn" id="tab-btn-3" onclick="switchTab(3)">🔬 技術面</button>
             <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">📊 財報分析</button>
             <button class="tab-btn" id="tab-btn-5" onclick="switchTab(5)">🌐 總體經濟</button>
+            <button class="tab-btn" id="tab-btn-6" onclick="switchTab(6)">📉 資產變化</button>
         </div>
 
         <!-- Tab 1: Holdings -->
@@ -518,6 +519,47 @@
                 </div>
             </div>
         </div><!-- /tab-pane-5 -->
+
+        <!-- Tab 6: 資產變化 -->
+        <div id="tab-pane-6" class="tab-pane" style="padding-top:1rem;">
+            <!-- 圖表區 -->
+            <div class="glass-card" style="padding:1.25rem 1.5rem; margin-bottom:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;">
+                    <span style="color:#fbbf24; font-weight:700; font-size:1rem;">📉 資產歷史走勢</span>
+                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <select id="hist-range" onchange="renderAssetHistory()"
+                                style="padding:0.4rem 0.7rem; background:rgba(10,25,45,0.9); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#e2e8f0; font-size:0.82rem; cursor:pointer;">
+                            <option value="30">近 30 天</option>
+                            <option value="90" selected>近 90 天</option>
+                            <option value="180">近 180 天</option>
+                            <option value="9999">全部</option>
+                        </select>
+                        <button onclick="clearAssetHistory()"
+                                style="padding:0.4rem 0.85rem; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; color:#f87171; font-size:0.82rem; cursor:pointer;">🗑 清除記錄</button>
+                    </div>
+                </div>
+                <div id="asset-history-chart" style="width:100%; min-height:220px; display:flex; align-items:center; justify-content:center; color:#475569; font-size:0.9rem;"></div>
+            </div>
+            <!-- 資料表 -->
+            <div class="glass-card" style="padding:0; overflow:hidden;">
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; min-width:540px;">
+                        <thead>
+                            <tr style="background:rgba(15,30,60,0.7); border-bottom:1px solid rgba(59,130,246,0.25);">
+                                <th style="padding:0.6rem 0.75rem; text-align:left;  color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">日期</th>
+                                <th style="padding:0.6rem 0.75rem; text-align:right; color:#3b82f6; font-size:0.8rem; font-weight:600; white-space:nowrap;">市值</th>
+                                <th style="padding:0.6rem 0.75rem; text-align:right; color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">成本</th>
+                                <th style="padding:0.6rem 0.75rem; text-align:right; color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">損益</th>
+                                <th style="padding:0.6rem 0.75rem; text-align:right; color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">損益%</th>
+                                <th style="padding:0.6rem 0.75rem; text-align:right; color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">日漲跌</th>
+                                <th style="padding:0.6rem 0.75rem; text-align:right; color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">日漲跌%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="asset-history-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div><!-- /tab-pane-6 -->
 
 
     <!-- Modals -->
@@ -1292,6 +1334,174 @@
             if (_tbtn) _tbtn.textContent   = _holdingsTableHidden  ? '▼ 顯示'    : '▲ 隱藏';
             if (_dbtn) _dbtn.textContent   = _holdingsDetailHidden ? '▼ 顯示持倉' : '▲ 隱藏持倉';
             saveToStorage(); // v13：每次畫面更新同步儲存
+            _saveAssetSnapshot(stats); // 每日資產快照（供 Tab6 資產變化表使用）
+        }
+
+        // ==================== 資產歷史快照（Tab 6）====================
+        const PT_ASSET_HISTORY_KEY = 'pt_v13_asset_history';
+        const PT_ASSET_HISTORY_MAX = 365;
+
+        function _saveAssetSnapshot(stats) {
+            if (!_storageReady || !stats || stats.totalValue <= 0 || holdings.length === 0) return;
+            try {
+                const d = new Date();
+                const todayKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                const raw  = localStorage.getItem(PT_ASSET_HISTORY_KEY);
+                const hist = raw ? JSON.parse(raw) : {};
+                hist[todayKey] = {
+                    v:  Math.round(stats.totalValue     * 100) / 100,  // USD 市值
+                    vt: Math.round(stats.totalValueTWD),               // TWD 市值
+                    c:  Math.round(stats.totalCost      * 100) / 100,  // USD 成本
+                    ct: Math.round(stats.totalCostTWD),                // TWD 成本
+                    p:  Math.round(stats.totalPnLPercent * 100) / 100  // 損益 %
+                };
+                // 超出上限時刪除最舊的
+                const keys = Object.keys(hist).sort();
+                while (keys.length > PT_ASSET_HISTORY_MAX) delete hist[keys.shift()];
+                localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(hist));
+            } catch(_) {}
+        }
+
+        function clearAssetHistory() {
+            if (!confirm('確定要清除所有資產歷史記錄？此操作無法復原。')) return;
+            localStorage.removeItem(PT_ASSET_HISTORY_KEY);
+            renderAssetHistory();
+        }
+
+        function renderAssetHistory() {
+            const pane = document.getElementById('tab-pane-6');
+            if (!pane?.classList.contains('active')) return;
+
+            const raw  = localStorage.getItem(PT_ASSET_HISTORY_KEY);
+            const hist = raw ? JSON.parse(raw) : {};
+            const allKeys = Object.keys(hist).sort();
+
+            // 依選擇的天數過濾
+            const rangeVal = parseInt(document.getElementById('hist-range')?.value || '90');
+            let keys = allKeys;
+            if (rangeVal < 9999) {
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - rangeVal);
+                const cutStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;
+                keys = allKeys.filter(k => k >= cutStr);
+            }
+
+            const useTWD = (currency === 'TWD');
+
+            // ── 折線圖 ──
+            const chartEl = document.getElementById('asset-history-chart');
+            if (chartEl) {
+                if (keys.length >= 2) {
+                    const vals  = keys.map(k => useTWD ? hist[k].vt : hist[k].v);
+                    const costs = keys.map(k => useTWD ? hist[k].ct : hist[k].c);
+                    const allNums = [...vals, ...costs].filter(n => n > 0);
+                    const minV = Math.min(...allNums) * 0.97;
+                    const maxV = Math.max(...allNums) * 1.02;
+                    const rng  = maxV - minV || 1;
+                    const W = 800, H = 230, PL = 72, PR = 18, PT = 20, PB = 32;
+                    const pW = W - PL - PR, pH = H - PT - PB, n = keys.length;
+                    const toX = i => PL + (i / (n - 1)) * pW;
+                    const toY = v => PT + (1 - (v - minV) / rng) * pH;
+
+                    // Y 格線 + 標籤（5 條）
+                    let yLines = '';
+                    for (let i = 0; i <= 4; i++) {
+                        const v = minV + (rng * i / 4);
+                        const y = toY(v);
+                        const lbl = useTWD
+                            ? (v >= 1e6 ? `${(v/1e6).toFixed(1)}M` : `${(v/1e4).toFixed(0)}萬`)
+                            : `$${v >= 1e6 ? (v/1e6).toFixed(2)+'M' : (v/1e3).toFixed(0)+'k'}`;
+                        yLines += `<line x1="${PL}" y1="${y}" x2="${PL+pW}" y2="${y}" stroke="rgba(30,58,95,0.7)" stroke-width="1"/>
+                                   <text x="${PL-6}" y="${y+4}" text-anchor="end" fill="#475569" font-size="10">${lbl}</text>`;
+                    }
+
+                    // X 軸標籤（最多 6 個）
+                    const xStep = Math.max(1, Math.ceil(n / 6));
+                    let xLabels = '';
+                    for (let i = 0; i < n; i += xStep) {
+                        xLabels += `<text x="${toX(i)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${keys[i].slice(5)}</text>`;
+                    }
+                    // 確保最後一個日期也顯示
+                    if ((n - 1) % xStep !== 0) {
+                        xLabels += `<text x="${toX(n-1)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${keys[n-1].slice(5)}</text>`;
+                    }
+
+                    const valPts  = vals.map( (v,i) => `${toX(i)},${toY(v)}`).join(' ');
+                    const costPts = costs.map((v,i) => `${toX(i)},${toY(v)}`).join(' ');
+                    const areaBot = `${toX(n-1)},${PT+pH} ${toX(0)},${PT+pH}`;
+
+                    // 今日顏色（最後一點）
+                    const lastV = vals[n-1], prevV = vals[n-2];
+                    const lineColor = lastV >= prevV ? '#3b82f6' : '#60a5fa';
+
+                    chartEl.innerHTML = `<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="display:block;">
+                        <defs>
+                            <linearGradient id="aGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="${lineColor}" stop-opacity="0.28"/>
+                                <stop offset="100%" stop-color="${lineColor}" stop-opacity="0.02"/>
+                            </linearGradient>
+                        </defs>
+                        ${yLines}
+                        <polygon points="${valPts} ${areaBot}" fill="url(#aGrad)"/>
+                        <polyline points="${costPts}" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 3" opacity="0.65"/>
+                        <polyline points="${valPts}"  fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round"/>
+                        <circle cx="${toX(n-1)}" cy="${toY(lastV)}" r="4" fill="${lineColor}" stroke="#0a1628" stroke-width="2"/>
+                        ${xLabels}
+                        <line x1="${PL+2}"  y1="14" x2="${PL+18}" y2="14" stroke="${lineColor}" stroke-width="2.5"/>
+                        <text x="${PL+22}" y="18" fill="#94a3b8" font-size="11">市值</text>
+                        <line x1="${PL+56}" y1="14" x2="${PL+72}" y2="14" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 3"/>
+                        <text x="${PL+76}" y="18" fill="#94a3b8" font-size="11">成本</text>
+                    </svg>`;
+                } else {
+                    chartEl.innerHTML = `<div style="color:#475569;text-align:center;">📭 至少需要 2 天的快照才能顯示圖表<br><small style="font-size:0.78rem;color:#334155;">每次更新報價或切換頁面時，系統會自動記錄今日快照</small></div>`;
+                }
+            }
+
+            // ── 資料表（最新在前）──
+            const tbody = document.getElementById('asset-history-tbody');
+            if (!tbody) return;
+
+            const rows = [...keys].reverse();
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2.5rem 1rem;color:#475569;">
+                    尚無資產歷史記錄<br><small style="font-size:0.78rem;color:#334155;margin-top:0.4rem;display:block;">每次打開頁面、更新報價時，系統會自動儲存今日快照</small></td></tr>`;
+                return;
+            }
+
+            const fmtN = (n, twd) => {
+                if (n == null) return '-';
+                return twd
+                    ? Math.abs(n).toLocaleString('zh-TW', { maximumFractionDigits: 0 })
+                    : Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            };
+            const sign = n => n == null ? '' : (n >= 0 ? '+' : '−');
+            const pfx  = useTWD ? 'NT$' : '$';
+
+            tbody.innerHTML = rows.map((k, i) => {
+                const r = hist[k];
+                const prevKey = rows[i + 1];
+                const prev    = prevKey ? hist[prevKey] : null;
+                const value   = useTWD ? r.vt : r.v;
+                const cost    = useTWD ? r.ct : r.c;
+                const pnl     = value - cost;
+                const prevVal = prev ? (useTWD ? prev.vt : prev.v) : null;
+                const dayChg  = prevVal != null ? (value - prevVal) : null;
+                const dayPct  = prevVal != null && prevVal > 0 ? ((value - prevVal) / prevVal * 100) : null;
+
+                const gc = '#10b981', rc = '#ef4444', nc = '#64748b';
+                const pColor = pnl >= 0 ? gc : rc;
+                const dColor = dayChg == null ? nc : (dayChg >= 0 ? gc : rc);
+
+                return `<tr style="border-bottom:1px solid rgba(30,58,95,0.4); transition:background 0.15s;" onmouseover="this.style.background='rgba(30,58,95,0.35)'" onmouseout="this.style.background=''">
+                    <td style="padding:0.5rem 0.75rem; color:#94a3b8; font-family:monospace; font-size:0.82rem; white-space:nowrap;">${k}</td>
+                    <td style="padding:0.5rem 0.75rem; text-align:right; color:#3b82f6; font-weight:700; font-family:monospace; font-size:0.83rem; white-space:nowrap;">${pfx}${fmtN(value, useTWD)}</td>
+                    <td style="padding:0.5rem 0.75rem; text-align:right; color:#64748b; font-family:monospace; font-size:0.83rem; white-space:nowrap;">${pfx}${fmtN(cost, useTWD)}</td>
+                    <td style="padding:0.5rem 0.75rem; text-align:right; color:${pColor}; font-family:monospace; font-size:0.83rem; white-space:nowrap;">${sign(pnl)}${pfx}${fmtN(pnl, useTWD)}</td>
+                    <td style="padding:0.5rem 0.75rem; text-align:right; color:${pColor}; font-family:monospace; font-size:0.83rem; white-space:nowrap;">${sign(r.p)}${r.p?.toFixed(2)}%</td>
+                    <td style="padding:0.5rem 0.75rem; text-align:right; color:${dColor}; font-family:monospace; font-size:0.83rem; white-space:nowrap;">${dayChg == null ? '—' : sign(dayChg) + pfx + fmtN(dayChg, useTWD)}</td>
+                    <td style="padding:0.5rem 0.75rem; text-align:right; color:${dColor}; font-family:monospace; font-size:0.83rem; white-space:nowrap;">${dayPct == null ? '—' : sign(dayPct) + Math.abs(dayPct).toFixed(2) + '%'}</td>
+                </tr>`;
+            }).join('');
         }
 
         // ==================== 跨裝置同步（GitHub Gist） ====================
@@ -1938,6 +2148,10 @@
             // 切換到總經 Tab：loadMacro 內部判斷快取有效性（1hr TTL）
             if (n === 5) {
                 loadMacro(false);
+            }
+            // 切換到資產變化 Tab：重新渲染
+            if (n === 6) {
+                renderAssetHistory();
             }
         }
 

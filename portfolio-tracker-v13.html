@@ -1541,15 +1541,34 @@
                                    <text x="${PL-6}" y="${y+4}" text-anchor="end" fill="#475569" font-size="10">${lbl}</text>`;
                     }
 
-                    // X 軸標籤（最多 6 個）
-                    const xStep = Math.max(1, Math.ceil(n / 6));
-                    let xLabels = '';
-                    for (let i = 0; i < n; i += xStep) {
-                        xLabels += `<text x="${toX(i)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${keys[i].slice(5)}</text>`;
+                    // X 軸標籤（智能密度 + 年份標記）
+                    const spanDays = keys.length > 1
+                        ? (new Date(keys[keys.length-1]) - new Date(keys[0])) / 86400000
+                        : 0;
+                    const useYM = spanDays > 180;           // >半年 → 顯示 YY-MM
+                    const fmtX  = k => useYM ? k.slice(2, 7) : k.slice(5); // "22-02" or "02-28"
+                    const maxLbls = n > 100 ? 14 : n > 30 ? 12 : 10;
+                    const xStep = Math.max(1, Math.ceil(n / maxLbls));
+                    let xLabels = '', yearLines = '', _lastYr = '';
+                    // 年份分隔虛線 + 年份標籤
+                    if (useYM) {
+                        for (let i = 0; i < n; i++) {
+                            const yr = keys[i].slice(0, 4);
+                            if (yr !== _lastYr && i > 0) {
+                                const x = toX(i);
+                                yearLines += `<line x1="${x}" y1="${PT}" x2="${x}" y2="${PT+pH}" stroke="rgba(100,116,139,0.25)" stroke-width="1" stroke-dasharray="3 2"/>`;
+                                yearLines += `<text x="${x+3}" y="${PT+11}" fill="#64748b" font-size="9" font-weight="bold">${yr}</text>`;
+                            }
+                            _lastYr = yr;
+                        }
                     }
-                    // 確保最後一個日期也顯示
-                    if ((n - 1) % xStep !== 0) {
-                        xLabels += `<text x="${toX(n-1)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${keys[n-1].slice(5)}</text>`;
+                    const _shownIdx = new Set();
+                    for (let i = 0; i < n; i += xStep) {
+                        _shownIdx.add(i);
+                        xLabels += `<text x="${toX(i)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${fmtX(keys[i])}</text>`;
+                    }
+                    if (!_shownIdx.has(n - 1)) {
+                        xLabels += `<text x="${toX(n-1)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${fmtX(keys[n-1])}</text>`;
                     }
 
                     const valPts  = vals.map( (v,i) => `${toX(i)},${toY(v)}`).join(' ');
@@ -1568,6 +1587,7 @@
                             </linearGradient>
                         </defs>
                         ${yLines}
+                        ${yearLines}
                         <polygon points="${valPts} ${areaBot}" fill="url(#aGrad)"/>
                         <polyline points="${costPts}" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 3" opacity="0.65"/>
                         <polyline points="${valPts}"  fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round"/>

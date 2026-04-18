@@ -524,7 +524,7 @@
         <div id="tab-pane-6" class="tab-pane" style="padding-top:1rem;">
             <!-- 圖表區 -->
             <div class="glass-card" style="padding:1.25rem 1.5rem; margin-bottom:1rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem;">
                     <span style="color:#fbbf24; font-weight:700; font-size:1rem;">📉 資產歷史走勢</span>
                     <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
                         <select id="hist-range" onchange="renderAssetHistory()"
@@ -532,12 +532,18 @@
                             <option value="30">近 30 天</option>
                             <option value="90" selected>近 90 天</option>
                             <option value="180">近 180 天</option>
-                            <option value="9999">全部</option>
+                            <option value="365">近 1 年</option>
+                            <option value="730">近 2 年</option>
+                            <option value="1825">近 5 年</option>
+                            <option value="99999">全部</option>
                         </select>
+                        <button id="backfill-btn" onclick="backfillAssetHistory()"
+                                style="padding:0.4rem 0.85rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4); border-radius:8px; color:#a5b4fc; font-size:0.82rem; cursor:pointer; white-space:nowrap;">📊 回推歷史</button>
                         <button onclick="clearAssetHistory()"
-                                style="padding:0.4rem 0.85rem; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; color:#f87171; font-size:0.82rem; cursor:pointer;">🗑 清除記錄</button>
+                                style="padding:0.4rem 0.85rem; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; color:#f87171; font-size:0.82rem; cursor:pointer;">🗑 清除</button>
                     </div>
                 </div>
+                <div id="backfill-status" style="font-size:0.78rem; color:#64748b; margin-bottom:0.5rem; min-height:1.1rem;"></div>
                 <div id="asset-history-chart" style="width:100%; min-height:220px; display:flex; align-items:center; justify-content:center; color:#475569; font-size:0.9rem;"></div>
             </div>
             <!-- 資料表 -->
@@ -1339,7 +1345,7 @@
 
         // ==================== 資產歷史快照（Tab 6）====================
         const PT_ASSET_HISTORY_KEY = 'pt_v13_asset_history';
-        const PT_ASSET_HISTORY_MAX = 365;
+        // 無天數上限（localStorage 容量充足，5年≈1825筆≈150KB）
 
         function _saveAssetSnapshot(stats) {
             if (!_storageReady || !stats || stats.totalValue <= 0 || holdings.length === 0) return;
@@ -1355,11 +1361,189 @@
                     ct: Math.round(stats.totalCostTWD),                // TWD 成本
                     p:  Math.round(stats.totalPnLPercent * 100) / 100  // 損益 %
                 };
-                // 超出上限時刪除最舊的
-                const keys = Object.keys(hist).sort();
-                while (keys.length > PT_ASSET_HISTORY_MAX) delete hist[keys.shift()];
                 localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(hist));
             } catch(_) {}
+        }
+
+        // 槓桿倍數（預設 2x；特例在此列出）
+        const LEVERAGE_FACTOR = { 'TSLL': 1.5 };
+
+        // 從 Yahoo Finance 抓 5 年日線並轉換成 { 'YYYY-MM-DD': price } 物件
+        async function _fetchYfHistory(sym) {
+            const enc  = encodeURIComponent(sym);
+            const data = await yfFetch(
+                `https://query1.finance.yahoo.com/v8/finance/chart/${enc}?interval=1d&range=5y`
+            );
+            const res = data?.chart?.result?.[0];
+            if (!res) return {};
+            const ts  = res.timestamp || [];
+            const adj = res.indicators?.adjclose?.[0]?.adjclose || [];
+            const raw = res.indicators?.quote?.[0]?.close        || [];
+            const px  = adj.length ? adj : raw;
+            const map = {};
+            ts.forEach((t, idx) => {
+                if (px[idx] != null && px[idx] > 0) {
+                    const d   = new Date(t * 1000);
+                    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+                    map[key]  = px[idx];
+                }
+            });
+            return map;
+        }
+
+        async function backfillAssetHistory() {
+            if (holdings.length === 0) { alert('請先匯入持倉數據'); return; }
+            const btn      = document.getElementById('backfill-btn');
+            const statusEl = document.getElementById('backfill-status');
+            btn.disabled    = true;
+            btn.textContent = '⏳ 回推中...';
+
+            try {
+                const n = holdings.length;
+
+                // ── Step 1：抓各持倉標的 5 年日線 ──
+                const priceMaps = {};    // sym → { date: price }
+                for (let i = 0; i < n; i++) {
+                    const sym = holdings[i].symbol;
+                    statusEl.textContent = `⏳ 抓取 ${i+1}/${n}：${sym}`;
+                    try { priceMaps[sym] = await _fetchYfHistory(sym); }
+                    catch(e) { priceMaps[sym] = {}; console.warn(`backfill skip ${sym}:`, e); }
+                    if (i < n - 1) await new Promise(r => setTimeout(r, 300));
+                }
+
+                // ── Step 2：對 LEVERAGED_MAP 中的槓桿 ETF，額外抓基礎標的歷史 ──
+                // 用途：ETF 發行前的日期，以基礎標的報價反推模擬價格
+                const underMaps  = {};   // underSym → { date: price }
+                const leveragedSyms = holdings.map(h => h.symbol).filter(s => LEVERAGED_MAP[s]);
+                const neededUnder  = [...new Set(leveragedSyms.map(s => LEVERAGED_MAP[s]))];
+                let ui = 0;
+                for (const underSym of neededUnder) {
+                    statusEl.textContent = `⏳ 抓取基礎標的 ${++ui}/${neededUnder.length}：${underSym}`;
+                    try { underMaps[underSym] = await _fetchYfHistory(underSym); }
+                    catch(e) { underMaps[underSym] = {}; console.warn(`backfill under skip ${underSym}:`, e); }
+                    await new Promise(r => setTimeout(r, 300));
+                }
+
+                // ── Step 3：計算每個槓桿 ETF 的「錨點」——
+                // 找到 ETF 最早有資料的日期，記錄當日 ETF 收盤價 及 基礎標的收盤價
+                // 未來日期出現 ETF 缺失時，以基礎標的的漲跌幅 × 槓桿 做模擬
+                const etfAnchor = {};   // sym → { etfP0, underP0 }
+                for (const sym of leveragedSyms) {
+                    const underSym  = LEVERAGED_MAP[sym];
+                    const etfDates  = Object.keys(priceMaps[sym] || {}).sort();
+                    if (!etfDates.length) continue;
+                    const firstDate = etfDates[0];
+                    const etfP0     = priceMaps[sym][firstDate];
+                    // 取基礎標的在 firstDate（或最近前一日）的收盤
+                    const underDates = Object.keys(underMaps[underSym] || {}).sort();
+                    let underP0 = null;
+                    for (const d of underDates) {
+                        if (d <= firstDate) underP0 = underMaps[underSym][d];
+                        else break;
+                    }
+                    if (etfP0 && underP0) etfAnchor[sym] = { firstDate, etfP0, underP0 };
+                }
+
+                // ── Step 4：合併所有日期（ETF + 基礎標的），建立完整時間軸 ──
+                const allDates = new Set();
+                [...Object.values(priceMaps), ...Object.values(underMaps)]
+                    .forEach(m => Object.keys(m).forEach(d => allDates.add(d)));
+                const sortedDates = [...allDates].sort();
+
+                // ── Step 5：預計算固定成本 ──
+                let fixedCostUSD = 0;
+                holdings.forEach(h => {
+                    const isHK_HKD = (h.market === 'HK' || h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol);
+                    const isTW     = h.market === 'TW';
+                    const cost     = h.costPrice * h.quantity;
+                    if (isHK_HKD)  fixedCostUSD += cost * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
+                    else if (isTW) fixedCostUSD += cost / exchangeRates.USD_TWD;
+                    else           fixedCostUSD += cost;
+                });
+                const fixedCostTWD = Math.round(fixedCostUSD * exchangeRates.USD_TWD);
+                fixedCostUSD = Math.round(fixedCostUSD * 100) / 100;
+
+                // ── Step 6：逐日計算市值 ──
+                statusEl.textContent = `⏳ 計算 ${sortedDates.length} 個交易日市值...`;
+                const ffPrice    = {};   // sym → 最近已知 ETF 收盤（forward-fill）
+                const ffUnder    = {};   // underSym → 最近已知基礎標的收盤
+                const hist       = {};
+
+                for (const date of sortedDates) {
+                    // 更新 forward-fill 快取
+                    for (const h of holdings) {
+                        const sym = h.symbol;
+                        if (priceMaps[sym]?.[date] != null) ffPrice[sym] = priceMaps[sym][date];
+                    }
+                    for (const underSym of neededUnder) {
+                        if (underMaps[underSym]?.[date] != null) ffUnder[underSym] = underMaps[underSym][date];
+                    }
+
+                    let totalValueUSD = 0;
+                    let missingCount  = 0;
+
+                    for (const h of holdings) {
+                        const sym      = h.symbol;
+                        let   price    = ffPrice[sym] ?? null;
+
+                        // ── 若 ETF 尚未發行（無收盤價），用基礎標的模擬 ──
+                        if (!price && etfAnchor[sym]) {
+                            const { firstDate, etfP0, underP0 } = etfAnchor[sym];
+                            if (date < firstDate) {
+                                const underSym = LEVERAGED_MAP[sym];
+                                const underNow = ffUnder[underSym] ?? null;
+                                if (underNow && underP0 > 0) {
+                                    const lev   = LEVERAGE_FACTOR[sym] ?? 2;
+                                    const ratio = underNow / underP0;
+                                    // 以錨點 ETF 價格 × (基礎標的漲跌比例)^槓桿 做反推
+                                    price = etfP0 * Math.pow(ratio, lev);
+                                }
+                            }
+                        }
+
+                        if (!price) { missingCount++; continue; }
+
+                        const isHK_HKD = (h.market === 'HK' || h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol);
+                        const isTW     = h.market === 'TW';
+                        const native   = h.quantity * price;
+                        if (isHK_HKD)      totalValueUSD += native * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
+                        else if (isTW)     totalValueUSD += native / exchangeRates.USD_TWD;
+                        else               totalValueUSD += native;
+                    }
+
+                    // 超過一半標的仍無資料 → 時間太早，跳過
+                    if (missingCount > n / 2) continue;
+
+                    const totalValueTWD = Math.round(totalValueUSD * exchangeRates.USD_TWD);
+                    const pnlPct        = fixedCostUSD > 0 ? (totalValueUSD - fixedCostUSD) / fixedCostUSD * 100 : 0;
+
+                    hist[date] = {
+                        v:  Math.round(totalValueUSD * 100) / 100,
+                        vt: totalValueTWD,
+                        c:  fixedCostUSD,
+                        ct: fixedCostTWD,
+                        p:  Math.round(pnlPct * 100) / 100
+                    };
+                }
+
+                // ── Step 7：合併並儲存（已有快照優先，不被回推資料覆蓋）──
+                const existing = {};
+                try { Object.assign(existing, JSON.parse(localStorage.getItem(PT_ASSET_HISTORY_KEY) || '{}')); } catch(_) {}
+                const merged = { ...hist, ...existing };
+                localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(merged));
+
+                const days    = Object.keys(hist).length;
+                const dateMin = sortedDates.find(d => hist[d]);
+                const dateMax = [...sortedDates].reverse().find(d => hist[d]);
+                statusEl.textContent = `✅ 已回推 ${days} 個交易日（${dateMin} ～ ${dateMax}）`;
+                renderAssetHistory();
+            } catch(e) {
+                statusEl.textContent = '❌ 回推失敗，請檢查網路後重試';
+                console.error('backfill error:', e);
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = '📊 回推歷史';
+            }
         }
 
         function clearAssetHistory() {
@@ -1379,7 +1563,7 @@
             // 依選擇的天數過濾
             const rangeVal = parseInt(document.getElementById('hist-range')?.value || '90');
             let keys = allKeys;
-            if (rangeVal < 9999) {
+            if (rangeVal < 99999) {
                 const cutoff = new Date();
                 cutoff.setDate(cutoff.getDate() - rangeVal);
                 const cutStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;

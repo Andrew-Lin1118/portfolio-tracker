@@ -757,6 +757,10 @@
             let totalCostUSD = 0, totalValueUSD = 0, totalCostTWD = 0, totalValueTWD = 0;
             let totalDayPnLUSD  = 0, totalDayPnLTWD  = 0, hasDayPnL  = false;
             let totalPrevDayPnLUSD = 0, totalPrevDayPnLTWD = 0, hasPrevDayPnL = false;
+            // 週末（美東時間）：非加密貨幣視為未開盤，避免 prevClose=currentPrice 導致 dayChangePct=0
+            const _CRYPTO_SYMS = new Set(['BTC-USD','ETH-USD','LTC-USD','BNB-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD']);
+            const _csNow = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York', weekday:'short'});
+            const _isWeekendNow = (_csNow === 'Sat' || _csNow === 'Sun');
 
             // 第一遍：計算各持倉的 USD/TWD 市值並累加總計
             let holdingsWithStats = holdings.map(h => {
@@ -811,7 +815,9 @@
                 }
                 // 當日損益：若 _marketOpenedToday 明確為 false（槓桿 ETF 今日未開盤）則跳過
                 const _mkt = window._marketOpenedToday;
-                const marketNotOpened = (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false);
+                // 週末フォールバック：キャッシュが stale でも非暗号通貨は必ず未開盤扱い
+                const marketNotOpened = (_isWeekendNow && !_CRYPTO_SYMS.has(h.symbol)) ||
+                    (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false);
                 let dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
                 if (!marketNotOpened && prevClose != null && prevClose > 0) {
                     const dayChange = h.currentPrice - prevClose;

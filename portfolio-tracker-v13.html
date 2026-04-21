@@ -3310,22 +3310,47 @@
                 }
             }
 
-            // ── Step 0.5c：最終備援 ──
-            // proxy ETF prevClose 若仍 null（yfFetch CORS 失敗 + _marketOpenStale 已清空舊值），
-            // 從 prices.json.prev_closes 補（同域無 CORS，最後一道保護）
+            // ── Step 0.5c+d：HK proxy ETF 最終備援（一次 fetch prices.json 同時修兩個問題）──
+            // 問題 c：prevClose 仍 null（yfFetch CORS 失敗 + _marketOpenStale 清空後未補回）
+            // 問題 d：marketOpenedToday 被美股樣本錯誤標成 false
+            //         港股與美股時段完全不重疊（港 09:30–16:00 HKT vs 美 21:30–04:00 HKT），
+            //         以美股樣本判斷港股是否開盤，港股交易時間內永遠得到 false → 今日漲跌顯示「-」
             try {
                 let _pjFin = window._priceJsonCache;
-                if (!_pjFin?.prev_closes) {
+                if (!_pjFin?.prices) {
                     // prices.json 尚未載入（頁面啟動 500ms 內）→ 直接同域 fetch
                     const _pjFinR = await fetch('./data/prices.json', { cache: 'no-store' });
                     if (_pjFinR.ok) { _pjFin = await _pjFinR.json(); window._priceJsonCache = _pjFin; }
                 }
-                if (_pjFin?.prev_closes) {
-                    rows.filter(r => r.isProxy).forEach(r => {
-                        if (_tmpPrevClose[r.holding] == null) {
+                if (_pjFin) {
+                    const _hkTodayFin = new Date().toLocaleDateString('en-US', {timeZone:'Asia/Hong_Kong'});
+                    const _pjGenHK    = _pjFin.generated
+                        ? new Date(_pjFin.generated).toLocaleDateString('en-US', {timeZone:'Asia/Hong_Kong'}) : '';
+                    const _pjIsToday  = (_pjGenHK === _hkTodayFin);
+
+                    rows.filter(r => r.isProxy && r.holding.endsWith('.HK')).forEach(r => {
+                        // c：prevClose 仍 null → 從 prev_closes 補
+                        if (_tmpPrevClose[r.holding] == null && _pjFin.prev_closes) {
                             const pc = _pjFin.prev_closes[r.holding];
                             if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
                         }
+                        // d：marketOpenedToday → prices.json 今日股價 vs 昨收比較
+                        //    prices.json 若是今天產生：price≠prev_close → 今日有交易 → opened=true
+                        //    若非今天（stale）：改用時段估算（不含港股假日，保守估計）
+                        let _hkOpened;
+                        if (_pjIsToday && _pjFin.prices && _pjFin.prev_closes) {
+                            const _cp = _pjFin.prices[r.holding], _pp = _pjFin.prev_closes[r.holding];
+                            if (_cp != null && _pp != null) _hkOpened = (Math.abs(_cp - _pp) > 0.001);
+                        }
+                        if (_hkOpened == null) {
+                            // stale prices.json 或無資料 → 時段估算（9:30–16:00 HKT 平日）
+                            const _hkH   = parseInt(new Date().toLocaleString('en-US', {timeZone:'Asia/Hong_Kong', hour:'numeric', hour12:false}));
+                            const _hkMin = parseInt(new Date().toLocaleString('en-US', {timeZone:'Asia/Hong_Kong', minute:'numeric', hour12:false}));
+                            const _hkDow = new Date().toLocaleDateString('en-US', {timeZone:'Asia/Hong_Kong', weekday:'short'});
+                            const _hkWkd = (_hkDow === 'Sat' || _hkDow === 'Sun');
+                            _hkOpened = !_hkWkd && ((_hkH === 9 && _hkMin >= 30) || (_hkH >= 10 && _hkH < 16));
+                        }
+                        _tmpMarketOpened[r.holding] = _hkOpened;
                     });
                 }
             } catch(_) {}

@@ -4418,6 +4418,38 @@
             if (mergedRates.HKD_TWD) exchangeRates.HKD_TWD = mergedRates.HKD_TWD;
             syncRateInputs();
 
+            // ── HK proxy ETF：yfFetch 即時報價補強 ──
+            // prices.json 是定時快照（GitHub Actions），港股盤中走勢不會即時反映；
+            // 以 range=1d interval=1d 取 meta.regularMarketPrice（即時）及
+            // meta.chartPreviousClose（昨日官方收盤，用於今日漲跌計算）
+            // 各 ETF 使用獨立時區，完全不依賴美股市場狀態
+            {
+                const _hkProxies = holdings.filter(h => !!LEVERAGED_MAP[h.symbol] && h.symbol.endsWith('.HK'));
+                for (let _hi = 0; _hi < _hkProxies.length; _hi++) {
+                    const _hkh = _hkProxies[_hi];
+                    try {
+                        const _hkd = await yfFetch(
+                            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_hkh.symbol)}?interval=1d&range=1d`
+                        );
+                        const _hkm = _hkd?.chart?.result?.[0]?.meta;
+                        if (!_hkm) continue;
+                        // 幣別換算：9747.HK 以 USD 計價，但 Yahoo chart 可能回傳 HKD
+                        const _hkScale = (HK_USD_PRICED.has(_hkh.symbol) && (_hkm.currency ?? '') === 'HKD')
+                            ? (exchangeRates.HKD_TWD / exchangeRates.USD_TWD) : 1;
+                        // 即時報價（覆蓋 prices.json 舊快照）
+                        if (_hkm.regularMarketPrice != null && _hkm.regularMarketPrice > 0) {
+                            prices[_hkh.symbol] = _hkm.regularMarketPrice * _hkScale;
+                        }
+                        // 昨收（chartPreviousClose 最準確，直接寫入全域快取供 calculateStats 使用）
+                        if (_hkm.chartPreviousClose != null && _hkm.chartPreviousClose > 0) {
+                            if (!window._prevCloseCache) window._prevCloseCache = {};
+                            window._prevCloseCache[_hkh.symbol] = _hkm.chartPreviousClose * _hkScale;
+                        }
+                    } catch(_) {} // yfFetch 失敗 → 維持 prices.json 值（靜默降級）
+                    if (_hi < _hkProxies.length - 1) await new Promise(r => setTimeout(r, 200));
+                }
+            }
+
             // ── 股價寫入 ──
             let updated = 0;
             holdings.forEach(h => {

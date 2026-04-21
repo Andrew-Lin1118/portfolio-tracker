@@ -3310,6 +3310,26 @@
                 }
             }
 
+            // ── Step 0.5c：最終備援 ──
+            // proxy ETF prevClose 若仍 null（yfFetch CORS 失敗 + _marketOpenStale 已清空舊值），
+            // 從 prices.json.prev_closes 補（同域無 CORS，最後一道保護）
+            try {
+                let _pjFin = window._priceJsonCache;
+                if (!_pjFin?.prev_closes) {
+                    // prices.json 尚未載入（頁面啟動 500ms 內）→ 直接同域 fetch
+                    const _pjFinR = await fetch('./data/prices.json', { cache: 'no-store' });
+                    if (_pjFinR.ok) { _pjFin = await _pjFinR.json(); window._priceJsonCache = _pjFin; }
+                }
+                if (_pjFin?.prev_closes) {
+                    rows.filter(r => r.isProxy).forEach(r => {
+                        if (_tmpPrevClose[r.holding] == null) {
+                            const pc = _pjFin.prev_closes[r.holding];
+                            if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
+                        }
+                    });
+                }
+            } catch(_) {}
+
             // 所有資料抓取完畢 → 一次性替換全域快取，避免分析期間自動更新顯示空白
             window._prevCloseCache     = _tmpPrevClose;
             window._prevPrevCloseCache = _tmpPrevPrevClose;

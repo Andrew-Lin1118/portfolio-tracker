@@ -3461,9 +3461,11 @@
             if (_countdownTimer)   clearInterval(_countdownTimer);
 
             // 每 60 秒抓一次報價
+            // 無論是否設定 Google Sheet 都執行：
+            //   - prices.json 由 GitHub Actions 每 5 分鐘更新（美股交易時段），
+            //     若不定時重讀，頁面開啟後報價永遠凍結在初始載入那一刻
+            //   - Google Sheet 為補充來源（含使用者自訂標的），有設才讀
             _autoRefreshTimer = setInterval(async () => {
-                const url = (document.getElementById('sheet-url')?.value || '').trim();
-                if (!url || !url.includes('docs.google.com')) return;
                 if (document.getElementById('refresh-btn')?.disabled) return; // 手動更新中，跳過
                 await silentRefreshPrices();
                 _secondsLeft = 60; // 重置倒數

@@ -3162,7 +3162,10 @@
                             if (allResults[r.query])   allResults[r.query].marketOpenedToday   = false;
                         });
                     } else {
-                        // 平日（可能是假日）：用一般股票（非加密貨幣）做樣本 yfFetch 判斷
+                        // 平日（可能是假日）：用美股樣本 yfFetch 判斷美股/台股/非 HK 標的開盤狀態
+                        // ⚠️ HK proxy ETF（.HK 結尾）絕對不能用美股樣本判斷：
+                        //    港股 09:30–16:00 HKT vs 美股 21:30–04:00 HKT，兩者完全不重疊，
+                        //    港股開盤時美股必然收盤，美股樣本永遠回傳 false → HK ETF 今日漲跌永遠顯示「-」
                         const _CRYPTO = new Set(['BTC-USD','ETH-USD','LTC-USD','BNB-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD']);
                         const _sRow = rows.find(r => !r.isProxy && !_CRYPTO.has(r.holding));
                         if (_sRow) {
@@ -3172,7 +3175,8 @@
                                 const _bET = _sts.length ? new Date(_sts[_sts.length-1]*1000).toLocaleDateString('en-US',{timeZone:'America/New_York'}) : '';
                                 const _openedNow = (_todayET_mkt === _bET);
                                 rows.forEach(r => {
-                                    if (_CRYPTO.has(r.holding)) return; // 加密貨幣 24/7，單獨處理
+                                    if (_CRYPTO.has(r.holding)) return;            // 加密貨幣 24/7，單獨處理
+                                    if (r.isProxy && r.holding.endsWith('.HK')) return; // HK proxy ETF：跳過，由 Step 0.5d 以港股邏輯判斷
                                     _tmpMarketOpened[r.holding] = _openedNow;
                                     if (allResults[r.holding]) allResults[r.holding].marketOpenedToday = _openedNow;
                                     if (allResults[r.query])   allResults[r.query].marketOpenedToday   = _openedNow;

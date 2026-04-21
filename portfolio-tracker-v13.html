@@ -3460,25 +3460,29 @@
 
         window.onload = () => { init(); _checkOrientation(); _tryLockPortrait(); };
 
-        // ==================== 每分鐘自動更新報價 ====================
-        let _autoRefreshTimer = null;
-        let _countdownTimer   = null;
-        let _secondsLeft      = 60;
+        // ==================== 每 10 秒自動更新報價 ====================
+        let _autoRefreshTimer  = null;
+        let _countdownTimer    = null;
+        let _secondsLeft       = 10;
+        let _priceRefreshCount = 0;   // 用於 proxy ETF yfFetch 節流（每 6 次才抓一次 ≈ 60 秒）
 
         function startAutoRefresh() {
             if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
             if (_countdownTimer)   clearInterval(_countdownTimer);
 
-            // 每 60 秒抓一次報價
+            // 每 10 秒抓一次報價
             // 無論是否設定 Google Sheet 都執行：
             //   - prices.json 由 GitHub Actions 每 5 分鐘更新（美股交易時段），
             //     若不定時重讀，頁面開啟後報價永遠凍結在初始載入那一刻
             //   - Google Sheet 為補充來源（含使用者自訂標的），有設才讀
+            //   - proxy ETF yfFetch 每 60 秒才執行一次（節流），避免 Yahoo 頻率限制
             _autoRefreshTimer = setInterval(async () => {
                 if (document.getElementById('refresh-btn')?.disabled) return; // 手動更新中，跳過
-                await silentRefreshPrices();
-                _secondsLeft = 60; // 重置倒數
-            }, 60000);
+                _priceRefreshCount++;
+                const _skipProxy = (_priceRefreshCount % 6 !== 0); // 每 6 次（≈60 秒）才做一次 yfFetch
+                await silentRefreshPrices(_skipProxy);
+                _secondsLeft = 10; // 重置倒數
+            }, 10000);
 
             // 每秒更新倒數顯示 & 顯示/隱藏狀態列
             _countdownTimer = setInterval(() => {
@@ -3486,7 +3490,7 @@
                 const hasSheet = url && url.includes('docs.google.com');
                 const statusEl = document.getElementById('auto-refresh-status');
                 if (statusEl) statusEl.style.display = hasSheet ? 'block' : 'none';
-                if (!hasSheet) { _secondsLeft = 60; return; }
+                if (!hasSheet) { _secondsLeft = 10; return; }
                 _secondsLeft = Math.max(1, _secondsLeft - 1);
                 const cd = document.getElementById('auto-refresh-countdown');
                 if (cd) cd.textContent = _secondsLeft;
@@ -4369,7 +4373,7 @@
                 || (sym.endsWith('.TW') && sym.slice(0,-3) in priceMap);
         }
 
-        async function silentRefreshPrices() {
+        async function silentRefreshPrices(skipProxyFetch = false) {
             const prices = {}, mergedRates = {};
 
             // ── 優先：data/prices.json（GitHub Actions 定時更新，同域無 CORS）──
@@ -4429,11 +4433,11 @@
             if (mergedRates.HKD_TWD) exchangeRates.HKD_TWD = mergedRates.HKD_TWD;
             syncRateInputs();
 
-            // ── 所有 proxy ETF：yfFetch 即時報價補強 ──
+            // ── 所有 proxy ETF：yfFetch 即時報價補強（節流：每 60 秒才執行一次）──
             // prices.json 是定時快照（GitHub Actions）；若快取舊、或港股時段 GitHub Actions 未跑，
             // 以 range=1d interval=1d 取 meta.regularMarketPrice（即時現價）及
             // meta.chartPreviousClose（昨日官方收盤）直接補強，各市場各用各自時區。
-            {
+            if (!skipProxyFetch) {
                 const _allProxies = holdings.filter(h => !!LEVERAGED_MAP[h.symbol]);
                 for (let _pi = 0; _pi < _allProxies.length; _pi++) {
                     const _ph = _allProxies[_pi];

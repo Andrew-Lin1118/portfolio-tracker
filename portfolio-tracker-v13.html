@@ -3332,8 +3332,17 @@
                         ? new Date(_pjFin.generated).toLocaleDateString('en-US', {timeZone:'Asia/Hong_Kong'}) : '';
                     const _pjIsToday  = (_pjGenHK === _hkTodayFin);
 
+                    // Step 0.5c：所有 proxy ETF（含美股槓桿 ETF）prevClose 備援
+                    //   yfFetch 失敗（CORS）時 prevClose 仍為 null → 從 prices.json.prev_closes 補
+                    rows.filter(r => r.isProxy && !r.holding.endsWith('.HK')).forEach(r => {
+                        if (_tmpPrevClose[r.holding] == null && _pjFin.prev_closes) {
+                            const pc = _pjFin.prev_closes[r.holding];
+                            if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
+                        }
+                    });
+
                     rows.filter(r => r.isProxy && r.holding.endsWith('.HK')).forEach(r => {
-                        // c：prevClose 仍 null → 從 prev_closes 補
+                        // c：prevClose 仍 null → 從 prev_closes 補（HK）
                         if (_tmpPrevClose[r.holding] == null && _pjFin.prev_closes) {
                             const pc = _pjFin.prev_closes[r.holding];
                             if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
@@ -4420,35 +4429,34 @@
             if (mergedRates.HKD_TWD) exchangeRates.HKD_TWD = mergedRates.HKD_TWD;
             syncRateInputs();
 
-            // ── HK proxy ETF：yfFetch 即時報價補強 ──
-            // prices.json 是定時快照（GitHub Actions），港股盤中走勢不會即時反映；
-            // 以 range=1d interval=1d 取 meta.regularMarketPrice（即時）及
-            // meta.chartPreviousClose（昨日官方收盤，用於今日漲跌計算）
-            // 各 ETF 使用獨立時區，完全不依賴美股市場狀態
+            // ── 所有 proxy ETF：yfFetch 即時報價補強 ──
+            // prices.json 是定時快照（GitHub Actions）；若快取舊、或港股時段 GitHub Actions 未跑，
+            // 以 range=1d interval=1d 取 meta.regularMarketPrice（即時現價）及
+            // meta.chartPreviousClose（昨日官方收盤）直接補強，各市場各用各自時區。
             {
-                const _hkProxies = holdings.filter(h => !!LEVERAGED_MAP[h.symbol] && h.symbol.endsWith('.HK'));
-                for (let _hi = 0; _hi < _hkProxies.length; _hi++) {
-                    const _hkh = _hkProxies[_hi];
+                const _allProxies = holdings.filter(h => !!LEVERAGED_MAP[h.symbol]);
+                for (let _pi = 0; _pi < _allProxies.length; _pi++) {
+                    const _ph = _allProxies[_pi];
                     try {
-                        const _hkd = await yfFetch(
-                            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_hkh.symbol)}?interval=1d&range=1d`
+                        const _pd = await yfFetch(
+                            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1d&range=1d`
                         );
-                        const _hkm = _hkd?.chart?.result?.[0]?.meta;
-                        if (!_hkm) continue;
-                        // 幣別換算：9747.HK 以 USD 計價，但 Yahoo chart 可能回傳 HKD
-                        const _hkScale = (HK_USD_PRICED.has(_hkh.symbol) && (_hkm.currency ?? '') === 'HKD')
+                        const _pm = _pd?.chart?.result?.[0]?.meta;
+                        if (!_pm) continue;
+                        // 幣別換算：僅 HK_USD_PRICED 的 .HK 股且 Yahoo 回傳 HKD 時需轉換
+                        const _pScale = (_ph.symbol.endsWith('.HK') && HK_USD_PRICED.has(_ph.symbol) && (_pm.currency ?? '') === 'HKD')
                             ? (exchangeRates.HKD_TWD / exchangeRates.USD_TWD) : 1;
-                        // 即時報價（覆蓋 prices.json 舊快照）
-                        if (_hkm.regularMarketPrice != null && _hkm.regularMarketPrice > 0) {
-                            prices[_hkh.symbol] = _hkm.regularMarketPrice * _hkScale;
+                        // 即時報價（覆蓋 prices.json 定時快照）
+                        if (_pm.regularMarketPrice != null && _pm.regularMarketPrice > 0) {
+                            prices[_ph.symbol] = _pm.regularMarketPrice * _pScale;
                         }
-                        // 昨收（chartPreviousClose 最準確，直接寫入全域快取供 calculateStats 使用）
-                        if (_hkm.chartPreviousClose != null && _hkm.chartPreviousClose > 0) {
+                        // 昨收（chartPreviousClose 跨越空白交易日仍準確，直接寫入全域快取）
+                        if (_pm.chartPreviousClose != null && _pm.chartPreviousClose > 0) {
                             if (!window._prevCloseCache) window._prevCloseCache = {};
-                            window._prevCloseCache[_hkh.symbol] = _hkm.chartPreviousClose * _hkScale;
+                            window._prevCloseCache[_ph.symbol] = _pm.chartPreviousClose * _pScale;
                         }
                     } catch(_) {} // yfFetch 失敗 → 維持 prices.json 值（靜默降級）
-                    if (_hi < _hkProxies.length - 1) await new Promise(r => setTimeout(r, 200));
+                    if (_pi < _allProxies.length - 1) await new Promise(r => setTimeout(r, 150));
                 }
             }
 

@@ -1020,13 +1020,13 @@
         function renderStats(stats) {
             const grid = document.getElementById('stats-grid');
             // 期貨貢獻（TWD）── 合併到 總損益/昨日漲跌/今日漲跌
-            const _futUnrealTWD = (typeof getFuturesUnrealizedTWD === 'function') ? getFuturesUnrealizedTWD() : 0;
-            const _futTodayTWD  = (typeof getFuturesTodayPnLTWD   === 'function') ? getFuturesTodayPnLTWD()   : 0;
+            const _futUnrealTWD = (typeof getFuturesUnrealizedTWD  === 'function') ? getFuturesUnrealizedTWD()  : 0;
+            const _futTodayTWD  = (typeof getFuturesTodayPnLTWD    === 'function') ? getFuturesTodayPnLTWD()    : 0;
+            const _futPrevTWD   = (typeof getFuturesPrevDayPnLTWD === 'function') ? getFuturesPrevDayPnLTWD() : 0;
             const _fxRate       = exchangeRates.USD_TWD > 0 ? exchangeRates.USD_TWD : 0;
             const _futUnrealUSD = _fxRate > 0 ? _futUnrealTWD / _fxRate : 0;
             const _futTodayUSD  = _fxRate > 0 ? _futTodayTWD  / _fxRate : 0;
-            const _futPrevTWD   = 0; // 缺昨日結算資料，暫不併入昨日損益
-            const _futPrevUSD   = 0;
+            const _futPrevUSD   = _fxRate > 0 ? _futPrevTWD   / _fxRate : 0;
             const _compactPnl = n => {
                 const a = Math.abs(n);
                 const sign = n >= 0 ? '+' : '-';
@@ -4581,54 +4581,102 @@
         const FUT_MULTIPLIER = 10;      // 微型台指每點 NT$10
         const FUT_INCLUDE_KEY = 'fut_include_total';
         let _futuresData = null;         // { positions, margin, state, ts }
+        let _futuresHistory = null;      // { snapshots: [{date, today_balance, ...}] }
+        let _futHistTs = 0;              // 上次讀 history 的時間（ms），每 10 分鐘刷新
         let _futRefreshCount = 0;        // 搭配 silentRefreshPrices 的 10s tick；每 3 次 ≈ 30s 拉一次
+
+        // 讀取 data/futures_history.json（server.py 每日 14:05 寫入），取得昨日 today_balance
+        async function loadFuturesHistory(force = false) {
+            const now = Date.now();
+            if (!force && _futuresHistory && (now - _futHistTs) < 10 * 60 * 1000) return;
+            try {
+                const r = await fetch('./data/futures_history.json?t=' + now, { cache: 'no-store' });
+                if (!r.ok) { _futHistTs = now; return; }
+                const j = await r.json();
+                if (j && Array.isArray(j.snapshots)) {
+                    _futuresHistory = j;
+                    _futHistTs = now;
+                }
+            } catch(_) { _futHistTs = now; /* 檔案不存在時靜默 */ }
+        }
 
         function _setFutStatus(status, text) {
             const dot = document.getElementById('fut-status-dot');
             const tx  = document.getElementById('fut-status-text');
-            if (dot) dot.style.background = status === 'on' ? '#10b981' : status === 'err' ? '#ef4444' : '#64748b';
+            if (dot) dot.style.background = status === 'on' ? '#10b981'
+                                         : status === 'err' ? '#ef4444'
+                                         : status === 'snap' ? '#f59e0b'
+                                         : '#64748b';
             if (tx)  tx.textContent = text;
         }
 
         async function loadFuturesData(silent = true) {
             const section = document.getElementById('futures-section');
             if (!section) return;
-            try {
-                const _fetchOpts = { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined };
-                const [posRes, stateRes] = await Promise.all([
-                    fetch(`${FMX_API_BASE}/fmx/positions`, _fetchOpts).catch(_ => null),
-                    fetch(`${FMX_API_BASE}/fmx/state`,     _fetchOpts).catch(_ => null),
-                ]);
-                if (!posRes?.ok) {
-                    _setFutStatus('off', 'SDK 未連線');
-                    section.style.display = 'none';
-                    _futuresData = null;
-                    return;
-                }
-                const pos   = await posRes.json().catch(_ => null);
-                const state = stateRes?.ok ? await stateRes.json().catch(_ => ({})) : {};
-                if (!pos || pos.error) {
-                    _setFutStatus('err', pos?.error ? String(pos.error).slice(0, 40) : 'SDK 回應異常');
-                    section.style.display = 'none';
-                    _futuresData = null;
-                    return;
-                }
+
+            // 先並行拉 SDK + history（手機/雲端無 SDK 時會退用 history 最近一筆）
+            const _fetchOpts = { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined };
+            const [posRes, stateRes] = await Promise.all([
+                fetch(`${FMX_API_BASE}/fmx/positions`, _fetchOpts).catch(_ => null),
+                fetch(`${FMX_API_BASE}/fmx/state`,     _fetchOpts).catch(_ => null),
+            ]);
+            // history 同步拉（10 分鐘 cache）；給 SDK 成功時計算昨日漲跌、SDK 失敗時作 fallback
+            await loadFuturesHistory().catch(_ => {});
+
+            // ── Path A：SDK 連線 OK ──
+            if (posRes?.ok) {
+                try {
+                    const pos   = await posRes.json().catch(_ => null);
+                    const state = stateRes?.ok ? await stateRes.json().catch(_ => ({})) : {};
+                    if (pos && !pos.error) {
+                        _futuresData = {
+                            positions: pos.positions || [],
+                            margin:    pos.margin    || {},
+                            state:     state         || {},
+                            ts:        pos.query_ts || new Date().toISOString(),
+                            _source:   'sdk',
+                        };
+                        _setFutStatus('on', 'SDK ✓');
+                        section.style.display = 'block';
+                        renderFutures();
+                        if (typeof renderAll === 'function') renderAll();
+                        return;
+                    }
+                    if (pos?.error) {
+                        _setFutStatus('err', String(pos.error).slice(0, 40));
+                    }
+                } catch(_) {}
+            }
+
+            // ── Path B：SDK 不可用，用 data/futures_history.json 最近一筆當快照 ──
+            const snaps = _futuresHistory?.snapshots;
+            if (Array.isArray(snaps) && snaps.length > 0) {
+                const last = snaps[snaps.length - 1];
                 _futuresData = {
-                    positions: pos.positions || [],
-                    margin:    pos.margin    || {},
-                    state:     state         || {},
-                    ts:        pos.query_ts || new Date().toISOString(),
+                    positions: [],
+                    margin: {
+                        equity:            last.equity,
+                        today_balance:     last.today_balance,
+                        yesterday_balance: last.yesterday_balance,
+                        available:         last.available,
+                        unrealized_pnl:    last.unrealized_pnl,
+                        realized_pnl:      last.realized_pnl,
+                    },
+                    state:   {},
+                    ts:      last.ts || last.date,
+                    _source: 'snapshot',
                 };
-                _setFutStatus('on', 'SDK ✓');
+                _setFutStatus('snap', '快照 ' + (last.date || ''));
                 section.style.display = 'block';
                 renderFutures();
-                // 期貨權益變動會影響總資產（圓餅圖＋歷史表）
                 if (typeof renderAll === 'function') renderAll();
-            } catch(_) {
-                _setFutStatus('off', 'SDK 未連線');
-                section.style.display = 'none';
-                _futuresData = null;
+                return;
             }
+
+            // ── Path C：都沒有資料 ──
+            _setFutStatus('off', 'SDK 未連線');
+            section.style.display = 'none';
+            _futuresData = null;
         }
 
         function renderFutures() {
@@ -4726,7 +4774,9 @@
             const updEl = document.getElementById('fut-updated');
             if (updEl) {
                 const tsd = new Date(_futuresData.ts);
-                updEl.textContent = '更新 ' + (isNaN(tsd) ? '—' : tsd.toLocaleTimeString('zh-TW'));
+                const tStr = isNaN(tsd) ? '—' : tsd.toLocaleString('zh-TW', { hour12: false });
+                const prefix = _futuresData._source === 'snapshot' ? '快照 ' : '更新 ';
+                updEl.textContent = prefix + tStr;
             }
             // 同步按鈕顯示狀態
             const btn = document.getElementById('fut-include-btn');
@@ -4767,6 +4817,29 @@
             const tb = Number(_futuresData.margin.today_balance ?? NaN);
             if (!isFinite(eq) || !isFinite(tb) || tb <= 0) return 0;
             const diff = eq - tb;
+            return isFinite(diff) ? diff : 0;
+        }
+        // 昨日期貨損益（TWD）＝ 今日 today_balance − 前一交易日 today_balance
+        // 需要 data/futures_history.json 至少兩筆（本日 SDK + 歷史最近一筆）。
+        // 歷史檔由 server.py 每日 14:05 執行 data/snapshot_futures.py 寫入。
+        function getFuturesPrevDayPnLTWD() {
+            if (!_futuresData?.margin) return 0;
+            const todayTB = Number(_futuresData.margin.today_balance ?? NaN);
+            if (!isFinite(todayTB) || todayTB <= 0) return 0;
+            const snaps = _futuresHistory?.snapshots;
+            if (!Array.isArray(snaps) || snaps.length === 0) return 0;
+            // 取今日之前最新的一筆（通常就是前一交易日）
+            const todayISO = new Date().toISOString().slice(0, 10);
+            let prev = null;
+            for (let i = snaps.length - 1; i >= 0; i--) {
+                const d = snaps[i]?.date;
+                if (!d || d >= todayISO) continue;
+                prev = snaps[i]; break;
+            }
+            if (!prev) return 0;
+            const prevTB = Number(prev.today_balance ?? NaN);
+            if (!isFinite(prevTB) || prevTB <= 0) return 0;
+            const diff = todayTB - prevTB;
             return isFinite(diff) ? diff : 0;
         }
 

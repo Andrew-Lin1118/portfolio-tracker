@@ -38,7 +38,7 @@ import subprocess
 import threading
 from typing import Callable, Optional
 
-SKILL_VERSION = "1.3.1"   # +D10(proxy ETF 今日漲跌 0%/正確值閃爍；10s 刷新 × 60s yfFetch 節流)
+SKILL_VERSION = "1.3.2"   # +D11(非 proxy 原型股今日漲跌永遠 0% — yfFetch 迴圈只跑 LEVERAGED_MAP)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -676,6 +676,26 @@ PITFALLS = """
         不會被 prices.json 的昨收快照拉回 0%。
       預防: 修 proxy ETF 相關的「節流 / 輪詢」邏輯時，一定要**模擬兩種刷新路徑
             （skip vs non-skip）**都算一遍 dayChangePct，避免只驗證了非節流路徑。
+
+  D11. **非 proxy 原型股今日漲跌永遠 0%（AXTI / AAOI / STX / NVDA / …）**
+      症狀: 修好 D9/D10 後，proxy ETF 的今日漲跌正常了，但同表其他
+            原型股（AXTI -4.81%/+0.00%、AAOI -7.89%/+0.00%、STX 同樣）
+            今日漲跌還是永遠顯示 0%。昨日漲跌顯示正確。
+      根因: silentRefreshPrices 的 yfFetch 迴圈只跑 `holdings.filter(h => !!LEVERAGED_MAP[h.symbol])`，
+            所以原型股（不在 LEVERAGED_MAP）**完全不會被抓即時價**，
+            現價只能來自 prices.json。prices.json 是 GitHub Actions 定時
+            快照，盤前/盤中若還沒更新，值 = 昨日收盤 = fundamentals.prev_close
+            → currentPrice == prevClose → dayChangePct = 0%。
+            D10 的修法只對 proxy ETF 有效，對原型股無感。
+      解法: 把 silentRefreshPrices 的 yfFetch 迴圈**從 LEVERAGED_MAP 擴到全部 holdings**，
+            讓原型股也走同一條 regularMarketPrice 即時報價 + _proxyIntradayCache
+            持久化路徑。時區判斷也要從「.HK ? HK : US」擴到多後綴對照表
+            （KS/KQ=Seoul、TW/TWO=Taipei、T=Tokyo、其他=NY）。
+      預防: 「補強即時報價」的邏輯預設就該對 ALL holdings 生效，
+            不應綁死在 LEVERAGED_MAP 集合上。LEVERAGED_MAP 只是「對應
+            底層標的」的查表，不代表「需要即時報價補強」的過濾條件。
+      相關: 多出來的 yfFetch 量（原型股+proxy ≈ 30+/次）節流間隔從 150ms
+            縮到 120ms，總耗時 ~4 秒，仍遠小於 60 秒刷新週期。
 
 [E] Windows 檔案關聯 / 啟動
   E1. **Antigravity (VS Code-based editor) 自動開啟 .py**

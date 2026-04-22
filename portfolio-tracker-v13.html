@@ -4457,14 +4457,23 @@
                 }
             } catch(_) {}
 
-            // ── 所有 proxy ETF：yfFetch 即時報價補強（節流：每 60 秒才執行一次）──
-            // prices.json 是定時快照（GitHub Actions）；若快取舊、或港股時段 GitHub Actions 未跑，
+            // ── 所有持倉：yfFetch 即時報價補強（節流：每 60 秒才執行一次）──
+            // prices.json 是定時快照（GitHub Actions）；若快取舊、或非美股時段 GitHub Actions 未跑，
             // 以 range=1d interval=1d 取 meta.regularMarketPrice（即時現價）及
             // meta.chartPreviousClose（昨日官方收盤）直接補強，各市場各用各自時區。
+            // 注意：proxy ETF 與原型股都要跑（AXTI/AAOI/STX 等原型股若沒這段，
+            // prices.json 昨收快照會讓今日漲跌永遠 0%）。
             if (!skipProxyFetch) {
-                const _allProxies = holdings.filter(h => !!LEVERAGED_MAP[h.symbol]);
-                for (let _pi = 0; _pi < _allProxies.length; _pi++) {
-                    const _ph = _allProxies[_pi];
+                // 市場時區對照：供 regularMarketTime 判斷「今日是否已開盤」
+                const _suffixTz = {
+                    'HK': 'Asia/Hong_Kong',
+                    'KS': 'Asia/Seoul', 'KQ': 'Asia/Seoul',
+                    'TW': 'Asia/Taipei', 'TWO': 'Asia/Taipei',
+                    'T':  'Asia/Tokyo',
+                };
+                const _allFetch = holdings.slice();
+                for (let _pi = 0; _pi < _allFetch.length; _pi++) {
+                    const _ph = _allFetch[_pi];
                     try {
                         const _pd = await yfFetch(
                             `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1d&range=1d`
@@ -4492,10 +4501,11 @@
                         }
                         // marketOpenedToday：用 regularMarketTime 判斷是否今日已有交易 bar
                         //   loadAnalysis 可能已把它設為 false（yfFetch CORS 失敗或 5d 資料偏誤），
-                        //   這裡每 60s 會重新校正一次，避免 US proxy ETF 盤中永久「-」。
+                        //   這裡每 60s 會重新校正一次，避免盤中永久「-」。
                         try {
                             if (_pm.regularMarketTime) {
-                                const _mktTz  = _ph.symbol.endsWith('.HK') ? 'Asia/Hong_Kong' : 'America/New_York';
+                                const _sfx = _ph.symbol.includes('.') ? _ph.symbol.split('.').pop().toUpperCase() : '';
+                                const _mktTz = _suffixTz[_sfx] || 'America/New_York';
                                 const _mktTodayLoc = new Date().toLocaleDateString('en-US', {timeZone: _mktTz});
                                 const _mktBarLoc   = new Date(_pm.regularMarketTime * 1000).toLocaleDateString('en-US', {timeZone: _mktTz});
                                 const _openedToday = (_mktTodayLoc === _mktBarLoc);
@@ -4504,7 +4514,7 @@
                             }
                         } catch(_) {}
                     } catch(_) {} // yfFetch 失敗 → 維持 prices.json 值（靜默降級）
-                    if (_pi < _allProxies.length - 1) await new Promise(r => setTimeout(r, 150));
+                    if (_pi < _allFetch.length - 1) await new Promise(r => setTimeout(r, 120));
                 }
             }
 

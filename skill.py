@@ -21,6 +21,12 @@
     - 每次遇到「又踩到的坑」→ 在 PITFALLS 新增條目
     - 架構有重大變更 → 更新 ARCHITECTURE
     - 版本用 `SKILL_VERSION` 標記
+
+  v1.3 追加（2026-04-22，FMX 窗口調參事件）:
+    - PITFALLS [J] 策略調參 / 回測 vs 實盤一致性（save_state bug / DELEV 差異
+      / 殘留參數 / target_leverage 語義誤解 / supervisor 自動重啟）
+    - Section 12: 策略窗口最佳化方法論（4-D 全景掃描的工作流與踩過的坑）
+    - Section 13: 槓桿觸發價反推公式數學（dashboard 用）
 """
 
 from __future__ import annotations
@@ -32,7 +38,7 @@ import subprocess
 import threading
 from typing import Callable, Optional
 
-SKILL_VERSION = "1.2.0"   # +H 章節(交易所簽名/時鐘) +D3-D8(portfolio-tracker) +I(GitHub Pages git) +Section11
+SKILL_VERSION = "1.3.0"   # +J(策略調參/回測實盤一致性) +Section12(窗口最佳化) +Section13(槓桿數學)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -622,6 +628,28 @@ PITFALLS = """
       解法: prevClose 備援程式碼必須放在 _marketOpenStale 整個 block **之後**，
             即 `window._prevCloseCache = _tmpPrevClose` 賦值前的最後一個 try。
 
+  D9. **symbols.json vs price_symbols.json 標的集合不一致 → 昨日漲跌永遠 0% / 今日漲跌「-」**
+      症狀: 某些持倉（例如 US 槓桿 ETF：USD/MUU/SNXX/NVDL/…）昨日漲跌全部
+            顯示 +0.00% 或 -0.00%，今日漲跌欄位是「-」，即使現價明顯變動。
+      真正根因: update_fund.py 讀 symbols.json，但 update_prices.py 讀
+            price_symbols.json。使用者只把 proxy ETF 加進 price_symbols.json，
+            忘記加進 symbols.json → fundamentals.json 完全沒有這些 ETF 的
+            prev_close / prev_prev_close → 前端只能靠 yfFetch CORS proxy
+            即時抓 5d 日線，失敗率高。
+      次要 bug:
+        (a) proxy yfFetch 成功但 timestamps 為空時，`new Date(undefined*1000)`
+            → barET = ''，todayOpened 被錯誤設為 false，覆寫掉美股樣本先前
+            正確的 true → _marketOpenedToday[proxy]=false → 今日漲跌顯示「-」
+        (b) silentRefreshPrices 只寫 _prevCloseCache，不寫 _marketOpenedToday，
+            loadAnalysis 若卡在錯誤狀態，每 60s 的 silent refresh 無法校正。
+      解法（三層）:
+        1. 凡是前端會顯示的標的，必須**同時**列在 symbols.json（基本面）
+           和 price_symbols.json（即時報價）。加新 proxy ETF 要同步兩個檔案。
+        2. proxy yfFetch 只有在 lastTs 有效時才覆寫 _tmpMarketOpened，
+           空 timestamps 應保留上一步（US 樣本）的正確判斷。
+        3. silentRefreshPrices 也要用 `meta.regularMarketTime` 比對今日日期
+           更新 _marketOpenedToday，讓 60s 自動刷新也能自我校正。
+
 [E] Windows 檔案關聯 / 啟動
   E1. **Antigravity (VS Code-based editor) 自動開啟 .py**
       症狀: 雙擊 bat 後跳出 Antigravity 視窗，server.py 被編輯器開啟而非執行。
@@ -722,6 +750,87 @@ PITFALLS = """
       測試用，push 前應確認 `git diff HEAD -- data/prices.json` 為空。
       誤把本機測試版 prices.json 推上去會讓所有使用者看到假資料，
       直到下一次 Actions 覆蓋為止（最多 5 分鐘）。
+
+[J] 策略調參 / 回測 vs 實盤一致性 (FMX 動態槓桿)
+  來源事件：2026-04-21 窗口從 4.9/6.0 調成 5.9/6.8 引發的一連串問題。
+
+  J1. **save_state 用 setdefault → config 調參後 state.json 不更新**
+      症狀: 改完 config.yaml 的 max_leverage / pyramid_trigger，bot log
+            顯示新值（"上限:6.8x 加碼觸發:5.9x"），但 dashboard 的加減槓桿
+            觸發價還是用舊值算出來的。state.json 裡還是 4.9 / 6.0。
+      根因: strategy-fmx-live.py 的 save_state() 用了 setdefault:
+              merged.setdefault("max_leverage", self.max_leverage)
+            state 已經有舊值 → setdefault 不覆蓋 → 永遠寫舊值。
+            且 pyramid_trigger 根本就漏掉沒寫。
+      解法: 改為直接指派（非 setdefault），並補齊 pyramid_trigger:
+              merged["max_leverage"]    = self.max_leverage
+              merged["pyramid_trigger"] = self.pyramid_trigger
+              merged["target_leverage"] = self.target_leverage
+      教訓: 「供 dashboard 顯示用的策略參數」屬於 snapshot，每次存檔都該覆蓋，
+            不是 setdefault。setdefault 只適合「初始化欄位」，不適合「參數同步」。
+      查法（檢查其他類似 bug）:
+        grep -n "merged.setdefault\|state.setdefault" bot/*.py
+        看有沒有本該同步的 config 欄位被卡住。
+
+  J2. **回測與實盤的 DELEV 條件不一致 → 回測績效無法複製**
+      差異點（極重要）:
+        回測 (window_opt.py line 227):
+          if leverage > max AND price > avgCost:  # 獲利才減碼
+            sell_to_target_leverage()
+        實盤 (strategy-fmx-live.py line 1411):
+          if leverage > max:                       # 沒檢查 avgCost
+            sell_one_lot()                         # 每 tick 只賣 1 口
+      效果差異:
+        - V 型反彈事件（如 2024/08/05 日圓套利崩盤 −8.8%）:
+          回測 HOLD 不動 → 隔天完美吃反彈
+          實盤 每 5 分鐘賣 1 口，25 分鐘賣 5 口，鎖死 ~11 萬損失
+        - 連續下跌事件:
+          回測 因 price < avgCost 不減碼 → 可能被強平歸零
+          實盤 強制減碼保命，最多剩 1 口
+      決策: **不要動**。兩邊 asymmetry 是蓄意的防御設計：
+        - 實盤 bot 寧可鎖小損也要防連續暴跌歸零（保命優先）
+        - V 型反彈的機會成本換到了極端下跌的保命能力
+      代價: 回測 CAGR 111% 是上限，實戰估計 85~95%（每 10 年遇 1~2 次 V 反彈）
+      寫程式時要做的事:
+        a. 在 DELEV 判斷條件上方加註解說明為什麼故意不檢查 price > avgCost
+        b. 在檔頭 docstring 寫清楚「實盤 vs 回測差異」一節，並註明預期績效修正
+        c. 不要「修掉」這個差異 — 這是 feature，不是 bug
+
+  J3. **config.yaml 留一堆「參數值但沒開關」的殘留 → 誤以為在用**
+      症狀: config.yaml 有 stop_loss_pct: 0.03, rsi_period: 14, rsi_overbought: 70...
+            看起來策略有停損和 RSI 濾網。但 strategy-fmx-live.py 根本沒讀這些鍵。
+      根因: setup_wizard.py 產生模板時把所有可能參數都塞進去（包括「股票 RSI
+            策略（選用）」那一段），但 live strategy 只讀需要的幾個。
+      查法:
+        grep -n "cfg.get\|config.get" bot/strategy-*.py
+        列出實際被讀取的 config keys，對照 config.yaml 看哪些是殘留。
+      解法: 把沒被 .get() 讀的鍵從 config.yaml 刪掉。減少誤解。
+      教訓: setup_wizard 產生的模板**不是規格書**，實際讀的才是。
+
+  J4. **target_leverage 的語義誤解 → 看到 "5x" 以為整體在 5x**
+      事實: target_leverage 只用於兩個時機:
+        1. 初始建倉 (INIT): cap × target / (price × mult) 算口數
+        2. ENTRY 再入場（EXIT 後突破 10 日高）
+      持倉過程的實際槓桿完全由 pyramid_trigger (下限) 和 max_leverage (上限)
+      夾住，與 target_leverage 無關。
+      所以配置 target=5, lo=5.9, hi=6.8 的實際運作槓桿是 5.9~6.8x（約 6.35x），
+      不是 5x！
+      誤解來源: 「5x 槓桿策略」這個名字。
+      文件上的修正: 把「5x 槓桿」說成「初始槓桿 5x、運作槓桿 5.9~6.8x」。
+
+  J5. **bot 有 supervisor 會自動重啟 → taskkill 後以為停了其實沒**
+      症狀: `taskkill /PID xxxx /F` 成功，但 tasklist 幾秒後又看到新 PID 跑同一隻 py。
+      根因: 某個背景程序（server.py 的 strategy_watchdog 或 Task Scheduler）偵測到
+            策略死了會自動拉起。這其實是好事（意外崩潰會恢復），但手動維運時要知道。
+      判別:
+        Get-WmiObject Win32_Process -Filter "Name='python_stock.exe'" |
+          Where CommandLine -like '*strategy-fmx-live*'
+        若 kill 後 5 秒內又出現新 PID → supervisor 在運作。
+      實務:
+        - 調 config 後不用手動重啟 bot，supervisor 會在你 kill 後自動拉起新版
+        - 但要注意新 bot 第一 tick 會讀最新 config，可能立刻觸發 PYRAMID/DELEV
+        - 如果不想被自動拉起（例如要長時間停機），需要先把 server.py 的
+          `bot_running` 旗標設 false，或直接停 server.py
 """
 
 
@@ -994,12 +1103,164 @@ git push 流程（本機修改後）
 """
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  12. 策略窗口最佳化方法論 (FMX 動態槓桿)
+# ═══════════════════════════════════════════════════════════════════════════
+STRATEGY_OPTIMIZATION_NOTES = """
+目的: 為動態槓桿策略（pyramid_trigger / max_leverage 窗口）做資料驅動調參。
+
+工作流程（2026-04-21 驗證過）
+────────────────────────────
+1. 在 strategy-fmx.html 放一個「🔬 窗口最佳化」按鈕 + modal
+   - 快取 lastRawData = { dates, closes, ema200 } 避免每次重新抓 Yahoo
+   - 掃描 los × his 網格（例 los=[4.5..6.0], his=[5.5..7.0], step=0.1）
+   - 過濾 hi-lo >= 0.3（太窄會來回洗）
+   - 每組配置跑一次 simulate()，分批（每 8 組 setTimeout(0) 讓 UI 不卡）
+   - 用 heatmap + top-5 表呈現結果，點一下自動套用參數
+
+2. 寫一支 Python port 做離線 4-D 全景掃描
+   - window_opt.py: 單維度（lo × hi）
+   - full_opt.py:   4-D（target × lo × hi × stop_loss）
+   - 完整 10 年歷史資料，8,672 組合在 Python 跑 ~16 秒
+
+3. 輸出多個「預設組合」讓使用者選
+   - 全局最佳（榨乾多頭紅利）: target=5, lo=5.9, hi=6.8, stop=off → 3.75 億
+   - 保守（MDD ≤ 40%）: target=4, lo=3.1, hi=4.0, stop=5% → 960 萬
+   - 激進（MDD ≤ 50%）: target=4, lo=3.5, hi=4.2, stop=15% → 2,570 萬
+
+關鍵踩過的坑（寫 window_opt.py / full_opt.py 時）
+─────────────────────────────────────────────────
+① Windows cp950 terminal 不認 emoji/中文:
+     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+   且 exec(open(...)) 重用時要 guard:
+     if not isinstance(sys.stdout, io.TextIOWrapper) or \\
+        getattr(sys.stdout, 'encoding', '').lower() != 'utf-8':
+         sys.stdout = io.TextIOWrapper(...)
+
+② dict key collision: compute_metrics 回傳的 key 不要和 config key 同名:
+     # BAD
+     metrics = {'stop': stop_count, ...}
+     result = {**cfg, **metrics}   # cfg['stop_label'] 被覆蓋
+     # GOOD
+     metrics = {'stop_cnt': stop_count, ...}
+     cfg_out = {'stop_label': sname}
+
+③ Python path 在 bash 用 forward slash:
+     "C:/Python310-Trading/python.exe"   # OK
+     "C:\\\\Python310-Trading\\\\python.exe"  # bash 常把 \\ 吃掉
+
+④ 要 import window_opt.py 進來重用 simulate() 時，若原檔有
+   if __name__ == '__main__': main()，直接 exec + replace:
+     exec(open("window_opt.py", encoding='utf-8').read()
+          .replace("if __name__ == '__main__':\\n    main()", ''))
+   （比 import 穩，避開 stdout wrapper 衝突）
+
+比對回測 vs 實盤時必做的 5 個檢查
+────────────────────────────────
+1. DELEV 條件: 回測有 price > avgCost，實盤沒有 → 見 J2
+2. DELEV 數量: 回測賣到目標槓桿，實盤每 tick 1 口 → 影響反彈吃滿度
+3. PYRAMID 條件: 回測是否有 trend filter? price > EMA200? 實盤有嗎?
+4. EXIT 條件: 回測用 100 日 MA 跌破，實盤用 low_period 參數（可能不同）
+5. Fee / Tax / Slippage: 回測通常零滑價，實盤有 Tick 差 + 交易稅
+每個差異都要在檔頭 docstring 寫清楚，不要埋隱藏 bug。
+
+配置安全邊界（風險上限計算）
+─────────────────────────
+若採用 lo=5.9, hi=6.8 窗口:
+  運作槓桿 ~6.35x
+  強平價 = avgCost × (1 - 1/leverage × (1 - maint_margin_ratio))
+         ≈ 當前價 × (1 - 11.7%)  # 緩衝 11.7%
+  台指期單日限制 ±10%:
+    - 單日跳空 -10% 不會強平（但 equity 會腰斬）
+    - 連續 2 天 -5% 會強平
+    - 連續跌停 2~3 天會倒賠
+
+建議總資產配置比例:
+  激進 (lo=5.9, hi=6.8): 5~10%（極端事件最多傷總資產 10~15%）
+  保守 (lo=4.5, hi=5.5): 15~20%（極端事件傷 12~18%）
+"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  13. 槓桿觸發價數學（Dashboard 反推公式）
+# ═══════════════════════════════════════════════════════════════════════════
+LEVERAGE_MATH_NOTES = """
+目的: Dashboard 要回答「價格到哪裡 PYRAMID / DELEV 會觸發?」這個公式反推。
+
+基本定義
+────────
+  leverage(P) = N × P × M / equity(P)
+  equity(P)   = cash + N × (P − avg) × M    ← cash 不隨價格變動
+  其中:
+    N    = 口數 (contracts)
+    P    = 價格
+    M    = 合約乘數 (台指期=200, 微台=10)
+    avg  = 均攤成本
+    cash = equity - unrealized   ← 從 state 反推得出
+
+反推公式（已由 dashboard 的 _calcLeverageTriggerPx 實作）
+────────────────────────────────────────────────────────
+  令 leverage(P) = T (目標槓桿)
+  N·P·M = T · (cash + N·(P − avg)·M)
+  N·P·M = T·cash + T·N·P·M − T·N·avg·M
+  N·P·M·(1 − T) = T·(cash − N·avg·M)
+  P = T·(N·avg·M − cash) / (N·M·(T − 1))
+
+方向判斷
+────────
+  價格上漲 → leverage 下降（equity 漲得比 exposure 快）
+  價格下跌 → leverage 上升（equity 跌得比 exposure 快）
+  所以:
+    PYRAMID (T=lo, 需要 lev 下降到 lo) → 觸發價 > 當前價（需要漲）
+    DELEV   (T=hi, 需要 lev 上升到 hi) → 觸發價 < 當前價（需要跌）
+    強平    (T=equity/maint_margin 的極限) → 觸發價 << 當前價
+
+驗證範例（11 口 @ avg 36,927, equity 689,747, cash 568,237）
+──────────────────────────────────────────────────────────
+  N·avg·M = 11 × 36,927 × 10 = 4,061,970
+  N·avg·M − cash = 3,493,733
+
+  PYRAMID T=5.9:
+    P = 5.9 × 3,493,733 / (110 × 4.9) = 20,613,025 / 539 = 38,243
+
+  DELEV T=6.8:
+    P = 6.8 × 3,493,733 / (110 × 5.8) = 23,757,384 / 638 = 37,237
+
+  強平價（equity = 11 × maint_margin = 201,300 時的 P）:
+    等價於 leverage ~= exposure / maint_equity，解得 P ≈ 33,591
+
+Dashboard 寫法（見 fmx-dashboard.html _calcLeverageTriggerPx）
+───────────────────────────────────────────────────────────
+  function _calcLeverageTriggerPx(targetLev, state) {
+    const N = _sdkContracts ?? state.contracts;
+    const avg = _sdkAvgPrice ?? state.avg_cost;
+    const M = PRODUCTS[sym].mult;
+    // cash = equity - unrealized (必須同一來源，避免用 SDK equity + state unrealized)
+    const cash = (_sdkEquity != null && _sdkPosUnreal != null)
+        ? _sdkEquity - _sdkPosUnreal
+        : state.equity - state.unrealized;
+    const num = targetLev * (N * avg * M - cash);
+    const den = N * M * (targetLev - 1);
+    return num / den;
+  }
+
+注意:
+  - cash 一定要用「同一來源」算出來。
+    不要 cash = SDK_equity - state_unrealized，兩邊時間點可能不同。
+  - target_leverage 必須 > 1，否則分母為 0。
+  - 若 state.pyramid_trigger / state.max_leverage 沒跟 config 同步更新
+    （見 J1 bug），觸發價會用舊值算，數字會偏離現況好幾百點。
+"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  CLI 入口
 # ═══════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description="Trading platform skill / template generator")
-    p.add_argument("--show", choices=["pitfalls", "checklist", "python", "pipeline"],
+    p.add_argument("--show",
+                   choices=["pitfalls", "checklist", "python", "pipeline",
+                            "strategy", "levmath"],
                    help="顯示內容")
     p.add_argument("--dump", metavar="DIR", help="把最小範本寫到指定資料夾")
     p.add_argument("--diagnose", action="store_true",
@@ -1016,6 +1277,10 @@ if __name__ == "__main__":
         print(f"resolved python = {resolve_python()}")
     elif args.show == "pipeline":
         print(GITHUB_ACTIONS_PIPELINE_NOTES)
+    elif args.show == "strategy":
+        print(STRATEGY_OPTIMIZATION_NOTES)
+    elif args.show == "levmath":
+        print(LEVERAGE_MATH_NOTES)
     elif args.dump:
         dump_templates(args.dump)
     elif args.diagnose:
@@ -1036,3 +1301,5 @@ if __name__ == "__main__":
         print("  python skill.py --diagnose        # 交易所 API 健檢 (時鐘+VPN)")
         print("  python skill.py --fix-clock       # 修時鐘同步 (彈 UAC)")
         print("  python skill.py --show pipeline   # GitHub Actions 資料管線架構")
+        print("  python skill.py --show strategy   # 策略窗口最佳化方法論 + 踩過的坑")
+        print("  python skill.py --show levmath    # 槓桿觸發價反推公式 (dashboard)")

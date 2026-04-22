@@ -3262,7 +3262,13 @@
                             const todayET  = new Date().toLocaleDateString('en-US', {timeZone: _tz});
                             const barET    = lastTs ? new Date(lastTs * 1000).toLocaleDateString('en-US', {timeZone: _tz}) : '';
                             const todayOpened = (todayET === barET);
-                            _tmpMarketOpened[r.holding] = todayOpened;
+                            // ⚠ 僅在 lastTs 有效時才覆寫 _tmpMarketOpened。
+                            // 若 yfFetch 成功但回傳空 timestamps（CORS proxy 偶發 bug），
+                            // barET 會是 ''，todayOpened 一律為 false，
+                            // 會把先前美股樣本正確判定的 true 誤覆寫為 false → 今日漲跌顯示「-」
+                            if (lastTs) {
+                                _tmpMarketOpened[r.holding] = todayOpened;
+                            }
                             if (todayOpened) {
                                 // 今日開盤：range=1d chartPreviousClose 取昨收（跨越空白交易日仍準確）
                                 let prevCloseFrom1d = null;
@@ -4459,6 +4465,19 @@
                             if (!window._prevCloseCache) window._prevCloseCache = {};
                             window._prevCloseCache[_ph.symbol] = _pm.chartPreviousClose * _pScale;
                         }
+                        // marketOpenedToday：用 regularMarketTime 判斷是否今日已有交易 bar
+                        //   loadAnalysis 可能已把它設為 false（yfFetch CORS 失敗或 5d 資料偏誤），
+                        //   這裡每 60s 會重新校正一次，避免 US proxy ETF 盤中永久「-」。
+                        try {
+                            if (_pm.regularMarketTime) {
+                                const _mktTz  = _ph.symbol.endsWith('.HK') ? 'Asia/Hong_Kong' : 'America/New_York';
+                                const _mktTodayLoc = new Date().toLocaleDateString('en-US', {timeZone: _mktTz});
+                                const _mktBarLoc   = new Date(_pm.regularMarketTime * 1000).toLocaleDateString('en-US', {timeZone: _mktTz});
+                                const _openedToday = (_mktTodayLoc === _mktBarLoc);
+                                if (!window._marketOpenedToday) window._marketOpenedToday = {};
+                                window._marketOpenedToday[_ph.symbol] = _openedToday;
+                            }
+                        } catch(_) {}
                     } catch(_) {} // yfFetch 失敗 → 維持 prices.json 值（靜默降級）
                     if (_pi < _allProxies.length - 1) await new Promise(r => setTimeout(r, 150));
                 }

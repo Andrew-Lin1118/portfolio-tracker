@@ -1019,19 +1019,42 @@
 
         function renderStats(stats) {
             const grid = document.getElementById('stats-grid');
+            // 期貨貢獻（TWD）── 合併到 總損益/昨日漲跌/今日漲跌
+            const _futUnrealTWD = (typeof getFuturesUnrealizedTWD === 'function') ? getFuturesUnrealizedTWD() : 0;
+            const _futTodayTWD  = (typeof getFuturesTodayPnLTWD   === 'function') ? getFuturesTodayPnLTWD()   : 0;
+            const _fxRate       = exchangeRates.USD_TWD > 0 ? exchangeRates.USD_TWD : 0;
+            const _futUnrealUSD = _fxRate > 0 ? _futUnrealTWD / _fxRate : 0;
+            const _futTodayUSD  = _fxRate > 0 ? _futTodayTWD  / _fxRate : 0;
+            const _futPrevTWD   = 0; // 缺昨日結算資料，暫不併入昨日損益
+            const _futPrevUSD   = 0;
+            const _compactPnl = n => {
+                const a = Math.abs(n);
+                const sign = n >= 0 ? '+' : '-';
+                if (a >= 100000000) return sign + (a/100000000).toFixed(1) + '億';
+                if (a >= 10000)     return sign + (a/10000).toFixed(1) + '萬';
+                return sign + Math.round(a).toLocaleString('zh-TW');
+            };
+
             // ── 昨日損益 卡片 ──────────────────────────────
             const prevDayCard = (function() {
-                if (!stats.hasPrevDayPnL) return '';
-                const d   = currency==='USD' ? stats.totalPrevDayPnLUSD : stats.totalPrevDayPnLTWD;
+                if (!stats.hasPrevDayPnL && _futPrevTWD === 0) return '';
+                const totalTWD = stats.totalPrevDayPnLTWD + _futPrevTWD;
+                const totalUSD = stats.totalPrevDayPnLUSD + _futPrevUSD;
+                const d   = currency==='USD' ? totalUSD : totalTWD;
                 const pos = d >= 0;
                 const col = pos ? '#10b981' : '#ef4444';
                 const mainStr = fmtPnl(d, currency);
-                const subStr  = currency==='USD'
-                    ? fmtPnl(stats.totalPrevDayPnLTWD, 'TWD')
-                    : fmtPnl(stats.totalPrevDayPnLUSD, 'USD');
+                const subStr  = currency==='USD' ? fmtPnl(totalTWD, 'TWD') : fmtPnl(totalUSD, 'USD');
                 const prevVal = stats.totalValue - stats.totalDayPnLUSD - stats.totalPrevDayPnLUSD;
                 const pct = prevVal > 0 ? (stats.totalPrevDayPnLUSD / prevVal * 100).toFixed(2) : null;
                 const pctStr = pct != null ? ' (' + (pos?'+':'') + pct + '%)' : '';
+                // breakdown：僅在有期貨資料時顯示（目前期貨昨日=0 時略過）
+                const bdParts = [];
+                if (_futPrevTWD !== 0) {
+                    bdParts.push('股 ' + _compactPnl(stats.totalPrevDayPnLTWD));
+                    bdParts.push('期 ' + _compactPnl(_futPrevTWD));
+                }
+                const bd = bdParts.join(' · ');
                 return '<div class="stat-card" style="border:1px solid rgba(148,163,184,0.2);">'
                     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
                     +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
@@ -1042,21 +1065,28 @@
                     + '</div>'
                     + '<div class="mono stat-amount" style="color:'+col+';">'+mainStr+'</div>'
                     + '<div class="mono stat-amount-sub" style="margin-top:0.45rem;color:'+col+';">'+subStr+'</div>'
+                    + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">'+bd+'</div>' : '')
                     + '</div>';
             })();
             // ── 當日損益 卡片 ──────────────────────────────
             const dayCard = (function() {
-                if (!stats.hasDayPnL) return '';
-                const d   = currency==='USD' ? stats.totalDayPnLUSD : stats.totalDayPnLTWD;
+                if (!stats.hasDayPnL && _futTodayTWD === 0) return '';
+                const totalTWD = stats.totalDayPnLTWD + _futTodayTWD;
+                const totalUSD = stats.totalDayPnLUSD + _futTodayUSD;
+                const d   = currency==='USD' ? totalUSD : totalTWD;
                 const pos = d >= 0;
                 const col = pos ? '#10b981' : '#ef4444';
                 const mainStr = fmtPnl(d, currency);
-                const subStr  = currency==='USD'
-                    ? fmtPnl(stats.totalDayPnLTWD, 'TWD')
-                    : fmtPnl(stats.totalDayPnLUSD, 'USD');
+                const subStr  = currency==='USD' ? fmtPnl(totalTWD, 'TWD') : fmtPnl(totalUSD, 'USD');
                 const prevVal = stats.totalValue - stats.totalDayPnLUSD;
                 const pct = prevVal > 0 ? (stats.totalDayPnLUSD / prevVal * 100).toFixed(2) : null;
                 const pctStr = pct != null ? ' (' + (pos?'+':'') + pct + '%)' : '';
+                const bdParts = [];
+                if (_futTodayTWD !== 0) {
+                    bdParts.push('股 ' + _compactPnl(stats.totalDayPnLTWD));
+                    bdParts.push('期 ' + _compactPnl(_futTodayTWD));
+                }
+                const bd = bdParts.join(' · ');
                 return '<div class="stat-card" style="border:1px solid rgba(251,191,36,0.25);">'
                     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
                     +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
@@ -1067,6 +1097,43 @@
                     + '</div>'
                     + '<div class="mono stat-amount" style="color:'+col+';">'+mainStr+'</div>'
                     + '<div class="mono stat-amount-sub" style="margin-top:0.45rem;color:'+col+';">'+subStr+'</div>'
+                    + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">'+bd+'</div>' : '')
+                    + '</div>';
+            })();
+            // ── 總損益 卡片（股票 + 期貨未實現）──────────────
+            const totalPnLCard = (function() {
+                const totalTWD = stats.totalPnLTWD + _futUnrealTWD;
+                const totalUSD = stats.totalPnL    + _futUnrealUSD;
+                const pos = totalTWD >= 0;
+                const amtClass = pos ? 'profit' : 'loss';
+                const iconBg = pos ? 'linear-gradient(135deg,#10b981 0%,#059669 100%)' : 'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)';
+                const iconShadow = pos ? '0 4px 15px rgba(16,185,129,0.4)' : '0 4px 15px rgba(239,68,68,0.4)';
+                const emoji = pos ? '📈' : '📉';
+                const mainStr = currency==='USD' ? fmtPnl(totalUSD, 'USD') : fmtPnl(totalTWD, 'TWD');
+                const subStr  = currency==='USD' ? fmtPnl(totalTWD, 'TWD') : fmtPnl(totalUSD, 'USD');
+                // %：沿用股票「總損益/總投入」邏輯，避免期貨無成本定義問題
+                const pctStr = stats.totalPnLPercent != null
+                    ? '(' + (stats.totalPnL>=0?'+':'') + stats.totalPnLPercent.toFixed(2) + '%)'
+                    : '';
+                const bdParts = [];
+                if (_futUnrealTWD !== 0) {
+                    bdParts.push('股 ' + _compactPnl(stats.totalPnLTWD));
+                    bdParts.push('期 ' + _compactPnl(_futUnrealTWD));
+                }
+                const bd = bdParts.join(' · ');
+                return '<div class="stat-card">'
+                    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
+                    +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
+                    +     '<div style="width:40px;height:40px;border-radius:10px;background:'+iconBg+';display:flex;align-items:center;justify-content:center;box-shadow:'+iconShadow+';">'+emoji+'</div>'
+                    +     '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總損益</span>'
+                    +   '</div>'
+                    +   '<span class="mono stat-pct '+(stats.totalPnL>=0?'profit':'loss')+'" style="flex-shrink:0;">'+pctStr+'</span>'
+                    + '</div>'
+                    + '<div class="mono stat-amount '+amtClass+'">'+mainStr+'</div>'
+                    + '<div class="mono stat-amount-sub" style="margin-top:0.45rem;">'
+                    +   '<span class="'+amtClass+'">'+subStr+'</span>'
+                    + '</div>'
+                    + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">'+bd+'</div>' : '')
                     + '</div>';
             })();
 
@@ -1137,24 +1204,12 @@
                 <div class="stat-card">
                     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
                         <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#3b82f6 0%,#2563eb 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(59,130,246,0.4);">📈</div>
-                        <span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總市值</span>
+                        <span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">股票市值</span>
                     </div>
                     <div class="mono stat-amount" style="color:#3b82f6;">${currency==='USD' ? fmtAmt(stats.totalValue,'USD') : fmtAmt(stats.totalValueTWD,'TWD')}</div>
                     <div class="mono stat-amount-sub" style="color:#64748b;margin-top:0.4rem;">${currency==='USD' ? fmtAmt(stats.totalValueTWD,'TWD') : fmtAmt(stats.totalValue,'USD')}</div>
                 </div>
-                <div class="stat-card">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">
-                        <div style="display:flex;align-items:center;gap:0.75rem;">
-                            <div style="width:40px;height:40px;border-radius:10px;background:${stats.totalPnL>=0?'linear-gradient(135deg,#10b981 0%,#059669 100%)':'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)'};display:flex;align-items:center;justify-content:center;box-shadow:${stats.totalPnL>=0?'0 4px 15px rgba(16,185,129,0.4)':'0 4px 15px rgba(239,68,68,0.4)'};">${stats.totalPnL>=0?'📈':'📉'}</div>
-                            <span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總損益</span>
-                        </div>
-                        <span class="mono stat-pct ${stats.totalPnL>=0?'profit':'loss'}" style="flex-shrink:0;">(${stats.totalPnL>=0?'+':''}${stats.totalPnLPercent.toFixed(2)}%)</span>
-                    </div>
-                    <div class="mono stat-amount ${stats.totalPnL>=0?'profit':'loss'}">${currency==='USD' ? fmtPnl(stats.totalPnL,'USD') : fmtPnl(stats.totalPnLTWD,'TWD')}</div>
-                    <div class="mono stat-amount-sub" style="margin-top:0.45rem;">
-                        <span class="${stats.totalPnLTWD>=0?'profit':'loss'}">${currency==='USD' ? fmtPnl(stats.totalPnLTWD,'TWD') : fmtPnl(stats.totalPnL,'USD')}</span>
-                    </div>
-                </div>
+                ${totalPnLCard}
                 ${prevDayCard}
                 ${dayCard}
                 ${futCard}
@@ -4703,6 +4758,16 @@
             if (!_futuresData?.margin) return 0;
             const v = Number(_futuresData.margin.unrealized_pnl || 0);
             return isFinite(v) ? v : 0;
+        }
+        // 今日期貨盤中損益（TWD）＝ 今日權益 − 今日起始餘額（盤中逐筆 mark-to-market 近似）
+        // 由於期貨每日結算，today_balance 近似等於昨日結算後餘額，equity 為當前權益。
+        function getFuturesTodayPnLTWD() {
+            if (!_futuresData?.margin) return 0;
+            const eq = Number(_futuresData.margin.equity ?? NaN);
+            const tb = Number(_futuresData.margin.today_balance ?? NaN);
+            if (!isFinite(eq) || !isFinite(tb) || tb <= 0) return 0;
+            const diff = eq - tb;
+            return isFinite(diff) ? diff : 0;
         }
 
         async function silentRefreshPrices(skipProxyFetch = false) {

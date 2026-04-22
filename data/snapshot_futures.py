@@ -40,10 +40,28 @@ HISTORY_FILE  = os.path.join(BASE_DIR, 'data', 'futures_history.json')
 
 NWIN_FLAG = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
 
-# 與 server.py 一致：優先使用 python_stock.exe（含 Surfshark Bypasser）
-_py_dir   = os.path.dirname(sys.executable)
-_py_stock = os.path.join(_py_dir, 'python_stock.exe')
-PY = _py_stock if os.path.exists(_py_stock) else sys.executable
+
+def _find_py_stock():
+    """搜尋 python_stock.exe（裝了 fubon_neo 的解譯器）。
+    優先序：當前 Python 同目錄 → 常見 Windows 安裝路徑 → Fallback sys.executable。
+    """
+    candidates = [os.path.join(os.path.dirname(sys.executable), 'python_stock.exe')]
+    if sys.platform == 'win32':
+        userprof = os.environ.get('USERPROFILE', '')
+        for p in (
+            os.path.join(userprof, 'AppData', 'Local', 'Programs', 'Python', 'Python310', 'python_stock.exe'),
+            os.path.join(userprof, 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python_stock.exe'),
+            r'C:\Python310\python_stock.exe',
+            r'C:\Python311\python_stock.exe',
+        ):
+            candidates.append(p)
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return sys.executable
+
+
+PY = _find_py_stock()
 
 
 def _log(msg):

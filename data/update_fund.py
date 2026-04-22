@@ -201,13 +201,24 @@ for sym in symbols:
                 if col_actual:
                     reported = ed[ed[col_actual].notna()].copy()
                     reported = reported.sort_index()  # 由舊到新
+                    # 交易所本地時區（與 next_earnings_date 段共用相同對照表）
+                    _sfx_hist = sym.split('.')[-1].upper() if '.' in sym else ''
+                    _tz_name_hist = {
+                        'KS': 'Asia/Seoul',  'KQ': 'Asia/Seoul',
+                        'HK': 'Asia/Hong_Kong',
+                        'TW': 'Asia/Taipei', 'TWO': 'Asia/Taipei',
+                        'T':  'Asia/Tokyo',
+                    }.get(_sfx_hist, 'America/New_York')
+                    import pytz as _ptz_hist
+                    _local_tz_hist = _ptz_hist.timezone(_tz_name_hist)
                     for date, row in reported.iterrows():
                         try:
                             dt = pd.Timestamp(date)
-                            # 統一轉換為美東時間（避免 UTC 跨日造成季度判斷錯誤）
+                            # 轉換到交易所本地時區（避免 UTC 跨日造成季度判斷錯誤）
                             if dt.tzinfo is not None:
-                                import pytz as _ptz2
-                                dt = dt.tz_convert('America/New_York').replace(tzinfo=None)
+                                dt = dt.tz_convert(_local_tz_hist).replace(tzinfo=None)
+                            elif dt.tzinfo is None:
+                                dt = dt.tz_localize('UTC').tz_convert(_local_tz_hist).replace(tzinfo=None)
                             q_num = (dt.month - 1) // 3 + 1
                             eps_actual = safe_float(row[col_actual])
                             eps_est    = safe_float(row[col_est]) if col_est else None
@@ -225,16 +236,30 @@ for sym in symbols:
                         except Exception:
                             pass
                     # ── 下次財報日期：col_actual 為 NaN 的未來日期中最近的一個 ──
+                    # 注意：yfinance earnings_dates 的 index 是 UTC Timestamp；
+                    # 直接剝掉時區會讓亞洲市場（KS/HK）日期偏一天。
+                    # 解法：先 tz_convert 到交易所本地時區，再取 .date()。
                     try:
-                        _today = datetime.now(timezone.utc).date()
+                        import pytz as _ptz_ned
+                        _sfx_ned = sym.split('.')[-1].upper() if '.' in sym else ''
+                        _tz_name_ned = {
+                            'KS': 'Asia/Seoul',  'KQ': 'Asia/Seoul',
+                            'HK': 'Asia/Hong_Kong',
+                            'TW': 'Asia/Taipei', 'TWO': 'Asia/Taipei',
+                            'T':  'Asia/Tokyo',
+                        }.get(_sfx_ned, 'America/New_York')
+                        _local_tz_ned  = _ptz_ned.timezone(_tz_name_ned)
+                        _today_local   = datetime.now(_local_tz_ned).date()
                         _future = []
                         for _idx in ed.index:
                             try:
                                 _ts = pd.Timestamp(_idx)
-                                if _ts.tzinfo is not None:
-                                    _ts = _ts.tz_localize(None)
-                                if _ts.date() >= _today and pd.isna(ed.loc[_idx, col_actual]):
-                                    _future.append(_ts)
+                                # tz-naive → 假設 UTC；tz-aware → 直接 convert
+                                if _ts.tzinfo is None:
+                                    _ts = _ts.tz_localize('UTC')
+                                _local_date = _ts.tz_convert(_local_tz_ned).date()
+                                if _local_date >= _today_local and pd.isna(ed.loc[_idx, col_actual]):
+                                    _future.append(pd.Timestamp(_local_date))
                             except Exception:
                                 pass
                         if _future:

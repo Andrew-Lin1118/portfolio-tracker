@@ -245,6 +245,7 @@
             <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">📊 財報分析</button>
             <button class="tab-btn" id="tab-btn-5" onclick="switchTab(5)">🌐 總體經濟</button>
             <button class="tab-btn" id="tab-btn-6" onclick="switchTab(6)">📉 資產變化</button>
+            <button class="tab-btn" id="tab-btn-7" onclick="switchTab(7)">📰 個股新聞</button>
         </div>
 
         <!-- Tab 1: Holdings -->
@@ -567,8 +568,37 @@
             </div>
         </div><!-- /tab-pane-6 -->
 
+        <!-- Tab 7: 個股新聞 -->
+        <div id="tab-pane-7" class="tab-pane" style="padding-top:1rem;">
+            <div class="glass-card" style="padding:1.5rem 2rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">📰 近7天個股新聞</h2>
+                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <button onclick="loadNews(true)" id="news-btn" style="padding:0.6rem 1.2rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.88rem; text-transform:none; letter-spacing:0;">🔄 載入新聞</button>
+                        <span id="news-status" style="font-size:0.78rem; color:#64748b;"></span>
+                    </div>
+                </div>
+                <div style="margin-bottom:0.75rem; padding:0.6rem 1rem; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; font-size:0.8rem; color:#64748b;">
+                    💡 顯示持倉標的近7天相關新聞，點擊標題可查看分析摘要。槓桿ETF會查詢其原型標的新聞。
+                </div>
+                <div id="news-list">
+                    <div style="text-align:center; padding:3rem; color:#64748b;">點擊「載入新聞」開始抓取</div>
+                </div>
+            </div>
+        </div><!-- /tab-pane-7 -->
+
 
     <!-- Modals -->
+    <!-- News Modal -->
+    <div id="news-modal" onclick="if(event.target===this)hideNewsModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:2000; padding:1rem;">
+        <div class="glass-card" style="padding:2rem; max-width:640px; width:100%; max-height:88vh; overflow:hidden; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-shrink:0;">
+                <h3 style="color:#fbbf24; font-size:1.1rem; margin:0;">📰 新聞分析</h3>
+                <button onclick="hideNewsModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
+            </div>
+            <div id="news-modal-content" style="flex:1; overflow-y:auto;"></div>
+        </div>
+    </div>
     <div id="import-modal" onclick="if(event.target===this)hideImportModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); display:none; align-items:center; justify-content:center; z-index:1000; padding:1rem;">
         <div class="glass-card" style="padding:2rem; max-width:720px; width:100%; max-height:90vh; display:flex; flex-direction:column;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
@@ -2304,6 +2334,10 @@
             // 切換到資產變化 Tab：重新渲染
             if (n === 6) {
                 renderAssetHistory();
+            }
+            // 切換到個股新聞 Tab：首次自動載入
+            if (n === 7 && holdings.length > 0 && !_newsLoaded) {
+                loadNews(false);
             }
         }
 
@@ -4560,6 +4594,149 @@
             const lbl = document.getElementById('font-size-label');
             if(lbl) lbl.textContent = next + 'px';
         }
+
+        // ==================== Tab 7：個股新聞 ====================
+        let _newsLoaded = false;
+
+        async function loadNews(forceRefresh) {
+            if (holdings.length === 0) { alert('請先匯入持倉數據'); return; }
+            const btn = document.getElementById('news-btn');
+            const statusEl = document.getElementById('news-status');
+            if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
+
+            const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
+            const symbols = [...new Set(holdings.map(h => getQuerySymbol(h.symbol)))];
+            const allNews = [];
+
+            for (let i = 0; i < symbols.length; i++) {
+                const sym = symbols[i];
+                if (statusEl) statusEl.textContent = `(${i+1}/${symbols.length}) 查詢 ${sym}...`;
+                const holdingSym = holdings.find(h => getQuerySymbol(h.symbol) === sym)?.symbol || sym;
+                try {
+                    const data = await yfFetch(
+                        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=7&quotesCount=0`
+                    );
+                    for (const item of (data?.news || [])) {
+                        if ((item.providerPublishTime || 0) >= sevenDaysAgo) {
+                            allNews.push({ ...item, _querySymbol: sym, _holdingSymbol: holdingSym });
+                        }
+                    }
+                } catch(e) {}
+                if (i < symbols.length - 1) await new Promise(r => setTimeout(r, 400));
+            }
+
+            // 去重 + 時間排序
+            const seen = new Set();
+            const unique = allNews
+                .filter(n => { if (seen.has(n.uuid)) return false; seen.add(n.uuid); return true; })
+                .sort((a, b) => b.providerPublishTime - a.providerPublishTime);
+
+            renderNewsTab(unique);
+            _newsLoaded = true;
+            if (btn) { btn.textContent = '🔄 載入新聞'; btn.disabled = false; }
+            if (statusEl) statusEl.textContent = `共 ${unique.length} 則 · ${new Date().toLocaleTimeString('zh-TW')}`;
+        }
+
+        function renderNewsTab(items) {
+            const container = document.getElementById('news-list');
+            if (!container) return;
+            if (items.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:3rem;color:#64748b;">近7天無相關新聞（API 可能需透過代理存取）</div>';
+                return;
+            }
+            container.innerHTML = items.map(item => {
+                const dt = new Date(item.providerPublishTime * 1000);
+                const dtStr = dt.toLocaleDateString('zh-TW', {month:'2-digit',day:'2-digit'}) + ' ' +
+                              dt.toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'});
+                const sent = newssentiment(item.title);
+                return `<div class="news-item" onclick='showNewsModal(${JSON.stringify(item).replace(/'/g,"&#39;")})'
+                    style="background:linear-gradient(135deg,rgba(15,30,60,0.6),rgba(10,20,40,0.8));
+                           border:1px solid rgba(59,130,246,0.2); border-left:3px solid rgba(251,191,36,0.4);
+                           border-radius:10px; padding:0.7rem 1rem; margin-bottom:0.45rem; cursor:pointer; transition:all 0.2s;">
+                    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+                        <span style="background:rgba(251,191,36,0.15);color:#fbbf24;padding:0.12rem 0.5rem;border-radius:5px;font-size:0.76rem;font-weight:700;">${item._holdingSymbol}</span>
+                        ${sentimentBadge(sent)}
+                        <span style="color:#64748b;font-size:0.74rem;">${dtStr} · ${item.publisher||''}</span>
+                    </div>
+                    <div style="color:#e2e8f0;font-size:0.88rem;line-height:1.45;">${item.title}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function newssentiment(title) {
+            if (!title) return 'neutral';
+            const t = title.toLowerCase();
+            const pos = ['beat','surge','jump','rise','gain','record','strong','exceed','upgrade','bullish','profit','expand','rally','boost','soar','high','上漲','突破','超越','成長','獲利','上調'];
+            const neg = ['miss','fall','drop','cut','loss','weak','decline','downgrade','bearish','risk','warning','disappoint','plunge','crash','below','lower','下跌','虧損','警告','風險','衰退','下調'];
+            let p=0, n=0;
+            pos.forEach(w => { if (t.includes(w)) p++; });
+            neg.forEach(w => { if (t.includes(w)) n++; });
+            return p > n ? 'positive' : n > p ? 'negative' : 'neutral';
+        }
+
+        function sentimentBadge(s) {
+            if (s==='positive') return '<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:0.12rem 0.45rem;border-radius:5px;font-size:0.74rem;font-weight:700;">📈 利多</span>';
+            if (s==='negative') return '<span style="background:rgba(239,68,68,0.15);color:#ef4444;padding:0.12rem 0.45rem;border-radius:5px;font-size:0.74rem;font-weight:700;">📉 利空</span>';
+            return '<span style="background:rgba(100,116,139,0.15);color:#94a3b8;padding:0.12rem 0.45rem;border-radius:5px;font-size:0.74rem;font-weight:700;">📊 中性</span>';
+        }
+
+        function showNewsModal(item) {
+            const modal = document.getElementById('news-modal');
+            if (!modal) return;
+            const dt = new Date(item.providerPublishTime * 1000);
+            const dtStr = dt.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+            const sent = newssentiment(item.title);
+            const holding = holdings.find(h => h.symbol === item._holdingSymbol);
+            let pnlHtml = '';
+            if (holding) {
+                const pct = ((holding.currentPrice - holding.costPrice) / holding.costPrice * 100).toFixed(1);
+                const col = parseFloat(pct) >= 0 ? '#10b981' : '#ef4444';
+                pnlHtml = `<div style="margin-top:0.75rem;padding:0.5rem 0.75rem;background:rgba(15,30,60,0.5);border-radius:8px;font-size:0.82rem;color:#94a3b8;">
+                    持倉狀況：${item._holdingSymbol} 目前損益 <span style="color:${col};font-weight:700;">${pct>=0?'+':''}${pct}%</span>　現價 ${holding.currentPrice}
+                </div>`;
+            }
+            let analysisText = '';
+            if (sent==='positive') {
+                analysisText = `本則新聞對 <strong>${item._holdingSymbol}</strong> 呈正面訊號。`;
+                const t = item.title.toLowerCase();
+                if (t.includes('beat')||t.includes('exceed')) analysisText += ' 超越預期的表現通常帶動股價上漲，可關注後續追漲空間。';
+                else if (t.includes('upgrade')) analysisText += ' 機構升評代表分析師對未來業績更有信心，屬正面訊號。';
+                else if (t.includes('acqui')||t.includes('merger')) analysisText += ' 併購消息需評估是否有利長期價值，觀察市場反應後再決策。';
+                else analysisText += ' 建議結合技術面確認進場時機。';
+            } else if (sent==='negative') {
+                analysisText = `本則新聞對 <strong>${item._holdingSymbol}</strong> 呈負面訊號。`;
+                const t = item.title.toLowerCase();
+                if (t.includes('miss')) analysisText += ' 財報不如預期可能引發股價下壓，觀察跌幅是否已充分反應。';
+                else if (t.includes('downgrade')) analysisText += ' 機構調降評等請注意是否基本面惡化，建議暫時觀望。';
+                else if (t.includes('risk')||t.includes('warning')) analysisText += ' 風險警示需謹慎，評估持倉比重是否需調整。';
+                else analysisText += ' 負面消息可能帶動短期股價走弱，建議設好停損。';
+            } else {
+                analysisText = `本則新聞對 <strong>${item._holdingSymbol}</strong> 呈中性訊號，建議參考技術面指標判斷方向。`;
+            }
+
+            document.getElementById('news-modal-content').innerHTML = `
+                <div style="margin-bottom:1rem;">
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
+                        <span style="background:rgba(251,191,36,0.15);color:#fbbf24;padding:0.15rem 0.55rem;border-radius:6px;font-size:0.82rem;font-weight:700;">${item._holdingSymbol}</span>
+                        ${sentimentBadge(sent)}
+                    </div>
+                    <h3 style="color:#f1f5f9;font-size:1rem;font-weight:700;margin:0 0 0.4rem 0;line-height:1.5;">${item.title}</h3>
+                    <div style="color:#64748b;font-size:0.8rem;">${item.publisher||''} &nbsp;·&nbsp; ${dtStr}</div>
+                </div>
+                <div style="background:rgba(15,30,60,0.5);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:0.9rem 1rem;margin-bottom:1rem;">
+                    <div style="color:#fbbf24;font-size:0.83rem;font-weight:700;margin-bottom:0.45rem;">📊 新聞分析</div>
+                    <div style="color:#e2e8f0;font-size:0.87rem;line-height:1.7;">${analysisText}</div>
+                    ${pnlHtml}
+                </div>
+                <a href="${item.link}" target="_blank" rel="noopener noreferrer"
+                   style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.6rem 1rem;
+                          background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(37,99,235,0.3));
+                          color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:8px;
+                          font-weight:600;font-size:0.85rem;text-decoration:none;">🔗 閱讀完整報導</a>`;
+            modal.style.display = 'flex';
+        }
+
+        function hideNewsModal() { document.getElementById('news-modal').style.display = 'none'; }
     </script>
 
 

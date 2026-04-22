@@ -4381,6 +4381,7 @@
 
         async function silentRefreshPrices(skipProxyFetch = false) {
             const prices = {}, mergedRates = {};
+            const sheetPrices = {}; // Sheet 提供的標的（yfFetch 不得覆蓋）
 
             // ── 優先：data/prices.json（GitHub Actions 定時更新，同域無 CORS）──
             // 股價：無論新舊都使用（非市場時段仍顯示昨收）
@@ -4418,7 +4419,10 @@
                                 if (!cols[0] || isNaN(val) || val <= 0) return;
                                 if      (cols[0] === 'USD_TWD') mergedRates.USD_TWD = val;
                                 else if (cols[0] === 'HKD_TWD') mergedRates.HKD_TWD = val;
-                                else prices[cols[0]] = val; // Sheet 為使用者手動維護，優先度高於 prices.json 舊快照
+                                else {
+                                    prices[cols[0]] = val;       // Sheet 優先於 prices.json
+                                    sheetPrices[cols[0]] = val;  // 標記為 Sheet 提供，yfFetch 不得覆蓋
+                                }
                             });
                         }
                     }
@@ -4443,6 +4447,7 @@
             // 每 60s yfFetch 抓到的即時價存在 window._proxyIntradayCache；
             // 其餘 10s 輪詢若不重抓，直接沿用快取（< 5 分鐘視為新鮮），
             // 避免 prices.json 昨收快照把現價拉回 → 今日漲跌閃爍 0% / 正常值。
+            // ★ 但 Sheet 已提供者不覆蓋（Sheet 比 Yahoo 延遲價新）。
             try {
                 const _cache = window._proxyIntradayCache;
                 if (_cache) {
@@ -4450,7 +4455,8 @@
                     const _now = Date.now();
                     Object.keys(_cache).forEach(_s => {
                         const _e = _cache[_s];
-                        if (_e && _e.price > 0 && (_now - _e.ts) < _freshMs) {
+                        if (_e && _e.price > 0 && (_now - _e.ts) < _freshMs
+                            && !_hasPriceKey(_s, sheetPrices)) {
                             prices[_s] = _e.price;
                         }
                     });
@@ -4484,9 +4490,13 @@
                         const _pScale = (_ph.symbol.endsWith('.HK') && HK_USD_PRICED.has(_ph.symbol) && (_pm.currency ?? '') === 'HKD')
                             ? (exchangeRates.HKD_TWD / exchangeRates.USD_TWD) : 1;
                         // 即時報價（覆蓋 prices.json 定時快照）
+                        // ★ 但 Sheet 已提供者不覆蓋：Sheet 內通常是使用者手動維護 / GOOGLEFINANCE
+                        //   即時價，而 Yahoo 對台股/港股有 15–20 分鐘延遲，會把 Sheet 的新值拉回舊值。
                         if (_pm.regularMarketPrice != null && _pm.regularMarketPrice > 0) {
                             const _livePx = _pm.regularMarketPrice * _pScale;
-                            prices[_ph.symbol] = _livePx;
+                            if (!_hasPriceKey(_ph.symbol, sheetPrices)) {
+                                prices[_ph.symbol] = _livePx;
+                            }
                             // ★ 關鍵：持久化到全域快取，讓 skipProxyFetch=true 的刷新
                             //   也能沿用這個即時價，避免被舊的 prices.json 覆回昨收。
                             //   （prices.json 每日快照，若盤中未更新，值=昨收=prev_close，

@@ -4439,6 +4439,24 @@
             if (mergedRates.HKD_TWD) exchangeRates.HKD_TWD = mergedRates.HKD_TWD;
             syncRateInputs();
 
+            // ── proxy ETF 即時價快取覆寫 ──
+            // 每 60s yfFetch 抓到的即時價存在 window._proxyIntradayCache；
+            // 其餘 10s 輪詢若不重抓，直接沿用快取（< 5 分鐘視為新鮮），
+            // 避免 prices.json 昨收快照把現價拉回 → 今日漲跌閃爍 0% / 正常值。
+            try {
+                const _cache = window._proxyIntradayCache;
+                if (_cache) {
+                    const _freshMs = 5 * 60 * 1000;
+                    const _now = Date.now();
+                    Object.keys(_cache).forEach(_s => {
+                        const _e = _cache[_s];
+                        if (_e && _e.price > 0 && (_now - _e.ts) < _freshMs) {
+                            prices[_s] = _e.price;
+                        }
+                    });
+                }
+            } catch(_) {}
+
             // ── 所有 proxy ETF：yfFetch 即時報價補強（節流：每 60 秒才執行一次）──
             // prices.json 是定時快照（GitHub Actions）；若快取舊、或港股時段 GitHub Actions 未跑，
             // 以 range=1d interval=1d 取 meta.regularMarketPrice（即時現價）及
@@ -4458,7 +4476,14 @@
                             ? (exchangeRates.HKD_TWD / exchangeRates.USD_TWD) : 1;
                         // 即時報價（覆蓋 prices.json 定時快照）
                         if (_pm.regularMarketPrice != null && _pm.regularMarketPrice > 0) {
-                            prices[_ph.symbol] = _pm.regularMarketPrice * _pScale;
+                            const _livePx = _pm.regularMarketPrice * _pScale;
+                            prices[_ph.symbol] = _livePx;
+                            // ★ 關鍵：持久化到全域快取，讓 skipProxyFetch=true 的刷新
+                            //   也能沿用這個即時價，避免被舊的 prices.json 覆回昨收。
+                            //   （prices.json 每日快照，若盤中未更新，值=昨收=prev_close，
+                            //    會造成今日漲跌閃爍 0% / 正常值切換）
+                            if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
+                            window._proxyIntradayCache[_ph.symbol] = { price: _livePx, ts: Date.now() };
                         }
                         // 昨收（chartPreviousClose 跨越空白交易日仍準確，直接寫入全域快取）
                         if (_pm.chartPreviousClose != null && _pm.chartPreviousClose > 0) {

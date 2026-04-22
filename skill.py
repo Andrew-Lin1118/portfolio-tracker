@@ -38,7 +38,7 @@ import subprocess
 import threading
 from typing import Callable, Optional
 
-SKILL_VERSION = "1.3.0"   # +J(策略調參/回測實盤一致性) +Section12(窗口最佳化) +Section13(槓桿數學)
+SKILL_VERSION = "1.3.1"   # +D10(proxy ETF 今日漲跌 0%/正確值閃爍；10s 刷新 × 60s yfFetch 節流)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -649,6 +649,33 @@ PITFALLS = """
            空 timestamps 應保留上一步（US 樣本）的正確判斷。
         3. silentRefreshPrices 也要用 `meta.regularMarketTime` 比對今日日期
            更新 _marketOpenedToday，讓 60s 自動刷新也能自我校正。
+
+  D10. **proxy ETF 今日漲跌「一下 0% 一下正確」交替閃爍（10s 刷新 × 60s yfFetch 節流）**
+      症狀: 盤中 US proxy ETF（USD/MUU/SNXX/NVDL/AVGX/TSMX/PLTU/…）的
+            今日漲跌每隔 60 秒正確顯示一次（例如 +0.77%），接下來 5 次
+            刷新（每 10s）全部回到 +0.00%，如此反覆切換。
+      真正根因: silentRefreshPrices 每 10s 會重讀 data/prices.json，但
+            prices.json 是 GitHub Actions 定時產生的每日快照。若 Actions
+            在當天盤前最後一次跑（或 proxy ETF 加進 price_symbols.json 之後
+            Actions 還沒重跑），prices.json 裡的 proxy ETF 價 = 昨日收盤
+            = `fundamentals.json.prev_close`。
+            10s 輪詢：
+              - 每 6 輪（60s）一次 skipProxyFetch=false：yfFetch 抓到盤中
+                即時價覆蓋到函式局部 prices[sym] → currentPrice ≠ prevClose
+                → dayChangePct = 正確值
+              - 其餘 5 輪 skipProxyFetch=true：跳過 yfFetch，prices[sym] 只
+                剩 prices.json 的昨收 → currentPrice == prevClose
+                → dayChangePct = 0.00%
+            → 結果就是每 60 秒正確一閃，隨後 5 個 10s 閃回 0%。
+      解法: 在 silentRefreshPrices 加一層「proxy 即時價持久快取」：
+        1. proxy yfFetch 成功時，把 regularMarketPrice 存進全域
+           `window._proxyIntradayCache = { sym: {price, ts} }`
+        2. 每次 silentRefreshPrices 讀完 prices.json 之後，掃這個全域快取，
+           若 ts 在 5 分鐘內（新鮮）就覆寫 prices[sym]。
+        這樣 skipProxyFetch=true 的 10s 輪詢也能沿用上一次 yfFetch 的即時價，
+        不會被 prices.json 的昨收快照拉回 0%。
+      預防: 修 proxy ETF 相關的「節流 / 輪詢」邏輯時，一定要**模擬兩種刷新路徑
+            （skip vs non-skip）**都算一遍 dayChangePct，避免只驗證了非節流路徑。
 
 [E] Windows 檔案關聯 / 啟動
   E1. **Antigravity (VS Code-based editor) 自動開啟 .py**

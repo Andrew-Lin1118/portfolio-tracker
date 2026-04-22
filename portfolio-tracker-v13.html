@@ -50,6 +50,20 @@
         .stat-pnl-row { display:flex; align-items:baseline; justify-content:space-between; gap:0.4rem; flex-wrap:nowrap; }
         .stat-pct { font-size: clamp(0.78rem, 4.5cqw, 1rem) !important; font-weight:600; white-space:nowrap; flex-shrink:0; }
         .stat-card::before { content: ''; position: absolute; top: -50%; right: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%); pointer-events: none; }
+
+        /* ── 期貨持倉卡片 ── */
+        .fut-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:0.85rem; }
+        .fut-cell { background:rgba(15,30,60,0.45); border:1px solid rgba(100,116,139,0.25); border-radius:12px; padding:0.95rem 1rem; display:flex; flex-direction:column; gap:0.25rem; }
+        .fut-cell .fut-label { color:#fbbf24; font-size:0.75rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+        .fut-cell .fut-value { font-family:'JetBrains Mono','Courier New',monospace; font-size:1.6rem; font-weight:700; line-height:1.2; }
+        .fut-cell .fut-sub   { color:#94a3b8; font-size:0.72rem; font-family:'JetBrains Mono','Courier New',monospace; margin-top:0.1rem; }
+        @media (max-width:640px) {
+            .fut-grid { grid-template-columns:1fr 1fr !important; gap:0.45rem !important; }
+            .fut-cell { padding:0.55rem 0.6rem !important; border-radius:9px !important; }
+            .fut-cell .fut-value { font-size:1.05rem !important; }
+            .fut-cell .fut-sub   { font-size:0.66rem !important; }
+            .fut-cell .fut-label { font-size:0.67rem !important; letter-spacing:0 !important; }
+        }
         
         .holding-row { background: linear-gradient(135deg, rgba(15,30,60,0.6) 0%, rgba(10,20,40,0.8) 100%); border: 2px solid rgba(59,130,246,0.3); border-left: 4px solid #fbbf24; border-radius: 16px; padding: 1.5rem; margin-bottom: 1rem; transition: border-color 0.3s; animation: slideIn 0.5s ease; position: relative; overflow: hidden; }
         .holding-row::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%); box-shadow: 0 0 20px rgba(251,191,36,0.8); }
@@ -336,6 +350,22 @@
                 <div style="display:flex; gap:1rem; font-size:0.8rem; color:#64748b;"><span>USD/TWD <strong id="rate-usd-twd" style="color:#fbbf24;">31.50</strong></span><span>HKD/TWD <strong id="rate-hkd-twd" style="color:#fbbf24;">4.0500</strong></span></div>
             </div>
             <table id="holdings-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;"></table>
+        </div>
+
+        <!-- Futures Positions (Fubon SDK) -->
+        <div id="futures-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.5rem;">
+                <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                    <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">📈 期貨持倉（微型台指）</h2>
+                    <span id="fut-status-dot" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#64748b;" title="Fubon SDK 連線狀態"></span>
+                    <span id="fut-status-text" style="color:#64748b; font-size:0.78rem;">待連線</span>
+                </div>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <span id="fut-updated" style="color:#64748b; font-size:0.78rem;">—</span>
+                    <button id="fut-include-btn" onclick="toggleFuturesInTotal()" style="padding:0.22rem 0.55rem; font-size:0.72rem; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">✓ 計入總資產</button>
+                </div>
+            </div>
+            <div id="fut-grid" class="fut-grid"></div>
         </div>
 
         <!-- Holdings Detail -->
@@ -1040,6 +1070,60 @@
                     + '</div>';
             })();
 
+            // ── 期貨卡（SDK 已連線且計入總資產時才顯示）──────
+            const futCard = (function() {
+                const futTWD = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+                if (futTWD <= 0) return '';
+                const unreal = (typeof getFuturesUnrealizedTWD === 'function') ? getFuturesUnrealizedTWD() : 0;
+                const pos = unreal >= 0;
+                const col = pos ? '#10b981' : '#ef4444';
+                const futUSD = exchangeRates.USD_TWD > 0 ? futTWD / exchangeRates.USD_TWD : 0;
+                const mainStr = currency === 'USD' ? fmtAmt(futUSD, 'USD') : fmtAmt(futTWD, 'TWD');
+                const subStr  = currency === 'USD' ? fmtAmt(futTWD, 'TWD') : fmtAmt(futUSD, 'USD');
+                return '<div class="stat-card" style="border:1px solid rgba(168,85,247,0.3);">'
+                    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
+                    +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
+                    +     '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#a855f7 0%,#7e22ce 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(168,85,247,0.4);">📈</div>'
+                    +     '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">期貨權益</span>'
+                    +   '</div>'
+                    +   '<span class="mono stat-pct" style="color:'+col+';flex-shrink:0;">'+(pos?'+':'')+unreal.toLocaleString('zh-TW',{maximumFractionDigits:0})+'</span>'
+                    + '</div>'
+                    + '<div class="mono stat-amount" style="color:#a855f7;">'+mainStr+'</div>'
+                    + '<div class="mono stat-amount-sub" style="color:#64748b;margin-top:0.4rem;">'+subStr+'</div>'
+                    + '</div>';
+            })();
+
+            // ── 總資產卡（股票市值 + 現金 + 期貨權益）──────
+            const grandCard = (function() {
+                const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+                const futTWD  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+                const grandTWD = stats.totalValueTWD + cashTWD + futTWD;
+                if (grandTWD <= 0) return '';
+                const grandUSD = exchangeRates.USD_TWD > 0 ? grandTWD / exchangeRates.USD_TWD : 0;
+                const mainStr = currency === 'USD' ? fmtAmt(grandUSD, 'USD') : fmtAmt(grandTWD, 'TWD');
+                const subStr  = currency === 'USD' ? fmtAmt(grandTWD, 'TWD') : fmtAmt(grandUSD, 'USD');
+                // breakdown: 股 / 現 / 期（TWD 簡寫）
+                const _compact = n => {
+                    if (n >= 100000000) return (n/100000000).toFixed(1) + '億';
+                    if (n >= 10000)     return (n/10000).toFixed(1) + '萬';
+                    return Math.round(n).toLocaleString('zh-TW');
+                };
+                const parts = [];
+                if (stats.totalValueTWD > 0) parts.push('股 ' + _compact(stats.totalValueTWD));
+                if (cashTWD > 0)             parts.push('現 ' + _compact(cashTWD));
+                if (futTWD > 0)              parts.push('期 ' + _compact(futTWD));
+                const breakdown = parts.join(' · ');
+                return '<div class="stat-card" style="border:2px solid rgba(16,185,129,0.45);">'
+                    + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">'
+                    +   '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#10b981 0%,#059669 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(16,185,129,0.4);">🏦</div>'
+                    +   '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總資產</span>'
+                    + '</div>'
+                    + '<div class="mono stat-amount" style="color:#10b981;">'+mainStr+'</div>'
+                    + '<div class="mono stat-amount-sub" style="color:#64748b;margin-top:0.4rem;">'+subStr+'</div>'
+                    + (breakdown ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.35rem;">'+breakdown+'</div>' : '')
+                    + '</div>';
+            })();
+
             grid.innerHTML = `
                 <div class="stat-card">
                     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
@@ -1072,6 +1156,8 @@
                 </div>
                 ${prevDayCard}
                 ${dayCard}
+                ${futCard}
+                ${grandCard}
             `;
         }
 
@@ -1266,12 +1352,14 @@
         // v15.033：條件重繪判斷，避免每分鐘靜默更新都 destroy/rebuild Chart.js
         function _shouldRenderPie(stats) {
             const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
-            const grandTotal = stats.totalValueTWD + cashTWD;
+            const futTWD  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+            const grandTotal = stats.totalValueTWD + cashTWD + futTWD;
             const now = Date.now();
             if (!_pieSnapshot) return true;                               // 首次
             if (_pieSnapshot.holdingsCount !== holdings.length) return true; // 持倉筆數變化
             if (_pieSnapshot.currency !== currency) return true;          // 幣別切換
             if (Math.abs(_pieSnapshot.cashTWD - cashTWD) > 1) return true; // 現金變化
+            if (Math.abs((_pieSnapshot.futTWD || 0) - futTWD) > 1) return true; // 期貨權益變化
             if (now - _pieSnapshot.lastForcedAt > 30 * 60 * 1000) return true; // 30分強制
             // 各標的佔比變化 > 0.5%
             for (const h of stats.holdingsWithStats) {
@@ -1285,11 +1373,12 @@
         function renderPie(stats) {
             const pieSection = document.getElementById('pie-section');
             const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
-            pieSection.style.display = (holdings.length > 0 || cashTWD > 0) ? 'block' : 'none';
-            if (holdings.length === 0 && cashTWD <= 0) return;
+            const futTWD  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+            pieSection.style.display = (holdings.length > 0 || cashTWD > 0 || futTWD > 0) ? 'block' : 'none';
+            if (holdings.length === 0 && cashTWD <= 0 && futTWD <= 0) return;
 
-            const grandTotal = stats.totalValueTWD + cashTWD;
-            // 將股票佔比縮放至含現金的總量
+            const grandTotal = stats.totalValueTWD + cashTWD + futTWD;
+            // 將股票佔比縮放至含現金+期貨的總量
             const stockScale = (grandTotal > 0 && stats.totalValueTWD > 0) ? stats.totalValueTWD / grandTotal : 1;
             const adjHoldings = stats.holdingsWithStats.map(h => ({ name: h.symbol, value: h.percentage * stockScale }));
 
@@ -1304,6 +1393,10 @@
                 cashEntry = { name: '現金', value: (cashTWD / grandTotal) * 100, isCash: true };
                 pieData.push(cashEntry);
             }
+            // 期貨欄（SDK 帳戶權益）
+            if (futTWD > 0 && grandTotal > 0) {
+                pieData.push({ name: '期貨', value: (futTWD / grandTotal) * 100, isFutures: true, rawTWD: futTWD });
+            }
 
             // 再次強制 100%
             const total = pieData.reduce((sum, d) => sum + d.value, 0);
@@ -1317,7 +1410,8 @@
             });
 
             const colors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
-            const pieColors = pieData.map((d, i) => d.isCash ? cashColor : colors[i % colors.length]);
+            const futuresColor = '#a855f7';
+            const pieColors = pieData.map((d, i) => d.isCash ? cashColor : d.isFutures ? futuresColor : colors[i % colors.length]);
 
             if (chartInstance) chartInstance.destroy();
             const ctx = document.getElementById('pieCanvas');
@@ -1334,6 +1428,8 @@
                 const color = pieColors[i];
                 const subLabel = d.isCash
                     ? `<span style="color:#94a3b8;font-size:0.75rem;margin-left:0.25rem;">(${cashTWD.toLocaleString('zh-TW', {maximumFractionDigits:0})} TWD)</span>`
+                    : d.isFutures
+                    ? `<span style="color:#94a3b8;font-size:0.75rem;margin-left:0.25rem;">(${(d.rawTWD||0).toLocaleString('zh-TW', {maximumFractionDigits:0})} TWD)</span>`
                     : '';
                 return `
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.22rem 0.55rem; background:rgba(15,23,42,0.3); border-radius:4px; font-size:0.82rem; border-left:3px solid ${color};">
@@ -1348,12 +1444,13 @@
 
             // 更新快照（下次比對用）
             const cashTWD2 = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
-            const grand2   = stats.totalValueTWD + cashTWD2;
+            const futTWD2  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+            const grand2   = stats.totalValueTWD + cashTWD2 + futTWD2;
             const shares2  = {};
             stats.holdingsWithStats.forEach(h => {
                 shares2[h.symbol] = grand2 > 0 ? (h.valueTWD ?? h.valueTotalTWD) / grand2 * 100 : 0;
             });
-            _pieSnapshot = { holdingsCount: holdings.length, currency, cashTWD: cashTWD2, shares: shares2, lastForcedAt: Date.now() };
+            _pieSnapshot = { holdingsCount: holdings.length, currency, cashTWD: cashTWD2, futTWD: futTWD2, shares: shares2, lastForcedAt: Date.now() };
         }
 
         function renderAll() {
@@ -3469,6 +3566,8 @@
             if (hadSaved && holdings.length > 0) {
                 setTimeout(() => silentRefreshPrices(), 500);
             }
+            // 期貨：立即嘗試連 Fubon SDK（失敗則靜默隱藏）
+            setTimeout(() => loadFuturesData(true), 800);
         }
         // ==================== 直立鎖定 ====================
         function _checkOrientation() {
@@ -3521,6 +3620,9 @@
                 _priceRefreshCount++;
                 const _skipProxy = (_priceRefreshCount % 6 !== 0); // 每 6 次（≈60 秒）才做一次 yfFetch
                 await silentRefreshPrices(_skipProxy);
+                // 期貨 SDK：每 3 次 tick（≈30 秒）拉一次；server.py 端對 /fmx/positions 有 60s 快取
+                _futRefreshCount++;
+                if (_futRefreshCount % 3 === 0) loadFuturesData(true);
                 _secondsLeft = 10; // 重置倒數
             }, 10000);
 
@@ -4411,6 +4513,196 @@
             return (sym in priceMap)
                 || ((sym + '.TW') in priceMap)
                 || (sym.endsWith('.TW') && sym.slice(0,-3) in priceMap);
+        }
+
+        // ==================== 期貨持倉（Fubon SDK via server.py） ====================
+        // 資料來源：
+        //   /fmx/positions  → SDK 即時 positions + margin（equity / available / realized / unrealized）
+        //   /fmx/state      → 策略估算（target_leverage / max_leverage / pyramid_trigger / liq_price / rolling_low）
+        // 頻率：每 30 秒拉一次（server.py 對 /fmx/positions 內建 60s 快取，再密也沒意義）
+        // 計入總資產：預設 ON，透過 localStorage 'fut_include_total' 切換
+        // 多品項同列：目前只追一檔（微型台指 MXFR1）；若日後加 TXF/MTX，把 positions[0] 改成 reduce
+        const FMX_API_BASE = window.FMX_API_BASE || 'http://localhost:3000';
+        const FUT_MULTIPLIER = 10;      // 微型台指每點 NT$10
+        const FUT_INCLUDE_KEY = 'fut_include_total';
+        let _futuresData = null;         // { positions, margin, state, ts }
+        let _futRefreshCount = 0;        // 搭配 silentRefreshPrices 的 10s tick；每 3 次 ≈ 30s 拉一次
+
+        function _setFutStatus(status, text) {
+            const dot = document.getElementById('fut-status-dot');
+            const tx  = document.getElementById('fut-status-text');
+            if (dot) dot.style.background = status === 'on' ? '#10b981' : status === 'err' ? '#ef4444' : '#64748b';
+            if (tx)  tx.textContent = text;
+        }
+
+        async function loadFuturesData(silent = true) {
+            const section = document.getElementById('futures-section');
+            if (!section) return;
+            try {
+                const _fetchOpts = { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined };
+                const [posRes, stateRes] = await Promise.all([
+                    fetch(`${FMX_API_BASE}/fmx/positions`, _fetchOpts).catch(_ => null),
+                    fetch(`${FMX_API_BASE}/fmx/state`,     _fetchOpts).catch(_ => null),
+                ]);
+                if (!posRes?.ok) {
+                    _setFutStatus('off', 'SDK 未連線');
+                    section.style.display = 'none';
+                    _futuresData = null;
+                    return;
+                }
+                const pos   = await posRes.json().catch(_ => null);
+                const state = stateRes?.ok ? await stateRes.json().catch(_ => ({})) : {};
+                if (!pos || pos.error) {
+                    _setFutStatus('err', pos?.error ? String(pos.error).slice(0, 40) : 'SDK 回應異常');
+                    section.style.display = 'none';
+                    _futuresData = null;
+                    return;
+                }
+                _futuresData = {
+                    positions: pos.positions || [],
+                    margin:    pos.margin    || {},
+                    state:     state         || {},
+                    ts:        pos.query_ts || new Date().toISOString(),
+                };
+                _setFutStatus('on', 'SDK ✓');
+                section.style.display = 'block';
+                renderFutures();
+                // 期貨權益變動會影響總資產（圓餅圖＋歷史表）
+                if (typeof renderAll === 'function') renderAll();
+            } catch(_) {
+                _setFutStatus('off', 'SDK 未連線');
+                section.style.display = 'none';
+                _futuresData = null;
+            }
+        }
+
+        function renderFutures() {
+            const grid = document.getElementById('fut-grid');
+            if (!grid || !_futuresData) return;
+            const { positions, margin, state } = _futuresData;
+            const p = positions[0] || {};
+
+            const contracts = Number(p.qty || 0);
+            const avg       = Number(p.avg_price || 0);
+            const cur       = Number(p.cur_price || 0);
+            const equity    = Number(margin.equity    ?? 0);
+            const avail     = Number(margin.available ?? 0);
+            const settle    = Number(margin.today_balance ?? 0);
+            const unreal    = Number(margin.unrealized_pnl ?? p.unrealized_pnl ?? 0);
+            const realized  = Number(margin.realized_pnl   ?? 0);
+
+            const nominal   = contracts * FUT_MULTIPLIER * cur;
+            const leverage  = equity > 0 ? nominal / equity : 0;
+            const availPct  = equity > 0 ? avail / equity * 100 : 0;
+            const unrealPct = avg > 0 ? (cur / avg - 1) * 100 : 0;
+
+            const targetLev  = Number(state.target_leverage ?? 5);
+            const maxLev     = Number(state.max_leverage    ?? 6.8);
+            const pyramidLev = Number(state.pyramid_trigger ?? 5.9);
+            const liqPrice   = Number(state.liq_price       ?? 0);
+            const ema        = Number(state.rolling_low ?? state.ema200 ?? 0);
+
+            // 解 targetL = (p * c*M) / (equity + (p - cur) * c*M) 反推觸發價：
+            // p * cM * (1 - targetL) = targetL * (equity - cur * cM)
+            const _triggerPx = (targetL) => {
+                const cM = contracts * FUT_MULTIPLIER;
+                if (cM <= 0 || Math.abs(1 - targetL) < 1e-6) return 0;
+                return targetL * (equity - cur * cM) / (cM * (1 - targetL));
+            };
+            const pyramidPx    = _triggerPx(pyramidLev);
+            const deleveragePx = _triggerPx(maxLev);
+
+            const _fmt = (n, dec = 0) => (n == null || isNaN(n))
+                ? '—'
+                : Number(n).toLocaleString('zh-TW', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+            const _signed = (n, dec = 0) => (n == null || isNaN(n)) ? '—' : (n >= 0 ? '+' : '') + _fmt(n, dec);
+            const _col    = v => v > 0 ? '#10b981' : v < 0 ? '#ef4444' : '#94a3b8';
+            const _levCol = l => l > maxLev ? '#ef4444' : l > pyramidLev ? '#fbbf24' : '#60a5fa';
+
+            const needUp    = cur > 0 && pyramidPx    > cur ? pyramidPx - cur : null;
+            const needDown  = cur > 0 && deleveragePx > 0 && deleveragePx < cur ? cur - deleveragePx : null;
+
+            grid.innerHTML = `
+                <div class="fut-cell"><div class="fut-label">帳戶權益數 (SDK)</div>
+                    <div class="fut-value" style="color:${_col(unreal)};">${_fmt(equity)}</div>
+                    <div class="fut-sub">未實現 <span style="color:${_col(unreal)};">${_signed(unreal)}</span> | 已實現 <span style="color:${_col(realized)};">${_signed(realized)}</span> | 結算現金 ${_fmt(settle)}</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">可用保證金</div>
+                    <div class="fut-value" style="color:#10b981;">${_fmt(avail)}</div>
+                    <div class="fut-sub">${availPct.toFixed(1)}% vs 權益數</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">目前口數</div>
+                    <div class="fut-value" style="color:#fbbf24;">${contracts}</div>
+                    <div class="fut-sub">口 · 名目 ${_fmt(nominal)}</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">現在槓桿</div>
+                    <div class="fut-value" style="color:${_levCol(leverage)};">${leverage.toFixed(2)}x</div>
+                    <div class="fut-sub">目標 ${targetLev}x / 上限 ${maxLev}x</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">均攤成本</div>
+                    <div class="fut-value" style="color:#f1f5f9;">${_fmt(avg)}</div>
+                    <div class="fut-sub">現價 ${_fmt(cur)} · 點差 <span style="color:${_col(cur-avg)};">${_signed(cur-avg)}</span></div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">100日MA（清倉線）</div>
+                    <div class="fut-value" style="color:#60a5fa;">${_fmt(ema)}</div>
+                    <div class="fut-sub">距現價 ${cur > 0 && ema > 0 ? ((cur - ema) / cur * 100).toFixed(2) + '%' : '—'}</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">強平價</div>
+                    <div class="fut-value" style="color:#ef4444;">${_fmt(liqPrice)}</div>
+                    <div class="fut-sub">距現價 ${cur > 0 && liqPrice > 0 ? ((cur - liqPrice) / cur * 100).toFixed(2) + '%' : '—'}</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">加槓桿價格</div>
+                    <div class="fut-value" style="color:#10b981;">${_fmt(pyramidPx)}</div>
+                    <div class="fut-sub">需漲 ${needUp != null ? (needUp/cur*100).toFixed(2) + '% (' + _fmt(needUp) + ' 點)' : '—'}, 槓桿&lt;${pyramidLev}x</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">減槓桿價格</div>
+                    <div class="fut-value" style="color:#ef4444;">${_fmt(deleveragePx)}</div>
+                    <div class="fut-sub">需跌 ${needDown != null ? (needDown/cur*100).toFixed(2) + '% (' + _fmt(needDown) + ' 點)' : '—'}, 槓桿&gt;${maxLev}x</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">未實現損益</div>
+                    <div class="fut-value" style="color:${_col(unreal)};">${_signed(unreal)}</div>
+                    <div class="fut-sub" style="color:${_col(unrealPct)};">${_signed(unrealPct, 2)}% vs 均攤(SDK)</div>
+                </div>
+                <div class="fut-cell"><div class="fut-label">已實現損益</div>
+                    <div class="fut-value" style="color:${_col(realized)};">${_signed(realized)}</div>
+                    <div class="fut-sub">&nbsp;</div>
+                </div>
+            `;
+            const updEl = document.getElementById('fut-updated');
+            if (updEl) {
+                const tsd = new Date(_futuresData.ts);
+                updEl.textContent = '更新 ' + (isNaN(tsd) ? '—' : tsd.toLocaleTimeString('zh-TW'));
+            }
+            // 同步按鈕顯示狀態
+            const btn = document.getElementById('fut-include-btn');
+            if (btn) {
+                const on = localStorage.getItem(FUT_INCLUDE_KEY) !== 'false';
+                btn.textContent = on ? '✓ 計入總資產' : '✗ 不計入總資產';
+                btn.style.background = on ? 'rgba(59,130,246,0.15)' : 'rgba(100,116,139,0.15)';
+                btn.style.color      = on ? '#60a5fa' : '#94a3b8';
+                btn.style.borderColor = on ? 'rgba(59,130,246,0.3)' : 'rgba(100,116,139,0.3)';
+            }
+        }
+
+        function toggleFuturesInTotal() {
+            const on = localStorage.getItem(FUT_INCLUDE_KEY) !== 'false';
+            localStorage.setItem(FUT_INCLUDE_KEY, on ? 'false' : 'true');
+            renderFutures();  // 更新按鈕顯示
+            if (typeof renderAll === 'function') renderAll();
+        }
+
+        // 提供給 calculateStats/renderPie 使用：回傳期貨權益（TWD）
+        function getFuturesEquityTWD() {
+            const on = localStorage.getItem(FUT_INCLUDE_KEY) !== 'false';
+            if (!on || !_futuresData?.margin) return 0;
+            const eq = Number(_futuresData.margin.equity || 0);
+            return isFinite(eq) && eq > 0 ? eq : 0;
+        }
+        // 給渲染層顯示用：未實現損益（TWD），獨立於計入切換
+        function getFuturesUnrealizedTWD() {
+            if (!_futuresData?.margin) return 0;
+            const v = Number(_futuresData.margin.unrealized_pnl || 0);
+            return isFinite(v) ? v : 0;
         }
 
         async function silentRefreshPrices(skipProxyFetch = false) {

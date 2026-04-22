@@ -38,7 +38,7 @@ import subprocess
 import threading
 from typing import Callable, Optional
 
-SKILL_VERSION = "1.3.2"   # +D11(非 proxy 原型股今日漲跌永遠 0% — yfFetch 迴圈只跑 LEVERAGED_MAP)
+SKILL_VERSION = "1.4.0"   # +期貨持倉整合（Fubon SDK + 總資產卡含現金/期貨）
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1300,6 +1300,82 @@ Dashboard 寫法（見 fmx-dashboard.html _calcLeverageTriggerPx）
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  14. portfolio-tracker 期貨持倉整合（Fubon SDK + 總資產卡）
+# ═══════════════════════════════════════════════════════════════════════════
+PORTFOLIO_FUTURES_NOTES = """
+目的: 讓原本「只追股票」的 portfolio-tracker-v13.html 也能顯示期貨持倉，
+      並把期貨權益 + 現金一起併入「總資產」。
+
+資料流
+──────
+  server.py (本機 port 3000, CORS *)
+    /fmx/positions   → subprocess fmx_positions.py → SDK positions + margin
+    /fmx/state       → fmx_state.json (策略估算: target_lev / liq_price / rolling_low)
+    /fmx/quote       → daemon 寫的 fmx_live_quotes.json (僅需即時價時)
+        ↓
+  portfolio-tracker-v13.html
+    loadFuturesData() 每 30s 拉一次（10s tick × 3）
+        ↓
+    window._futuresData = { positions, margin, state, ts }
+        ↓
+    renderFutures()  → 11 格 grid（權益 / 可用保證金 / 口數 / 槓桿 / 均攤 / 清倉線 /
+                                    強平價 / 加減槓桿觸發價 / 未實現 / 已實現）
+    renderStats()    → 新增 futCard（期貨權益） + grandCard（總資產：股+現金+期貨）
+    renderPie()      → 圓餅圖多一塊「期貨」色塊（紫 #a855f7）
+
+API 可得性
+──────────
+  server.py 本機跑 → portfolio-tracker 於 http://localhost:3000/… 開 → CORS + 混合內容 OK
+  GitHub Pages 開  → fetch http://localhost:3000 會失敗（HTTPS→HTTP 被瀏覽器擋）
+    → 程式設計為「失敗靜默」：status dot 變灰、期貨 section display:none
+      → 股票面板照常運作，不會 break 任何功能。
+
+關鍵常數
+────────
+  FUT_MULTIPLIER = 10      # 微型台指（MXFR1 / FITM）每點 NT$10
+  FUT_INCLUDE_KEY = 'fut_include_total'  # localStorage 切換「計入總資產」
+  FMX_API_BASE = 'http://localhost:3000' # 可被 window.FMX_API_BASE 覆寫
+
+總資產公式
+──────────
+  grandTotal_TWD = stats.totalValueTWD         # 股票市值（已含匯率換算）
+                 + cashTWD                     # 手動輸入的現金 (TWD)
+                 + getFuturesEquityTWD()       # 期貨帳戶權益 (TWD)
+                                               # = margin.equity（SDK 回傳）
+                                               # = today_balance + unrealized_pnl
+
+SDK 欄位對照（Fubon futopt_accounting.query_margin_equity）
+──────────────────────────────────────────────────────────
+  margin.equity          → 帳戶權益數
+  margin.today_balance   → 結算現金
+  margin.available       → 可用保證金
+  margin.realized_pnl    → 已實現損益
+  margin.unrealized_pnl  → 未實現損益
+  positions[i].qty       → 口數
+  positions[i].avg_price → 均攤成本
+  positions[i].cur_price → 目前點位
+  positions[i].symbol    → MXFR1 或 FITM（後者是 SDK alias，前端統一用 MXFR1）
+
+踩坑
+────
+  * fetch `http://localhost:3000` 在 HTTPS 頁面會失敗；必須用 http://localhost
+    開啟或 server.py 提供 HTTP 靜態檔。
+  * server.py 的 /fmx/positions 內建 60s 快取，前端拉更頻繁沒意義。
+  * FITM vs MXFR1 要 normalize（positions[0].symbol === 'FITM' 時名稱顯示改成微台）。
+  * 期貨「名目 = qty × mult × cur_price」但 nominal / (qty×mult) 得到的 price 可能
+    跟現貨 TAIEX 不一致（因為是期貨點數而非現貨）。這是正常現象，不是 bug。
+  * renderStats 中 grandCard 要放在最後，才有「結尾總計」的視覺語意。
+
+延伸
+────
+  若要加其他期貨商品（TXF 大台 / MTX 小台 / 海期 ES=F）:
+    1. 把 positions[0] 改成 reduce，對每檔分別顯示一組 fut-cell
+    2. FUT_MULTIPLIER 變成 dict: { 'TXF': 200, 'MXF': 50, 'MXFR1': 10, 'ES=F': 50 }
+    3. 多商品時，名目/槓桿/觸發價要逐商品算，equity 則是共用
+"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  CLI 入口
 # ═══════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
@@ -1307,7 +1383,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Trading platform skill / template generator")
     p.add_argument("--show",
                    choices=["pitfalls", "checklist", "python", "pipeline",
-                            "strategy", "levmath"],
+                            "strategy", "levmath", "futures"],
                    help="顯示內容")
     p.add_argument("--dump", metavar="DIR", help="把最小範本寫到指定資料夾")
     p.add_argument("--diagnose", action="store_true",
@@ -1328,6 +1404,8 @@ if __name__ == "__main__":
         print(STRATEGY_OPTIMIZATION_NOTES)
     elif args.show == "levmath":
         print(LEVERAGE_MATH_NOTES)
+    elif args.show == "futures":
+        print(PORTFOLIO_FUTURES_NOTES)
     elif args.dump:
         dump_templates(args.dump)
     elif args.diagnose:

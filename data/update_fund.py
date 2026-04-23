@@ -6,7 +6,7 @@ GitHub Actions 基本面 + 技術面資料更新腳本
 寫入 fundamentals.json，供 GitHub Pages 直接讀取，確保兩端數字一致。
 """
 import json, time, os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import yfinance as yf
 import pandas as pd
@@ -22,6 +22,15 @@ with open(os.path.join(ROOT, 'symbols.json'), encoding='utf-8') as f:
 PROXY_EARNINGS_MAP = {
     '7709.HK': '000660.KS',   # 南韓 SK 海力士 ETF → 000660.KS
     '9747.HK': '005930.KS',   # 南韓三星電子 ETF  → 005930.KS
+}
+
+# ── 財報日期手動覆蓋表（yfinance 時間戳偶有偏差，在此校正） ─────────────
+# yfinance 對部份亞洲股（尤其韓股）的 earnings_dates 時間戳會用 EDT 清晨或
+# 午後時段標記，換算 KST 後可能較實際發布日早 1 天。若已知下一季真實發布日
+# 可在此指定 YYYY-MM-DD (交易所本地日期)，程式會以此覆寫 yfinance 回傳值。
+# 每季發布完後建議更新或刪除對應條目。
+EARNINGS_DATE_OVERRIDES = {
+    '000660.KS': '2026-04-23',  # SK Hynix Q1 2026 實際發布日 (KST)；yfinance 回 Apr 22
 }
 
 
@@ -250,7 +259,11 @@ for sym in symbols:
                         }.get(_sfx_ned, 'America/New_York')
                         _local_tz_ned  = _ptz_ned.timezone(_tz_name_ned)
                         _today_local   = datetime.now(_local_tz_ned).date()
-                        _future = []
+                        # 寬限：pending (NaN actual) 之財報日若在過去 7 天內，
+                        # 仍視為「下一次」──處理 yfinance 時間戳略為過期但尚未
+                        # 標示 Reported EPS 的情形。
+                        _grace_past = _today_local - timedelta(days=7)
+                        _pending = []
                         for _idx in ed.index:
                             try:
                                 _ts = pd.Timestamp(_idx)
@@ -258,12 +271,19 @@ for sym in symbols:
                                 if _ts.tzinfo is None:
                                     _ts = _ts.tz_localize('UTC')
                                 _local_date = _ts.tz_convert(_local_tz_ned).date()
-                                if _local_date >= _today_local and pd.isna(ed.loc[_idx, col_actual]):
-                                    _future.append(pd.Timestamp(_local_date))
+                                if _local_date >= _grace_past and pd.isna(ed.loc[_idx, col_actual]):
+                                    _pending.append(pd.Timestamp(_local_date))
                             except Exception:
                                 pass
-                        if _future:
-                            next_earnings_date = min(_future).strftime('%Y-%m-%d')
+                        if _pending:
+                            _today_ts = pd.Timestamp(_today_local)
+                            _ftr = [x for x in _pending if x >= _today_ts]
+                            # 優先選最近的未來 pending；若全是過去 pending (grace 內)，
+                            # 取最接近今日的那一筆（最晚）當作「即將發布」。
+                            if _ftr:
+                                next_earnings_date = min(_ftr).strftime('%Y-%m-%d')
+                            else:
+                                next_earnings_date = max(_pending).strftime('%Y-%m-%d')
                     except Exception:
                         pass
                 print(f'    earnings_history: {len(earnings_history)} quarters, next_earnings_date: {next_earnings_date}', flush=True)
@@ -429,6 +449,13 @@ for sym in symbols:
         result[sym] = {'error': str(e)}
 
     time.sleep(1.0)   # 避免觸發 rate-limit
+
+# ── 財報日期手動覆蓋：EARNINGS_DATE_OVERRIDES > yfinance ────────────────────
+for _ov_sym, _ov_date in EARNINGS_DATE_OVERRIDES.items():
+    if _ov_sym in result and isinstance(result[_ov_sym], dict):
+        _old = result[_ov_sym].get('next_earnings_date')
+        result[_ov_sym]['next_earnings_date'] = _ov_date
+        print(f'  [{_ov_sym}] next_earnings_date 手動覆蓋: {_old} → {_ov_date}', flush=True)
 
 # ── 代理標的財報日期補充：從原型標的複製 next_earnings_date ──────────────────
 for proxy_sym, underlying_sym in PROXY_EARNINGS_MAP.items():

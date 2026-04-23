@@ -3219,14 +3219,16 @@
                 }
 
                 // 基本面行（含下次財報日期 + 剩餘天數）
+                // 已過日期視為 "-"（資料來源 yfinance 尚未更新至下一季時，
+                // 比顯示「已過 N 天」更符合使用者期待；下次排程更新會自動補上新日期）
                 const nextEarnings = (() => {
                     if (!d.next_earnings_date) return '<span style="color:#475569;">-</span>';
                     const today = new Date(); today.setHours(0,0,0,0);
                     const ne = new Date(d.next_earnings_date + 'T00:00:00');
                     const days = Math.round((ne - today) / 86400000);
+                    if (days < 0) return '<span style="color:#475569;">-</span>';
                     let badge;
-                    if (days < 0)        badge = `<small style="color:#64748b;font-size:0.72rem;">已過 ${-days} 天</small>`;
-                    else if (days === 0) badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">🔴 今天</small>`;
+                    if (days === 0)      badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">🔴 今天</small>`;
                     else if (days <= 7)  badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">剩 ${days} 天</small>`;
                     else if (days <= 30) badge = `<small style="color:#fb923c;font-size:0.72rem;font-weight:600;">剩 ${days} 天</small>`;
                     else                 badge = `<small style="color:#64748b;font-size:0.72rem;">剩 ${days} 天</small>`;

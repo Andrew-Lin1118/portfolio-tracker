@@ -1178,9 +1178,16 @@
                 const spotU = Number(ex.binance_spot?.equity_usd    || 0);
                 const futU  = Number(ex.binance_futures?.equity_usd || 0);
                 const pioU  = Number(ex.pionex?.equity_usd          || 0);
-                if (spotU > 0) bdParts.push('現貨 ' + _u(spotU));
-                if (futU  > 0) bdParts.push('合約 ' + _u(futU));
-                if (pioU  > 0) bdParts.push('派網 ' + _u(pioU));
+                const pioBot = Number(ex.pionex?.manual_bot_usd     || 0);
+                if (spotU > 0) bdParts.push('幣安現貨 ' + _u(spotU));
+                if (futU  > 0) bdParts.push('幣安合約 ' + _u(futU));
+                if (pioU  > 0) {
+                    // 派網若有 bot 鎖倉（manual），顯示 派網 $X (+bot $Y)
+                    const pioLabel = pioBot > 0
+                        ? '派網 ' + _u(pioU) + '*'   // 星號標示含手動補值
+                        : '派網 ' + _u(pioU);
+                    bdParts.push(pioLabel);
+                }
                 const bd = bdParts.join(' · ');
                 const age = Number(_cryptoData?._age_seconds ?? -1);
                 const ageStr = age >= 0

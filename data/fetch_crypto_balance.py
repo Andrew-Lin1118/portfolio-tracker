@@ -120,10 +120,13 @@ def load_config():
     out['binance']['proxy']         = bn.get('proxy')         or cfg_pionex.get('proxy')
 
     # Pionex：只讀 crypto_config
+    # manual_bot_usd：Pionex 公開 API 的 /account/balances 不含網格/DCA/Earn 鎖倉資產，
+    # 在 App「總資產估值」頁看得到的數字扣掉現貨餘額後填在這裡（手動維護）。
     px = cfg_crypto.get('pionex') or {}
-    out['pionex']['api_key']    = px.get('api_key')
-    out['pionex']['api_secret'] = px.get('api_secret')
-    out['pionex']['proxy']      = px.get('proxy')
+    out['pionex']['api_key']        = px.get('api_key')
+    out['pionex']['api_secret']     = px.get('api_secret')
+    out['pionex']['proxy']          = px.get('proxy')
+    out['pionex']['manual_bot_usd'] = px.get('manual_bot_usd')
 
     return out
 
@@ -276,12 +279,12 @@ def _pionex_prices():
         return {}
 
 
-def fetch_pionex(api_key, api_secret, proxy=None):
+def fetch_pionex(api_key, api_secret, proxy=None, manual_bot_usd=None):
     data = _pionex_get(api_key, api_secret, '/api/v1/account/balances', proxy=proxy)
     balances = (data.get('data', {}) or {}).get('balances', []) or []
     prices = _pionex_prices()
 
-    total_usd, details = 0.0, []
+    wallet_usd, details = 0.0, []
     for b in balances:
         asset = b.get('coin') or b.get('asset') or ''
         try:
@@ -299,13 +302,25 @@ def fetch_pionex(api_key, api_secret, proxy=None):
             usd = amt * px
         if usd < 0.5:
             continue
-        total_usd += usd
+        wallet_usd += usd
         details.append({'asset': asset, 'amount': amt, 'usd': round(usd, 2)})
     details.sort(key=lambda x: -x['usd'])
+
+    # manual_bot_usd：Pionex 公開 API 無法取得 網格/DCA/Earn 鎖倉，
+    # 由使用者在 crypto_config.yaml 填入 App「總資產估值」頁扣掉現貨後的金額。
+    try:
+        bot_usd = float(manual_bot_usd) if manual_bot_usd is not None else 0.0
+    except (TypeError, ValueError):
+        bot_usd = 0.0
+    bot_usd = max(0.0, bot_usd)
+
+    equity_usd = wallet_usd + bot_usd
     return {
-        'equity_usd': round(total_usd, 2),
-        'wallet_usd': round(total_usd, 2),
-        'assets':     details[:20],
+        'equity_usd':     round(equity_usd, 2),
+        'wallet_usd':     round(wallet_usd, 2),
+        'manual_bot_usd': round(bot_usd, 2) if bot_usd > 0 else 0,
+        'assets':         details[:20],
+        'note':           '公開 API 不含 bot/earn 鎖倉；manual_bot_usd 為手動補值',
     }
 
 
@@ -335,7 +350,11 @@ def build_report():
     px = cfg['pionex']
     if px.get('api_key') and px.get('api_secret'):
         try:
-            exchanges['pionex'] = fetch_pionex(px['api_key'], px['api_secret'], px.get('proxy'))
+            exchanges['pionex'] = fetch_pionex(
+                px['api_key'], px['api_secret'],
+                proxy=px.get('proxy'),
+                manual_bot_usd=px.get('manual_bot_usd'),
+            )
         except Exception as e:
             errors['pionex'] = f'{type(e).__name__}: {e}'[:200]
     else:

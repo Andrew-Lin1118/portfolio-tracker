@@ -22,3 +22,7 @@ pionex:
   api_key: ""
   api_secret: ""
   proxy: ""
+  # 派網公開 API 的 /account/balances 只回傳現貨錢包，
+  # 不含 網格 / DCA / Earn 鎖倉；這裡可手動補上 App「總資產估值」頁
+  # 扣掉現貨（USDT + BTC + …）後剩下的金額（USD）。沒填 = 0。
+  manual_bot_usd: 0

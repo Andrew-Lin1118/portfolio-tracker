@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────
+# crypto_config.yaml — 加密資產快照所需的交易所 API 金鑰
+#
+# 使用方式：
+#   1. cp crypto_config.yaml.template crypto_config.yaml
+#   2. 填入下方 api_key / api_secret（建議開「只讀 Read-Only」權限即可）
+#   3. 執行 python data/fetch_crypto_balance.py
+#
+# 注意：crypto_config.yaml 已在 .gitignore 中排除，永遠不要 commit。
+# ─────────────────────────────────────────────────────────────
+
+binance:
+  # Binance 現貨 / 合約共用金鑰（建議只勾 Enable Reading）
+  api_key: ""
+  api_secret: ""
+  # 若需代理（例如 Surfshark Dedicated IP）才能存取 Binance，填入完整 URL
+  # 例：http://username:password@host:port
+  proxy: ""
+
+pionex:
+  # 派網 API 金鑰（Account → API Management，只開 Read Only 權限即可）
+  api_key: ""
+  api_secret: ""
+  proxy: ""

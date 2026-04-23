@@ -87,6 +87,15 @@ _fut_snap_last_date = None       # 最後一次快照成功的日期（ISO）
 # 環境變數 FUT_SNAPSHOT_AUTOPUSH=1 時自動 git commit & push（預設開啟）
 _fut_snap_autopush  = os.environ.get('FUT_SNAPSHOT_AUTOPUSH', '1') != '0'
 
+# ── crypto balance fetcher（幣安 / 派網 淨值）─────────
+# 每 10 分鐘更新一次 data/crypto_balance.json；前端 /crypto/balance 直接吃檔。
+CRYPTO_FETCH_SCRIPT = os.path.join(DIR, 'data', 'fetch_crypto_balance.py')
+CRYPTO_BALANCE_FILE = os.path.join(DIR, 'data', 'crypto_balance.json')
+CRYPTO_REFRESH_SEC  = 600        # 10 分鐘重新 fetch 一次
+_crypto_last_fetch  = 0          # 上次 fetch 的 unix ts
+# 環境變數 CRYPTO_AUTOPUSH=1 時自動 git commit & push（預設關閉，避免餘額頻繁刷 commit）
+_crypto_autopush    = os.environ.get('CRYPTO_AUTOPUSH', '0') != '0'
+
 def _futopt_archive_scheduler():
     """
     snapshot-all（日盤+夜盤 SDK bars）：
@@ -209,6 +218,53 @@ def _futures_snapshot_scheduler():
 def _log_fut_snap(msg):
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     print(f'[fut-snap {ts}] {msg}', flush=True)
+
+
+def _log_crypto(msg):
+    ts = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f'[crypto {ts}] {msg}', flush=True)
+
+
+def _crypto_balance_scheduler():
+    """
+    每 CRYPTO_REFRESH_SEC 秒呼叫 fetch_crypto_balance.py，更新 data/crypto_balance.json。
+    腳本內部處理：Binance 現貨 + Binance 合約 + Pionex 總淨值（USD）。
+    """
+    global _crypto_last_fetch
+    time.sleep(20)   # 等 server 啟動完成
+    print(f'[crypto] 排程已啟動（每 {CRYPTO_REFRESH_SEC}s 更新 crypto_balance.json, '
+          f'autopush={_crypto_autopush}）', flush=True)
+    while True:
+        try:
+            now = time.time()
+            if (now - _crypto_last_fetch) >= CRYPTO_REFRESH_SEC:
+                args = [PY, CRYPTO_FETCH_SCRIPT]
+                if _crypto_autopush:
+                    args.append('--commit')
+                try:
+                    r = subprocess.run(
+                        args, env=_ENV, capture_output=True, text=True,
+                        encoding='utf-8', errors='replace',
+                        timeout=90, creationflags=NWIN_FLAG,
+                    )
+                    _crypto_last_fetch = now
+                    if r.returncode == 0:
+                        # fetch_crypto_balance.py 最後一行應該是 JSON summary
+                        tail = (r.stdout or '').strip().splitlines()
+                        if tail:
+                            try:
+                                d = json.loads(tail[-1])
+                                tot = d.get('total_usd')
+                                _log_crypto(f'更新成功 total_usd={tot}')
+                            except Exception:
+                                _log_crypto('更新成功（無法解析 stdout）')
+                    else:
+                        _log_crypto(f'rc={r.returncode}; stderr={(r.stderr or "")[-250:]}')
+                except Exception as e:
+                    _log_crypto(f'subprocess 例外：{e}')
+        except Exception as e:
+            print(f'[crypto] scheduler err: {e}', flush=True)
+        time.sleep(60)   # 每 1 分鐘檢查一次
 
 
 def _daemon_watchdog():
@@ -719,6 +775,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._sub_balance(parsed)
         elif p in ('/sub/orders', '/sub/orders/'):
             self._sub_orders(parsed)
+        elif p == '/crypto/balance':
+            self._crypto_balance(parsed)
         else:
             super().do_GET()
 
@@ -732,6 +790,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._fmx_sync()
         elif p == '/fmx/snapshot_now':
             self._fmx_snapshot_now()
+        elif p == '/crypto/refresh':
+            self._crypto_refresh()
         elif p == '/stock/order':
             self._stock_order()
         elif p == '/stock/cancel':
@@ -1169,6 +1229,58 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_json({'status': 'fail', 'error': str(e)})
 
+    # ── GET /crypto/balance ──────────────────────────────
+    # 讀取 data/crypto_balance.json（由 scheduler 定期更新），附上檔案年齡資訊。
+    def _crypto_balance(self, parsed):
+        try:
+            if not os.path.exists(CRYPTO_BALANCE_FILE):
+                self._send_json({
+                    'status':  'fail',
+                    'error':   'crypto_balance.json 尚未產生，請等待下一次排程或 POST /crypto/refresh',
+                    'total_usd': 0,
+                    'exchanges': {},
+                })
+                return
+            with open(CRYPTO_BALANCE_FILE, encoding='utf-8') as f:
+                data = json.load(f)
+            mtime = os.path.getmtime(CRYPTO_BALANCE_FILE)
+            data['_file_mtime'] = datetime.datetime.fromtimestamp(mtime).isoformat(timespec='seconds')
+            data['_age_seconds'] = int(time.time() - mtime)
+            self._send_json(data)
+        except Exception as e:
+            self._send_json({'status': 'fail', 'error': str(e)})
+
+    # ── POST /crypto/refresh ─────────────────────────────
+    # 手動觸發 fetch_crypto_balance.py，body 可選 {"commit": true}
+    def _crypto_refresh(self):
+        global _crypto_last_fetch
+        body = self._read_body()
+        do_commit = bool(body.get('commit', False))
+        if not os.path.exists(CRYPTO_FETCH_SCRIPT):
+            self._send_json({'status': 'fail', 'error': f'腳本不存在：{CRYPTO_FETCH_SCRIPT}'})
+            return
+        args = [PY, CRYPTO_FETCH_SCRIPT]
+        if do_commit:
+            args.append('--commit')
+        try:
+            r = subprocess.run(
+                args, env=_ENV, capture_output=True, text=True,
+                encoding='utf-8', errors='replace',
+                timeout=90, creationflags=NWIN_FLAG,
+            )
+            ok = (r.returncode == 0)
+            if ok:
+                _crypto_last_fetch = time.time()
+            self._send_json({
+                'status':  'ok' if ok else 'fail',
+                'rc':      r.returncode,
+                'stdout':  (r.stdout or '')[-1500:],
+                'stderr':  (r.stderr or '')[-500:],
+                'commit':  do_commit,
+            })
+        except Exception as e:
+            self._send_json({'status': 'fail', 'error': str(e)})
+
     # ── GET /stock/quote ──────────────────────────────────
     def _stock_quote(self, parsed):
         params = self._qs(parsed)
@@ -1447,6 +1559,14 @@ if __name__ == '__main__':
         tfs.start()
     else:
         print(f'[fut-snap] 找不到 {FUT_SNAPSHOT_SCRIPT}，跳過自動快照', flush=True)
+
+    # 啟動加密資產淨值排程（每 10 分鐘更新 data/crypto_balance.json）
+    if os.path.exists(CRYPTO_FETCH_SCRIPT):
+        tcr = threading.Thread(target=_crypto_balance_scheduler, daemon=True,
+                               name='crypto-balance')
+        tcr.start()
+    else:
+        print(f'[crypto] 找不到 {CRYPTO_FETCH_SCRIPT}，跳過加密資產淨值', flush=True)
 
     with http.server.ThreadingHTTPServer(('0.0.0.0', PORT), Handler) as srv:
         print(f'[server] running on http://0.0.0.0:{PORT}  (press Ctrl+C to stop)')

@@ -1160,16 +1160,57 @@
                     + '</div>';
             })();
 
-            // ── 總資產卡（股票市值 + 現金 + 期貨權益）──────
+            // ── 加密資產卡（Binance + Pionex 淨值；有資料才顯示）────
+            const cryptoCard = (function() {
+                const usd = (typeof getCryptoTotalUSD === 'function') ? getCryptoTotalUSD() : 0;
+                const twd = (typeof getCryptoTotalTWD === 'function') ? getCryptoTotalTWD() : 0;
+                if (usd <= 0 || twd <= 0) return '';
+                const mainStr = currency === 'USD' ? fmtAmt(usd, 'USD') : fmtAmt(twd, 'TWD');
+                const subStr  = currency === 'USD' ? fmtAmt(twd, 'TWD') : fmtAmt(usd, 'USD');
+                // breakdown：現貨 / 合約 / 派網（以 USD 簡寫）
+                const ex = _cryptoData?.exchanges || {};
+                const _u = n => {
+                    const a = Math.abs(Number(n||0));
+                    if (a >= 10000) return '$' + (a/1000).toFixed(1) + 'K';
+                    return '$' + Math.round(a).toLocaleString('en-US');
+                };
+                const bdParts = [];
+                const spotU = Number(ex.binance_spot?.equity_usd    || 0);
+                const futU  = Number(ex.binance_futures?.equity_usd || 0);
+                const pioU  = Number(ex.pionex?.equity_usd          || 0);
+                if (spotU > 0) bdParts.push('現貨 ' + _u(spotU));
+                if (futU  > 0) bdParts.push('合約 ' + _u(futU));
+                if (pioU  > 0) bdParts.push('派網 ' + _u(pioU));
+                const bd = bdParts.join(' · ');
+                const age = Number(_cryptoData?._age_seconds ?? -1);
+                const ageStr = age >= 0
+                    ? (age < 60 ? age + 's' : Math.floor(age/60) + 'm') + ' 前'
+                    : '';
+                return '<div class="stat-card" style="border:1px solid rgba(245,158,11,0.3);">'
+                    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
+                    +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
+                    +     '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(245,158,11,0.4);">🪙</div>'
+                    +     '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">加密資產</span>'
+                    +   '</div>'
+                    +   (ageStr ? '<span class="mono" style="color:#64748b;font-size:0.72rem;flex-shrink:0;">'+ageStr+'</span>' : '')
+                    + '</div>'
+                    + '<div class="mono stat-amount" style="color:#f59e0b;">'+mainStr+'</div>'
+                    + '<div class="mono stat-amount-sub" style="color:#64748b;margin-top:0.4rem;">'+subStr+'</div>'
+                    + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.35rem;">'+bd+'</div>' : '')
+                    + '</div>';
+            })();
+
+            // ── 總資產卡（股票市值 + 現金 + 期貨權益 + 加密資產）──
             const grandCard = (function() {
-                const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
-                const futTWD  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
-                const grandTWD = stats.totalValueTWD + cashTWD + futTWD;
+                const cashTWD   = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+                const futTWD    = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+                const cryptoTWD = (typeof getCryptoTotalTWD   === 'function') ? getCryptoTotalTWD()   : 0;
+                const grandTWD  = stats.totalValueTWD + cashTWD + futTWD + cryptoTWD;
                 if (grandTWD <= 0) return '';
                 const grandUSD = exchangeRates.USD_TWD > 0 ? grandTWD / exchangeRates.USD_TWD : 0;
                 const mainStr = currency === 'USD' ? fmtAmt(grandUSD, 'USD') : fmtAmt(grandTWD, 'TWD');
                 const subStr  = currency === 'USD' ? fmtAmt(grandTWD, 'TWD') : fmtAmt(grandUSD, 'USD');
-                // breakdown: 股 / 現 / 期（TWD 簡寫）
+                // breakdown: 股 / 現 / 期 / 幣（TWD 簡寫）
                 const _compact = n => {
                     if (n >= 100000000) return (n/100000000).toFixed(1) + '億';
                     if (n >= 10000)     return (n/10000).toFixed(1) + '萬';
@@ -1179,6 +1220,7 @@
                 if (stats.totalValueTWD > 0) parts.push('股 ' + _compact(stats.totalValueTWD));
                 if (cashTWD > 0)             parts.push('現 ' + _compact(cashTWD));
                 if (futTWD > 0)              parts.push('期 ' + _compact(futTWD));
+                if (cryptoTWD > 0)           parts.push('幣 ' + _compact(cryptoTWD));
                 const breakdown = parts.join(' · ');
                 return '<div class="stat-card" style="border:2px solid rgba(16,185,129,0.45);">'
                     + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">'
@@ -1213,6 +1255,7 @@
                 ${prevDayCard}
                 ${dayCard}
                 ${futCard}
+                ${cryptoCard}
             `;
         }
 
@@ -3625,6 +3668,8 @@
             }
             // 期貨：立即嘗試連 Fubon SDK（失敗則靜默隱藏）
             setTimeout(() => loadFuturesData(true), 800);
+            // 加密資產：立即讀一次（server /crypto/balance 有 60s cache；手機退用 data/crypto_balance.json）
+            setTimeout(() => loadCryptoData(true), 1200);
         }
         // ==================== 直立鎖定 ====================
         function _checkOrientation() {
@@ -3680,6 +3725,8 @@
                 // 期貨 SDK：每 3 次 tick（≈30 秒）拉一次；server.py 端對 /fmx/positions 有 60s 快取
                 _futRefreshCount++;
                 if (_futRefreshCount % 3 === 0) loadFuturesData(true);
+                // 加密資產：每 12 次 tick（≈120 秒）拉一次；server.py /crypto/balance 有 60s cache
+                if (_futRefreshCount % 12 === 0) loadCryptoData(false);
                 _secondsLeft = 10; // 重置倒數
             }, 10000);
 
@@ -4843,6 +4890,56 @@
             if (!isFinite(prevTB) || prevTB <= 0) return 0;
             const diff = todayTB - prevTB;
             return isFinite(diff) ? diff : 0;
+        }
+
+        // ==================== 加密資產（Binance + Pionex）====================
+        // data/crypto_balance.json 由 server.py 每 10 分鐘呼叫 fetch_crypto_balance.py 更新；
+        // 手機 / GitHub Pages 會退用靜態檔（最後一次推上來的結果）。
+        let _cryptoData = null;          // { total_usd, exchanges:{...}, errors:{...} }
+        let _cryptoTs   = 0;             // 上次 fetch ms
+
+        async function loadCryptoData(force = false) {
+            const now = Date.now();
+            if (!force && _cryptoData && (now - _cryptoTs) < 60 * 1000) return;
+            const _opts = { cache: 'no-store' };
+            // Path A：本機 server.py /crypto/balance（有 60s cache，含 _age_seconds）
+            try {
+                const r = await fetch(`${FMX_API_BASE}/crypto/balance`, _opts);
+                if (r?.ok) {
+                    const j = await r.json();
+                    if (j && typeof j.total_usd === 'number') {
+                        _cryptoData = { ...j, _source: 'server' };
+                        _cryptoTs = now;
+                        if (typeof renderAll === 'function') renderAll();
+                        return;
+                    }
+                }
+            } catch(_) {}
+            // Path B：靜態檔（手機 / GitHub Pages）
+            try {
+                const r2 = await fetch('./data/crypto_balance.json?t=' + now, _opts);
+                if (r2?.ok) {
+                    const j2 = await r2.json();
+                    if (j2 && typeof j2.total_usd === 'number') {
+                        _cryptoData = { ...j2, _source: 'file' };
+                        _cryptoTs = now;
+                        if (typeof renderAll === 'function') renderAll();
+                        return;
+                    }
+                }
+            } catch(_) {}
+            _cryptoTs = now;   // 避免失敗時反覆打
+        }
+
+        function getCryptoTotalUSD() {
+            const v = Number(_cryptoData?.total_usd ?? 0);
+            return isFinite(v) && v > 0 ? v : 0;
+        }
+        function getCryptoTotalTWD() {
+            const usd = getCryptoTotalUSD();
+            if (usd <= 0) return 0;
+            const fx = exchangeRates.USD_TWD > 0 ? exchangeRates.USD_TWD : 0;
+            return fx > 0 ? usd * fx : 0;
         }
 
         async function silentRefreshPrices(skipProxyFetch = false) {

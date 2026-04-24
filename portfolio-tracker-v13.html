@@ -2055,14 +2055,42 @@
 
         // ==================== 派網總資產（手動 TWD；含 bot 鎖倉）=======
         // Pionex 公開 API 不含網格/DCA/Earn 鎖倉，改由使用者直接看 App「總資產估值」頁填進來。
+        // 跨裝置同步：
+        //   • 電腦版輸入 → localStorage + POST /crypto/pionex_twd → server 寫入
+        //     data/crypto_balance.json + git push，GitHub Pages 傳播後手機可見。
+        //   • 手機版讀取 → 優先用 _cryptoData.manual_pionex_twd（來自 crypto_balance.json）
+        //     → fallback localStorage（離線情況）。
+        //   • 手機版輸入 → 只寫 localStorage（server 不可達），並提示「請從電腦版修改」。
         const PT_PIONEX_KEY = 'pt_v13_pionex_twd';
-        function savePionexTwd() {
+        async function savePionexTwd() {
             const v = parseFloat(document.getElementById('pionex-twd-input')?.value) || 0;
             if (v > 0) localStorage.setItem(PT_PIONEX_KEY, v);
             else localStorage.removeItem(PT_PIONEX_KEY);
+            // 同步到 server（只有電腦版 / 同網段手機版能成功；GitHub Pages 上的手機會靜默失敗）
+            try {
+                const r = await fetch(`${FMX_API_BASE}/crypto/pionex_twd`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: v, commit: true }),
+                    cache: 'no-store',
+                    signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined,
+                });
+                if (r?.ok) {
+                    // 同步成功後刷新 _cryptoData，順便重繪
+                    setTimeout(() => loadCryptoData(true), 500);
+                }
+            } catch(_) { /* server 不可達時靜默，localStorage 已保底 */ }
         }
         function loadPionexTwd() {
-            const v = parseFloat(localStorage.getItem(PT_PIONEX_KEY)) || 0;
+            // 優先：_cryptoData.manual_pionex_twd（跨裝置同步來源）
+            // 次選：localStorage（裝置本地，離線情況）
+            let v = 0;
+            if (_cryptoData && typeof _cryptoData.manual_pionex_twd === 'number') {
+                v = _cryptoData.manual_pionex_twd;
+                if (v > 0) localStorage.setItem(PT_PIONEX_KEY, v);
+            } else {
+                v = parseFloat(localStorage.getItem(PT_PIONEX_KEY)) || 0;
+            }
             const el = document.getElementById('pionex-twd-input');
             if (el && v > 0) el.value = v;
         }
@@ -5046,9 +5074,10 @@
                 const r = await fetch(`${FMX_API_BASE}/crypto/balance`, _opts);
                 if (r?.ok) {
                     const j = await r.json();
-                    if (j && typeof j.total_usd === 'number') {
+                    if (j && (typeof j.total_usd === 'number' || typeof j.manual_pionex_twd === 'number')) {
                         _cryptoData = { ...j, _source: 'server' };
                         _cryptoTs = now;
+                        if (typeof loadPionexTwd === 'function') loadPionexTwd();
                         if (typeof renderAll === 'function') renderAll();
                         return;
                     }
@@ -5059,9 +5088,10 @@
                 const r2 = await fetch('./data/crypto_balance.json?t=' + now, _opts);
                 if (r2?.ok) {
                     const j2 = await r2.json();
-                    if (j2 && typeof j2.total_usd === 'number') {
+                    if (j2 && (typeof j2.total_usd === 'number' || typeof j2.manual_pionex_twd === 'number')) {
                         _cryptoData = { ...j2, _source: 'file' };
                         _cryptoTs = now;
+                        if (typeof loadPionexTwd === 'function') loadPionexTwd();
                         if (typeof renderAll === 'function') renderAll();
                         return;
                     }

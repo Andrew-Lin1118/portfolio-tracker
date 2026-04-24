@@ -826,6 +826,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._fmx_snapshot_now()
         elif p == '/crypto/refresh':
             self._crypto_refresh()
+        elif p == '/crypto/pionex_twd':
+            self._crypto_pionex_twd()
         elif p == '/stock/order':
             self._stock_order()
         elif p == '/stock/cancel':
@@ -1314,6 +1316,65 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             })
         except Exception as e:
             self._send_json({'status': 'fail', 'error': str(e)})
+
+    # ── POST /crypto/pionex_twd ──────────────────────────
+    # body: { "value": 12345, "commit": true }
+    # 更新 data/crypto_balance.json 的 manual_pionex_twd 欄位，讓手機版透過
+    # 此檔案跨裝置同步（localStorage 是 per-device，手機上會吃不到）。
+    def _crypto_pionex_twd(self):
+        body = self._read_body()
+        try:
+            val = float(body.get('value') or 0)
+        except (TypeError, ValueError):
+            self._send_json({'status': 'fail', 'error': 'value 不是有效數字'})
+            return
+        if val < 0 or val > 1e12:
+            self._send_json({'status': 'fail', 'error': 'value 超出合理範圍'})
+            return
+        do_commit = bool(body.get('commit', True))   # 預設 commit，方便 GitHub Pages 同步
+        try:
+            data = {}
+            if os.path.exists(CRYPTO_BALANCE_FILE):
+                with open(CRYPTO_BALANCE_FILE, encoding='utf-8') as f:
+                    data = json.load(f) or {}
+            data['manual_pionex_twd']        = val
+            data['manual_pionex_twd_ts']     = datetime.datetime.now().isoformat(timespec='seconds')
+            tmp = CRYPTO_BALANCE_FILE + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, CRYPTO_BALANCE_FILE)
+        except Exception as e:
+            self._send_json({'status': 'fail', 'error': f'寫檔失敗：{e}'})
+            return
+
+        commit_log = ''
+        if do_commit:
+            try:
+                subprocess.run(['git', '-C', DIR, 'add', 'data/crypto_balance.json'],
+                               check=True, capture_output=True, text=True, creationflags=NWIN_FLAG)
+                diff = subprocess.run(['git', '-C', DIR, 'diff', '--cached', '--quiet'],
+                                      capture_output=True, creationflags=NWIN_FLAG)
+                if diff.returncode != 0:
+                    subprocess.run(['git', '-C', DIR, 'commit', '-m', f'chore(crypto): pionex_twd={val:.0f}'],
+                                   check=True, capture_output=True, text=True, creationflags=NWIN_FLAG)
+                    subprocess.run(['git', '-C', DIR, 'pull', '--rebase', 'origin', 'main'],
+                                   capture_output=True, text=True, creationflags=NWIN_FLAG)
+                    pr = subprocess.run(['git', '-C', DIR, 'push', 'origin', 'main'],
+                                        capture_output=True, text=True, creationflags=NWIN_FLAG)
+                    commit_log = (pr.stderr or pr.stdout or '')[-200:]
+                else:
+                    commit_log = '無變動，略過 commit'
+            except subprocess.CalledProcessError as e:
+                commit_log = f'git 失敗：{(e.stderr or str(e))[-200:]}'
+            except Exception as e:
+                commit_log = f'git 例外：{e}'
+
+        self._send_json({
+            'status':            'ok',
+            'manual_pionex_twd': val,
+            'commit':            do_commit,
+            'git':               commit_log,
+        })
 
     # ── GET /stock/quote ──────────────────────────────────
     def _stock_quote(self, parsed):

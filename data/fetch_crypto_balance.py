@@ -105,28 +105,20 @@ def _parse_simple_yaml(path):
 
 
 def load_config():
-    """合併 crypto_config.yaml + pionex_bot/config.yaml（前者優先）。"""
+    """合併 crypto_config.yaml + pionex_bot/config.yaml（前者優先）。
+    僅讀取 Binance；派網因為公開 API 不含 bot/earn 鎖倉，改由前端手動輸入 TWD。"""
     cfg_crypto = _load_yaml(CRYPTO_CONF)
     cfg_pionex = _load_yaml(PIONEX_CONF)
 
-    out = {'binance': {}, 'pionex': {}}
+    out = {'binance': {}}
 
-    # Binance：先 crypto_config，再 fallback pionex_bot
+    # Binance：先 crypto_config，再 fallback pionex_bot（沿用現成的金鑰）
     bn = cfg_crypto.get('binance') or {}
     out['binance']['api_key']       = bn.get('api_key')       or cfg_pionex.get('api_key')
     out['binance']['api_secret']    = bn.get('api_secret')    or cfg_pionex.get('api_secret')
     out['binance']['fetch_spot']    = bn.get('fetch_spot', True)
     out['binance']['fetch_futures'] = bn.get('fetch_futures', True)
     out['binance']['proxy']         = bn.get('proxy')         or cfg_pionex.get('proxy')
-
-    # Pionex：只讀 crypto_config
-    # manual_bot_usd：Pionex 公開 API 的 /account/balances 不含網格/DCA/Earn 鎖倉資產，
-    # 在 App「總資產估值」頁看得到的數字扣掉現貨餘額後填在這裡（手動維護）。
-    px = cfg_crypto.get('pionex') or {}
-    out['pionex']['api_key']        = px.get('api_key')
-    out['pionex']['api_secret']     = px.get('api_secret')
-    out['pionex']['proxy']          = px.get('proxy')
-    out['pionex']['manual_bot_usd'] = px.get('manual_bot_usd')
 
     return out
 
@@ -229,99 +221,11 @@ def fetch_binance_futures(api_key, api_secret, proxy=None):
     }
 
 
-# ══════════════════════════════════════════════════════════════
-#  Pionex
-#  簽名：HMAC-SHA256(secret, METHOD + PATH_URL + sorted_query_with_timestamp)
-#  headers: PIONEX-KEY / PIONEX-SIGNATURE
-#  docs: https://pionex-doc.gitbook.io/apidocs/
-# ══════════════════════════════════════════════════════════════
-PIONEX_BASE = 'https://api.pionex.com'
-
-
-def _pionex_sign(secret, method, path, params):
-    params = dict(params or {})
-    params.setdefault('timestamp', int(time.time() * 1000))
-    qs = '&'.join(f'{k}={params[k]}' for k in sorted(params))
-    msg = method.upper() + path + '?' + qs
-    sig = hmac.new(secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
-    return qs, sig
-
-
-def _pionex_get(api_key, api_secret, path, params=None, proxy=None, timeout=10):
-    session = requests.Session()
-    if proxy:
-        session.proxies = {'http': proxy, 'https': proxy}
-    qs, sig = _pionex_sign(api_secret, 'GET', path, params or {})
-    url = f'{PIONEX_BASE}{path}?{qs}'
-    headers = {'PIONEX-KEY': api_key, 'PIONEX-SIGNATURE': sig}
-    r = session.get(url, headers=headers, timeout=timeout)
-    data = r.json()
-    if isinstance(data, dict) and data.get('result') is False:
-        raise RuntimeError(f"Pionex API: code={data.get('code')} msg={data.get('message')}")
-    return data
-
-
-def _pionex_prices():
-    """公開行情 /api/v1/market/tickers → {SYM-USDT: price}"""
-    try:
-        r = requests.get(f'{PIONEX_BASE}/api/v1/market/tickers', timeout=10)
-        j = r.json() if r.ok else {}
-        rows = (j.get('data', {}) or {}).get('tickers', []) or []
-        out = {}
-        for t in rows:
-            sym = t.get('symbol', '')
-            if sym.endswith('_USDT'):
-                asset = sym[:-5]
-                try: out[asset] = float(t.get('close', 0) or t.get('last', 0))
-                except: pass
-        return out
-    except Exception:
-        return {}
-
-
-def fetch_pionex(api_key, api_secret, proxy=None, manual_bot_usd=None):
-    data = _pionex_get(api_key, api_secret, '/api/v1/account/balances', proxy=proxy)
-    balances = (data.get('data', {}) or {}).get('balances', []) or []
-    prices = _pionex_prices()
-
-    wallet_usd, details = 0.0, []
-    for b in balances:
-        asset = b.get('coin') or b.get('asset') or ''
-        try:
-            amt = float(b.get('free', 0) or 0) + float(b.get('frozen', 0) or 0)
-        except (TypeError, ValueError):
-            continue
-        if amt <= 0:
-            continue
-        if asset in STABLES:
-            usd = amt
-        else:
-            px = prices.get(asset)
-            if px is None or px <= 0:
-                continue
-            usd = amt * px
-        if usd < 0.5:
-            continue
-        wallet_usd += usd
-        details.append({'asset': asset, 'amount': amt, 'usd': round(usd, 2)})
-    details.sort(key=lambda x: -x['usd'])
-
-    # manual_bot_usd：Pionex 公開 API 無法取得 網格/DCA/Earn 鎖倉，
-    # 由使用者在 crypto_config.yaml 填入 App「總資產估值」頁扣掉現貨後的金額。
-    try:
-        bot_usd = float(manual_bot_usd) if manual_bot_usd is not None else 0.0
-    except (TypeError, ValueError):
-        bot_usd = 0.0
-    bot_usd = max(0.0, bot_usd)
-
-    equity_usd = wallet_usd + bot_usd
-    return {
-        'equity_usd':     round(equity_usd, 2),
-        'wallet_usd':     round(wallet_usd, 2),
-        'manual_bot_usd': round(bot_usd, 2) if bot_usd > 0 else 0,
-        'assets':         details[:20],
-        'note':           '公開 API 不含 bot/earn 鎖倉；manual_bot_usd 為手動補值',
-    }
+# 派網（Pionex）：
+#   公開 API 的 /api/v1/account/balances 只回現貨錢包，
+#   doc 明文「excludes bot and earn account」。網格/DCA/Earn 鎖倉無法 API 取得。
+#   解法：前端（portfolio-tracker-v13.html）提供「派網總資產」TWD 手動輸入框，
+#   由使用者直接看 App 填，這支腳本不再觸碰派網 API。
 
 
 # ══════════════════════════════════════════════════════════════
@@ -347,18 +251,7 @@ def build_report():
     else:
         errors['binance'] = '未設定 api_key / api_secret（crypto_config.yaml 或 pionex_bot/config.yaml）'
 
-    px = cfg['pionex']
-    if px.get('api_key') and px.get('api_secret'):
-        try:
-            exchanges['pionex'] = fetch_pionex(
-                px['api_key'], px['api_secret'],
-                proxy=px.get('proxy'),
-                manual_bot_usd=px.get('manual_bot_usd'),
-            )
-        except Exception as e:
-            errors['pionex'] = f'{type(e).__name__}: {e}'[:200]
-    else:
-        errors['pionex'] = '未設定 api_key / api_secret（請在 crypto_config.yaml 填入）'
+    # 派網：交由前端手動輸入 TWD（Pionex 公開 API 不含 bot/earn 鎖倉）
 
     total_usd = round(sum((ex.get('equity_usd') or 0) for ex in exchanges.values()), 2)
     return {
@@ -371,26 +264,33 @@ def build_report():
 
 def save_report(report):
     """若本次所有交易所都失敗（exchanges 空），保留上一次的 total_usd/exchanges，
-    只更新 errors + generated + last_success_ts，避免 Binance 短暫抽風時畫面瞬間掉 0。"""
+    只更新 errors + generated + last_success_ts，避免 Binance 短暫抽風時畫面瞬間掉 0。
+    另：永遠保留前一版的 manual_pionex_twd（跨裝置同步的派網手動金額），
+    避免 fetch 覆寫使用者在電腦版輸入的值。"""
     os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
 
-    if not report.get('exchanges') and os.path.exists(OUT_FILE):
+    prev = None
+    if os.path.exists(OUT_FILE):
         try:
             with open(OUT_FILE, encoding='utf-8') as f:
                 prev = json.load(f)
-            if isinstance(prev, dict) and prev.get('exchanges'):
-                merged = dict(prev)
-                merged['errors']          = report.get('errors', {})
-                merged['last_error_ts']   = report.get('generated')
-                # 保留 prev total_usd / exchanges / last_success_ts
-                if 'last_success_ts' not in merged:
-                    merged['last_success_ts'] = prev.get('generated')
-                report = merged
         except Exception:
-            pass
-    else:
+            prev = None
+
+    if not report.get('exchanges') and isinstance(prev, dict) and prev.get('exchanges'):
+        merged = dict(prev)
+        merged['errors']          = report.get('errors', {})
+        merged['last_error_ts']   = report.get('generated')
+        if 'last_success_ts' not in merged:
+            merged['last_success_ts'] = prev.get('generated')
+        report = merged
+    elif report.get('exchanges'):
         # 本次成功：記錄最新成功時間
         report['last_success_ts'] = report.get('generated')
+
+    # 保留前一版的 manual_pionex_twd（不會被 fetch 邏輯產出）
+    if isinstance(prev, dict) and prev.get('manual_pionex_twd') is not None and report.get('manual_pionex_twd') is None:
+        report['manual_pionex_twd'] = prev['manual_pionex_twd']
 
     tmp = OUT_FILE + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:

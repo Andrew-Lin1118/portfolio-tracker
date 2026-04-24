@@ -3678,20 +3678,38 @@
                         }
                     });
 
-                    // Step 0.5c+：所有標的 prevClose & prevPrevClose 以 prices.json 強制更新
-                    //   prices.json 是最新來源（GitHub Actions 每 5 分鐘更新，含時區校正），
-                    //   優先級高於 fundamentals.json（週更，常落後一天）與 allResults 快取。
-                    if (_pjFin.prev_closes) {
+                    // Step 0.5c+：所有標的 prevClose & prevPrevClose 以最新檔案強制更新
+                    //   正常情況：prices.json 最新（GitHub Actions 每 5 分鐘更新）→ 以 prices.json 為準
+                    //   若 prices.json 比 fundamentals.json 舊 > 6 小時，視為 stale，
+                    //   改以 fundamentals.json 強制覆蓋（避免 allResults/localStorage 殘留的更舊值）
+                    const _fjGen = window._fundJsonCache?.generated
+                        ? new Date(window._fundJsonCache.generated).getTime() : 0;
+                    const _pjGen = _pjFin.generated ? new Date(_pjFin.generated).getTime() : 0;
+                    const _pricesStale = _fjGen > 0 && _pjGen > 0 && (_fjGen - _pjGen > 6 * 3600 * 1000);
+                    if (_pricesStale) {
+                        console.warn(`[prevClose] prices.json stale (${((_fjGen-_pjGen)/3600000).toFixed(1)}h older than fundamentals.json); falling back to fundamentals.json`);
+                        // fundamentals.json 強制覆蓋（僅當有值）
+                        const _fjData = window._fundJsonCache?.data || {};
                         rows.forEach(r => {
-                            const pc = _pjFin.prev_closes[r.holding];
-                            if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
+                            const fjKey = r.isProxy ? r.holding : r.query;
+                            const fj = _fjData[fjKey];
+                            if (!fj) return;
+                            if (fj.prev_close      != null && fj.prev_close      > 0) _tmpPrevClose[r.holding]     = fj.prev_close;
+                            if (fj.prev_prev_close != null && fj.prev_prev_close > 0) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
                         });
-                    }
-                    if (_pjFin.prev_prev_closes) {
-                        rows.forEach(r => {
-                            const ppc = _pjFin.prev_prev_closes[r.holding];
-                            if (ppc != null && ppc > 0) _tmpPrevPrevClose[r.holding] = ppc;
-                        });
+                    } else {
+                        if (_pjFin.prev_closes) {
+                            rows.forEach(r => {
+                                const pc = _pjFin.prev_closes[r.holding];
+                                if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
+                            });
+                        }
+                        if (_pjFin.prev_prev_closes) {
+                            rows.forEach(r => {
+                                const ppc = _pjFin.prev_prev_closes[r.holding];
+                                if (ppc != null && ppc > 0) _tmpPrevPrevClose[r.holding] = ppc;
+                            });
+                        }
                     }
 
                     rows.filter(r => r.isProxy && r.holding.endsWith('.HK')).forEach(r => {

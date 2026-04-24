@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- 避免 HTML 被瀏覽器或 Service Worker 快取（開發期間） -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
@@ -18,10 +22,28 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
       // 註冊 Service Worker（讓 PWA 可離線使用）
+      // 同時：若 SW 更新（例：sw.js 的 CACHE_NAME bump），強制重新載入頁面，
+      //       避免使用者在舊 SW 控管下看到舊 HTML。
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () =>
-          navigator.serviceWorker.register('./sw.js').catch(() => {})
-        );
+        window.addEventListener('load', async () => {
+          try {
+            // 清掉所有非目前版本的快取（保險）
+            if (window.caches) {
+              const keys = await caches.keys();
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v3').map(k => caches.delete(k)));
+            }
+            const reg = await navigator.serviceWorker.register('./sw.js');
+            // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
+            let reloaded = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              if (reloaded) return;
+              reloaded = true;
+              window.location.reload();
+            });
+            // 手動觸發 update，避免瀏覽器「等 24 小時」才檢查
+            reg.update().catch(() => {});
+          } catch (e) { /* 忽略 SW 註冊失敗 */ }
+        });
       }
     </script>
     <style>
@@ -236,7 +258,13 @@
     <div style="position:fixed; bottom:20%; left:5%; width:400px; height:400px; background:radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%); border-radius:50%; filter:blur(80px); pointer-events:none; z-index:0; animation:float 8s ease-in-out infinite reverse;"></div>
 
     <div style="max-width:1200px; margin:0 auto; position:relative; z-index:1;">
-        
+
+        <!-- ▼▼▼ 版本標記（暫時用來驗證快取是否更新；確認後可移除） ▼▼▼ -->
+        <div id="version-banner" style="background:linear-gradient(90deg, rgba(245,158,11,0.25), rgba(245,158,11,0.05)); border:1px solid rgba(245,158,11,0.5); border-radius:8px; padding:0.6rem 1rem; margin:1rem 0; color:#fbbf24; font-size:0.9rem; font-weight:600;">
+            ✅ v13 · 2026-04-23c · 新增期貨「🔄 立即更新」按鈕 + 交易後自動同步已/未實現損益
+        </div>
+        <!-- ▲▲▲ 版本標記 ▲▲▲ -->
+
         <!-- Currency Toggle -->
         <div id="currency-toggle" style="position:fixed; top:1.25rem; right:1.25rem; z-index:999; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35); box-shadow:0 4px 20px rgba(0,0,0,0.4);">
             <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:rgba(10,22,40,0.92); color:#64748b;">$ USD</button>
@@ -297,15 +325,28 @@
             ｜ 下次更新：<span id="auto-refresh-countdown" style="color:#fbbf24; font-weight:600;">60</span>s
         </div>
 
+        <!-- 手動輸入卡片：現金（TWD） + 派網總資產（TWD）──
+             獨立成卡片，手機 / 桌面都一定看得到，不依賴 pie-section 的 display 狀態 -->
+        <div id="manual-inputs-card" class="glass-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
+            <div style="display:flex; flex-wrap:wrap; gap:1rem 2rem; align-items:center;">
+                <div style="display:flex; align-items:center; gap:0.6rem; flex:1 1 260px; min-width:0;">
+                    <span style="color:#94a3b8; font-size:0.9rem; white-space:nowrap;">💵 現金（TWD）</span>
+                    <input type="number" inputmode="decimal" id="cash-twd-input" min="0" placeholder="0" onchange="saveCash(); renderAll();"
+                        style="flex:1 1 auto; min-width:0; padding:0.45rem 0.7rem; background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.95rem;">
+                </div>
+                <div style="display:flex; align-items:center; gap:0.6rem; flex:1 1 260px; min-width:0;">
+                    <span style="color:#fbbf24; font-size:0.9rem; white-space:nowrap;">🤖 派網總資產（TWD）</span>
+                    <input type="number" inputmode="decimal" id="pionex-twd-input" min="0" placeholder="0" onchange="savePionexTwd(); renderAll();"
+                        style="flex:1 1 auto; min-width:0; padding:0.45rem 0.7rem; background:rgba(15,23,42,0.5); border:1px solid rgba(245,158,11,0.35); border-radius:8px; color:#f1f5f9; font-size:0.95rem;">
+                </div>
+            </div>
+            <div style="color:#64748b; font-size:0.75rem; margin-top:0.5rem;">派網公開 API 不含網格/DCA/Earn 鎖倉，請從派網 App「總資產估值」頁填入 TWD 金額。</div>
+        </div>
+
         <!-- Pie Chart -->
         <div id="pie-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; display:none;">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.5rem;">
                 <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">持倉分布圖</h2>
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <span style="color:#94a3b8; font-size:0.875rem;">現金（TWD）：</span>
-                    <input type="number" id="cash-twd-input" min="0" placeholder="0" onchange="saveCash(); renderAll();"
-                        style="width:140px; padding:0.35rem 0.6rem; background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.2); border-radius:6px; color:#f1f5f9; font-size:0.875rem;">
-                </div>
             </div>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:2rem; align-items:start;">
                 <div><canvas id="pieCanvas" width="400" height="400"></canvas></div>
@@ -362,6 +403,8 @@
                 </div>
                 <div style="display:flex; gap:0.5rem; align-items:center;">
                     <span id="fut-updated" style="color:#64748b; font-size:0.78rem;">—</span>
+                    <button id="fut-refresh-btn" onclick="refreshFuturesNow()" title="立即重新抓取期貨帳戶（跳過 60s 快取，交易後按這個）"
+                        style="padding:0.22rem 0.55rem; font-size:0.72rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">🔄 立即更新</button>
                     <button id="fut-include-btn" onclick="toggleFuturesInTotal()" style="padding:0.22rem 0.55rem; font-size:0.72rem; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">✓ 計入總資產</button>
                 </div>
             </div>
@@ -1160,34 +1203,32 @@
                     + '</div>';
             })();
 
-            // ── 加密資產卡（Binance + Pionex 淨值；有資料才顯示）────
+            // ── 加密資產卡（Binance API 自動 + 派網手動 TWD）─────────
             const cryptoCard = (function() {
-                const usd = (typeof getCryptoTotalUSD === 'function') ? getCryptoTotalUSD() : 0;
                 const twd = (typeof getCryptoTotalTWD === 'function') ? getCryptoTotalTWD() : 0;
-                if (usd <= 0 || twd <= 0) return '';
+                const usd = (typeof getCryptoTotalUSD === 'function') ? getCryptoTotalUSD() : 0;
+                if (twd <= 0) return '';
                 const mainStr = currency === 'USD' ? fmtAmt(usd, 'USD') : fmtAmt(twd, 'TWD');
                 const subStr  = currency === 'USD' ? fmtAmt(twd, 'TWD') : fmtAmt(usd, 'USD');
-                // breakdown：現貨 / 合約 / 派網（以 USD 簡寫）
+                // breakdown：幣安現貨 / 幣安合約（USD）+ 派網（手動 TWD）
                 const ex = _cryptoData?.exchanges || {};
                 const _u = n => {
                     const a = Math.abs(Number(n||0));
                     if (a >= 10000) return '$' + (a/1000).toFixed(1) + 'K';
                     return '$' + Math.round(a).toLocaleString('en-US');
                 };
+                const _t = n => {
+                    const a = Math.abs(Number(n||0));
+                    if (a >= 10000) return (a/10000).toFixed(1) + '萬';
+                    return Math.round(a).toLocaleString('zh-TW');
+                };
                 const bdParts = [];
                 const spotU = Number(ex.binance_spot?.equity_usd    || 0);
                 const futU  = Number(ex.binance_futures?.equity_usd || 0);
-                const pioU  = Number(ex.pionex?.equity_usd          || 0);
-                const pioBot = Number(ex.pionex?.manual_bot_usd     || 0);
+                const pioTWD = getPionexManualTWD();
                 if (spotU > 0) bdParts.push('幣安現貨 ' + _u(spotU));
                 if (futU  > 0) bdParts.push('幣安合約 ' + _u(futU));
-                if (pioU  > 0) {
-                    // 派網若有 bot 鎖倉（manual），顯示 派網 $X (+bot $Y)
-                    const pioLabel = pioBot > 0
-                        ? '派網 ' + _u(pioU) + '*'   // 星號標示含手動補值
-                        : '派網 ' + _u(pioU);
-                    bdParts.push(pioLabel);
-                }
+                if (pioTWD > 0) bdParts.push('派網 NT$' + _t(pioTWD));
                 const bd = bdParts.join(' · ');
                 const age = Number(_cryptoData?._age_seconds ?? -1);
                 const ageStr = age >= 0
@@ -1456,17 +1497,18 @@
 
         // v15.033：條件重繪判斷，避免每分鐘靜默更新都 destroy/rebuild Chart.js
         function _shouldRenderPie(stats) {
-            const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
-            const futTWD  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
-            const grandTotal = stats.totalValueTWD + cashTWD + futTWD;
+            const cashTWD   = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+            const futTWD    = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+            const cryptoTWD = (typeof getCryptoTotalTWD   === 'function') ? getCryptoTotalTWD()   : 0;
+            const grandTotal = stats.totalValueTWD + cashTWD + futTWD + cryptoTWD;
             const now = Date.now();
-            if (!_pieSnapshot) return true;                               // 首次
-            if (_pieSnapshot.holdingsCount !== holdings.length) return true; // 持倉筆數變化
-            if (_pieSnapshot.currency !== currency) return true;          // 幣別切換
-            if (Math.abs(_pieSnapshot.cashTWD - cashTWD) > 1) return true; // 現金變化
-            if (Math.abs((_pieSnapshot.futTWD || 0) - futTWD) > 1) return true; // 期貨權益變化
-            if (now - _pieSnapshot.lastForcedAt > 30 * 60 * 1000) return true; // 30分強制
-            // 各標的佔比變化 > 0.5%
+            if (!_pieSnapshot) return true;
+            if (_pieSnapshot.holdingsCount !== holdings.length) return true;
+            if (_pieSnapshot.currency !== currency) return true;
+            if (Math.abs(_pieSnapshot.cashTWD - cashTWD) > 1) return true;
+            if (Math.abs((_pieSnapshot.futTWD || 0) - futTWD) > 1) return true;
+            if (Math.abs((_pieSnapshot.cryptoTWD || 0) - cryptoTWD) > 1) return true;
+            if (now - _pieSnapshot.lastForcedAt > 30 * 60 * 1000) return true;
             for (const h of stats.holdingsWithStats) {
                 const share = grandTotal > 0 ? (h.valueTWD ?? h.valueTotalTWD) / grandTotal * 100 : 0;
                 const prev  = _pieSnapshot.shares[h.symbol] ?? 0;
@@ -1477,13 +1519,14 @@
 
         function renderPie(stats) {
             const pieSection = document.getElementById('pie-section');
-            const cashTWD = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
-            const futTWD  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
-            pieSection.style.display = (holdings.length > 0 || cashTWD > 0 || futTWD > 0) ? 'block' : 'none';
-            if (holdings.length === 0 && cashTWD <= 0 && futTWD <= 0) return;
+            const cashTWD   = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+            const futTWD    = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+            const cryptoTWD = (typeof getCryptoTotalTWD   === 'function') ? getCryptoTotalTWD()   : 0;
+            pieSection.style.display = (holdings.length > 0 || cashTWD > 0 || futTWD > 0 || cryptoTWD > 0) ? 'block' : 'none';
+            if (holdings.length === 0 && cashTWD <= 0 && futTWD <= 0 && cryptoTWD <= 0) return;
 
-            const grandTotal = stats.totalValueTWD + cashTWD + futTWD;
-            // 將股票佔比縮放至含現金+期貨的總量
+            const grandTotal = stats.totalValueTWD + cashTWD + futTWD + cryptoTWD;
+            // 將股票佔比縮放至含現金+期貨+加密的總量
             const stockScale = (grandTotal > 0 && stats.totalValueTWD > 0) ? stats.totalValueTWD / grandTotal : 1;
             const adjHoldings = stats.holdingsWithStats.map(h => ({ name: h.symbol, value: h.percentage * stockScale }));
 
@@ -1492,15 +1535,19 @@
             if (others > 0) pieData.push({ name: '其他', value: others });
 
             // 現金欄
-            const cashColor = '#22c55e';
-            let cashEntry = null;
+            const cashColor    = '#22c55e';
+            const futuresColor = '#a855f7';
+            const cryptoColor  = '#f59e0b';
             if (cashTWD > 0 && grandTotal > 0) {
-                cashEntry = { name: '現金', value: (cashTWD / grandTotal) * 100, isCash: true };
-                pieData.push(cashEntry);
+                pieData.push({ name: '現金', value: (cashTWD / grandTotal) * 100, isCash: true });
             }
             // 期貨欄（SDK 帳戶權益）
             if (futTWD > 0 && grandTotal > 0) {
                 pieData.push({ name: '期貨', value: (futTWD / grandTotal) * 100, isFutures: true, rawTWD: futTWD });
+            }
+            // 加密資產欄（幣安 + 派網）
+            if (cryptoTWD > 0 && grandTotal > 0) {
+                pieData.push({ name: '加密', value: (cryptoTWD / grandTotal) * 100, isCrypto: true, rawTWD: cryptoTWD });
             }
 
             // 再次強制 100%
@@ -1515,8 +1562,8 @@
             });
 
             const colors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
-            const futuresColor = '#a855f7';
-            const pieColors = pieData.map((d, i) => d.isCash ? cashColor : d.isFutures ? futuresColor : colors[i % colors.length]);
+            const pieColors = pieData.map((d, i) =>
+                d.isCash ? cashColor : d.isFutures ? futuresColor : d.isCrypto ? cryptoColor : colors[i % colors.length]);
 
             if (chartInstance) chartInstance.destroy();
             const ctx = document.getElementById('pieCanvas');
@@ -1533,7 +1580,7 @@
                 const color = pieColors[i];
                 const subLabel = d.isCash
                     ? `<span style="color:#94a3b8;font-size:0.75rem;margin-left:0.25rem;">(${cashTWD.toLocaleString('zh-TW', {maximumFractionDigits:0})} TWD)</span>`
-                    : d.isFutures
+                    : (d.isFutures || d.isCrypto)
                     ? `<span style="color:#94a3b8;font-size:0.75rem;margin-left:0.25rem;">(${(d.rawTWD||0).toLocaleString('zh-TW', {maximumFractionDigits:0})} TWD)</span>`
                     : '';
                 return `
@@ -1548,14 +1595,15 @@
             document.getElementById('pie-legend').innerHTML = legendHTML;
 
             // 更新快照（下次比對用）
-            const cashTWD2 = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
-            const futTWD2  = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
-            const grand2   = stats.totalValueTWD + cashTWD2 + futTWD2;
-            const shares2  = {};
+            const cashTWD2   = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+            const futTWD2    = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+            const cryptoTWD2 = (typeof getCryptoTotalTWD   === 'function') ? getCryptoTotalTWD()   : 0;
+            const grand2     = stats.totalValueTWD + cashTWD2 + futTWD2 + cryptoTWD2;
+            const shares2    = {};
             stats.holdingsWithStats.forEach(h => {
                 shares2[h.symbol] = grand2 > 0 ? (h.valueTWD ?? h.valueTotalTWD) / grand2 * 100 : 0;
             });
-            _pieSnapshot = { holdingsCount: holdings.length, currency, cashTWD: cashTWD2, futTWD: futTWD2, shares: shares2, lastForcedAt: Date.now() };
+            _pieSnapshot = { holdingsCount: holdings.length, currency, cashTWD: cashTWD2, futTWD: futTWD2, cryptoTWD: cryptoTWD2, shares: shares2, lastForcedAt: Date.now() };
         }
 
         function renderAll() {
@@ -2003,6 +2051,23 @@
             const v = parseFloat(localStorage.getItem(PT_CASH_KEY)) || 0;
             const el = document.getElementById('cash-twd-input');
             if (el && v > 0) el.value = v;
+        }
+
+        // ==================== 派網總資產（手動 TWD；含 bot 鎖倉）=======
+        // Pionex 公開 API 不含網格/DCA/Earn 鎖倉，改由使用者直接看 App「總資產估值」頁填進來。
+        const PT_PIONEX_KEY = 'pt_v13_pionex_twd';
+        function savePionexTwd() {
+            const v = parseFloat(document.getElementById('pionex-twd-input')?.value) || 0;
+            if (v > 0) localStorage.setItem(PT_PIONEX_KEY, v);
+            else localStorage.removeItem(PT_PIONEX_KEY);
+        }
+        function loadPionexTwd() {
+            const v = parseFloat(localStorage.getItem(PT_PIONEX_KEY)) || 0;
+            const el = document.getElementById('pionex-twd-input');
+            if (el && v > 0) el.value = v;
+        }
+        function getPionexManualTWD() {
+            return parseFloat(document.getElementById('pionex-twd-input')?.value) || 0;
         }
 
         // ==================== v13 LocalStorage 持久化 ====================
@@ -3338,13 +3403,13 @@
                         const fjKey = r.isProxy ? r.holding : r.query;
                         const fj = _fjCache.data[fjKey];
                         if (!fj) return;
-                        // 快取跨天時也強制從 fundamentals.json 更新（不只填 null）
-                        if (fj.prev_close      != null) _tmpPrevClose[r.holding]     = fj.prev_close;
-                        if (fj.prev_prev_close != null) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
+                        // fundamentals.json 只作備援（prices.json 在 Step 0.5c+d 會強制覆蓋）
+                        if (fj.prev_close      != null && _tmpPrevClose[r.holding]     == null) _tmpPrevClose[r.holding]     = fj.prev_close;
+                        if (fj.prev_prev_close != null && _tmpPrevPrevClose[r.holding] == null) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
                         // 同步回 allResults 讓快取存檔也更新
                         if (allResults[fjKey]) {
-                            if (fj.prev_close      != null) allResults[fjKey].prevClose     = fj.prev_close;
-                            if (fj.prev_prev_close != null) allResults[fjKey].prevPrevClose = fj.prev_prev_close;
+                            if (fj.prev_close      != null && allResults[fjKey].prevClose     == null) allResults[fjKey].prevClose     = fj.prev_close;
+                            if (fj.prev_prev_close != null && allResults[fjKey].prevPrevClose == null) allResults[fjKey].prevPrevClose = fj.prev_prev_close;
                         }
                     });
                 }
@@ -3585,6 +3650,22 @@
                         }
                     });
 
+                    // Step 0.5c+：所有標的 prevClose & prevPrevClose 以 prices.json 強制更新
+                    //   prices.json 是最新來源（GitHub Actions 每 5 分鐘更新，含時區校正），
+                    //   優先級高於 fundamentals.json（週更，常落後一天）與 allResults 快取。
+                    if (_pjFin.prev_closes) {
+                        rows.forEach(r => {
+                            const pc = _pjFin.prev_closes[r.holding];
+                            if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
+                        });
+                    }
+                    if (_pjFin.prev_prev_closes) {
+                        rows.forEach(r => {
+                            const ppc = _pjFin.prev_prev_closes[r.holding];
+                            if (ppc != null && ppc > 0) _tmpPrevPrevClose[r.holding] = ppc;
+                        });
+                    }
+
                     rows.filter(r => r.isProxy && r.holding.endsWith('.HK')).forEach(r => {
                         // c：prevClose 仍 null → 從 prev_closes 補（HK）
                         if (_tmpPrevClose[r.holding] == null && _pjFin.prev_closes) {
@@ -3634,6 +3715,7 @@
             _storageReady = true;  // 還原完成，開放寫入
             loadSyncSettings();
             loadCash();
+            loadPionexTwd();
             setCurrency(currency); // 同步按鈕高亮（預設 TWD，或從 localStorage 還原的值）
             _refreshUndoRedo();    // 初始化 Undo/Redo 按鈕狀態
             renderAll();
@@ -4641,10 +4723,13 @@
         let _futHistTs = 0;              // 上次讀 history 的時間（ms），每 10 分鐘刷新
         let _futRefreshCount = 0;        // 搭配 silentRefreshPrices 的 10s tick；每 3 次 ≈ 30s 拉一次
 
-        // 讀取 data/futures_history.json（server.py 每日 14:05 寫入），取得昨日 today_balance
+        // 讀取 data/futures_history.json（server.py 交易時段每 15 分鐘寫入一次；
+        // 手機 / GitHub Pages 版透過此檔案取得接近即時的期貨權益／未實現損益）。
+        // TTL 2 分鐘：配合 server.py 15 分鐘寫入 + git push 傳播延遲，手機幾乎每次
+        // auto-refresh tick 都會嘗試重抓（fetch 是 no-store，若檔案未變動伺服器回 304）。
         async function loadFuturesHistory(force = false) {
             const now = Date.now();
-            if (!force && _futuresHistory && (now - _futHistTs) < 10 * 60 * 1000) return;
+            if (!force && _futuresHistory && (now - _futHistTs) < 2 * 60 * 1000) return;
             try {
                 const r = await fetch('./data/futures_history.json?t=' + now, { cache: 'no-store' });
                 if (!r.ok) { _futHistTs = now; return; }
@@ -4666,15 +4751,17 @@
             if (tx)  tx.textContent = text;
         }
 
-        async function loadFuturesData(silent = true) {
+        async function loadFuturesData(silent = true, forceRefresh = false) {
             const section = document.getElementById('futures-section');
             if (!section) return;
 
             // 先並行拉 SDK + history（手機/雲端無 SDK 時會退用 history 最近一筆）
-            const _fetchOpts = { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined };
+            // forceRefresh=true 時帶 ?refresh=1，server.py 會跳過 60s 快取直接重跑 SDK（交易後即時同步）
+            const _fetchOpts = { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined };
+            const _qs = forceRefresh ? '?refresh=1' : '';
             const [posRes, stateRes] = await Promise.all([
-                fetch(`${FMX_API_BASE}/fmx/positions`, _fetchOpts).catch(_ => null),
-                fetch(`${FMX_API_BASE}/fmx/state`,     _fetchOpts).catch(_ => null),
+                fetch(`${FMX_API_BASE}/fmx/positions${_qs}`, _fetchOpts).catch(_ => null),
+                fetch(`${FMX_API_BASE}/fmx/state`,            _fetchOpts).catch(_ => null),
             ]);
             // history 同步拉（10 分鐘 cache）；給 SDK 成功時計算昨日漲跌、SDK 失敗時作 fallback
             await loadFuturesHistory().catch(_ => {});
@@ -4852,6 +4939,51 @@
             if (typeof renderAll === 'function') renderAll();
         }
 
+        // 強制重新抓取期貨資料（跳過 server.py 60s 快取，交易後按此即時同步 realized/unrealized）
+        async function refreshFuturesNow() {
+            const btn = document.getElementById('fut-refresh-btn');
+            if (!btn) return;
+            const origText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ 更新中…';
+            btn.style.opacity = '0.6';
+            try {
+                await loadFuturesData(true, /* forceRefresh */ true);
+                btn.textContent = '✓ 已更新';
+                btn.style.background  = 'rgba(16,185,129,0.3)';
+                setTimeout(() => {
+                    btn.textContent = origText;
+                    btn.style.background  = 'rgba(16,185,129,0.15)';
+                    btn.style.opacity = '1';
+                    btn.disabled = false;
+                }, 1200);
+            } catch (e) {
+                btn.textContent = '✗ 失敗';
+                btn.style.background = 'rgba(239,68,68,0.2)';
+                setTimeout(() => {
+                    btn.textContent = origText;
+                    btn.style.background = 'rgba(16,185,129,0.15)';
+                    btn.style.opacity = '1';
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+
+        // 跨分頁同步：fmx-dashboard.html 成功下單後會 broadcast，portfolio-tracker 收到就即時刷新
+        (function initFuturesTradeSync() {
+            try {
+                if (!('BroadcastChannel' in window)) return;
+                const ch = new BroadcastChannel('pt_futures_sync');
+                ch.onmessage = (e) => {
+                    const t = e?.data?.type;
+                    if (t === 'trade_placed' || t === 'order_filled') {
+                        // 延遲 1.5 秒讓 Fubon 端成交完成，再強制拉一次
+                        setTimeout(() => loadFuturesData(true, true), 1500);
+                    }
+                };
+            } catch(_) {}
+        })();
+
         // 提供給 calculateStats/renderPie 使用：回傳期貨權益（TWD）
         function getFuturesEquityTWD() {
             const on = localStorage.getItem(FUT_INCLUDE_KEY) !== 'false';
@@ -4899,10 +5031,10 @@
             return isFinite(diff) ? diff : 0;
         }
 
-        // ==================== 加密資產（Binance + Pionex）====================
-        // data/crypto_balance.json 由 server.py 每 10 分鐘呼叫 fetch_crypto_balance.py 更新；
-        // 手機 / GitHub Pages 會退用靜態檔（最後一次推上來的結果）。
-        let _cryptoData = null;          // { total_usd, exchanges:{...}, errors:{...} }
+        // ==================== 加密資產（Binance API + 派網手動 TWD）============
+        // Binance Spot/Futures 由 server.py 每 10 分鐘呼叫 fetch_crypto_balance.py 更新；
+        // 派網因為公開 API 不含 bot/earn 鎖倉，改由使用者直接在「派網總資產」輸入框填 TWD。
+        let _cryptoData = null;          // { total_usd (幣安 USD), exchanges:{binance_spot,binance_futures}, errors:{...} }
         let _cryptoTs   = 0;             // 上次 fetch ms
 
         async function loadCryptoData(force = false) {
@@ -4938,15 +5070,26 @@
             _cryptoTs = now;   // 避免失敗時反覆打
         }
 
-        function getCryptoTotalUSD() {
+        // 幣安淨值（USD）＝ 現貨 + 合約（由 API 自動取得）
+        function getBinanceTotalUSD() {
             const v = Number(_cryptoData?.total_usd ?? 0);
             return isFinite(v) && v > 0 ? v : 0;
         }
-        function getCryptoTotalTWD() {
-            const usd = getCryptoTotalUSD();
+        function getBinanceTotalTWD() {
+            const usd = getBinanceTotalUSD();
             if (usd <= 0) return 0;
             const fx = exchangeRates.USD_TWD > 0 ? exchangeRates.USD_TWD : 0;
             return fx > 0 ? usd * fx : 0;
+        }
+        // 加密總資產（TWD）＝ 幣安（USD→TWD）+ 派網手動輸入（TWD）
+        function getCryptoTotalTWD() {
+            return getBinanceTotalTWD() + getPionexManualTWD();
+        }
+        function getCryptoTotalUSD() {
+            const twd = getCryptoTotalTWD();
+            if (twd <= 0) return 0;
+            const fx = exchangeRates.USD_TWD > 0 ? exchangeRates.USD_TWD : 0;
+            return fx > 0 ? twd / fx : 0;
         }
 
         async function silentRefreshPrices(skipProxyFetch = false) {

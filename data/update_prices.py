@@ -5,8 +5,21 @@ GitHub Actions 即時報價更新腳本
 """
 import json, os, time, urllib.request
 from datetime import datetime, timezone
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 
 import yfinance as yf
+
+
+def _market_tz(sym: str) -> str:
+    """依代碼後綴推斷市場時區；用於「今日」判斷，避免把已收盤的今日 bar 誤當成昨日。"""
+    if sym.endswith('.KS'): return 'Asia/Seoul'
+    if sym.endswith('.HK'): return 'Asia/Hong_Kong'
+    if sym.endswith('.TW'): return 'Asia/Taipei'
+    if sym.endswith('-USD') or sym.endswith('-USDT'): return 'UTC'
+    return 'America/New_York'  # 美股 / 其他預設
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -68,16 +81,51 @@ def fetch_prev_close(sym):
         pass
     return None
 
+def fetch_prev_two_closes(sym):
+    """一次抓最近兩個「過去交易日」收盤價，供前端「昨日漲跌/昨日損益」計算。
+    關鍵：用市場當地時區判斷「今日」並排除今日的 bar —
+      若台股 18:43（已收盤）跑，history 會含 4/23 today bar；
+      若不排除，前端會把 4/23 當昨收、4/22 當前日，結果「昨日漲跌」顯示的變成前天 vs 大前天。
+    回傳 (prev_close, prev_prev_close)。"""
+    try:
+        df = yf.Ticker(sym).history(period='15d', auto_adjust=True)
+        if df is None or df.empty:
+            return None, None
+        tz_name = _market_tz(sym)
+        today_mkt = datetime.now(ZoneInfo(tz_name)).date()
+        past_closes = []
+        for ts, v in df['Close'].dropna().items():
+            try:
+                # ts 可能是 tz-aware（國際股）或 tz-naive（美股）；統一拿 date
+                d = ts.to_pydatetime().date() if hasattr(ts, 'to_pydatetime') else ts.date()
+            except Exception:
+                continue
+            if d < today_mkt:  # 嚴格小於今日 → 過去交易日
+                past_closes.append(float(v))
+        if len(past_closes) >= 2:
+            return round(past_closes[-1], 4), round(past_closes[-2], 4)
+        if len(past_closes) == 1:
+            return round(past_closes[-1], 4), None
+    except Exception:
+        pass
+    return None, None
+
 prices = {}
 prev_closes = {}
+prev_prev_closes = {}
 for sym in symbols:
     price = fetch_price(sym)
     if price:
         prices[sym] = price
-    pc = fetch_prev_close(sym)
+    # 先嘗試一次抓兩天收盤（比較準，避開假日）；失敗則退用單天 fast_info
+    pc, ppc = fetch_prev_two_closes(sym)
+    if pc is None:
+        pc = fetch_prev_close(sym)
     if pc:
         prev_closes[sym] = pc
-    print(f'  {sym}: price={prices.get(sym,"N/A")}  prev_close={prev_closes.get(sym,"N/A")}', flush=True)
+    if ppc:
+        prev_prev_closes[sym] = ppc
+    print(f'  {sym}: price={prices.get(sym,"N/A")}  prev={prev_closes.get(sym,"N/A")}  prev_prev={prev_prev_closes.get(sym,"N/A")}', flush=True)
     time.sleep(0.25)
 
 # 匯率（open.er-api.com，免費，無需 API key）
@@ -98,10 +146,11 @@ except Exception as e:
     print(f'  Rates ERROR: {e}', flush=True)
 
 output = {
-    'generated':   datetime.now(timezone.utc).isoformat(),
-    'prices':      prices,
-    'prev_closes': prev_closes,   # 昨收價，供前端 prevCloseCache 使用（避免 CORS yfFetch 失敗）
-    'rates':       rates,
+    'generated':        datetime.now(timezone.utc).isoformat(),
+    'prices':           prices,
+    'prev_closes':      prev_closes,      # 昨收價，供前端 prevCloseCache 使用（避免 CORS yfFetch 失敗）
+    'prev_prev_closes': prev_prev_closes, # 前日收盤，供「昨日漲跌/昨日損益」計算（手機 yfFetch 常失敗時的 fallback）
+    'rates':            rates,
 }
 
 out_path = os.path.join(ROOT, 'prices.json')

@@ -30,7 +30,7 @@ PROXY_EARNINGS_MAP = {
 # 可在此指定 YYYY-MM-DD (交易所本地日期)，程式會以此覆寫 yfinance 回傳值。
 # 每季發布完後建議更新或刪除對應條目。
 EARNINGS_DATE_OVERRIDES = {
-    '000660.KS': '2026-04-23',  # SK Hynix Q1 2026 實際發布日 (KST)；yfinance 回 Apr 22
+    # Q1 2026: SK Hynix 已於 2026-04-23 發布，yfinance 現已回傳正確的 Q2 日期，無需覆蓋
 }
 
 

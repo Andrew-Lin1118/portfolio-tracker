@@ -80,12 +80,19 @@ _archive_last_snapshot = 0.0    # 最後一次 snapshot 的 epoch（無論成功
 _archive_last_backfill = None   # 最後一次 TAIFEX 回補的日期
 
 # ── futures equity snapshot scheduler ─────────────────────
-# 每日 14:05 TW（日盤結算後）快照 margin 欄位到 data/futures_history.json，
-# 供前端計算「昨日漲跌（期貨）」＝ today_balance 日差。
+# 交易時段內每 FUT_SNAPSHOT_INTERVAL_MIN 分鐘（預設 15 min）快照 margin 欄位
+# 到 data/futures_history.json，供前端計算「昨日漲跌（期貨）」＝ today_balance
+# 日差，並讓手機 / GitHub Pages 版在交易時段也能看到接近即時的權益。
+# 若設定 autopush，每次更新後會 git commit & push（snapshot_futures.py 內部會
+# 判斷若檔案無變動則略過 commit，降低 git 噪音）。
+# 盤中（13:45~14:05 結算前）台指權益會劇烈變動，收盤後 14:05 也會跑一次確保
+# 最終日結值被寫入。
 FUT_SNAPSHOT_SCRIPT = os.path.join(DIR, 'data', 'snapshot_futures.py')
-_fut_snap_last_date = None       # 最後一次快照成功的日期（ISO）
+_fut_snap_last_run  = 0.0        # 最後一次快照成功的 epoch
 # 環境變數 FUT_SNAPSHOT_AUTOPUSH=1 時自動 git commit & push（預設開啟）
 _fut_snap_autopush  = os.environ.get('FUT_SNAPSHOT_AUTOPUSH', '1') != '0'
+# 交易時段快照間隔；非交易時段跳過（避免無意義的 SDK 呼叫 & commit）
+_fut_snap_interval  = int(os.environ.get('FUT_SNAPSHOT_INTERVAL_MIN', '15')) * 60
 
 # ── crypto balance fetcher（幣安 / 派網 淨值）─────────
 # 每 10 分鐘更新一次 data/crypto_balance.json；前端 /crypto/balance 直接吃檔。
@@ -176,22 +183,25 @@ def _log_archive(msg):
 
 def _futures_snapshot_scheduler():
     """
-    每日 14:05 TW（週一~五，日盤結算後）快照期貨 margin 欄位，
-    寫入 data/futures_history.json；若設定自動 push 則額外執行 git commit & push。
-    迴圈每 5 分鐘檢查一次，一日只跑一次。
+    交易時段內每 _fut_snap_interval 秒（預設 15 min）快照期貨 margin 欄位，
+    寫入 data/futures_history.json；若設定 autopush 則 git commit + push。
+    非交易時段（週末、台指封關）跳過，避免無意義的 SDK 呼叫 & commit 噪音。
+    snapshot_futures.py 內部會比對 'git diff --cached'，無變動時自動略過 commit。
+
+    交易時段（_in_futures_trading_window）：
+      • 日盤：週一~五 08:45 ~ 14:10  (延後到 14:10 涵蓋結算後 5 min)
+      • 夜盤：週一~五 15:00 ~ 次日 05:05
     """
-    global _fut_snap_last_date
+    global _fut_snap_last_run
     time.sleep(60)   # 等 server 啟動完成
-    print('[fut-snap] 排程已啟動（每 5 分鐘檢查；觸發條件：平日 14:05+ 且今日未跑）', flush=True)
+    interval_min = _fut_snap_interval // 60
+    print(f'[fut-snap] 排程已啟動（交易時段每 {interval_min} 分鐘；'
+          f'autopush={_fut_snap_autopush}）', flush=True)
     while True:
         try:
             now = datetime.datetime.now()
-            today_str = now.date().isoformat()
-            # 平日 14:05+（日盤 13:45 結算後）；若 server 中午重啟，會等到 14:05 才跑
-            if (now.weekday() < 5
-                    and (now.hour > 14 or (now.hour == 14 and now.minute >= 5))
-                    and _fut_snap_last_date != today_str):
-                _log_fut_snap(f'觸發 {today_str} 快照 (autopush={_fut_snap_autopush})')
+            if _in_futures_trading_window(now) and (time.time() - _fut_snap_last_run) >= _fut_snap_interval:
+                _log_fut_snap(f'觸發快照 {now.strftime("%H:%M")} (autopush={_fut_snap_autopush})')
                 args = [PY, FUT_SNAPSHOT_SCRIPT]
                 if _fut_snap_autopush:
                     args.append('--commit')
@@ -202,7 +212,7 @@ def _futures_snapshot_scheduler():
                         timeout=180, creationflags=NWIN_FLAG,
                     )
                     if r.returncode == 0:
-                        _fut_snap_last_date = today_str
+                        _fut_snap_last_run = time.time()
                         tail = (r.stdout or '').strip().splitlines()[-3:]
                         for line in tail:
                             _log_fut_snap(line)
@@ -212,7 +222,31 @@ def _futures_snapshot_scheduler():
                     _log_fut_snap(f'subprocess 例外：{e}')
         except Exception as e:
             print(f'[fut-snap] scheduler err: {e}', flush=True)
-        time.sleep(300)   # 5 分鐘檢查一次
+        time.sleep(60)   # 1 分鐘檢查一次（實際觸發間隔由 _fut_snap_interval 控制）
+
+
+def _in_futures_trading_window(now: datetime.datetime) -> bool:
+    """台指期交易時段：平日 08:45–14:10 (日盤+結算 buffer) 或 15:00–次日 05:05 (夜盤)。"""
+    wd = now.weekday()   # Mon=0..Sun=6
+    hm = now.hour * 60 + now.minute
+    # 週六 05:05 後 ~ 週日整日：無夜盤
+    if wd == 5 and hm > 5 * 60 + 5:
+        return False
+    if wd == 6:
+        return False
+    # 週一 00:00~05:05：前一天（日）無夜盤
+    if wd == 0 and hm < 5 * 60 + 5:
+        return False
+    # 夜盤尾（週二~週六 00:00~05:05）
+    if hm <= 5 * 60 + 5:
+        return True
+    # 日盤 08:45~14:10
+    if 8 * 60 + 45 <= hm <= 14 * 60 + 10:
+        return True
+    # 夜盤 15:00~23:59
+    if hm >= 15 * 60:
+        return True
+    return False
 
 
 def _log_fut_snap(msg):

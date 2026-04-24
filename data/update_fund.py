@@ -238,6 +238,7 @@ for sym in symbols:
                                 surp_pct = safe_float((eps_actual - eps_est) / abs(eps_est))
                             earnings_history.append({
                                 'quarter':      f'{dt.year} Q{q_num}',
+                                'report_date':  dt.strftime('%Y-%m-%d'),
                                 'eps_estimate': eps_est,
                                 'eps_actual':   eps_actual,
                                 'surprise_pct': surp_pct,

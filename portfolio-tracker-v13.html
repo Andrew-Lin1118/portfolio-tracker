@@ -4021,11 +4021,14 @@
                                 ? (actualVal - estVal) / Math.abs(estVal) : null;
                             const d = new Date(Number(ts) * 1000);
                             const qNum = Math.ceil((d.getMonth() + 1) / 3);
+                            const mm = String(d.getMonth() + 1).padStart(2, '0');
+                            const dd = String(d.getDate()).padStart(2, '0');
                             return {
                                 epsActual:       { raw: actualVal },
                                 epsEstimate:     { raw: estVal },
                                 surprisePercent: { raw: surpRaw != null ? surpRaw / 100 : calcSurp },
-                                quarter:         { fmt: `${d.getFullYear()} Q${qNum}` }
+                                quarter:         { fmt: `${d.getFullYear()} Q${qNum}` },
+                                reportDate:      `${d.getFullYear()}-${mm}-${dd}`
                             };
                         });
 
@@ -4080,7 +4083,8 @@
                             epsActual:       { raw: e.eps_actual },
                             epsEstimate:     { raw: e.eps_estimate },
                             surprisePercent: { raw: e.surprise_pct },
-                            quarter:         { fmt: e.quarter }
+                            quarter:         { fmt: e.quarter },
+                            reportDate:      e.report_date || null
                         }))
                     };
                 }
@@ -4285,8 +4289,9 @@
                 const earningsRows = eh.slice(-4).reverse().map(e => {
                     const actual = e.epsActual?.raw, est = e.epsEstimate?.raw, surp = e.surprisePercent?.raw;
                     const beat = surp != null ? surp > 0 : null;
+                    const rd = e.reportDate ? (e.reportDate.length >= 10 ? e.reportDate.slice(5) : e.reportDate) : '';
                     return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                        <td style="padding:0.28rem 0.45rem;color:#94a3b8;font-size:0.78rem;">${e.quarter?.fmt||'-'}</td>
+                        <td style="padding:0.28rem 0.45rem;color:#94a3b8;font-size:0.78rem;white-space:nowrap;">${e.quarter?.fmt||'-'}${rd?`<span style="color:#64748b;font-size:0.7rem;margin-left:0.35rem;">${rd}</span>`:''}</td>
                         <td style="padding:0.28rem 0.45rem;text-align:right;color:#e2e8f0;font-size:0.8rem;">${est != null ? est.toFixed(2) : '-'}</td>
                         <td style="padding:0.28rem 0.45rem;text-align:right;font-weight:700;font-size:0.8rem;color:${beat===true?'#10b981':beat===false?'#ef4444':'#e2e8f0'};">${actual != null ? actual.toFixed(2) : '-'}</td>
                         <td style="padding:0.28rem 0.45rem;text-align:right;font-size:0.78rem;">${surp!=null?`<span style="padding:0.08rem 0.3rem;border-radius:4px;background:${beat?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)'};color:${beat?'#10b981':'#ef4444'};">${beat?'+':''}${(surp*100).toFixed(1)}%</span>`:'-'}</td>

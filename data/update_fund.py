@@ -477,3 +477,11 @@ with open(out_path, 'w', encoding='utf-8') as f:
     json.dump(output, f, ensure_ascii=False, indent=2)
 
 print(f'\nDone. {len(result)} symbols → fundamentals.json  ({datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")})')
+
+# ── 順便更新大盤本益比（市場本益比/河流圖資料；fetch_market_pe.py 獨立可運行）──
+try:
+    print('\n更新大盤本益比 (market_pe.json) ...', flush=True)
+    import subprocess, sys as _sys
+    subprocess.run([_sys.executable, os.path.join(ROOT, 'fetch_market_pe.py')], check=False, timeout=180)
+except Exception as _e:
+    print(f'  [market_pe] 更新失敗（不影響 fundamentals）：{_e}', flush=True)

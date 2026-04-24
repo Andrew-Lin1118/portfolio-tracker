@@ -3982,8 +3982,8 @@
         function _isMacroCacheFresh() {
             try { const r = JSON.parse(localStorage.getItem(_MACRO_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _MACRO_CACHE_TTL); } catch { return false; }
         }
-        function _saveMacroCache(results, news) {
-            try { localStorage.setItem(_MACRO_CACHE_KEY, JSON.stringify({ts:Date.now(), results, news})); } catch {}
+        function _saveMacroCache(results, news, marketPE) {
+            try { localStorage.setItem(_MACRO_CACHE_KEY, JSON.stringify({ts:Date.now(), results, news, marketPE})); } catch {}
         }
 
         async function loadEarningsAnalysis(forceRefresh) {
@@ -4466,7 +4466,7 @@
             if (!forceRefresh) {
                 const cached = _loadMacroCache();
                 if (cached) {
-                    renderMacroTab(cached.results, cached.news);
+                    renderMacroTab(cached.results, cached.news, cached.marketPE);
                     _macroLoaded = true;
                     if (btn) { btn.textContent = '🔄 更新總經數據'; btn.disabled = false; }
                     if (statusEl) {
@@ -4608,16 +4608,24 @@
                 } catch(_) {}
             }
 
-            // 存入快取（1小時 TTL）
-            _saveMacroCache(results, macroNews);
+            // ── 抓大盤本益比（data/market_pe.json，由 fetch_market_pe.py 產生）──
+            let marketPE = null;
+            try {
+                if (statusEl) statusEl.textContent = '抓取大盤本益比...';
+                const r = await fetch('./data/market_pe.json', { cache: 'no-store' });
+                if (r.ok) marketPE = await r.json();
+            } catch(_) {}
 
-            renderMacroTab(results, macroNews);
+            // 存入快取（1小時 TTL）
+            _saveMacroCache(results, macroNews, marketPE);
+
+            renderMacroTab(results, macroNews, marketPE);
             _macroLoaded = true;
             if (btn) { btn.textContent = '🔄 更新總經數據'; btn.disabled = false; }
             if (statusEl) statusEl.textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW');
         }
 
-        function renderMacroTab(data, news) {
+        function renderMacroTab(data, news, marketPE) {
             const perfDiv = document.getElementById('macro-perf');
             const newsDiv = document.getElementById('macro-news');
 
@@ -4661,7 +4669,11 @@
                         }).join('')}
                         </div>
                     </div>`;
-                }).join('') + generateMacroAnalysis(data);
+                }).join('') + generateMacroAnalysis(data) + renderMarketPESection(marketPE);
+                // PE 河流圖（在 perfDiv 注入完成後，初次繪製預設指數）
+                if (marketPE && Array.isArray(marketPE.indexes) && marketPE.indexes.length > 0) {
+                    setTimeout(() => drawMarketPEChart(marketPE.indexes[0].key, marketPE), 30);
+                }
             }
 
             if (newsDiv) {
@@ -4686,6 +4698,144 @@
                     }).join('');
                 }
             }
+        }
+
+        // ==================== 大盤本益比 + 河流圖 ====================
+        let _marketPECache = null;     // 提供給 drawMarketPEChart 重新繪製用
+        let _marketPEChartObj = null;  // Chart.js 實例
+
+        // 由歷史 PE 計算統計（mean / std / 百分位）
+        function _peStats(history) {
+            const vals = (history || []).map(h => h.pe).filter(v => v != null && isFinite(v));
+            if (vals.length === 0) return null;
+            const sorted = [...vals].sort((a,b)=>a-b);
+            const mean = vals.reduce((a,b)=>a+b,0) / vals.length;
+            const variance = vals.reduce((a,b)=>a+(b-mean)*(b-mean),0) / vals.length;
+            const std = Math.sqrt(variance);
+            const min = sorted[0], max = sorted[sorted.length-1];
+            const cur = vals[vals.length-1];
+            // 百分位：當前 PE 在歷史中的位置
+            let rank = sorted.findIndex(v => v >= cur);
+            if (rank < 0) rank = sorted.length;
+            const pctile = Math.round(rank / sorted.length * 100);
+            return { mean, std, min, max, cur, pctile, n: vals.length };
+        }
+
+        function renderMarketPESection(marketPE) {
+            if (!marketPE || !Array.isArray(marketPE.indexes) || marketPE.indexes.length === 0) {
+                return `<div style="margin-top:1rem;padding:0.75rem 1rem;background:rgba(15,30,60,0.5);
+                    border:1px solid rgba(251,191,36,0.15);border-radius:10px;color:#94a3b8;font-size:0.82rem;">
+                    📈 大盤本益比：尚無資料（請執行 <code style="background:rgba(0,0,0,0.3);padding:0.05rem 0.3rem;border-radius:3px;">python data/fetch_market_pe.py</code>）
+                </div>`;
+            }
+            _marketPECache = marketPE;
+            const cards = marketPE.indexes.map(idx => {
+                const stats = _peStats(idx.history);
+                const tpe = idx.trailing_pe, fpe = idx.forward_pe, spe = idx.shiller_pe;
+                let pctileColor = '#94a3b8';
+                if (stats) {
+                    if (stats.pctile >= 80)      pctileColor = '#ef4444'; // 偏貴
+                    else if (stats.pctile >= 60) pctileColor = '#f59e0b';
+                    else if (stats.pctile >= 40) pctileColor = '#fbbf24';
+                    else if (stats.pctile >= 20) pctileColor = '#10b981';
+                    else                         pctileColor = '#22c55e'; // 偏便宜
+                }
+                const pctileTxt = stats ? `${stats.pctile}th` : '-';
+                const meanTxt   = stats ? stats.mean.toFixed(1) : '-';
+                return `<div onclick="drawMarketPEChart('${idx.key}')" id="mpe-card-${idx.key}"
+                    style="cursor:pointer;background:rgba(15,30,60,0.55);border:1px solid rgba(96,165,250,0.18);
+                    border-radius:10px;padding:0.65rem 0.85rem;transition:all 0.15s;"
+                    onmouseover="this.style.borderColor='rgba(96,165,250,0.5)'"
+                    onmouseout="this.style.borderColor='rgba(96,165,250,0.18)'">
+                    <div style="color:#94a3b8;font-size:0.74rem;margin-bottom:0.2rem;">${idx.name}</div>
+                    <div style="display:flex;align-items:baseline;gap:0.5rem;flex-wrap:wrap;">
+                        <span style="font-size:1.35rem;font-weight:800;color:#60a5fa;letter-spacing:-0.5px;">${tpe != null ? tpe.toFixed(2) : '-'}</span>
+                        <span style="color:#64748b;font-size:0.7rem;">trailing</span>
+                        ${fpe != null ? `<span style="color:#a5b4fc;font-size:0.85rem;font-weight:600;">FPE ${fpe.toFixed(2)}</span>` : ''}
+                        ${spe != null ? `<span style="color:#fbbf24;font-size:0.78rem;">CAPE ${spe.toFixed(1)}</span>` : ''}
+                    </div>
+                    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.35rem;font-size:0.7rem;">
+                        <span style="padding:0.08rem 0.4rem;border-radius:4px;background:${pctileColor}22;color:${pctileColor};font-weight:700;">5Y百分位 ${pctileTxt}</span>
+                        <span style="color:#64748b;">5Y均 ${meanTxt}</span>
+                    </div>
+                </div>`;
+            }).join('');
+            const genTime = marketPE.generated ? new Date(marketPE.generated).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+            return `<div style="margin-top:1rem;background:rgba(15,30,60,0.5);border:1px solid rgba(251,191,36,0.25);
+                border-radius:12px;padding:1rem 1.1rem;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.65rem;flex-wrap:wrap;gap:0.5rem;">
+                    <div style="color:#fbbf24;font-size:0.85rem;font-weight:700;">📈 大盤本益比 + 河流圖</div>
+                    <div style="color:#475569;font-size:0.7rem;">資料更新 ${genTime}</div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem;margin-bottom:0.85rem;">
+                    ${cards}
+                </div>
+                <div id="mpe-chart-title" style="color:#94a3b8;font-size:0.76rem;margin-bottom:0.35rem;"></div>
+                <div style="position:relative;height:240px;">
+                    <canvas id="mpe-chart-canvas"></canvas>
+                </div>
+                <div style="color:#64748b;font-size:0.7rem;margin-top:0.5rem;line-height:1.5;">
+                    ※ 河流圖紅線=平均、虛線=±1σ。S&amp;P 500 PE 來源 multpl.com；Nasdaq/台股以 QQQ/0050.TW 之 ETF 收盤價反推 PE 軌跡（EPS 假設為當前 TTM）。
+                </div>
+            </div>`;
+        }
+
+        function drawMarketPEChart(key, marketPE) {
+            marketPE = marketPE || _marketPECache;
+            if (!marketPE) return;
+            const idx = marketPE.indexes.find(i => i.key === key);
+            if (!idx) return;
+            const canvas = document.getElementById('mpe-chart-canvas');
+            const titleEl = document.getElementById('mpe-chart-title');
+            if (!canvas) return;
+            // 高亮選中的卡片
+            marketPE.indexes.forEach(i => {
+                const el = document.getElementById('mpe-card-' + i.key);
+                if (el) el.style.background = (i.key === key) ? 'rgba(96,165,250,0.13)' : 'rgba(15,30,60,0.55)';
+            });
+            const stats = _peStats(idx.history);
+            if (titleEl) {
+                if (stats) titleEl.textContent = `${idx.name}：5Y 平均 ${stats.mean.toFixed(2)}，±1σ [${(stats.mean-stats.std).toFixed(2)}, ${(stats.mean+stats.std).toFixed(2)}]，當前 ${stats.cur.toFixed(2)}（${stats.pctile}th 百分位，n=${stats.n}）`;
+                else titleEl.textContent = `${idx.name}：無歷史資料`;
+            }
+            const labels = (idx.history||[]).map(h => h.d.slice(0,7));
+            const values = (idx.history||[]).map(h => h.pe);
+            if (_marketPEChartObj) { _marketPEChartObj.destroy(); _marketPEChartObj = null; }
+            if (typeof Chart === 'undefined') return;
+            const meanArr = stats ? values.map(()=> stats.mean) : [];
+            const upArr   = stats ? values.map(()=> stats.mean + stats.std) : [];
+            const dnArr   = stats ? values.map(()=> stats.mean - stats.std) : [];
+            _marketPEChartObj = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'PE', data: values, borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.12)',
+                          tension:0.25, borderWidth:2, fill:true, pointRadius:0, pointHoverRadius:4 },
+                        ...(stats ? [
+                            { label:'平均', data: meanArr, borderColor:'#ef4444', borderWidth:1.2, borderDash:[4,4], pointRadius:0, fill:false },
+                            { label:'+1σ', data: upArr,   borderColor:'#f59e0b', borderWidth:1,  borderDash:[2,3], pointRadius:0, fill:false },
+                            { label:'-1σ', data: dnArr,   borderColor:'#10b981', borderWidth:1,  borderDash:[2,3], pointRadius:0, fill:false },
+                        ] : [])
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode:'index', intersect:false },
+                    plugins: {
+                        legend: { display: true, labels: { color:'#94a3b8', font:{ size:10 }, boxWidth:18 } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: ${(+ctx.parsed.y).toFixed(2)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color:'#64748b', font:{ size:9 }, maxTicksLimit:8 }, grid: { color:'rgba(148,163,184,0.06)' } },
+                        y: { ticks: { color:'#64748b', font:{ size:9 } }, grid: { color:'rgba(148,163,184,0.08)' } },
+                    }
+                }
+            });
         }
 
         function generateMacroAnalysis(data) {

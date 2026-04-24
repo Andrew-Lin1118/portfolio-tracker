@@ -1,8 +1,8 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v1';
+const CACHE_NAME = 'portfolio-tracker-v4';   // ← 2026-04-24：總體經濟新增大盤本益比+河流圖、近4季EPS加日期
 const PRECACHE = [
-  './portfolio-tracker-v12.html',
+  './portfolio-tracker-v13.html',
   './data/fundamentals.json',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
   'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap'
@@ -28,9 +28,20 @@ self.addEventListener('activate', event => {
   );
 });
 
-// 請求攔截：優先網路，網路失敗才用快取（fundamentals.json 用快取優先）
+// 請求攔截：
+//   - HTML 主文件 → 一律走網路，不進快取（避免看到舊版 UI）
+//   - fundamentals.json → 快取優先（離線也能顯示舊資料）
+//   - 其他資源 → 網路優先，失敗再用快取
 self.addEventListener('fetch', event => {
   const url = event.request.url;
+
+  // HTML 主文件：永遠走網路（bypass cache）
+  if (url.endsWith('.html') || event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   // fundamentals.json → 快取優先（離線也能顯示舊資料）
   if (url.includes('fundamentals.json')) {

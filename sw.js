@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v4';   // ← 2026-04-24：總體經濟新增大盤本益比+河流圖、近4季EPS加日期
+const CACHE_NAME = 'portfolio-tracker-v5';   // ← 2026-04-25：圓餅圖扇區內直接顯示標的+百分比
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

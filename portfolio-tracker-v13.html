@@ -1567,13 +1567,109 @@
 
             if (chartInstance) chartInstance.destroy();
             const ctx = document.getElementById('pieCanvas');
+
+            // 扇區內直接標示「標的 + 百分比」的小外掛
+            const pieLabelPlugin = {
+                id: 'pieLabelPlugin',
+                afterDatasetsDraw(chart) {
+                    const c = chart.ctx;
+                    const meta = chart.getDatasetMeta(0);
+                    const ds   = chart.data.datasets[0].data;
+                    const lbls = chart.data.labels;
+                    if (!meta || !meta.data) return;
+                    c.save();
+                    c.textAlign = 'center';
+                    c.textBaseline = 'middle';
+                    c.lineJoin = 'round';
+                    meta.data.forEach((arc, i) => {
+                        const pct = ds[i];
+                        if (pct == null) return;
+                        const name = lbls[i];
+                        const pctTxt = pct.toFixed(1) + '%';
+                        const angle  = (arc.startAngle + arc.endAngle) / 2;
+                        const rInner = arc.innerRadius || 0;
+                        const rOuter = arc.outerRadius || 0;
+                        // 扇區中心（介於內外半徑中間偏外側一點，讓標籤有空間）
+                        const rMid = rInner + (rOuter - rInner) * 0.62;
+                        const cx = arc.x + Math.cos(angle) * rMid;
+                        const cy = arc.y + Math.sin(angle) * rMid;
+
+                        if (pct >= 4) {
+                            // 大扇區：兩行（標的 / 百分比）
+                            c.font = '600 12px "Noto Sans TC", system-ui, sans-serif';
+                            c.strokeStyle = 'rgba(0,0,0,0.85)';
+                            c.lineWidth = 3;
+                            c.fillStyle = '#ffffff';
+                            c.strokeText(name, cx, cy - 8);
+                            c.fillText(name,   cx, cy - 8);
+                            c.font = '700 11px "Noto Sans TC", system-ui, sans-serif';
+                            c.strokeText(pctTxt, cx, cy + 8);
+                            c.fillText(pctTxt,   cx, cy + 8);
+                        } else if (pct >= 1.5) {
+                            // 中扇區：縮小兩行
+                            c.font = '600 10px "Noto Sans TC", system-ui, sans-serif';
+                            c.strokeStyle = 'rgba(0,0,0,0.85)';
+                            c.lineWidth = 2.5;
+                            c.fillStyle = '#ffffff';
+                            c.strokeText(name, cx, cy - 6);
+                            c.fillText(name,   cx, cy - 6);
+                            c.font = '700 9px "Noto Sans TC", system-ui, sans-serif';
+                            c.strokeText(pctTxt, cx, cy + 6);
+                            c.fillText(pctTxt,   cx, cy + 6);
+                        } else if (pct >= 0.6) {
+                            // 小扇區：拉線到外側（name + pct 在外面）
+                            const rOut1 = rOuter + 6;
+                            const rOut2 = rOuter + 16;
+                            const x1 = arc.x + Math.cos(angle) * rOuter;
+                            const y1 = arc.y + Math.sin(angle) * rOuter;
+                            const x2 = arc.x + Math.cos(angle) * rOut1;
+                            const y2 = arc.y + Math.sin(angle) * rOut1;
+                            const isRight = Math.cos(angle) >= 0;
+                            const x3 = arc.x + Math.cos(angle) * rOut2 + (isRight ? 4 : -4);
+                            const y3 = y2;
+                            c.strokeStyle = 'rgba(226,232,240,0.55)';
+                            c.lineWidth = 1;
+                            c.beginPath();
+                            c.moveTo(x1, y1);
+                            c.lineTo(x2, y2);
+                            c.lineTo(x3, y3);
+                            c.stroke();
+                            c.font = '600 10px "Noto Sans TC", system-ui, sans-serif';
+                            c.textAlign = isRight ? 'left' : 'right';
+                            c.fillStyle = '#e2e8f0';
+                            c.strokeStyle = 'rgba(0,0,0,0.7)';
+                            c.lineWidth = 2.5;
+                            const txt = `${name} ${pctTxt}`;
+                            c.strokeText(txt, x3 + (isRight ? 2 : -2), y3);
+                            c.fillText(txt,   x3 + (isRight ? 2 : -2), y3);
+                            c.textAlign = 'center';
+                        }
+                        // pct < 0.6 → 不標示（避免擁擠，靠右側明細檢視）
+                    });
+                    c.restore();
+                }
+            };
+
             chartInstance = new Chart(ctx, {
                 type: 'pie',
                 data: {
                     labels: pieData.map(d => d.name),
                     datasets: [{ data: pieData.map(d => d.value), backgroundColor: pieColors, borderColor: '#0a1628', borderWidth: 3 }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: 24 },   // 留給小扇區外側標籤
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.label}: ${(ctx.parsed || 0).toFixed(2)}%`
+                            }
+                        }
+                    }
+                },
+                plugins: [pieLabelPlugin]
             });
 
             const legendHTML = pieData.map((d, i) => {

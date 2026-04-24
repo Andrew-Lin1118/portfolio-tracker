@@ -1568,7 +1568,7 @@
             if (chartInstance) chartInstance.destroy();
             const ctx = document.getElementById('pieCanvas');
 
-            // 扇區內直接標示「標的 + 百分比」的小外掛
+            // 扇區標示外掛：大扇區畫在內，中小扇區拉線到外（垂直堆疊防重疊）
             const pieLabelPlugin = {
                 id: 'pieLabelPlugin',
                 afterDatasetsDraw(chart) {
@@ -1576,76 +1576,126 @@
                     const meta = chart.getDatasetMeta(0);
                     const ds   = chart.data.datasets[0].data;
                     const lbls = chart.data.labels;
-                    if (!meta || !meta.data) return;
+                    if (!meta || !meta.data || !meta.data.length) return;
+
+                    const INSIDE_MIN = 6;    // ≥6% 直接畫在扇區內
+                    const SHOW_MIN   = 0.8;  // <0.8% 不標（太小，看右側明細）
+                    const firstArc   = meta.data[0];
+                    const cX         = firstArc.x;
+                    const cY         = firstArc.y;
+                    const rOuter     = firstArc.outerRadius;
+                    const rInner     = firstArc.innerRadius || 0;
+                    const LINE_H     = 14;
+                    const LABEL_GAP  = 20;   // 圓弧到 elbow 的水平距離
+
                     c.save();
-                    c.textAlign = 'center';
                     c.textBaseline = 'middle';
                     c.lineJoin = 'round';
+
+                    // 1) 先畫大扇區內部標籤
+                    const outsideItems = [];
                     meta.data.forEach((arc, i) => {
                         const pct = ds[i];
-                        if (pct == null) return;
-                        const name = lbls[i];
+                        if (pct == null || pct < SHOW_MIN) return;
+                        const name   = lbls[i];
                         const pctTxt = pct.toFixed(1) + '%';
                         const angle  = (arc.startAngle + arc.endAngle) / 2;
-                        const rInner = arc.innerRadius || 0;
-                        const rOuter = arc.outerRadius || 0;
-                        // 扇區中心（介於內外半徑中間偏外側一點，讓標籤有空間）
-                        const rMid = rInner + (rOuter - rInner) * 0.62;
-                        const cx = arc.x + Math.cos(angle) * rMid;
-                        const cy = arc.y + Math.sin(angle) * rMid;
-
-                        if (pct >= 4) {
-                            // 大扇區：兩行（標的 / 百分比）
-                            c.font = '600 12px "Noto Sans TC", system-ui, sans-serif';
+                        if (pct >= INSIDE_MIN) {
+                            // 內部：兩行
+                            const rMid = rInner + (rOuter - rInner) * 0.62;
+                            const ix = arc.x + Math.cos(angle) * rMid;
+                            const iy = arc.y + Math.sin(angle) * rMid;
+                            c.textAlign = 'center';
+                            c.font = '600 13px "Noto Sans TC", system-ui, sans-serif';
                             c.strokeStyle = 'rgba(0,0,0,0.85)';
                             c.lineWidth = 3;
                             c.fillStyle = '#ffffff';
-                            c.strokeText(name, cx, cy - 8);
-                            c.fillText(name,   cx, cy - 8);
-                            c.font = '700 11px "Noto Sans TC", system-ui, sans-serif';
-                            c.strokeText(pctTxt, cx, cy + 8);
-                            c.fillText(pctTxt,   cx, cy + 8);
-                        } else if (pct >= 1.5) {
-                            // 中扇區：縮小兩行
-                            c.font = '600 10px "Noto Sans TC", system-ui, sans-serif';
-                            c.strokeStyle = 'rgba(0,0,0,0.85)';
-                            c.lineWidth = 2.5;
-                            c.fillStyle = '#ffffff';
-                            c.strokeText(name, cx, cy - 6);
-                            c.fillText(name,   cx, cy - 6);
-                            c.font = '700 9px "Noto Sans TC", system-ui, sans-serif';
-                            c.strokeText(pctTxt, cx, cy + 6);
-                            c.fillText(pctTxt,   cx, cy + 6);
-                        } else if (pct >= 0.6) {
-                            // 小扇區：拉線到外側（name + pct 在外面）
-                            const rOut1 = rOuter + 6;
-                            const rOut2 = rOuter + 16;
-                            const x1 = arc.x + Math.cos(angle) * rOuter;
-                            const y1 = arc.y + Math.sin(angle) * rOuter;
-                            const x2 = arc.x + Math.cos(angle) * rOut1;
-                            const y2 = arc.y + Math.sin(angle) * rOut1;
-                            const isRight = Math.cos(angle) >= 0;
-                            const x3 = arc.x + Math.cos(angle) * rOut2 + (isRight ? 4 : -4);
-                            const y3 = y2;
-                            c.strokeStyle = 'rgba(226,232,240,0.55)';
-                            c.lineWidth = 1;
-                            c.beginPath();
-                            c.moveTo(x1, y1);
-                            c.lineTo(x2, y2);
-                            c.lineTo(x3, y3);
-                            c.stroke();
-                            c.font = '600 10px "Noto Sans TC", system-ui, sans-serif';
-                            c.textAlign = isRight ? 'left' : 'right';
-                            c.fillStyle = '#e2e8f0';
-                            c.strokeStyle = 'rgba(0,0,0,0.7)';
-                            c.lineWidth = 2.5;
-                            const txt = `${name} ${pctTxt}`;
-                            c.strokeText(txt, x3 + (isRight ? 2 : -2), y3);
-                            c.fillText(txt,   x3 + (isRight ? 2 : -2), y3);
-                            c.textAlign = 'center';
+                            c.strokeText(name, ix, iy - 9);
+                            c.fillText(name,   ix, iy - 9);
+                            c.font = '700 12px "Noto Sans TC", system-ui, sans-serif';
+                            c.strokeText(pctTxt, ix, iy + 9);
+                            c.fillText(pctTxt,   ix, iy + 9);
+                        } else {
+                            outsideItems.push({ arc, name, pctTxt, pct, angle });
                         }
-                        // pct < 0.6 → 不標示（避免擁擠，靠右側明細檢視）
                     });
+
+                    // 2) 外部標籤：依角度分左右、排序、解決重疊
+                    const left  = [];
+                    const right = [];
+                    outsideItems.forEach(it => {
+                        const isRight = Math.cos(it.angle) >= 0;
+                        it.isRight = isRight;
+                        it.naturalY = cY + Math.sin(it.angle) * (rOuter + 8);
+                        it.labelY   = it.naturalY;
+                        (isRight ? right : left).push(it);
+                    });
+
+                    function resolveOverlap(items, topBound, botBound) {
+                        if (!items.length) return;
+                        items.sort((a, b) => a.naturalY - b.naturalY);
+                        // 先用自然位置
+                        items.forEach(it => { it.labelY = it.naturalY; });
+                        // 向下掃：若與前一個太近，往下推
+                        for (let i = 1; i < items.length; i++) {
+                            if (items[i].labelY - items[i-1].labelY < LINE_H) {
+                                items[i].labelY = items[i-1].labelY + LINE_H;
+                            }
+                        }
+                        // 若超過下邊界，從最後一個開始向上推
+                        const last = items[items.length - 1];
+                        if (last.labelY > botBound) {
+                            last.labelY = botBound;
+                            for (let i = items.length - 2; i >= 0; i--) {
+                                if (items[i+1].labelY - items[i].labelY < LINE_H) {
+                                    items[i].labelY = items[i+1].labelY - LINE_H;
+                                }
+                            }
+                        }
+                        // 若超過上邊界，再從最頂端向下推一次
+                        if (items[0].labelY < topBound) {
+                            items[0].labelY = topBound;
+                            for (let i = 1; i < items.length; i++) {
+                                if (items[i].labelY - items[i-1].labelY < LINE_H) {
+                                    items[i].labelY = items[i-1].labelY + LINE_H;
+                                }
+                            }
+                        }
+                    }
+                    const topBound = cY - rOuter - 4;
+                    const botBound = cY + rOuter + 4;
+                    resolveOverlap(left,  topBound, botBound);
+                    resolveOverlap(right, topBound, botBound);
+
+                    // 3) 畫引線 + 外部文字
+                    c.font = '600 11px "Noto Sans TC", system-ui, sans-serif';
+                    [...left, ...right].forEach(it => {
+                        const { arc, name, pctTxt, angle, isRight, labelY } = it;
+                        const x1 = cX + Math.cos(angle) * rOuter;
+                        const y1 = cY + Math.sin(angle) * rOuter;
+                        // elbow 轉折點：固定 X 位置（圓外側固定距離），Y 用重疊解算後的 labelY
+                        const elbowX = cX + (isRight ? 1 : -1) * (rOuter + LABEL_GAP);
+                        // 從圓外 4px 處先轉一下，再水平到 elbowX
+                        const x2 = cX + Math.cos(angle) * (rOuter + 6);
+                        const y2 = labelY;
+                        c.strokeStyle = 'rgba(148,163,184,0.55)';
+                        c.lineWidth = 1;
+                        c.beginPath();
+                        c.moveTo(x1, y1);
+                        c.lineTo(x2, y2);
+                        c.lineTo(elbowX, y2);
+                        c.stroke();
+
+                        const tx = elbowX + (isRight ? 4 : -4);
+                        c.textAlign = isRight ? 'left' : 'right';
+                        c.fillStyle = '#e2e8f0';
+                        c.strokeStyle = 'rgba(0,0,0,0.75)';
+                        c.lineWidth = 2.5;
+                        const txt = `${name} ${pctTxt}`;
+                        c.strokeText(txt, tx, labelY);
+                        c.fillText(txt,   tx, labelY);
+                    });
+
                     c.restore();
                 }
             };
@@ -1659,7 +1709,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    layout: { padding: 24 },   // 留給小扇區外側標籤
+                    layout: { padding: { top: 18, bottom: 18, left: 70, right: 70 } },   // 留給外側標籤
                     plugins: {
                         legend: { display: false },
                         tooltip: {

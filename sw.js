@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v5';   // ← 2026-04-25：圓餅圖扇區內直接顯示標的+百分比
+const CACHE_NAME = 'portfolio-tracker-v6';   // ← 2026-04-25：圓餅圖外部引線 + 垂直堆疊防重疊
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

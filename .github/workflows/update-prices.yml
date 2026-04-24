@@ -2,11 +2,19 @@ name: Update Prices
 
 on:
   schedule:
-    # 週一~五：每 5 分鐘，13:00-21:00 UTC（美股盤中）
+    # 美股盤中 / 延長盤：週一~五 13-21 UTC，每 5 分鐘
     - cron: '*/5 13-21 * * 1-5'
-    # 週六日：每 15 分鐘，全天（BTC 24/7 交易）
+    # 全週每 30 分鐘：填補 Asia 白天 + 美股收盤後空窗
+    #   （原本週四收盤 22 UTC → 週五開盤 13 UTC 間有 15 小時零更新）
+    - cron: '*/30 * * * *'
+    # 週六日每 15 分鐘：BTC 24/7 較細的更新節奏
     - cron: '*/15 * * * 0,6'
   workflow_dispatch:   # 允許手動觸發
+
+# 避免兩個觸發（*/5 與 */30）在整點重疊時併發競爭同一個 push
+concurrency:
+  group: update-prices
+  cancel-in-progress: false
 
 jobs:
   update:
@@ -34,6 +42,15 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/prices.json
-          git diff --cached --quiet || git commit -m "chore: auto-update prices $(date -u '+%Y-%m-%d %H:%M UTC')"
-          git pull --rebase origin main
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes; skipping commit."
+            exit 0
+          fi
+          git commit -m "chore: auto-update prices $(date -u '+%Y-%m-%d %H:%M UTC')"
+          # 遇到其他排程同時 push → rebase 後重試最多 3 次
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            echo "Push attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "All push attempts failed" && exit 1

@@ -4170,7 +4170,7 @@
         }
 
         // ── 總體經濟快取（1小時）──
-        const _MACRO_CACHE_KEY = 'pf_macro_v3';   // v3: 改抓 20 年資料
+        const _MACRO_CACHE_KEY = 'pf_macro_v4';   // v4: ETF→指數 PE 軌跡 (^NDX, ^TWII)
         const _MACRO_CACHE_TTL = 60 * 60 * 1000; // 1 小時
         function _loadMacroCache() {
             try { const r = JSON.parse(localStorage.getItem(_MACRO_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _MACRO_CACHE_TTL) ? r : null; } catch { return null; }
@@ -4564,18 +4564,36 @@
                     if (tgtLow != null && tgtHigh != null && refPrice != null && tgtHigh > tgtLow) {
                         const pct     = Math.max(0, Math.min(100, (refPrice - tgtLow) / (tgtHigh - tgtLow) * 100));
                         const meanPct = Math.max(0, Math.min(100, (tgtMean  - tgtLow) / (tgtHigh - tgtLow) * 100));
+                        // 標籤側邊：若兩標籤太近則自動偏移避免重疊
+                        const meanTxt = `目標 $${fmtTgt(tgtMean)}`;
+                        const refTxt  = `${isProxy?sym+'昨收':'現價'} $${fmtTgt(refPrice)}`;
+                        const tooClose = Math.abs(meanPct - pct) < 18;
+                        // 兩個標籤分上、下兩行避免擋住彼此
+                        const meanLabelTop  = tooClose && meanPct < pct ? '24px' : '24px';
+                        const refLabelTop   = tooClose ? '40px' : '24px';
                         barHtml = `
                         <div style="margin-top:0.6rem;padding-top:0.5rem;border-top:1px solid rgba(96,165,250,0.12);">
                             <div style="position:relative;height:6px;border-radius:3px;
                                 background:linear-gradient(to right,rgba(239,68,68,0.3),rgba(251,191,36,0.3),rgba(16,185,129,0.3));">
+                                <!-- 平均目標標記 -->
                                 <div style="position:absolute;top:-4px;left:${meanPct}%;transform:translateX(-50%);
-                                    width:2px;height:14px;background:#fbbf24;border-radius:1px;" title="平均目標 $${fmtTgt(tgtMean)}"></div>
+                                    width:2px;height:14px;background:#fbbf24;border-radius:1px;"></div>
+                                <!-- 平均目標標籤（直接顯示，無需 hover）-->
+                                <div style="position:absolute;top:${meanLabelTop};left:${meanPct}%;transform:translateX(-50%);
+                                    color:#fbbf24;font-size:0.66rem;font-weight:700;white-space:nowrap;
+                                    background:rgba(15,23,42,0.85);padding:0.05rem 0.3rem;border-radius:3px;
+                                    border:1px solid rgba(251,191,36,0.35);">${meanTxt}</div>
+                                <!-- 現價標記 -->
                                 <div style="position:absolute;top:50%;left:${pct}%;transform:translate(-50%,-50%);
                                     width:10px;height:10px;border-radius:50%;background:#60a5fa;
-                                    border:2px solid #0f1e3c;box-shadow:0 0 5px #60a5fa90;"
-                                    title="${isProxy?sym+'昨收':'目前股價'} $${fmtTgt(refPrice)}"></div>
+                                    border:2px solid #0f1e3c;box-shadow:0 0 5px #60a5fa90;"></div>
+                                <!-- 現價標籤（直接顯示）-->
+                                <div style="position:absolute;top:${refLabelTop};left:${pct}%;transform:translateX(-50%);
+                                    color:#60a5fa;font-size:0.66rem;font-weight:700;white-space:nowrap;
+                                    background:rgba(15,23,42,0.85);padding:0.05rem 0.3rem;border-radius:3px;
+                                    border:1px solid rgba(96,165,250,0.4);">${refTxt}</div>
                             </div>
-                            <div style="display:flex;justify-content:space-between;margin-top:0.3rem;">
+                            <div style="display:flex;justify-content:space-between;${tooClose?'margin-top:3.4rem':'margin-top:2.2rem'};">
                                 <span style="color:#64748b;font-size:0.69rem;">低 $${fmtTgt(tgtLow)}${upsideLow!=null?' ('+( parseFloat(upsideLow)>=0?'+':'')+upsideLow+'%)':''}</span>
                                 <span style="color:#64748b;font-size:0.69rem;">高 $${fmtTgt(tgtHigh)}${upsideHigh!=null?' ('+(parseFloat(upsideHigh)>=0?'+':'')+upsideHigh+'%)':''}</span>
                             </div>
@@ -5014,7 +5032,7 @@
                     <canvas id="mpe-chart-canvas"></canvas>
                 </div>
                 <div style="color:#64748b;font-size:0.7rem;margin-top:0.5rem;line-height:1.5;">
-                    ※ 河流圖紅線=平均、虛線=±1σ。S&amp;P 500 PE 來源 multpl.com；Nasdaq/台股以 QQQ/0050.TW 之 ETF 收盤價反推 PE 軌跡（EPS 假設為當前 TTM）。
+                    ※ 河流圖紅線=平均、虛線=±1σ。S&amp;P 500 PE 來源 multpl.com（20 年月度真實 PE）；Nasdaq 100 用 ^NDX 指數價 + QQQ 當前 trailingPE 反推、台股以 ^TWII 指數價 + 0050.TW trailingPE 反推（EPS 假設不變、僅 5 年內近似）。
                 </div>
             </div>`;
         }

@@ -96,43 +96,59 @@ def fetch_sp500():
     return info
 
 
-# ── 透過 yfinance 取單一 ETF 的 trailingPE / forwardPE ───────────────
-def fetch_yf_etf(symbol, name, key):
-    info = {'key': key, 'name': name, 'symbol': symbol,
+# ── 用「指數價格」+「ETF 當前 PE 當錨」反推歷史 PE ────────────────
+def fetch_yf_index_with_etf_pe(index_symbol, pe_proxy_symbol, name, key, period='5y'):
+    """
+    用「指數本身」的歷史價格（避免 ETF 配息/拆股噪音），
+    搭配「代理 ETF」當前 trailingPE 當錨點，反推歷史 PE。
+
+    限制：仍假設 EPS 不變，最多回推 5 年（更久會因 EPS 成長而失真）。
+    想看更早的真實 PE 歷史請用 S&P 500（multpl.com 有月度真實 EPS）。
+    """
+    info = {'key': key, 'name': name, 'symbol': index_symbol,
+            'pe_proxy': pe_proxy_symbol,
             'trailing_pe': None, 'forward_pe': None, 'history': []}
     try:
         import yfinance as yf
-        t = yf.Ticker(symbol)
-        meta = {}
-        try:    meta = t.info or {}
-        except Exception: pass
-        info['trailing_pe'] = meta.get('trailingPE')
-        info['forward_pe']  = meta.get('forwardPE')
-        # 取 20 年週線 → 推估歷史 PE（以 current_eps = price/PE 推算）
-        try:
-            hist = t.history(period='20y', interval='1wk', auto_adjust=False)
-            cur_pe = info['trailing_pe']
-            if hist is not None and not hist.empty and cur_pe and cur_pe > 0:
-                # 取「最後一個有效收盤」(避免當週未收盤的 NaN，台股盤中常見)
-                close_series = hist['Close'].dropna()
-                if close_series.empty:
-                    raise RuntimeError('全部收盤皆 NaN')
-                last_close = float(close_series.iloc[-1])
-                eps_est = last_close / cur_pe
-                if eps_est > 0:
-                    pts = []
-                    for ts, row in hist.iterrows():
-                        c = float(row['Close']) if row['Close'] == row['Close'] else None
-                        if c is None: continue
-                        pts.append({'d': ts.date().isoformat(), 'pe': round(c / eps_est, 2)})
-                    # 抽稀為月線（每月最後一筆）
-                    by_month = {}
-                    for p in pts:
-                        ym = p['d'][:7]
-                        by_month[ym] = p  # 後面的覆蓋前面 → 最後一筆
-                    info['history'] = sorted(by_month.values(), key=lambda x: x['d'])
-        except Exception as e:
-            print(f'  [{key}] history 失敗: {e}', flush=True)
+        # 1) 從代理 ETF 拿當前 trailingPE / forwardPE
+        proxy = yf.Ticker(pe_proxy_symbol)
+        try:    pmeta = proxy.info or {}
+        except Exception: pmeta = {}
+        info['trailing_pe'] = pmeta.get('trailingPE')
+        info['forward_pe']  = pmeta.get('forwardPE')
+        cur_pe = info['trailing_pe']
+
+        # 2) 從指數本身取歷史週線價格
+        idx = yf.Ticker(index_symbol)
+        hist = idx.history(period=period, interval='1wk', auto_adjust=False)
+        if hist is None or hist.empty:
+            print(f'  [{key}] 指數 {index_symbol} 無歷史資料', flush=True)
+            return info
+        if not (cur_pe and cur_pe > 0):
+            print(f'  [{key}] 代理 ETF {pe_proxy_symbol} 無 trailingPE', flush=True)
+            return info
+
+        # 取「最後一個有效收盤」(避免當週未收盤的 NaN)
+        close_series = hist['Close'].dropna()
+        if close_series.empty:
+            print(f'  [{key}] 指數收盤全為 NaN', flush=True)
+            return info
+        last_close = float(close_series.iloc[-1])
+        eps_est = last_close / cur_pe
+        if eps_est <= 0:
+            return info
+
+        pts = []
+        for ts, row in hist.iterrows():
+            c = float(row['Close']) if row['Close'] == row['Close'] else None
+            if c is None: continue
+            pts.append({'d': ts.date().isoformat(), 'pe': round(c / eps_est, 2)})
+        # 抽稀為月線（每月最後一筆）
+        by_month = {}
+        for p in pts:
+            ym = p['d'][:7]
+            by_month[ym] = p
+        info['history'] = sorted(by_month.values(), key=lambda x: x['d'])
     except Exception as e:
         print(f'  [{key}] yfinance 失敗: {e}', flush=True)
     return info
@@ -145,11 +161,11 @@ def main():
     print('S&P 500（multpl.com）...', flush=True)
     indexes.append(fetch_sp500())
 
-    print('Nasdaq 100（QQQ via yfinance）...', flush=True)
-    indexes.append(fetch_yf_etf('QQQ', 'Nasdaq 100 (QQQ)', 'nasdaq'))
+    print('Nasdaq 100（^NDX 指數價 + QQQ trailingPE）...', flush=True)
+    indexes.append(fetch_yf_index_with_etf_pe('^NDX', 'QQQ', 'Nasdaq 100 (NDX)', 'nasdaq'))
 
-    print('台股加權（0050.TW via yfinance）...', flush=True)
-    indexes.append(fetch_yf_etf('0050.TW', '台股加權 (0050.TW)', 'twii'))
+    print('台股加權（^TWII 指數價 + 0050.TW trailingPE）...', flush=True)
+    indexes.append(fetch_yf_index_with_etf_pe('^TWII', '0050.TW', '台股加權 (TWII)', 'twii'))
 
     out = {
         'generated': datetime.datetime.now().isoformat(timespec='seconds'),

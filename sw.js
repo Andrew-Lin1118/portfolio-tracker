@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v7';   // ← 2026-04-27：今日漲跌週末判定改為依該股票市場時區（修 HK/TW 週一誤判）
+const CACHE_NAME = 'portfolio-tracker-v8';   // ← 2026-04-27：今日漲跌改用各市場開盤時間判定（HK 09:30 / TW 09:00 / US 09:30）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

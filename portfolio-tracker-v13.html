@@ -860,22 +860,39 @@
             let totalCostUSD = 0, totalValueUSD = 0, totalCostTWD = 0, totalValueTWD = 0;
             let totalDayPnLUSD  = 0, totalDayPnLTWD  = 0, hasDayPnL  = false;
             let totalPrevDayPnLUSD = 0, totalPrevDayPnLTWD = 0, hasPrevDayPnL = false;
-            // 週末判定：依「該股票市場時區」判斷，避免 NY 週日 = HK/TW 週一被誤判為週末
+            // 開盤判定：依「該股票市場時區 + 開盤時間」判斷
+            //   - 週末 → 未開盤
+            //   - 週一~五 但今天還沒過開盤鐘 → 未開盤（如台灣早上 8:00 → HK/TW 都還沒開）
+            //   - 週一~五 且已過開盤鐘 → 視為已開盤（即使盤後仍 OK，今日漲跌仍有意義）
+            //   開盤時間：HK 09:30、TW 09:00、US 09:30（皆當地時區）
             const _CRYPTO_SYMS = new Set(['BTC-USD','ETH-USD','LTC-USD','BNB-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD']);
             const _now = new Date();
-            const _wd = (tz) => _now.toLocaleDateString('en-US', {timeZone: tz, weekday: 'short'});
-            const _isWE = (w) => (w === 'Sat' || w === 'Sun');
-            const _isWeekendUS = _isWE(_wd('America/New_York'));
-            const _isWeekendHK = _isWE(_wd('Asia/Hong_Kong'));
-            const _isWeekendTW = _isWE(_wd('Asia/Taipei'));
-            const _isWeekendBySym = (h) => {
-                if (_CRYPTO_SYMS.has(h.symbol)) return false;
-                if (h.market === 'HK' || (typeof h.symbol === 'string' && h.symbol.endsWith('.HK'))) return _isWeekendHK;
-                if (h.market === 'TW') return _isWeekendTW;
-                return _isWeekendUS;
+            const _MKT_HOURS = {
+                HK: { tz: 'Asia/Hong_Kong',     openH: 9, openM: 30 },
+                TW: { tz: 'Asia/Taipei',        openH: 9, openM: 0  },
+                US: { tz: 'America/New_York',   openH: 9, openM: 30 },
             };
-            // 兼容變數（其他地方若有用到）
-            const _isWeekendNow = _isWeekendUS;
+            function _mktKeyOf(h) {
+                if (h.market === 'HK' || (typeof h.symbol === 'string' && h.symbol.endsWith('.HK'))) return 'HK';
+                if (h.market === 'TW') return 'TW';
+                return 'US';
+            }
+            function _isMarketOpenedToday(h) {
+                if (_CRYPTO_SYMS.has(h.symbol)) return true;  // 24/7
+                const cfg = _MKT_HOURS[_mktKeyOf(h)];
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: cfg.tz, weekday: 'short',
+                    hour: '2-digit', minute: '2-digit', hour12: false
+                }).formatToParts(_now);
+                const wd = parts.find(p => p.type === 'weekday')?.value;
+                const hh = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+                const mm = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+                if (wd === 'Sat' || wd === 'Sun') return false;
+                return (hh * 60 + mm) >= (cfg.openH * 60 + cfg.openM);
+            }
+            // 兼容變數：仍以 NY 週末給其他地方參考
+            const _csNow = _now.toLocaleDateString('en-US', {timeZone:'America/New_York', weekday:'short'});
+            const _isWeekendNow = (_csNow === 'Sat' || _csNow === 'Sun');
 
             // 第一遍：計算各持倉的 USD/TWD 市值並累加總計
             let holdingsWithStats = holdings.map(h => {
@@ -930,8 +947,10 @@
                 }
                 // 當日損益：若 _marketOpenedToday 明確為 false（槓桿 ETF 今日未開盤）則跳過
                 const _mkt = window._marketOpenedToday;
-                // 週末判定改為「依該股票市場時區」：避免 HK 週一台灣早上被 NY 週日誤判
-                const marketNotOpened = _isWeekendBySym(h) ||
+                // 開盤判定改為「依該股票市場時區 + 開盤時間」：
+                //   - HK 週一台灣早上 11:00 → HK 11:00（已過 09:30）→ 開盤 ✅
+                //   - HK 週一台灣早上 08:00 → HK 08:00（未過 09:30）→ 未開盤
+                const marketNotOpened = !_isMarketOpenedToday(h) ||
                     (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false);
                 let dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
                 if (!marketNotOpened && prevClose != null && prevClose > 0) {

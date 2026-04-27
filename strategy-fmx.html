@@ -239,9 +239,107 @@
     .b-exit    { background: rgba(249,115,22,0.2);  color: #f97316; }
     .b-entry   { background: rgba(168,85,247,0.2);  color: #a855f7; }
     .b-stop    { background: rgba(220,38,38,0.25);  color: #dc2626; }
+    .b-liqd    { background: rgba(220,38,38,0.55);  color: #fff; font-weight: 700; }
 
     .empty-state { text-align: center; padding: 50px 20px; color: var(--text-muted); }
     .empty-state .es-icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    /* ── 窗口最佳化 Modal ─────────────────────────────────────── */
+    .opt-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: none;
+      align-items: flex-start; justify-content: center;
+      padding: 40px 20px; z-index: 9999;
+      overflow-y: auto;
+    }
+    .opt-overlay.show { display: flex; }
+    .opt-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: 100%; max-width: 1100px;
+      padding: 18px 22px 22px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .opt-modal .opt-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .opt-modal h2 {
+      font-size: 14px; font-weight: 700;
+      background: linear-gradient(90deg,#ffb300,#ff4f4f);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+    }
+    .opt-close {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px; cursor: pointer;
+    }
+    .opt-close:hover { color: var(--red); }
+    .opt-status {
+      font-size: 11px; color: var(--text-muted); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .opt-bar-wrap { flex: 1; height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+    .opt-bar { height: 100%; background: linear-gradient(90deg,#ffb300,#ff4f4f); width: 0%; transition: width 0.1s; }
+    .opt-cfg {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+      padding: 8px 10px; background: var(--surface2); border-radius: 8px;
+      margin-bottom: 14px; font-size: 11px; color: var(--text-muted);
+    }
+    .opt-cfg input[type="number"] {
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); border-radius: 5px; padding: 3px 6px;
+      font-size: 12px; width: 55px;
+    }
+    .opt-cfg label { color: var(--text-muted); font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
+    .opt-cfg select { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 3px 6px; font-size: 12px; }
+    .opt-grid-wrap { margin-bottom: 14px; }
+    .opt-grid-title { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .opt-grid {
+      display: grid; gap: 2px;
+      background: var(--bg); padding: 8px; border-radius: 8px;
+      overflow-x: auto;
+    }
+    .opt-cell {
+      min-width: 54px; padding: 6px 4px;
+      text-align: center; font-size: 10.5px;
+      border-radius: 4px; cursor: pointer;
+      transition: transform 0.1s, outline 0.1s;
+      font-variant-numeric: tabular-nums;
+    }
+    .opt-cell:hover { transform: scale(1.08); outline: 2px solid #fff; z-index: 1; }
+    .opt-cell.best { outline: 2px solid #ffb300; box-shadow: 0 0 8px rgba(255,179,0,0.5); }
+    .opt-cell.current { outline: 2px dashed #5b8def; }
+    .opt-cell-hdr { color: var(--text-muted); font-weight: 600; background: transparent !important; }
+    .opt-legend { display: flex; gap: 12px; align-items: center; margin-top: 6px; font-size: 10px; color: var(--text-muted); flex-wrap: wrap; }
+    .opt-legend .sw { width: 16px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+    .opt-top {
+      background: var(--bg); border-radius: 8px; padding: 10px;
+      max-height: 240px; overflow-y: auto;
+    }
+    .opt-top table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .opt-top th {
+      text-align: left; padding: 6px 8px; position: sticky; top: 0;
+      background: var(--bg); color: var(--text-muted); font-weight: 500;
+      border-bottom: 1px solid var(--border); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .opt-top td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); font-variant-numeric: tabular-nums; }
+    .opt-top tr { cursor: pointer; }
+    .opt-top tr:hover td { background: var(--surface2); }
+    .opt-top tr.rank-1 td { background: rgba(255,179,0,0.08); }
+    .opt-apply {
+      background: linear-gradient(135deg,#00e676,#5b8def);
+      border: none; color: #fff; border-radius: 6px;
+      padding: 3px 10px; font-size: 11px; cursor: pointer; font-weight: 600;
+    }
+    .opt-apply:hover { opacity: 0.88; }
 
     @media (max-width: 800px) {
       .chart-2col { grid-template-columns: 1fr; }
@@ -397,7 +495,7 @@
   </div>
   <div class="cfg">
     <label>動態加碼下限槓桿</label>
-    <input type="number" id="pyramidTrigger" value="5" step="0.1" min="0.5" max="10">
+    <input type="number" id="pyramidTrigger" value="4.9" step="0.1" min="0.5" max="10">
   </div>
   <div class="cfg">
     <label>每口手續費 (NTD)</label>
@@ -409,11 +507,27 @@
   </div>
   <div class="cfg">
     <label>資料期間</label>
-    <select id="dataRange">
+    <select id="dataRange" onchange="toggleCustomDate()">
       <option value="2y">近 2 年</option>
       <option value="5y">近 5 年</option>
       <option value="10y" selected>近 10 年</option>
+      <option value="20y">近 20 年（含 2008 金融風暴）</option>
+      <option value="30y">近 30 年（含 2000 dot-com、2008 GFC）</option>
+      <option value="max">最大期間（1997 至今）</option>
+      <option value="custom">自訂起始日 ✏️</option>
     </select>
+  </div>
+  <div class="cfg" id="customDateCfg" style="display:none">
+    <label>起始日期</label>
+    <input type="date" id="startDate" value="2020-01-01" style="width:130px">
+  </div>
+  <div class="cfg" style="gap:3px" title="關閉後：不強制 199 天 EMA200 暖身，改由各濾網自己 null-gate（順勢濾網最長 ~100 天就可開跑）">
+    <label>暖身期</label>
+    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text)">
+      <input type="checkbox" id="skipWarmup" style="width:auto">
+      跳過 EMA200
+    </label>
+    <span style="font-size:9px;color:var(--text-muted);margin-top:2px">勾選後起始日即開跑</span>
   </div>
   <div class="cfg">
     <label>DCA 加碼口數</label>
@@ -435,7 +549,7 @@
         <input type="number" id="highPeriod" value="10" step="1" min="2" max="60" style="width:60px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">
       </div>
       <div style="display:flex;flex-direction:column;gap:2px">
-        <span style="font-size:9px;color:var(--text-muted)">破底M日(清)</span>
+        <span style="font-size:9px;color:var(--text-muted)">M日均線(清)</span>
         <input type="number" id="lowPeriod" value="60" step="1" min="5" max="120" style="width:60px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">
       </div>
     </div>
@@ -461,6 +575,29 @@
       </div>
     </div>
   </div>
+  <div class="cfg" style="border-left:2px solid #fb923c;padding-left:10px;gap:5px" title="與 live bot run_loop 邏輯一致（內建邏輯，無需勾選）&#10;EXIT: 跌破 200MA AND 跌破 10MA 才清倉&#10;ENTRY 多頭模式: 突破 10 日高&#10;ENTRY 空頭模式: 站上 10MA">
+    <label style="color:#fb923c;font-size:10px;letter-spacing:0.5px">&#x26A1; 雙模式（已內建）</label>
+    <span style="font-size:10px;color:var(--text);margin-top:2px">EXIT: 200MA + 10MA 雙確認</span>
+    <span style="font-size:9px;color:var(--text-muted)">ENTRY: 200MA 上→10dh / 200MA 下→10MA</span>
+    <input type="checkbox" id="dualModeOn" style="display:none" checked>
+  </div>
+  <div class="cfg" style="border-left:2px solid #fcd34d;padding-left:10px;gap:5px" title="RSI 進入超買→切換為防禦槓桿範圍 (例 4~5)；RSI 回到超賣→切回主槓桿範圍 (例 6~7)。實作為 hysteresis 狀態機，避免在臨界值頻繁切換。">
+    <label style="color:#fcd34d;font-size:10px;letter-spacing:0.5px">&#x26A1; RSI 動態槓桿</label>
+    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text)">
+      <input type="checkbox" id="rsiDynLevOn" style="width:auto;accent-color:#fcd34d">
+      啟用
+    </label>
+    <div style="display:flex;gap:4px;margin-top:2px">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:9px;color:var(--text-muted)">防禦 PYR</span>
+        <input type="number" id="defPyr" value="4" step="0.1" min="0.5" max="10" style="width:54px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:9px;color:var(--text-muted)">防禦 MAX</span>
+        <input type="number" id="defMax" value="5" step="0.5" min="1" max="15" style="width:54px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">
+      </div>
+    </div>
+  </div>
   <div class="cfg" style="border-left:2px solid #ff4f4f;padding-left:10px;gap:5px">
     <label style="color:#ff4f4f;font-size:10px;letter-spacing:0.5px">&#x1F6D1; 淨值停損</label>
     <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text)">
@@ -472,16 +609,18 @@
       <input type="number" id="stopLossPct" value="3" step="0.5" min="0.5" max="50" style="width:80px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">
     </div>
   </div>
-  <button class="btn-run" id="presetBtn" onclick="applyConfigPreset()" style="background:linear-gradient(135deg,#5b8def,#00e676);padding:7px 14px;font-size:12px" title="套用 fubon_bot/config.yaml 實盤預設值">&#128279; 套用 config</button>
+  <button class="btn-run" id="presetBtn" onclick="applyConfigPreset()" style="background:linear-gradient(135deg,#5b8def,#00e676);padding:7px 14px;font-size:12px" title="套用回測預設值（起始資金 500,000，與實盤 config 獨立）">&#128279; 套用 config</button>
   <button class="btn-run" id="runBtn" onclick="onRun()">&#9654; 執行模擬</button>
+  <button class="btn-run" id="optBtn" onclick="onOptimize()" style="background:linear-gradient(135deg,#ffb300,#ff4f4f);padding:7px 14px;font-size:12px" title="掃描加/減槓桿區間，找出最佳窗口">&#128300; 窗口最佳化</button>
 </div>
 
 <div class="rules-bar">
   <div class="rule-chip"><span class="dot" style="background:#5b8def"></span>初始：買入目標槓桿部位</div>
   <div class="rule-chip"><span class="dot" style="background:#ffb300"></span>DCA：距上次買點跌超過 X%，加 1 口（槓桿 &lt; 最大值）</div>
-  <div class="rule-chip"><span class="dot" style="background:#00e676"></span>動態加碼：槓桿 &lt; 下限 且 在年線之上，補回目標槓桿</div>
-  <div class="rule-chip"><span class="dot" style="background:#ff4f4f"></span>獲利降槓桿：價格高於均攤成本 且 槓桿 &gt; 目標值，賣至目標槓桿</div>
-  <div class="rule-chip"><span class="dot" style="background:#a855f7"></span>濾網買入：N日創高才允許建倉 ／ M日破底立即全數清倉（現金保護）</div>
+  <div class="rule-chip"><span class="dot" style="background:#00e676"></span>動態加碼：槓桿 &lt; 下限 → 補到 ≥ 下限（與 bot 對齊：不檢查 avg_cost）</div>
+  <div class="rule-chip"><span class="dot" style="background:#ff4f4f"></span>降槓桿：槓桿 &gt; 上限 → 賣 1 口（暴跌也減碼，不檢查 avg_cost）</div>
+  <div class="rule-chip"><span class="dot" style="background:#a855f7"></span>雙模式進場：200MA 上方→突破 10 日高 ／ 200MA 下方→站上 10MA</div>
+  <div class="rule-chip"><span class="dot" style="background:#fb923c"></span>EXIT 雙確認：須同時跌破 200MA + 10MA 才清倉（避免 200MA 邊界 whipsaw）</div>
   <div class="rule-chip"><span class="dot" style="background:#00e676"></span>RSI 濾網：RSI &gt; 超買 → 阻擋 DCA/加碼；RSI &lt; 超賣 → 優先 DCA 機會</div>
   <div class="rule-chip"><span class="dot" style="background:#ff4f4f"></span>淨值停損：淨值自歷史峰值回落超過門檻 → 全數清倉，等待濾網重新進場</div>
 </div>
@@ -532,7 +671,7 @@
       <span class="legend-chip"><span class="lc-dot" style="background:#5b8def"></span>指數收盤</span>
       <span class="legend-chip"><span class="lc-dot" style="background:#ffb300"></span>200 EMA</span>
       <span class="legend-chip"><span class="lc-dot" style="background:#a855f7"></span>N日高 (買入線)</span>
-      <span class="legend-chip"><span class="lc-dot" style="background:#f97316"></span>M日低 (清倉線)</span>
+      <span class="legend-chip"><span class="lc-dot" style="background:#f97316"></span>M日均線 (清倉線)</span>
       <span class="legend-chip"><span class="lc-dot" style="background:rgba(255,255,255,0.4)"></span>均攤成本</span>
       <span class="legend-chip"><span class="lc-dot" style="background:#00e676"></span>買入</span>
       <span class="legend-chip"><span class="lc-dot" style="background:#ff4f4f"></span>賣出</span>
@@ -583,6 +722,47 @@
   <div class="timing-grid" id="timingGrid"></div>
 </div>
 
+<!-- ── 窗口最佳化 Modal ── -->
+<div class="opt-overlay" id="optOverlay">
+  <div class="opt-modal">
+    <div class="opt-hd">
+      <h2>🔬 加槓桿 / 減槓桿 窗口最佳化</h2>
+      <button class="opt-close" onclick="closeOptModal()">✕ 關閉</button>
+    </div>
+    <div class="opt-cfg">
+      <span><strong style="color:var(--text)">掃描範圍</strong>（以 4.9/6.0 為基準）</span>
+      <label>下限起</label><input type="number" id="optLoMin" value="4.0" step="0.1" min="2" max="6">
+      <label>下限迄</label><input type="number" id="optLoMax" value="5.3" step="0.1" min="2" max="6">
+      <label>上限起</label><input type="number" id="optHiMin" value="5.4" step="0.1" min="3" max="9">
+      <label>上限迄</label><input type="number" id="optHiMax" value="7.0" step="0.1" min="3" max="9">
+      <label>步長</label><input type="number" id="optStep" value="0.1" step="0.05" min="0.05" max="0.5">
+      <label>最佳化目標</label>
+      <select id="optObjective">
+        <option value="equity">最終淨值</option>
+        <option value="cagr">年化報酬</option>
+        <option value="sharpe">風報比 (CAGR/MDD)</option>
+        <option value="mdd">最小 MDD</option>
+      </select>
+      <button class="btn-run" onclick="runOptSweep()" style="padding:4px 14px;font-size:11px" id="optRunBtn">▶ 掃描</button>
+    </div>
+    <div class="opt-status" id="optStatus">
+      <span id="optStatusText">按「掃描」開始（需先載入資料）</span>
+      <div class="opt-bar-wrap"><div class="opt-bar" id="optBar"></div></div>
+    </div>
+    <div class="opt-grid-wrap">
+      <div class="opt-grid-title" id="optGridTitle">熱力圖（列：下限 / 行：上限 / 格：目標指標）</div>
+      <div class="opt-grid" id="optGrid"></div>
+      <div class="opt-legend" id="optLegend"></div>
+    </div>
+    <div class="opt-top">
+      <table id="optTopTable">
+        <thead><tr><th>#</th><th>下限</th><th>上限</th><th>窗口</th><th>最終淨值</th><th>年化</th><th>MDD</th><th>風報</th><th>加碼</th><th>減碼</th><th>循環成本</th><th>操作</th></tr></thead>
+        <tbody id="optTopBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="trade-log">
   <div class="tl-title">
     交易紀錄
@@ -628,7 +808,20 @@ function calcRollingHigh(prices, period) {
   return out;
 }
 
-// 滾動最低收盤 (前 N 日，不含當日)
+// 100 日簡單移動平均（Simple Moving Average，前 N 日，不含當日）
+// 對齊 live bot fubon_bot/strategy-fmx-live.py 的 EXIT 訊號（100MA cross）
+function calcSMA(prices, period) {
+  const out = new Array(prices.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < prices.length; i++) {
+    sum += prices[i] || 0;
+    if (i >= period) sum -= (prices[i - period] || 0);
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+
+// 滾動最低收盤 (前 N 日，不含當日) — 保留供未來需要時切換用
 function calcRollingLow(prices, period) {
   const out = new Array(prices.length).fill(null);
   for (let i = period; i < prices.length; i++) {
@@ -668,18 +861,33 @@ function simulate(dates, closes, ema200, cfg) {
           trendFilterOn, highPeriod, lowPeriod,
           buyLots, maxPositionPct,
           rsiFilterOn, rsiPeriod, rsiOverbought, rsiOversold,
-          stopLossOn, stopLossPct } = cfg;
-  const warmup = 199;
+          rsiDynLevOn, defPyr, defMax,
+          stopLossOn, stopLossPct, skipWarmup,
+          dualModeOn } = cfg;
+  // warmup：預設 199（讓 EMA200 從 day 1 就有值，純為圖表美觀）
+  // 勾選「跳過 EMA200 暖身」後降到 1，濾網用自身 null-gate 自動等資料就緒
+  //   - rollingHigh 需 highPeriod 天（預設 10）
+  //   - rollingLow  需 lowPeriod  天（預設 100）
+  //   - RSI         需 rsiPeriod+1 天（預設 15）
+  // 實際開跑延遲 = max(以上)，不是 199
+  const warmup = skipWarmup ? 1 : 199;
   if (closes.length <= warmup) return { trades: [], daily: [], rollingHigh: [], rollingLow: [], rsi: [] };
 
-  // 濾網：滾動高/低（使用全數列，含 warmup 前）
+  // 濾網：滾動高 + 100日均線（對齊實盤 live bot 的 EXIT 訊號）
+  // 變數名 rollingLow 保留為歷史相容，內容改為 SMA（跌破均線即清倉，非破底）
   const rollingHigh = trendFilterOn ? calcRollingHigh(closes, highPeriod) : new Array(closes.length).fill(null);
-  const rollingLow  = trendFilterOn ? calcRollingLow(closes,  lowPeriod)  : new Array(closes.length).fill(null);
+  const rollingLow  = trendFilterOn ? calcSMA(closes,  lowPeriod)  : new Array(closes.length).fill(null);
   const rsi         = rsiFilterOn   ? calcRSI(closes, rsiPeriod)          : new Array(closes.length).fill(null);
+  // 10 日均線（與 live bot 對齊：空頭模式進出場線、EXIT 雙確認線）
+  // 不再受 dualModeOn 控制，trendFilter 啟用時必算（bot 內建這個邏輯）
+  const ma10        = trendFilterOn ? calcSMA(closes, 10)                 : new Array(closes.length).fill(null);
 
   let contracts = 0, avgCost = 0, lastBuyPx = 0, realizedPL = 0;
   let inMarket = false;   // 是否持有部位（濾網管控）
   let peakEquity = initialCapital;   // 淨值停損：追蹤峰值
+  let regime = 'NORMAL';  // RSI 動態槓桿狀態：NORMAL / DEFENSIVE
+  let dualMode = 'NORMAL';      // 雙模式狀態：NORMAL / DOWNTREND
+  let prevDualMode = 'NORMAL';
   const trades = [], daily = [];
 
   // 單次 INIT/ENTRY/PYRAMID 新增口數上限：equity × maxPositionPct / 名目
@@ -710,7 +918,7 @@ function simulate(dates, closes, ema200, cfg) {
     realizedPL -= qty * feePerLot;
     lastBuyPx = price;
     const st = recalc(price);
-    trades.push({ date: dates[i], action, price, qty, totalLots: contracts, avgCost, leverage: st.leverage, reason });
+    trades.push({ date: dates[i], action, price, qty, totalLots: contracts, avgCost, leverage: st.leverage, equity: st.equity, reason });
   }
 
   function sell(qty, price, action, reason) {
@@ -718,7 +926,7 @@ function simulate(dates, closes, ema200, cfg) {
     realizedPL += profit - qty * feePerLot;
     contracts -= qty;
     const st = recalc(price);
-    trades.push({ date: dates[i], action, price, qty: -qty, totalLots: contracts, avgCost, leverage: st.leverage, reason });
+    trades.push({ date: dates[i], action, price, qty: -qty, totalLots: contracts, avgCost, leverage: st.leverage, equity: st.equity, reason });
   }
 
   let i = warmup;
@@ -734,7 +942,7 @@ function simulate(dates, closes, ema200, cfg) {
       realizedPL -= target * feePerLot;
       const st = recalc(price);
       peakEquity = Math.max(peakEquity, st.equity);
-      trades.push({ date: dates[i], action: 'INIT', price, qty: target, totalLots: contracts, avgCost, leverage: st.leverage,
+      trades.push({ date: dates[i], action: 'INIT', price, qty: target, totalLots: contracts, avgCost, leverage: st.leverage, equity: st.equity,
         reason: `初始建倉 ${target} 口，槓桿 ${st.leverage.toFixed(2)}x${trendFilterOn ? `（突破${highPeriod}日高 ${rh?.toFixed(0)}）` : ''}` });
     }
     const st = recalc(price);
@@ -749,6 +957,21 @@ function simulate(dates, closes, ema200, cfg) {
     const curRsi = rsi[i];          // 當日 RSI（可能為 null）
     let { equity, exposure, leverage } = recalc(price);
     let action = 'HOLD';
+
+    // ── 強制平倉（最高優先：淨值 ≤ 維持保證金 → 爆倉）────────────────────────
+    // 條件等價於 price ≤ liqPrice，模擬真實保證金追繳強平
+    if (contracts > 0 && equity <= contracts * maintMargin) {
+      const liqMaint = (contracts * maintMargin).toLocaleString();
+      sell(contracts, price, 'LIQD',
+        `⚠ 爆倉強平：淨值 ${Math.round(equity).toLocaleString()} ≤ 維持保證金 ${liqMaint}，${contracts} 口全數強平`);
+      action = 'LIQD';
+      inMarket = false;
+      // 強平後若權益歸零或負數，將 realizedPL clamp 至 -initialCapital（淨值底限 0）
+      if (initialCapital + realizedPL < 0) realizedPL = -initialCapital;
+      ;({ equity, exposure, leverage } = recalc(price));
+      daily.push({ date: dates[i], price, ema: ema200[i], rh, rl, rsi: curRsi, ...recalc(price), totalLots: 0, avgCost, liqPrice: null, action: 'LIQD' });
+      continue; // 當日其他規則全部跳過
+    }
 
     // 更新峰值淨值（供淨值停損判斷）
     if (equity > peakEquity) peakEquity = equity;
@@ -765,52 +988,100 @@ function simulate(dates, closes, ema200, cfg) {
       }
     }
 
-    // ── 濾網：60日破底 → 立即全數清倉（現金保護）──────────────────────────
-    if (action === 'HOLD' && trendFilterOn && contracts > 0 && rl !== null && price < rl) {
-      sell(contracts, price, 'EXIT', `${lowPeriod}日破底（${price.toFixed(0)} < ${rl.toFixed(0)}），清倉現金保護`);
-      action = 'EXIT';
-      inMarket = false;
-      ;({ equity, exposure, leverage } = recalc(price));
+    // ── 模式判斷（對齊 live bot run_loop 邏輯）─────────────────────────
+    // below_long_ma = 跌破 M 日均線（200MA）→ DOWNTREND 空頭模式
+    const ma10_i = ma10[i];
+    const below_long_ma = trendFilterOn && rl !== null && price < rl;
+    dualMode = below_long_ma ? 'DOWNTREND' : 'NORMAL';
+
+    // ── EXIT 邏輯（對齊 live bot：必須同時跌破 200MA 和 10MA）──────────
+    // bear_fast_exit = below_long_ma AND price < 10MA
+    // 在 200MA 上方 → 永不 EXIT
+    // 在 200MA 下方但 10MA 上方 → 不 EXIT（給機會反彈）
+    // 在 200MA 下方且 10MA 下方 → 確認熊市加速，EXIT 全清倉
+    if (action === 'HOLD' && trendFilterOn && contracts > 0) {
+      const bear_fast_exit = below_long_ma && ma10_i !== null && price < ma10_i;
+      if (bear_fast_exit) {
+        sell(contracts, price, 'EXIT', `低於${lowPeriod}日MA期間跌破10MA（${price.toFixed(0)}<${ma10_i.toFixed(0)}），清倉現金保護`);
+        action = 'EXIT';
+        inMarket = false;
+        ;({ equity, exposure, leverage } = recalc(price));
+      }
     }
 
-    // ── 濾網：市場外（現金）→ 等待 10日創高重新進場 ────────────────────────
+    // ── ENTRY 邏輯（對齊 live bot：依 below_long_ma 分流）────────────────
+    // 200MA 上方（NORMAL）：突破 10 日高
+    // 200MA 下方（DOWNTREND）：站上 10MA（空頭短打）
     if (action === 'HOLD' && trendFilterOn && !inMarket && contracts === 0) {
-      if (rh !== null && price > rh) {
-        // 重新建倉（ENTRY 以 targetLeverage 為主）
-        const target = Math.floor(initialCapital * targetLeverage / (price * multiplier));
+      let canEnter = false;
+      let entryReason = '';
+      if (below_long_ma) {
+        // DOWNTREND：站上 10MA
+        if (ma10_i !== null && price > ma10_i) {
+          canEnter = true;
+          entryReason = `空頭模式：站上10MA進場（${price.toFixed(0)} > ${ma10_i.toFixed(0)}）`;
+        }
+      } else {
+        // NORMAL：突破 10 日高
+        if (rh !== null && price > rh) {
+          canEnter = true;
+          entryReason = `${highPeriod}日創高重新進場（${price.toFixed(0)} > ${rh.toFixed(0)}）`;
+        }
+      }
+      if (canEnter) {
+        const curEquity = initialCapital + realizedPL;
+        const target = Math.floor(curEquity * targetLeverage / (price * multiplier));
         if (target > 0) {
-          buy(target, price, 'ENTRY', `${highPeriod}日創高重新進場（${price.toFixed(0)} > ${rh.toFixed(0)}），建倉 ${target} 口`);
+          buy(target, price, 'ENTRY', `${entryReason}，一次到位 ${target} 口 (${targetLeverage}x)`);
           action = 'ENTRY';
           inMarket = true;
           ;({ equity, exposure, leverage } = recalc(price));
         }
       } else {
-        // 繼續等待，跳過其他規則
         const st = recalc(price);
         daily.push({ date: dates[i], price, ema: ema200[i], rh, rl, rsi: curRsi, ...st, totalLots: contracts, avgCost, liqPrice: st.liqPrice, action: 'CASH' });
+        prevDualMode = dualMode;
         continue;
       }
     }
 
-    // ── 規則 4：獲利降槓桿（RSI 超買時更積極觸發）─────────────────────────
-    // 標準條件：leverage > targetLeverage + 0.15
-    // RSI 加強：若啟用 RSI 且超買，則門檻改為 leverage > targetLeverage（更早觸發）
+    // ── RSI 動態槓桿狀態機 ─────────────────────────────────────────────
+    // hysteresis：超買→DEFENSIVE（4~5），超賣→NORMAL（6~7），中間區段沿用上次狀態
+    if (rsiDynLevOn && curRsi !== null) {
+      if (regime === 'NORMAL' && curRsi > rsiOverbought) regime = 'DEFENSIVE';
+      else if (regime === 'DEFENSIVE' && curRsi < rsiOversold) regime = 'NORMAL';
+    } else {
+      regime = 'NORMAL';
+    }
+    const pyrEff = (rsiDynLevOn && regime === 'DEFENSIVE') ? defPyr : pyramidTrigger;
+    const maxEff = (rsiDynLevOn && regime === 'DEFENSIVE') ? defMax : maxLeverage;
+
+    // ── 規則 4：降槓桿（槓桿 > maxEff → 一次賣夠使槓桿 ≤ maxEff）──
+    // RSI 加強：若啟用 RSI 且超買，門檻提前到 maxEff - 0.5（更早觸發）
     const rsiOverboughtNow = rsiFilterOn && curRsi !== null && curRsi > rsiOverbought;
-    const delevThreshold   = rsiOverboughtNow ? targetLeverage : targetLeverage + 0.15;
-    if (action === 'HOLD' && contracts > 0 && price > avgCost && leverage > delevThreshold) {
-      const targetExp = equity * targetLeverage;
-      const toSell = Math.min(contracts - 1, Math.floor((exposure - targetExp) / (price * multiplier)));
-      if (toSell > 0) {
-        const dropStr = ((1 - avgCost / price) * 100).toFixed(1);
-        const rsiTxt  = rsiOverboughtNow ? `（RSI ${curRsi.toFixed(0)} > ${rsiOverbought} 超買加速）` : '';
-        sell(toSell, price, 'DELEV', `降槓桿賣出 ${toSell} 口（+${dropStr}%），槓桿降至 ${recalc(price).leverage.toFixed(2)}x${rsiTxt}`);
-        action = 'DELEV';
-        ;({ equity, exposure, leverage } = recalc(price));
-      }
+    const delevThreshold   = rsiOverboughtNow ? (maxEff - 0.5) : maxEff;
+    // 移除 price > avgCost 限制：崩跌時槓桿超標同樣必須強制降槓桿，不限於獲利狀態
+    if (action === 'HOLD' && contracts > 0 && leverage > delevThreshold) {
+      const pnlPct   = (price / avgCost - 1) * 100;
+      const pnlStr   = (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(1) + '%';
+      const rsiTxt   = rsiOverboughtNow ? `（RSI ${curRsi.toFixed(0)} > ${rsiOverbought} 超買加速）` : '';
+      const prevLev  = leverage.toFixed(2);
+      // 計算需賣幾口讓槓桿降至 ≤ maxEff（ceil 確保一定低於邊界）；保留至少 1 口
+      const targetExp = equity * maxEff;
+      const rawSell   = Math.ceil((exposure - targetExp) / (price * multiplier));
+      const toSell    = Math.min(contracts - 1, Math.max(1, rawSell));
+      // 預算賣後槓桿（JS 在呼叫 sell() 前就已求值 reason string，需手動計算）
+      const _postRL  = realizedPL + toSell * (price - avgCost) * multiplier - toSell * feePerLot;
+      const _postEq  = initialCapital + _postRL + (contracts - toSell) * (price - avgCost) * multiplier;
+      const _postLev = (_postEq > 0 ? (contracts - toSell) * price * multiplier / _postEq : 0).toFixed(2);
+      const regimeTxt = (rsiDynLevOn && regime === 'DEFENSIVE') ? `[防禦${defPyr}~${defMax}x]` : '';
+      sell(toSell, price, 'DELEV', `降槓桿賣出 ${toSell} 口（${pnlStr}），槓桿 ${prevLev}x → ${_postLev}x${rsiTxt}${regimeTxt}`);
+      action = 'DELEV';
+      ;({ equity, exposure, leverage } = recalc(price));
     }
 
     // ── 規則 2：DCA 攤平（RSI 超買時阻擋）────────────────────────────────
-    if (action === 'HOLD' && lastBuyPx > 0 && price < lastBuyPx * (1 - dcaThresholdPct / 100) && leverage < maxLeverage) {
+    if (action === 'HOLD' && lastBuyPx > 0 && price < lastBuyPx * (1 - dcaThresholdPct / 100) && leverage < maxEff) {
       if (rsiFilterOn && curRsi !== null && curRsi > rsiOverbought) {
         // RSI 超買，阻擋 DCA
         action = 'BLOCK';
@@ -828,18 +1099,29 @@ function simulate(dates, closes, ema200, cfg) {
       }
     }
 
-    // ── 規則 3：動態加碼（RSI 超買時阻擋）───────────────────────────────
-    if (action === 'HOLD' && contracts > 0 && price > avgCost && leverage < pyramidTrigger && ema200[i] !== null && price > ema200[i]) {
+    // ── 規則 3：動態加碼（對齊 live bot：移除 price > avgCost 限制）─────
+    // 語意：pyrEff 是下界，只要加到 > pyrEff 就停；硬上限：加完後不得超過 maxEff
+    // RSI 動態槓桿啟用時，pyrEff/maxEff 會在超買時切到 (defPyr, defMax)
+    // bot 註解：「EXIT已保護100日MA」表示 PYRAMID 不需自己加 avg_cost 過濾，靠 EXIT 把關
+    if (action === 'HOLD' && contracts > 0 && leverage < pyrEff) {
       if (rsiFilterOn && curRsi !== null && curRsi > rsiOverbought) {
         // RSI 超買，阻擋加碼
         action = 'BLOCK';
       } else {
-        const targetExp = equity * targetLeverage;
-        let toBuy = Math.floor((targetExp - exposure) / (price * multiplier));
+        // 買最少的口數讓槓桿越過 pyrEff（用 ceil 確保一定越過邊界）
+        const notional = price * multiplier;
+        let toBuy = Math.ceil((equity * pyrEff - exposure) / notional);
+        if (toBuy < 1) toBuy = 1;
         toBuy = capByPositionPct(toBuy, equity, price);
+        // 硬上限：加完後槓桿不得 > maxEff
+        while (toBuy > 0 && (leverage + toBuy * notional / equity) > maxEff) {
+          toBuy -= 1;
+        }
         if (toBuy > 0) {
+          const newLev = leverage + (toBuy * notional) / equity;
           const rsiTxt = rsiFilterOn && curRsi !== null ? `（RSI ${curRsi.toFixed(0)}）` : '';
-          buy(toBuy, price, 'PYRAMID', `動態加碼 ${toBuy} 口，槓桿從 ${leverage.toFixed(2)}x 補回 ${targetLeverage}x${rsiTxt}`);
+          const regimeTxt = (rsiDynLevOn && regime === 'DEFENSIVE') ? `[防禦${defPyr}~${defMax}x]` : '';
+          buy(toBuy, price, 'PYRAMID', `動態加碼 ${toBuy} 口，槓桿 ${leverage.toFixed(2)}x → ${newLev.toFixed(2)}x（下限 ${pyrEff}x）${rsiTxt}${regimeTxt}`);
           action = 'PYRAMID';
           ;({ equity, exposure, leverage } = recalc(price));
         }
@@ -848,6 +1130,7 @@ function simulate(dates, closes, ema200, cfg) {
 
     const st = recalc(price);
     daily.push({ date: dates[i], price, ema: ema200[i], rh, rl, rsi: curRsi, ...st, totalLots: contracts, avgCost, liqPrice: st.liqPrice, action });
+    prevDualMode = dualMode;        // 雙模式：每 tick 結束更新前一狀態
   }
 
   return { trades, daily, rollingHigh, rollingLow, rsi };
@@ -858,26 +1141,33 @@ function withTimeout(promise, ms) {
 }
 
 async function fetchYF(yfUrl) {
-  if (location.protocol === 'file:') throw new Error('FILE_PROTOCOL');
+  // 本機 server 模式：優先走本地 proxy（無 CORS 限制，最快）
+  if (location.protocol !== 'file:') {
+    try {
+      const res = await withTimeout(fetch(`/proxy?url=${encodeURIComponent(yfUrl)}`), 5000);
+      if (res.ok) return res.json();
+    } catch {}
+  }
 
-  try {
-    const res = await withTimeout(fetch(`/proxy?url=${encodeURIComponent(yfUrl)}`), 5000);
-    if (res.ok) return res.json();
-  } catch {}
-
-  setStatus('使用備援管道取得資料 (corsproxy.io)…', true);
+  // 獨立 HTML / 分享模式：直接走公共 CORS proxy
+  setStatus('取得資料中（corsproxy.io）…', true);
   try {
     const res = await withTimeout(fetch(`https://corsproxy.io/?${encodeURIComponent(yfUrl)}`), 20000);
     if (res.ok) return res.json();
   } catch {}
 
-  setStatus('使用備援管道取得資料 (allorigins)…', true);
+  setStatus('取得資料中（allorigins）…', true);
   try {
     const res = await withTimeout(fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yfUrl)}`), 20000);
     if (res.ok) { const w = await res.json(); return JSON.parse(w.contents); }
   } catch {}
 
   throw new Error('PROXY_FAILED');
+}
+
+function toggleCustomDate() {
+  const sel = document.getElementById('dataRange').value;
+  document.getElementById('customDateCfg').style.display = sel === 'custom' ? 'flex' : 'none';
 }
 
 async function onRun() {
@@ -890,8 +1180,30 @@ async function onRun() {
   document.getElementById('m-lev-target').textContent = cfg.targetLeverage;
   const range = document.getElementById('dataRange').value;
 
+  let yfUrl;
+  // Yahoo API 不直接支援 20y/30y，轉換成 custom date range
+  const yearsMap = { '20y': 20, '30y': 30 };
+  if (range === 'custom') {
+    const startDate = document.getElementById('startDate').value;
+    if (!startDate) {
+      setStatus('請選擇起始日期', false);
+      btn.disabled = false; btn.textContent = '▶ 執行模擬';
+      return;
+    }
+    const period1 = Math.floor(new Date(startDate).getTime() / 1000);
+    const period2 = Math.floor(Date.now() / 1000);
+    yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d&period1=${period1}&period2=${period2}`;
+  } else if (yearsMap[range]) {
+    // 20y / 30y → 算 N 年前作為 period1
+    const years = yearsMap[range];
+    const period1 = Math.floor((Date.now() - years * 365.25 * 86400 * 1000) / 1000);
+    const period2 = Math.floor(Date.now() / 1000);
+    yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d&period1=${period1}&period2=${period2}`;
+  } else {
+    yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d&range=${range}`;
+  }
+
   try {
-    const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=1d&range=${range}`;
     const json = await fetchYF(yfUrl);
     const r = json.chart.result[0];
 
@@ -910,6 +1222,8 @@ async function onRun() {
 
     lastDailyData = daily;
     lastCfg = cfg;
+    // 快取原始資料供窗口最佳化重複使用（避免反覆重抓）
+    lastRawData = { dates, closes, ema200 };
     renderMetrics(daily, cfg);
     renderPriceChart(dates, closes, ema200, trades, daily, rollingHigh, rollingLow);
     renderLeverageChart(daily, cfg);
@@ -924,20 +1238,20 @@ async function onRun() {
     const exitCnt  = trades.filter(t => t.action === 'EXIT').length;
     const entryCnt = trades.filter(t => t.action === 'ENTRY').length;
     const stopCnt  = trades.filter(t => t.action === 'STOP').length;
+    const liqdCnt  = trades.filter(t => t.action === 'LIQD').length;
     const cashDays = daily.filter(d => d.action === 'CASH').length;
     const blockDays = daily.filter(d => d.action === 'BLOCK').length;
     const filterTxt = cfg.trendFilterOn
-      ? ` · ⚡ 破底清倉 ${exitCnt} 次 · 創高進場 ${entryCnt} 次 · 現金保護 ${cashDays} 日`
+      ? ` · ⚡ 跌破均線清倉 ${exitCnt} 次 · 創高進場 ${entryCnt} 次 · 現金保護 ${cashDays} 日`
       : '';
-    const rsiTxt = cfg.rsiFilterOn ? ` · 📊 RSI 阻擋 ${blockDays} 日` : '';
-    const stopTxt = cfg.stopLossOn ? ` · 🛑 淨值停損 ${stopCnt} 次` : '';
-    setStatus(`回測完成 ── DCA ${dcaCnt} 次 · 動態加碼 ${pyrCnt} 次 · 降槓桿 ${devCnt} 次${filterTxt}${rsiTxt}${stopTxt} · 共 ${daily.length} 個交易日`, false);
+    const rsiTxt  = cfg.rsiFilterOn ? ` · 📊 RSI 阻擋 ${blockDays} 日` : '';
+    const stopTxt = cfg.stopLossOn  ? ` · 🛑 淨值停損 ${stopCnt} 次` : '';
+    const liqdTxt = liqdCnt > 0     ? ` · ⚠ 爆倉強平 ${liqdCnt} 次` : '';
+    setStatus(`回測完成 ── DCA ${dcaCnt} 次 · 動態加碼 ${pyrCnt} 次 · 降槓桿 ${devCnt} 次${filterTxt}${rsiTxt}${stopTxt}${liqdTxt} · 共 ${daily.length} 個交易日`, false);
 
   } catch (e) {
-    if (e.message === 'FILE_PROTOCOL') {
-      setStatus('請勿直接開啟檔案！請執行「開啟策略模擬器.bat」，或用瀏覽器前往 http://localhost:3000/strategy-fmx.html', false);
-    } else if (e.message === 'PROXY_FAILED') {
-      setStatus('資料取得失敗：請執行「開啟策略模擬器.bat」確保本機伺服器運行中，再重試', false);
+    if (e.message === 'PROXY_FAILED') {
+      setStatus('資料取得失敗：請確認網路連線後重試（需連線才能從 Yahoo Finance 下載歷史資料）', false);
     } else {
       setStatus(`錯誤：${e.message}`, false);
     }
@@ -967,35 +1281,58 @@ function readConfig() {
     rsiFilterOn:     document.getElementById('rsiFilterOn').checked,
     rsiPeriod:       +document.getElementById('rsiPeriod').value || 14,
     rsiOverbought:   +document.getElementById('rsiOverbought').value || 70,
+    rsiDynLevOn:     document.getElementById('rsiDynLevOn')?.checked || false,
+    defPyr:          +document.getElementById('defPyr')?.value || 4,
+    defMax:          +document.getElementById('defMax')?.value || 5,
+    dualModeOn:      document.getElementById('dualModeOn')?.checked || false,
     rsiOversold:     +document.getElementById('rsiOversold').value || 30,
     stopLossOn:      document.getElementById('stopLossOn').checked,
     stopLossPct:     (+document.getElementById('stopLossPct').value || 3) / 100,
+    skipWarmup:      document.getElementById('skipWarmup')?.checked || false,
   };
 }
 
-// 套用 fubon_bot/config.yaml 實盤預設值
-function applyConfigPreset() {
+// 套用 live bot 實際 config.yaml — 從 /fmx/config 動態抓取而非硬編碼
+async function applyConfigPreset() {
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
   const chk = (id, v) => { const e = document.getElementById(id); if (e) e.checked = v; };
-  set('initialCapital', 279933);
-  set('targetLeverage', 5);
-  set('dcaThreshold', 5);
-  set('maxLeverage', 6);
-  set('pyramidTrigger', 4.9);
-  set('feePerLot', 50);
-  set('maintMargin', 18300);
-  set('highPeriod', 10);
-  set('lowPeriod', 100);
-  chk('trendFilterOn', true);
-  set('buyLots', 1);
-  set('maxPositionPct', 30);         // max_position_pct: 0.3
-  chk('rsiFilterOn', true);
-  set('rsiPeriod', 14);
-  set('rsiOverbought', 70);
-  set('rsiOversold', 30);
-  chk('stopLossOn', true);
-  set('stopLossPct', 3);              // stop_loss_pct: 0.03
-  setStatus('已套用 fubon_bot/config.yaml 預設值（含 RSI 濾網、淨值停損、單次上限 30%）— 點擊「執行模擬」開始回測', false);
+  setStatus('讀取 live bot config.yaml ...', true);
+  try {
+    const res = await fetch('/fmx/config');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const cfg = await res.json();
+    if (cfg.error) throw new Error(cfg.error);
+
+    // 從 config.yaml 直接帶入（fallback 用合理預設值）
+    set('initialCapital',  cfg.initial_capital      ?? 1000000);
+    set('targetLeverage',  cfg.target_leverage      ?? 5);
+    set('dcaThreshold',    cfg.dca_threshold_pct    ?? 5);
+    set('maxLeverage',     cfg.max_leverage         ?? 7);
+    set('pyramidTrigger',  cfg.pyramid_trigger      ?? 6);
+    set('feePerLot',       cfg.fee_per_lot          ?? 50);
+    set('maintMargin',     cfg.maint_margin         ?? 18300);
+    set('highPeriod',      cfg.high_period          ?? 10);
+    set('lowPeriod',       cfg.low_period           ?? 200);
+    chk('trendFilterOn',   cfg.trend_filter         !== false);
+    set('buyLots',         cfg.buy_lots             ?? 1);
+    set('maxPositionPct',  Math.round((cfg.max_position_pct ?? 0.3) * 100));
+
+    // bot 沒有 RSI 濾網 / 動態槓桿 / 淨值停損 → 預設關閉以對齊 bot 行為
+    chk('rsiFilterOn',     false);
+    set('rsiPeriod',       14);
+    set('rsiOverbought',   70);
+    set('rsiOversold',     30);
+    chk('rsiDynLevOn',     false);
+    set('defPyr',          4);
+    set('defMax',          5);
+    chk('dualModeOn',      true);   // 雙模式已內建（與 bot 一致）
+    chk('stopLossOn',      false);  // bot 沒有淨值停損
+    set('stopLossPct',     3);
+
+    setStatus(`已套用 live bot config.yaml（low_period=${cfg.low_period}, target_lev=${cfg.target_leverage}, pyr=${cfg.pyramid_trigger}, max=${cfg.max_leverage}）`, false);
+  } catch (e) {
+    setStatus(`套用 config 失敗：${e.message}（請確認 server.py 已重啟以啟用 /fmx/config 端點）`, false);
+  }
 }
 
 function setStatus(msg, loading) {
@@ -1072,6 +1409,7 @@ function renderPriceChart(dates, closes, ema200, trades, daily, rollingHigh = []
   const sellPts  = trades.filter(t => t.qty < 0 && t.action === 'DELEV').map(t => ({ x: t.date, y: t.price }));
   const exitPts  = trades.filter(t => t.action === 'EXIT').map(t => ({ x: t.date, y: t.price }));
   const stopPts  = trades.filter(t => t.action === 'STOP').map(t => ({ x: t.date, y: t.price }));
+  const liqdPts  = trades.filter(t => t.action === 'LIQD').map(t => ({ x: t.date, y: t.price }));
   const entryPts = trades.filter(t => t.action === 'ENTRY').map(t => ({ x: t.date, y: t.price }));
 
   const tradeMap = {};
@@ -1085,7 +1423,7 @@ function renderPriceChart(dates, closes, ema200, trades, daily, rollingHigh = []
   if (showFilter) {
     datasets.push(
       { label: `${(rhFull.find(v=>v),'N')}日高 (買入線)`, data: rhFull, borderColor: 'rgba(168,85,247,0.7)', borderWidth: 1, borderDash: [4,3], pointRadius: 0, fill: false, order: 3 },
-      { label: `${(rlFull.find(v=>v),'M')}日低 (清倉線)`, data: rlFull, borderColor: 'rgba(249,115,22,0.7)',  borderWidth: 1, borderDash: [4,3], pointRadius: 0, fill: false, order: 3 }
+      { label: `${(rlFull.find(v=>v),'M')}日均線 (清倉線)`, data: rlFull, borderColor: 'rgba(249,115,22,0.7)',  borderWidth: 1, borderDash: [4,3], pointRadius: 0, fill: false, order: 3 }
     );
   }
 
@@ -1094,9 +1432,10 @@ function renderPriceChart(dates, closes, ema200, trades, daily, rollingHigh = []
     { label: '強平價格', data: liqPriceFull, borderColor: 'rgba(255,50,50,0.7)', borderWidth: 1.5, borderDash: [3,3], pointRadius: 0, fill: false, order: 1 },
     { label: '買入/加碼', data: buyPts,  type: 'scatter', backgroundColor: '#00e676', pointRadius: 7, pointStyle: 'triangle', rotation: 0,   order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } },
     { label: '降槓桿賣', data: sellPts, type: 'scatter', backgroundColor: '#ffb300', pointRadius: 6, pointStyle: 'triangle', rotation: 180, order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } },
-    { label: '破底清倉', data: exitPts, type: 'scatter', backgroundColor: '#ff4f4f', pointRadius: 8, pointStyle: 'crossRot', order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } },
+    { label: '跌破均線清倉', data: exitPts, type: 'scatter', backgroundColor: '#ff4f4f', pointRadius: 8, pointStyle: 'crossRot', order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } },
     { label: '創高進場', data: entryPts,type: 'scatter', backgroundColor: '#a855f7', pointRadius: 7, pointStyle: 'triangle', rotation: 0, order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } },
-    { label: '淨值停損', data: stopPts, type: 'scatter', backgroundColor: '#dc2626', pointRadius: 9, pointStyle: 'rectRot', order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } }
+    { label: '淨值停損', data: stopPts, type: 'scatter', backgroundColor: '#dc2626', pointRadius: 9, pointStyle: 'rectRot', order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } },
+    { label: '⚠爆倉強平', data: liqdPts, type: 'scatter', backgroundColor: '#ff0000', borderColor: '#fff', borderWidth: 2, pointRadius: 12, pointStyle: 'star', order: 0, parsing: { xAxisKey: 'x', yAxisKey: 'y' } }
   );
 
   chartPrice = new Chart(ctx, {
@@ -1301,16 +1640,34 @@ function renderTradeLog(trades) {
   const exitCnt  = trades.filter(t => t.action === 'EXIT').length;
   const entryCnt = trades.filter(t => t.action === 'ENTRY').length;
   const stopCnt  = trades.filter(t => t.action === 'STOP').length;
+  const liqdCnt  = trades.filter(t => t.action === 'LIQD').length;
   const parts = [`DCA×${dcaCnt}`, `動態加碼×${pyrCnt}`, `降槓桿×${devCnt}`];
-  if (exitCnt)  parts.push(`破底清倉×${exitCnt}`);
+  if (exitCnt)  parts.push(`跌破均線清倉×${exitCnt}`);
   if (entryCnt) parts.push(`創高進場×${entryCnt}`);
   if (stopCnt)  parts.push(`淨值停損×${stopCnt}`);
+  if (liqdCnt)  parts.push(`⚠爆倉×${liqdCnt}`);
   summary.textContent = parts.join(' ');
 
-  const labels = { INIT: '初始建倉', DCA: '攤平加碼', PYRAMID: '動態加碼', DELEV: '降槓桿', EXIT: '破底清倉', ENTRY: '創高進場', STOP: '淨值停損' };
-  const bClass = { INIT: 'b-init', DCA: 'b-dca', PYRAMID: 'b-pyramid', DELEV: 'b-delev', EXIT: 'b-exit', ENTRY: 'b-entry', STOP: 'b-stop' };
+  const labels = { INIT: '初始建倉', DCA: '攤平加碼', PYRAMID: '動態加碼', DELEV: '降槓桿', EXIT: '跌破均線清倉', ENTRY: '創高進場', STOP: '淨值停損', LIQD: '⚠爆倉強平' };
+  const bClass = { INIT: 'b-init', DCA: 'b-dca', PYRAMID: 'b-pyramid', DELEV: 'b-delev', EXIT: 'b-exit', ENTRY: 'b-entry', STOP: 'b-stop', LIQD: 'b-liqd' };
 
-  const rows = [...trades].reverse().map(t => `
+  // 取初始資金作為資產漲跌色基準（trades 第一筆前的狀態 = initialCapital）
+  const initCap = (lastCfg && lastCfg.initialCapital) || (trades[0]?.equity ?? 0);
+
+  const rows = [...trades].reverse().map(t => {
+    const eq = t.equity;
+    // 已實現淨值漲跌色：相對初始資金
+    const eqColor = (eq != null && initCap > 0)
+      ? (eq > initCap ? '#00e676' : (eq < initCap ? '#ff4f4f' : 'var(--text-muted)'))
+      : 'var(--text-muted)';
+    const eqPct = (eq != null && initCap > 0) ? ((eq / initCap - 1) * 100) : null;
+    const eqPctStr = (eqPct != null)
+      ? ` <small style="color:${eqColor};opacity:0.8">(${eqPct >= 0 ? '+' : ''}${eqPct.toFixed(1)}%)</small>`
+      : '';
+    const eqCell = eq != null
+      ? `<span style="color:${eqColor};font-weight:600">${Math.round(eq).toLocaleString()}</span>${eqPctStr}`
+      : '<span style="color:var(--text-muted)">—</span>';
+    return `
     <tr>
       <td>${t.date}</td>
       <td><span class="badge ${bClass[t.action]}">${labels[t.action]}</span></td>
@@ -1319,9 +1676,10 @@ function renderTradeLog(trades) {
       <td style="text-align:right">${t.totalLots}</td>
       <td style="text-align:right">${Math.round(t.avgCost).toLocaleString()}</td>
       <td style="text-align:right">${t.leverage.toFixed(2)}x</td>
+      <td style="text-align:right">${eqCell}</td>
       <td style="color:var(--text-muted); font-size:10.5px; max-width:320px; white-space:normal">${t.reason}</td>
     </tr>
-  `).join('');
+  `;}).join('');
 
   scroll.innerHTML = `
     <table class="tl-table">
@@ -1333,6 +1691,7 @@ function renderTradeLog(trades) {
           <th style="text-align:right">總口數</th>
           <th style="text-align:right">均攤成本</th>
           <th style="text-align:right">槓桿</th>
+          <th style="text-align:right">當前資產</th>
           <th>說明</th>
         </tr>
       </thead>
@@ -1346,6 +1705,7 @@ let liveTimer = null;
 let liveRunning = false;
 let lastDailyData = null;
 let lastCfg = null;
+let lastRawData = null;   // { dates, closes, ema200 } 供窗口最佳化重複掃描
 
 
 
@@ -1387,7 +1747,8 @@ function calcLiveSignal(livePrice) {
   const lastBuyPx = last.price; // approximate
 
   // Check signals
-  if (contracts > 0 && livePrice > avgCost && liveLeverage > cfg.targetLeverage + 0.15) {
+  // 降槓桿：只有槓桿 > maxLeverage 才觸發
+  if (contracts > 0 && livePrice > avgCost && liveLeverage > cfg.maxLeverage) {
     const toSell = Math.min(contracts - 1, Math.floor((liveExposure - liveEquity * cfg.targetLeverage) / (livePrice * multiplier)));
     if (toSell > 0) return { type: 'DELEV', label: `降槓桿 賣 ${toSell} 口`, cls: 'sig-delev' };
   }
@@ -1399,8 +1760,17 @@ function calcLiveSignal(livePrice) {
 
   const ema = last.ema;
   if (contracts > 0 && livePrice > avgCost && liveLeverage < cfg.pyramidTrigger && ema && livePrice > ema) {
-    const toBuy = Math.floor((liveEquity * cfg.targetLeverage - liveExposure) / (livePrice * multiplier));
-    if (toBuy > 0) return { type: 'PYRAMID', label: `動態加碼 ${toBuy} 口`, cls: 'sig-pyramid' };
+    // 加碼目標：maxLeverage（允許 > 5，但不超過 6）
+    const notional = livePrice * multiplier;
+    let toBuy = Math.floor((liveEquity * cfg.maxLeverage - liveExposure) / notional);
+    if (toBuy < 1) toBuy = 1;
+    while (toBuy > 0 && (liveLeverage + toBuy * notional / liveEquity) > cfg.maxLeverage) {
+      toBuy -= 1;
+    }
+    if (toBuy > 0) {
+      const newLev = liveLeverage + (toBuy * notional) / liveEquity;
+      return { type: 'PYRAMID', label: `動態加碼 ${toBuy} 口 → ${newLev.toFixed(2)}x`, cls: 'sig-pyramid' };
+    }
   }
 
   return { type: 'HOLD', label: '觀望 HOLD', cls: 'sig-hold' };
@@ -1520,6 +1890,250 @@ function renderTimingAnalysis(daily, cfg) {
     ${card('強平安全距離', liqCard)}
   `;
 }
+
+// ══════════════════════════════════════════════════════════════════
+// 窗口最佳化：掃描 pyramidTrigger × maxLeverage 二維網格
+// ══════════════════════════════════════════════════════════════════
+let _optResults = [];   // 最近一次掃描結果
+
+function onOptimize() {
+  const overlay = document.getElementById('optOverlay');
+  overlay.classList.add('show');
+  if (!lastRawData) {
+    document.getElementById('optStatusText').textContent =
+      '請先點「執行模擬」載入歷史資料，再回來掃描窗口';
+    document.getElementById('optRunBtn').disabled = true;
+  } else {
+    const d = lastRawData;
+    document.getElementById('optStatusText').textContent =
+      `資料已就緒（${d.dates[0]} ~ ${d.dates[d.dates.length-1]}，${d.dates.length} 個交易日）— 按「掃描」開始`;
+    document.getElementById('optRunBtn').disabled = false;
+  }
+}
+
+function closeOptModal() {
+  document.getElementById('optOverlay').classList.remove('show');
+}
+
+function _computeMetrics(daily, trades, initialCapital) {
+  if (!daily.length) return null;
+  const last = daily[daily.length - 1];
+  const years = daily.length / 252;
+  const finalEquity = last.equity;
+  const totalRet = (finalEquity - initialCapital) / initialCapital;
+  const cagr = Math.pow(Math.max(finalEquity, 1) / initialCapital, 1 / years) - 1;
+  let peak = initialCapital, mdd = 0;
+  for (const d of daily) {
+    if (d.equity > peak) peak = d.equity;
+    mdd = Math.max(mdd, (peak - d.equity) / peak);
+  }
+  const sharpe = mdd > 0 ? cagr / mdd : (cagr > 0 ? 999 : 0);
+  const pyrCnt = trades.filter(t => t.action === 'PYRAMID').length;
+  const delevCnt = trades.filter(t => t.action === 'DELEV').length;
+  const cycleCnt = Math.min(pyrCnt, delevCnt);
+  return { finalEquity, totalRet, cagr, mdd, sharpe, pyrCnt, delevCnt, cycleCnt };
+}
+
+async function runOptSweep() {
+  if (!lastRawData) {
+    alert('請先執行模擬載入資料');
+    return;
+  }
+  const { dates, closes, ema200 } = lastRawData;
+  const loMin = +document.getElementById('optLoMin').value;
+  const loMax = +document.getElementById('optLoMax').value;
+  const hiMin = +document.getElementById('optHiMin').value;
+  const hiMax = +document.getElementById('optHiMax').value;
+  const step  = Math.max(0.05, +document.getElementById('optStep').value);
+  const objective = document.getElementById('optObjective').value;
+
+  const baseCfg = readConfig();
+  const los = [], his = [];
+  for (let v = loMin; v <= loMax + 1e-9; v += step) los.push(+v.toFixed(2));
+  for (let v = hiMin; v <= hiMax + 1e-9; v += step) his.push(+v.toFixed(2));
+
+  // 只保留 lo < hi 且 hi - lo >= 0.3 的組合
+  const pairs = [];
+  for (const lo of los) {
+    for (const hi of his) {
+      if (hi - lo >= 0.3 - 1e-9) pairs.push({ lo, hi });
+    }
+  }
+
+  const btn = document.getElementById('optRunBtn');
+  btn.disabled = true;
+  const statusEl = document.getElementById('optStatusText');
+  const barEl = document.getElementById('optBar');
+  statusEl.textContent = `掃描中（${pairs.length} 組合）…`;
+  barEl.style.width = '0%';
+
+  const results = [];
+  const batch = 8;   // 每批跑完讓出執行緒更新 UI
+  for (let i = 0; i < pairs.length; i++) {
+    const { lo, hi } = pairs[i];
+    // 用基準 cfg 覆寫下限 / 上限
+    const cfg = { ...baseCfg, pyramidTrigger: lo, maxLeverage: hi };
+    // targetLeverage 保持不變（5）
+    try {
+      const { trades, daily } = simulate(dates, closes, ema200, cfg);
+      const m = _computeMetrics(daily, trades, cfg.initialCapital);
+      results.push({ lo, hi, ...m });
+    } catch (e) {
+      results.push({ lo, hi, finalEquity: 0, totalRet: -1, cagr: -1, mdd: 1, sharpe: -1, pyrCnt: 0, delevCnt: 0, cycleCnt: 0 });
+    }
+    if ((i + 1) % batch === 0 || i === pairs.length - 1) {
+      barEl.style.width = `${((i + 1) / pairs.length * 100).toFixed(1)}%`;
+      statusEl.textContent = `掃描中 ${i + 1} / ${pairs.length}…`;
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  _optResults = results;
+  btn.disabled = false;
+  statusEl.textContent = `完成 ${results.length} 組合 — 以「${getObjectiveLabel(objective)}」排序`;
+  renderOptGrid(los, his, results, objective, baseCfg);
+  renderOptTop(results, objective, baseCfg);
+}
+
+function getObjectiveLabel(obj) {
+  return { equity: '最終淨值', cagr: '年化報酬', sharpe: '風報比', mdd: '最小 MDD' }[obj] || obj;
+}
+
+function objectiveValue(r, obj) {
+  if (obj === 'equity') return r.finalEquity;
+  if (obj === 'cagr')   return r.cagr;
+  if (obj === 'sharpe') return r.sharpe;
+  if (obj === 'mdd')    return -r.mdd;   // 越小越好，取負值讓排序一致
+  return r.finalEquity;
+}
+
+function colorForValue(v, min, max) {
+  if (max - min < 1e-9) return 'rgba(120,120,120,0.3)';
+  const t = Math.max(0, Math.min(1, (v - min) / (max - min)));
+  // 從紅 → 黃 → 綠
+  if (t < 0.5) {
+    const k = t * 2;
+    const r = 255, g = Math.round(80 + k * 150), b = 80;
+    return `rgba(${r},${g},${b},0.85)`;
+  } else {
+    const k = (t - 0.5) * 2;
+    const r = Math.round(255 - k * 155), g = 230, b = Math.round(80 + k * 40);
+    return `rgba(${r},${g},${b},0.85)`;
+  }
+}
+
+function renderOptGrid(los, his, results, objective, baseCfg) {
+  const grid = document.getElementById('optGrid');
+  const title = document.getElementById('optGridTitle');
+  title.textContent = `熱力圖：${getObjectiveLabel(objective)}（列=下限 / 行=上限 / 顏色=分數）— 點擊格子套用該組合`;
+
+  const values = results.map(r => objectiveValue(r, objective));
+  const vMin = Math.min(...values), vMax = Math.max(...values);
+  const bestIdx = values.indexOf(vMax);
+  const best = results[bestIdx];
+
+  // 建立查找表
+  const lookup = {};
+  for (const r of results) lookup[`${r.lo}_${r.hi}`] = r;
+
+  const cols = his.length + 1;
+  grid.style.gridTemplateColumns = `repeat(${cols}, minmax(54px, 1fr))`;
+  let html = '';
+  // header row
+  html += `<div class="opt-cell opt-cell-hdr">下\\上</div>`;
+  for (const hi of his) html += `<div class="opt-cell opt-cell-hdr">${hi.toFixed(1)}</div>`;
+  // body
+  for (const lo of los) {
+    html += `<div class="opt-cell opt-cell-hdr">${lo.toFixed(1)}</div>`;
+    for (const hi of his) {
+      const r = lookup[`${lo}_${hi}`];
+      if (!r) {
+        html += `<div class="opt-cell" style="background:transparent;color:var(--text-muted);opacity:0.3">—</div>`;
+        continue;
+      }
+      const v = objectiveValue(r, objective);
+      const color = colorForValue(v, vMin, vMax);
+      const isBest = r === best;
+      const isCur = Math.abs(r.lo - baseCfg.pyramidTrigger) < 0.01 && Math.abs(r.hi - baseCfg.maxLeverage) < 0.01;
+      const cls = ['opt-cell', isBest ? 'best' : '', isCur ? 'current' : ''].filter(Boolean).join(' ');
+      const displayVal = objective === 'equity' ? (r.finalEquity / 10000).toFixed(0) + '萬'
+                       : objective === 'cagr'   ? (r.cagr * 100).toFixed(1) + '%'
+                       : objective === 'sharpe' ? r.sharpe.toFixed(2)
+                       : (r.mdd * 100).toFixed(1) + '%';
+      const tip = `下${r.lo} / 上${r.hi}\n最終 ${(r.finalEquity/10000).toFixed(0)}萬\nCAGR ${(r.cagr*100).toFixed(1)}%\nMDD ${(r.mdd*100).toFixed(1)}%\n加碼 ${r.pyrCnt} / 減碼 ${r.delevCnt}`;
+      html += `<div class="${cls}" style="background:${color};color:#111;font-weight:600" title="${tip}" onclick="applyOptResult(${r.lo},${r.hi})">${displayVal}</div>`;
+    }
+  }
+  grid.innerHTML = html;
+
+  const legend = document.getElementById('optLegend');
+  legend.innerHTML = `
+    <span><span class="sw" style="background:rgba(255,80,80,0.85)"></span>差</span>
+    <span><span class="sw" style="background:rgba(255,230,80,0.85)"></span>中</span>
+    <span><span class="sw" style="background:rgba(100,230,120,0.85)"></span>優</span>
+    <span style="margin-left:12px"><span class="sw" style="outline:2px solid #ffb300;background:transparent"></span>最佳</span>
+    <span><span class="sw" style="outline:2px dashed #5b8def;background:transparent"></span>目前設定</span>
+    <span style="margin-left:12px;color:var(--yellow)">⭐ 最佳：下 ${best.lo} / 上 ${best.hi} → ${(best.finalEquity/10000).toFixed(0)}萬 · CAGR ${(best.cagr*100).toFixed(1)}% · MDD ${(best.mdd*100).toFixed(1)}%</span>
+  `;
+}
+
+function renderOptTop(results, objective, baseCfg) {
+  const sorted = [...results].sort((a, b) => objectiveValue(b, objective) - objectiveValue(a, objective));
+  const top = sorted.slice(0, 15);
+  const tbody = document.getElementById('optTopBody');
+  const feePerLot = baseCfg.feePerLot || 50;
+  let html = '';
+  top.forEach((r, idx) => {
+    const rankCls = idx === 0 ? 'rank-1' : '';
+    // 估算來回成本（粗估：每次循環 ~ 2 邊費 + 價差；這裡以循環次數 × 單口手續費 × 2 簡估）
+    const cycleCost = r.cycleCnt * feePerLot * 2;
+    html += `<tr class="${rankCls}" onclick="applyOptResult(${r.lo},${r.hi})">
+      <td>${idx + 1}</td>
+      <td><strong>${r.lo.toFixed(1)}</strong></td>
+      <td><strong>${r.hi.toFixed(1)}</strong></td>
+      <td>${(r.hi - r.lo).toFixed(1)}x</td>
+      <td>${(r.finalEquity / 10000).toFixed(1)}萬</td>
+      <td class="${r.cagr >= 0 ? 'pos' : 'neg'}">${(r.cagr * 100).toFixed(2)}%</td>
+      <td class="${r.mdd > 0.2 ? 'neg' : 'neu'}">${(r.mdd * 100).toFixed(1)}%</td>
+      <td>${r.sharpe === 999 ? '∞' : r.sharpe.toFixed(2)}</td>
+      <td>${r.pyrCnt}</td>
+      <td>${r.delevCnt}</td>
+      <td>${cycleCost.toLocaleString()}</td>
+      <td><button class="opt-apply" onclick="event.stopPropagation();applyOptResult(${r.lo},${r.hi})">套用</button></td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+function applyOptResult(lo, hi) {
+  document.getElementById('pyramidTrigger').value = lo;
+  document.getElementById('maxLeverage').value = hi;
+  closeOptModal();
+  setStatus(`已套用最佳窗口：下限 ${lo} / 上限 ${hi} — 點「執行模擬」查看詳細結果`, false);
+  // 自動重跑使用快取資料
+  if (lastRawData) {
+    const cfg = readConfig();
+    const { dates, closes, ema200 } = lastRawData;
+    const { trades, daily, rollingHigh, rollingLow, rsi } = simulate(dates, closes, ema200, cfg);
+    lastDailyData = daily;
+    lastCfg = cfg;
+    renderMetrics(daily, cfg);
+    renderPriceChart(dates, closes, ema200, trades, daily, rollingHigh, rollingLow);
+    renderLeverageChart(daily, cfg);
+    renderEquityChart(daily, cfg);
+    renderDrawdownChart(daily, cfg);
+    renderTimingAnalysis(daily, cfg);
+    renderTradeLog(trades);
+    const pyrCnt = trades.filter(t => t.action === 'PYRAMID').length;
+    const devCnt = trades.filter(t => t.action === 'DELEV').length;
+    setStatus(`✓ 已套用 下限 ${lo} / 上限 ${hi}  —  動態加碼 ${pyrCnt} 次 · 降槓桿 ${devCnt} 次`, false);
+  }
+}
+
+// ESC 關閉
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeOptModal();
+});
 
 function startLive() {
   const btn = document.getElementById('refreshBtn');

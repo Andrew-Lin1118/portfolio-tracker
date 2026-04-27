@@ -81,16 +81,16 @@ def fetch_sp500():
         info['shiller_pe']  = parse_multpl_current(http_get('https://www.multpl.com/shiller-pe'))
     except Exception as e:
         print(f'  [sp500] Shiller PE 失敗: {e}', flush=True)
-    # 5 年歷史（每月一筆，約 60 筆）
+    # 20 年歷史（每月一筆，約 240 筆）
     try:
         html = http_get('https://www.multpl.com/s-p-500-pe-ratio/table/by-month')
         rows = parse_multpl_table(html)
-        cutoff = (datetime.date.today() - datetime.timedelta(days=5*365 + 30)).isoformat()
-        rows5y = [r for r in rows if r['date'] >= cutoff]
+        cutoff = (datetime.date.today() - datetime.timedelta(days=20*365 + 30)).isoformat()
+        rows20y = [r for r in rows if r['date'] >= cutoff]
         # 由舊到新排序
-        rows5y.sort(key=lambda x: x['date'])
-        info['history'] = [{'d': r['date'], 'pe': r['value']} for r in rows5y]
-        print(f'  [sp500] history: {len(rows5y)} months', flush=True)
+        rows20y.sort(key=lambda x: x['date'])
+        info['history'] = [{'d': r['date'], 'pe': r['value']} for r in rows20y]
+        print(f'  [sp500] history: {len(rows20y)} months', flush=True)
     except Exception as e:
         print(f'  [sp500] history 失敗: {e}', flush=True)
     return info
@@ -108,12 +108,16 @@ def fetch_yf_etf(symbol, name, key):
         except Exception: pass
         info['trailing_pe'] = meta.get('trailingPE')
         info['forward_pe']  = meta.get('forwardPE')
-        # 取 5 年週線 → 推估歷史 PE（以 current_eps = price/PE 推算）
+        # 取 20 年週線 → 推估歷史 PE（以 current_eps = price/PE 推算）
         try:
-            hist = t.history(period='5y', interval='1wk', auto_adjust=False)
+            hist = t.history(period='20y', interval='1wk', auto_adjust=False)
             cur_pe = info['trailing_pe']
             if hist is not None and not hist.empty and cur_pe and cur_pe > 0:
-                last_close = float(hist['Close'].iloc[-1])
+                # 取「最後一個有效收盤」(避免當週未收盤的 NaN，台股盤中常見)
+                close_series = hist['Close'].dropna()
+                if close_series.empty:
+                    raise RuntimeError('全部收盤皆 NaN')
+                last_close = float(close_series.iloc[-1])
                 eps_est = last_close / cur_pe
                 if eps_est > 0:
                     pts = []

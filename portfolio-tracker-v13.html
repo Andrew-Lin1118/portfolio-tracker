@@ -4170,7 +4170,7 @@
         }
 
         // ── 總體經濟快取（1小時）──
-        const _MACRO_CACHE_KEY = 'pf_macro_v1';
+        const _MACRO_CACHE_KEY = 'pf_macro_v3';   // v3: 改抓 20 年資料
         const _MACRO_CACHE_TTL = 60 * 60 * 1000; // 1 小時
         function _loadMacroCache() {
             try { const r = JSON.parse(localStorage.getItem(_MACRO_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _MACRO_CACHE_TTL) ? r : null; } catch { return null; }
@@ -4314,6 +4314,9 @@
                     n_analysts:    fj.number_of_analysts,
                     // 原型股昨收（供槓桿 ETF 目標價漲跌幅比較用）
                     prev_close:    fj.prev_close,
+                    // ★ 財報日期（供 Tab 4 renderEarningsTab 顯示）
+                    next_earnings_date:        fj.next_earnings_date ?? null,
+                    most_recent_earnings_date: fj.most_recent_earnings_date ?? null,
                 };
             }
 
@@ -4442,7 +4445,27 @@
             const recLabels = { strong_buy:'⬆ 強烈買進', buy:'↑ 建議買進', hold:'→ 持有觀望', sell:'↓ 建議賣出', strong_sell:'⬇ 強烈賣出' };
             const ninetyDaysAgo = Date.now()/1000 - 90*24*3600;
 
-            const html = holdings.map(h => {
+            // ★ 排序：按最近一次「已公布」財報日期 desc（新→舊），無資料的排到最後
+            const getLatestReportDate = (h) => {
+                const sym = getQuerySymbol(h.symbol);
+                const hist = allQs[sym]?.earningsHistory?.history || [];
+                const published = hist.filter(e => e?.epsActual?.raw != null && e.reportDate);
+                if (published.length) {
+                    return published[published.length - 1].reportDate || '';
+                }
+                // fallback: 從 fundamentals.json 補的 most_recent_earnings_date
+                return allQs[sym]?._fund?.most_recent_earnings_date || '';
+            };
+            const sortedHoldings = [...holdings].sort((a, b) => {
+                const da = getLatestReportDate(a);
+                const db = getLatestReportDate(b);
+                if (!da && !db) return 0;
+                if (!da) return 1;   // a 沒資料排後面
+                if (!db) return -1;
+                return db.localeCompare(da);   // 新的排前面
+            });
+
+            const html = sortedHoldings.map(h => {
                 const sym = getQuerySymbol(h.symbol);
                 const qs  = allQs[sym];
                 const isProxy = !!LEVERAGED_MAP[h.symbol];
@@ -4584,53 +4607,73 @@
                     </div>`;
                 })() : '';
 
+                // ── 最近 / 下次財報日期徽章 ─────────────────────
+                const fnd_dates = qs._fund || {};
+                const _today = new Date(); _today.setHours(0,0,0,0);
+                const _publishedEh = eh.filter(e => e?.epsActual?.raw != null && e.reportDate);
+                // 優先取 earningsHistory（有 EPS 數字），否則 fallback 到 fundamentals.json
+                const _latestRD = _publishedEh.length
+                    ? _publishedEh[_publishedEh.length - 1].reportDate
+                    : (fnd_dates.most_recent_earnings_date || null);
+                let latestBadge = '';
+                if (_latestRD) {
+                    const ld = new Date(_latestRD + 'T00:00:00');
+                    const daysAgo = Math.round((_today - ld) / 86400000);
+                    const txt = daysAgo === 0 ? '今天' : (daysAgo === 1 ? '昨天' : `${daysAgo} 天前`);
+                    latestBadge = `<span style="padding:0.18rem 0.55rem;border-radius:6px;background:rgba(148,163,184,0.14);color:#cbd5e1;font-size:0.74rem;font-weight:600;" title="最近一次已公布財報">📋 最近 ${_latestRD} <span style="color:#64748b;">(${txt})</span></span>`;
+                }
+                let nextBadge = '';
+                const _nextRD = fnd_dates.next_earnings_date;
+                if (_nextRD) {
+                    const ne = new Date(_nextRD + 'T00:00:00');
+                    const diff = Math.round((ne - _today) / 86400000);
+                    let color = '#94a3b8', tip = '';
+                    if (diff < 0)        { color = '#64748b'; tip = '已過'; }
+                    else if (diff === 0) { color = '#ef4444'; tip = '今天！'; }
+                    else if (diff <= 7)  { color = '#f59e0b'; tip = `${diff} 天後`; }
+                    else if (diff <= 30) { color = '#fbbf24'; tip = `${diff} 天後`; }
+                    else                 { color = '#94a3b8'; tip = `${diff} 天後`; }
+                    nextBadge = `<span style="padding:0.18rem 0.55rem;border-radius:6px;background:${color}22;color:${color};font-size:0.74rem;font-weight:700;" title="預定下次財報日期">📅 下次 ${_nextRD} <span style="opacity:0.85;">(${tip})</span></span>`;
+                } else {
+                    nextBadge = `<span style="padding:0.18rem 0.55rem;border-radius:6px;background:rgba(71,85,105,0.18);color:#475569;font-size:0.74rem;" title="尚無下次財報日期">📅 下次財報 待公布</span>`;
+                }
+
                 return `<div style="background:linear-gradient(135deg,rgba(15,30,60,0.65),rgba(10,20,40,0.85));
                     border:1px solid rgba(59,130,246,0.2);border-left:3px solid rgba(251,191,36,0.5);
-                    border-radius:12px;padding:1rem 1.25rem;margin-bottom:0.75rem;">
+                    border-radius:12px;padding:1rem 1.25rem;">
                     <!-- Header -->
                     <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;margin-bottom:0.75rem;border-bottom:1px solid rgba(255,255,255,0.07);padding-bottom:0.6rem;">
                         <span style="font-weight:800;color:#f1f5f9;font-size:1rem;">${h.symbol}</span>${proxyLabel}
                         ${recKey ? `<span style="padding:0.18rem 0.6rem;border-radius:6px;background:${recColor}22;color:${recColor};font-weight:700;font-size:0.8rem;">${recLabel}</span>` : ''}
+                        ${latestBadge}
+                        ${nextBadge}
                     </div>
                     <!-- 券商平均目標價 -->
                     ${targetBlock}
                     <!-- 估值指標列 -->
                     ${valuationPills ? `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.75rem;">${valuationPills}</div>` : ''}
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                        <!-- 左：財報EPS -->
-                        <div>
-                            <div style="color:#fbbf24;font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">📋 近4季 EPS</div>
-                            ${eh.length > 0 ? `<table style="width:100%;border-collapse:collapse;">
-                                <thead><tr style="border-bottom:1px solid rgba(251,191,36,0.2);">
-                                    <th style="padding:0.2rem 0.45rem;text-align:left;color:#64748b;font-size:0.74rem;font-weight:600;">季度</th>
-                                    <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">預估</th>
-                                    <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">實際</th>
-                                    <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">驚喜</th>
-                                </tr></thead>
-                                <tbody>${earningsRows}</tbody>
-                            </table>` : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">暫無季度 EPS 歷史（資料更新中）</div>'}
-                            ${marginPills ? `<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;">${marginPills}</div>` : ''}
-                            ${epsRow}
-                        </div>
-                        <!-- 右：近90天分析師動態（新聞形式） -->
-                        <div>
-                            <div style="color:#fbbf24;font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">🏦 近90天分析師動態</div>
-                            ${analystNews.length > 0 ? analystNews.map(n => {
-                                const dt = new Date((n.providerPublishTime||0)*1000).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'});
-                                return `<div onclick="window.open('${n.link||'#'}','_blank','noopener')"
-                                    style="margin-bottom:0.45rem;cursor:pointer;padding:0.3rem 0.4rem;border-radius:5px;border-left:2px solid rgba(251,191,36,0.35);background:rgba(255,255,255,0.02);transition:background 0.15s;"
-                                    onmouseover="this.style.background='rgba(251,191,36,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
-                                    <div style="color:#64748b;font-size:0.72rem;margin-bottom:0.1rem;">${dt} · ${n.publisher||''}</div>
-                                    <div style="color:#e2e8f0;font-size:0.76rem;line-height:1.35;">${n.titleZh||n.title}</div>
-                                    ${n.titleZh&&n.titleZh!==n.title?`<div style="color:#475569;font-size:0.7rem;margin-top:0.1rem;">${n.title}</div>`:''}
-                                </div>`;
-                            }).join('') : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">近90天無分析師評級相關新聞</div>'}
-                        </div>
+                    <!-- 財報 EPS（單欄）-->
+                    <div>
+                        <div style="color:#fbbf24;font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">📋 近4季 EPS</div>
+                        ${eh.length > 0 ? `<table style="width:100%;border-collapse:collapse;">
+                            <thead><tr style="border-bottom:1px solid rgba(251,191,36,0.2);">
+                                <th style="padding:0.2rem 0.45rem;text-align:left;color:#64748b;font-size:0.74rem;font-weight:600;">季度</th>
+                                <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">預估</th>
+                                <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">實際</th>
+                                <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">驚喜</th>
+                            </tr></thead>
+                            <tbody>${earningsRows}</tbody>
+                        </table>` : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">暫無季度 EPS 歷史（資料更新中）</div>'}
+                        ${marginPills ? `<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;">${marginPills}</div>` : ''}
+                        ${epsRow}
                     </div>
                 </div>`;
             }).filter(Boolean).join('');
 
-            container.innerHTML = html || '<div style="text-align:center;padding:3rem;color:#64748b;">無法取得分析數據</div>';
+            // 桌機 2 欄、平板 / 手機自動降為 1 欄
+            container.innerHTML = html
+                ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:0.75rem;">${html}</div>`
+                : '<div style="text-align:center;padding:3rem;color:#64748b;">無法取得分析數據</div>';
         }
 
         // ==================== Tab 5：總體經濟 ====================
@@ -4951,8 +4994,8 @@
                         ${spe != null ? `<span style="color:#fbbf24;font-size:0.78rem;">CAPE ${spe.toFixed(1)}</span>` : ''}
                     </div>
                     <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.35rem;font-size:0.7rem;">
-                        <span style="padding:0.08rem 0.4rem;border-radius:4px;background:${pctileColor}22;color:${pctileColor};font-weight:700;">5Y百分位 ${pctileTxt}</span>
-                        <span style="color:#64748b;">5Y均 ${meanTxt}</span>
+                        <span style="padding:0.08rem 0.4rem;border-radius:4px;background:${pctileColor}22;color:${pctileColor};font-weight:700;">20Y百分位 ${pctileTxt}</span>
+                        <span style="color:#64748b;">20Y均 ${meanTxt}</span>
                     </div>
                 </div>`;
             }).join('');
@@ -4991,7 +5034,7 @@
             });
             const stats = _peStats(idx.history);
             if (titleEl) {
-                if (stats) titleEl.textContent = `${idx.name}：5Y 平均 ${stats.mean.toFixed(2)}，±1σ [${(stats.mean-stats.std).toFixed(2)}, ${(stats.mean+stats.std).toFixed(2)}]，當前 ${stats.cur.toFixed(2)}（${stats.pctile}th 百分位，n=${stats.n}）`;
+                if (stats) titleEl.textContent = `${idx.name}：20Y 平均 ${stats.mean.toFixed(2)}，±1σ [${(stats.mean-stats.std).toFixed(2)}, ${(stats.mean+stats.std).toFixed(2)}]，當前 ${stats.cur.toFixed(2)}（${stats.pctile}th 百分位，n=${stats.n}）`;
                 else titleEl.textContent = `${idx.name}：無歷史資料`;
             }
             const labels = (idx.history||[]).map(h => h.d.slice(0,7));

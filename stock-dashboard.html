@@ -403,6 +403,7 @@
   <span id="lastRefresh"></span>
   <button class="btn" style="margin-left:8px;padding:4px 10px;font-size:11px;" onclick="refreshAll(true)">⟳ 刷新</button>
   <a href="fmx-dashboard.html" style="margin-left:12px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none;color:var(--gold2);background:#1a1200;border:1px solid var(--gold);border-radius:5px;letter-spacing:0.3px;transition:opacity .15s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">⚡ 期貨</a>
+  <a href="subbrokerage-dashboard.html" style="margin-left:8px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none;color:#f0c040;background:#1a1200;border:1px solid #d4a017;border-radius:5px;letter-spacing:0.3px;transition:opacity .15s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">🌏 複委託</a>
 </header>
 
 <div class="layout">
@@ -1205,15 +1206,45 @@ async function fetchChartData() {
 
     const idx     = r.timestamp || [];
     const q       = r.indicators?.quote?.[0] || {};
+    const adj     = r.indicators?.adjclose?.[0]?.adjclose || [];  // 除權息調整收盤
     const toDate  = ts => new Date(ts * 1000).toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
 
-    const dates  = idx.map(toDate);
-    // NOTE: idx 是 Unix timestamp 陣列，必須用第二參數 (_, i) 取陣列索引
-    const opens  = idx.map((_, i) => q.open?.[i]   ?? q.close?.[i] ?? null);
-    const closes = idx.map((_, i) => q.close?.[i]  ?? q.open?.[i]  ?? null);
-    const highs  = idx.map((_, i) => q.high?.[i]   ?? q.close?.[i] ?? null);
-    const lows   = idx.map((_, i) => q.low?.[i]    ?? q.close?.[i] ?? null);
-    const vols   = idx.map((_, i) => q.volume?.[i] ?? null);
+    // 用 adjclose 計算除權息調整比例，套用到 O/H/L 使 OHLCV 內部一致
+    // 若 adjclose 陣列不存在則降回原始 close（不調整）
+    const rawC  = idx.map((_, i) => q.close?.[i]  ?? null);
+    const ratio = idx.map((_, i) => {
+      const ac = adj[i], rc = rawC[i];
+      return (ac != null && rc != null && rc !== 0) ? ac / rc : 1;
+    });
+
+    let dates  = idx.map(toDate);
+    let opens  = idx.map((_, i) => q.open?.[i]   != null ? q.open[i]   * ratio[i] : null);
+    let closes = idx.map((_, i) => adj[i]         != null ? adj[i]                 : rawC[i]);
+    let highs  = idx.map((_, i) => q.high?.[i]   != null ? q.high[i]   * ratio[i] : null);
+    let lows   = idx.map((_, i) => q.low?.[i]    != null ? q.low[i]    * ratio[i] : null);
+    let vols   = idx.map((_, i) => q.volume?.[i] ?? null);
+
+    // 最後一根若是「今天」且收盤 < 開盤 10% 以上（盤中資料不穩定）或 close 超出 [low,high]
+    // 直接移除，避免技術指標在最後一點暴衝
+    const lastDate = dates[dates.length - 1];
+    const lastClose = closes[closes.length - 1];
+    const lastLow   = lows[lows.length - 1];
+    const lastHigh  = highs[highs.length - 1];
+    const isToday   = lastDate === todayStr;
+    const badLastBar = isToday && (
+      lastClose == null ||
+      (lastLow  != null && lastClose < lastLow  - 0.001) ||
+      (lastHigh != null && lastClose > lastHigh + 0.001)
+    );
+    if (badLastBar) {
+      dates  = dates.slice(0, -1);
+      opens  = opens.slice(0, -1);
+      closes = closes.slice(0, -1);
+      highs  = highs.slice(0, -1);
+      lows   = lows.slice(0, -1);
+      vols   = vols.slice(0, -1);
+    }
 
     // Update stock name from meta
     const meta = r.meta || {};
@@ -1246,11 +1277,23 @@ function calcSMA(data, period) {
 function calcEMA(data, period) {
   const k = 2 / (period + 1);
   const out = new Array(data.length).fill(null);
-  let ema = null;
+  // 用前 period 根非 null 值的 SMA 作為種子，避免初期 EMA 因樣本過少而失真
+  let seedSum = 0, seedCnt = 0;
+  let prevEma = null;   // 用獨立變數追蹤，避免 out[i-1] 跨 null 間隙的問題
   for (let i = 0; i < data.length; i++) {
     if (data[i] == null) continue;
-    ema = ema === null ? data[i] : data[i] * k + ema * (1 - k);
-    out[i] = ema;
+    if (prevEma === null) {
+      // 收集種子樣本
+      seedSum += data[i];
+      seedCnt++;
+      if (seedCnt === period) {
+        prevEma = seedSum / period;   // SMA(period) 作為第一個 EMA 值
+        out[i]  = prevEma;
+      }
+    } else {
+      prevEma = data[i] * k + prevEma * (1 - k);
+      out[i]  = prevEma;
+    }
   }
   return out;
 }
@@ -1267,12 +1310,19 @@ function calcStoch(highs, lows, closes, kPeriod=14, dPeriod=3) {
   const n = closes.length;
   const rawK = new Array(n).fill(null);
   for (let i = kPeriod - 1; i < n; i++) {
-    const h = Math.max(...highs.slice(i - kPeriod + 1, i + 1).filter(v => v != null));
-    const l = Math.min(...lows.slice( i - kPeriod + 1, i + 1).filter(v => v != null));
-    rawK[i] = h === l ? 50 : (closes[i] - l) / (h - l) * 100;
+    if (closes[i] == null) continue;
+    const hArr = highs.slice(i - kPeriod + 1, i + 1).filter(v => v != null);
+    const lArr = lows.slice( i - kPeriod + 1, i + 1).filter(v => v != null);
+    if (!hArr.length || !lArr.length) continue;
+    const h = Math.max(...hArr);
+    const l = Math.min(...lArr);
+    if (h === l) { rawK[i] = 50; continue; }
+    // 正常公式：(close - 期間最低) / (期間最高 - 期間最低) × 100
+    // 若 close 因除權息調整略超出 [l,h]，clamp 到 [0,100] 避免顯示異常值
+    rawK[i] = Math.max(0, Math.min(100, (closes[i] - l) / (h - l) * 100));
   }
-  const kLine = calcSMA(rawK, dPeriod);   // Slow %K = SMA of rawK
-  const dLine = calcSMA(kLine, dPeriod);  // %D = SMA of %K
+  const kLine = calcSMA(rawK, dPeriod);   // Slow %K = 3-day SMA of Fast %K
+  const dLine = calcSMA(kLine, dPeriod);  // %D  = 3-day SMA of Slow %K
   return { k: kLine, d: dLine };
 }
 function calcRSI(closes, period=14) {

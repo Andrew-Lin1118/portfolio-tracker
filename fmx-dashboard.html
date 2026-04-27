@@ -29,6 +29,21 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--muted);
   }
+  /* 實盤/模擬 狀態徽章 — 顯眼一點，避免按錯 */
+  .header-badge.live {
+    background: #041a0c; border-color: var(--green); color: #4fd080;
+    font-weight: 700; letter-spacing: 0.5px;
+    box-shadow: 0 0 8px rgba(79,208,128,0.35);
+    animation: live-pulse 2s ease-in-out infinite;
+  }
+  .header-badge.sim {
+    background: #1f1a05; border-color: var(--gold); color: var(--gold2);
+    font-weight: 700; letter-spacing: 0.5px;
+  }
+  @keyframes live-pulse {
+    0%,100% { box-shadow: 0 0 6px rgba(79,208,128,0.30); }
+    50%     { box-shadow: 0 0 12px rgba(79,208,128,0.70); }
+  }
   #statusDot {
     width: 9px; height: 9px; border-radius: 50%;
     background: #444; margin-left: auto; flex-shrink: 0;
@@ -201,26 +216,26 @@
   /* ── Inventory Table ── */
   .inv-section {
     border-top: 1px solid var(--border); background: var(--surface);
-    display: flex; flex-direction: column; height: 160px; flex-shrink: 0; overflow: hidden;
+    display: flex; flex-direction: column; height: 110px; flex-shrink: 0; overflow: hidden;
   }
   .inv-header {
-    display: flex; align-items: center; gap: 8px; padding: 5px 12px;
-    border-bottom: 1px solid var(--border); flex-shrink: 0;
+    display: flex; align-items: center; gap: 6px; padding: 3px 10px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0; font-size: 10px;
   }
-  .inv-header .section-title { margin-bottom: 0; }
-  .inv-refresh { font-size: 10px; color: var(--blue); cursor: pointer; margin-left: auto; padding: 2px 8px;
+  .inv-header .section-title { margin-bottom: 0; font-size: 11px; }
+  .inv-refresh { font-size: 9px; color: var(--blue); cursor: pointer; margin-left: auto; padding: 1px 6px;
     border: 1px solid var(--blue); border-radius: 3px; background: transparent; }
   .inv-refresh:hover { background: #0d2040; }
   .inv-table-wrap { overflow-y: auto; flex: 1; }
-  table.inv { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.inv { width: 100%; border-collapse: collapse; font-size: 10px; }
   table.inv th {
     position: sticky; top: 0; background: var(--surface2); color: var(--muted);
-    font-weight: 600; font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase;
-    padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--border);
+    font-weight: 600; font-size: 9px; letter-spacing: 0.3px; text-transform: uppercase;
+    padding: 3px 6px; text-align: right; border-bottom: 1px solid var(--border);
     white-space: nowrap;
   }
   table.inv th:first-child, table.inv td:first-child { text-align: left; }
-  table.inv td { font-size: 12px; padding: 5px 8px; border-bottom: 1px solid #1a1f28; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  table.inv td { font-size: 11px; padding: 3px 6px; border-bottom: 1px solid #1a1f28; white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
   table.inv tr:hover td { background: #1c2230; }
   table.inv .up   { color: var(--green); }
   table.inv .down { color: var(--red); }
@@ -332,7 +347,8 @@
     .chart-label { font-size: 10px; letter-spacing: 0.3px; }
 
     /* 行情表格 */
-    .inv-section { height: 160px !important; }
+    .inv-section { height: 110px !important; }
+    #invSection2 { height: 130px !important; }
     .inv-header .section-title { font-size: 10px; letter-spacing: 0.8px; }
     table.inv th { font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase; padding: 5px 6px; }
     table.inv td { font-size: 11px; padding: 5px 6px; font-variant-numeric: tabular-nums; }
@@ -418,7 +434,7 @@
 <header>
   <h1>⚡ FMX 微台動態槓桿策略監控</h1>
   <span class="header-badge" id="headerSymbol">MXFR1</span>
-  <span class="header-badge" id="modeLabel">DRY RUN</span>
+  <span class="header-badge sim" id="modeLabel" title="目前交易模式：實盤=會真實下單，模擬=僅試算">🟡 模擬</span>
   <div id="statusDot" class="stopped"></div>
   <span id="statusLabel">已停止</span>
   <span id="lastRefresh"></span>
@@ -457,7 +473,7 @@
         </label>
       </div>
       <div class="toggle-row">
-        <span class="toggle-label">自動刷新 (30s)</span>
+        <span class="toggle-label">自動刷新 (15s)</span>
         <label class="toggle-switch">
           <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh()">
           <span class="slider"></span>
@@ -501,11 +517,11 @@
       </div>
       <div class="form-group">
         <label>降槓桿觸發 / 最大槓桿 (x)</label>
-        <input type="number" id="cfgMaxLev" value="6" step="0.1" min="1">
+        <input type="number" id="cfgMaxLev" value="6.8" step="0.1" min="1">
       </div>
       <div class="form-group">
         <label>加槓桿觸發槓桿 (x)</label>
-        <input type="number" id="cfgPyramid" value="4.9" step="0.1" min="1">
+        <input type="number" id="cfgPyramid" value="5.9" step="0.1" min="1">
       </div>
       <div class="form-group">
         <label>手續費 / 口 (NTD)</label>
@@ -681,7 +697,7 @@
     <div class="row-drag-handle" id="rowDrag2" title="拖曳調整高度"></div>
 
     <!-- 富邦帳戶實際庫存 -->
-    <div class="inv-section" id="invSection2" style="height:180px;max-height:none;flex-shrink:0">
+    <div class="inv-section" id="invSection2" style="height:130px;max-height:none;flex-shrink:0">
       <div class="inv-header">
         <span class="section-title">富邦期貨帳戶庫存</span>
         <span id="posAccount" style="font-size:10px;color:var(--gold)"></span>
@@ -780,9 +796,9 @@
 
     <div class="stat-row">
       <div class="stat-card">
-        <div class="label">目前口數</div>
+        <div class="label" title="目前持倉口數 · 部位名目 = 口數 × 乘數 × 即時價">目前口數</div>
         <div class="value gold" id="statContracts">—</div>
-        <div class="sub">口</div>
+        <div class="sub" id="statContractsSub">口</div>
       </div>
       <div class="stat-card">
         <div class="label">現在槓桿</div>
@@ -797,7 +813,7 @@
         <div class="value" id="statAvgCost">—</div>
       </div>
       <div class="stat-card">
-        <div class="label" style="color:#388bfd">100 EMA</div>
+        <div class="label" style="color:#388bfd">100日MA（清倉線）</div>
         <div class="value" id="statEMA">—</div>
       </div>
     </div>
@@ -809,12 +825,12 @@
 
     <div class="stat-row">
       <div class="stat-card">
-        <div class="label" title="槓桿低於 pyramid_trigger 時加碼回目標槓桿，依目前權益反推的觸發價">加槓桿價格</div>
+        <div class="label" title="槓桿低於目前 pyramid_trigger 時加一口，依目前權益反推的觸發價">加槓桿價格</div>
         <div class="value green" id="statPyramidPx">—</div>
         <div class="sub" id="statPyramidPxSub"></div>
       </div>
       <div class="stat-card">
-        <div class="label" title="槓桿高於 max_leverage 時減碼回目標槓桿，依目前權益反推的觸發價">減槓桿價格</div>
+        <div class="label" title="槓桿高於目前 max_leverage 時減一口，依目前權益反推的觸發價">減槓桿價格</div>
         <div class="value red" id="statDeleveragePx">—</div>
         <div class="sub" id="statDeleveragePxSub"></div>
       </div>
@@ -978,7 +994,11 @@ let autoRefreshTimer = null;
 let priceChartObj   = null;
 let leverageChartObj = null;
 // leverageHistory removed — now using RSI chart
-let _shiftHeld = false;   // Shift 鍵狀態（用於切換縮放模式：Shift=僅Y軸，預設=XY整體）
+let _shiftHeld = false;   // Shift 鍵狀態：預設滾輪=X軸（改變K棒數量），Shift+滾輪=Y軸（微調價格）
+let _pyrTriggerPx      = null;   // 加槓桿觸發價（快取，供即時更新百分比用）
+let _delTriggerPx      = null;   // 減槓桿觸發價（快取，供即時更新百分比用）
+let _pyramidTriggerLive = null;  // pyramid_trigger 從 state 同步（避免讀 DOM 預設值）
+let _maxLevLive         = null;  // max_leverage 從 state 同步
 document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true; });
 document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; });
 
@@ -999,9 +1019,9 @@ const _PROD_MIN_PX = {
 const PRODUCTS = {
   // mis: TAIFEX MIS 即時行情 base code（不含月份）
   // fallbackMis: MXF 不在期交所公開行情中，改用 TX/TXF 的參考價計算漲跌
-  'MXFR1': { name: '微型台指期貨', taifex: null,  mis: 'MXF', fallbackMis: ['TXF','TX','MTX'], yf: '^TWII', mult: 10,   maint: 18300 },
-  'TXFR1': { name: '台股期貨(大台)',taifex: 'TX',  mis: 'TXF', yf: '^TWII', mult: 200,  maint: 366000 },
-  'MTXR1': { name: '小型台指期貨', taifex: 'MTX', mis: 'MTX', yf: '^TWII', mult: 50,   maint: 91500 },
+  'MXFR1': { name: '微型台指期貨', taifex: null,  mis: 'MXF', fallbackMis: ['TXF','TX','MTX'], yf: '^TWII', futKline: true, mult: 10,   maint: 18300 },
+  'TXFR1': { name: '台股期貨(大台)',taifex: 'TX',  mis: 'TXF', yf: '^TWII', futKline: true, mult: 200,  maint: 366000 },
+  'MTXR1': { name: '小型台指期貨', taifex: 'MTX', mis: 'MTX', yf: '^TWII', futKline: true, mult: 50,   maint: 91500 },
   'TE':    { name: '電子期貨',     taifex: 'TE',  mis: 'TE',  yf: null,    mult: 4000, maint: 511000 },
   'TF':    { name: '金融期貨',     taifex: 'TF',  mis: 'TF',  yf: null,    mult: 1000, maint: 103000 },
   // GDF: 100g 黃金期貨，報價單位 NTD/g；BRF: 200桶布蘭特，報價單位 NTD/桶
@@ -1076,6 +1096,7 @@ let taifexFetchTs    = 0;
 let _sdkAvgPrice         = null; // 富邦 SDK 庫存回報的均價（優先用於圖表）
 let _sdkContracts        = null; // 富邦 SDK 庫存回報的口數
 let _sdkEquity           = null; // 富邦 SDK 帳戶淨值（即時計算槓桿用）
+let _sdkRealized         = null; // fmx_positions.py 算出的已實現損益（錨點 + FIFO 累加）
 let _sdkPosUnreal        = null; // 富邦 SDK 庫存查詢時的官方未實現 P&L（與庫存表一致）
 let _sdkPosPriceRef      = null; // 庫存查詢當下的期貨市場價（供即時 delta 調整用）
 let _sdkPositions        = null; // 富邦 SDK 完整庫存陣列（每筆含 symbol/qty/cur_price/avg_price）
@@ -1117,21 +1138,28 @@ function _calcLiqPx(price, state) {
  *
  *  注意：當有未實現獲利時，cash < N·avg·M（因為保證金成本 > 現金餘額），
  *        分子為正；T>1 → 分母正。
- *        DELEVERAGE（T=6）價格會「低於」當前價（跌價→獲利縮水→淨值跌得比
- *        exposure 快→槓桿升高）；PYRAMID（T=4.9）價格會「高於」當前價。
+ *        DELEVERAGE（T=6.8）價格會「低於」當前價（跌價→獲利縮水→淨值跌得比
+ *        exposure 快→槓桿升高）；PYRAMID（T=5.9）價格會「高於」當前價。
  */
 function _calcLeverageTriggerPx(targetLev, state) {
   const contracts = _sdkContracts ?? state?.contracts;
   const avg       = _sdkAvgPrice  ?? state?.avg_cost;
-  const equity    = _sdkEquity    ?? state?.equity;
-  // 使用 SDK 的即時未實現，若無則用 state
-  const unreal    = _sdkPosUnreal ?? state?.unrealized;
   const mult      = PRODUCTS[currentSymbol]?.mult ?? 10;
-  if (!contracts || !avg || !equity || targetLev == null || targetLev <= 1) return null;
-  if (unreal == null) return null;
-  const cash = equity - unreal;               // 現金部位（不隨價格變動）
-  const num  = targetLev * (contracts * avg * mult - cash);
-  const den  = contracts * mult * (targetLev - 1);
+  if (!contracts || !avg || targetLev == null || targetLev <= 1) return null;
+
+  // cash = equity - unrealized（價格無關項）
+  // 必須同一來源：若 SDK 兩者皆有 → 用 SDK；否則用 state（策略同時計算，保持一致）
+  let cash;
+  if (_sdkEquity != null && _sdkPosUnreal != null) {
+    cash = _sdkEquity - _sdkPosUnreal;
+  } else if (state?.equity != null && state?.unrealized != null) {
+    cash = state.equity - state.unrealized;
+  } else {
+    return null;
+  }
+
+  const num = targetLev * (contracts * avg * mult - cash);
+  const den = contracts * mult * (targetLev - 1);
   if (den === 0) return null;
   return num / den;
 }
@@ -1359,26 +1387,33 @@ function _computeMaxBarThickness(chart) {
   }
   const areaW  = chart.chartArea.right - chart.chartArea.left;
   const slotPx = areaW / visibleBars;
-  // 最窄 2px、最寬 30px，保留 80% 欄寬（20% 為棒間距）
-  return Math.max(2, Math.min(30, Math.floor(slotPx * 0.80)));
+  // 最窄 2px、最寬 60px，保留 80% 欄寬（bar 與 slot 同比例縮放 → 放大時間距比例不變）
+  return Math.max(2, Math.min(60, Math.floor(slotPx * 0.80)));
 }
 
 function resetChartZoom() {
   if (priceChartObj && lastChartData) {
-    // 所有時框統一 category scale：用標籤字串設定範圍
+    // 還原為最後 initBars 根「真實」K 棒（右側 padding 不預設顯示）
     const initBars2 = lastChartData._initBars || 90;
     const dates2    = lastChartData.dates;
-    const n         = dates2.length;
-    const minLbl    = priceChartObj.scales.x?.labels?.[Math.max(0, n - initBars2)] ?? dates2[Math.max(0, n - initBars2)];
-    const maxLbl    = priceChartObj.scales.x?.labels?.[n - 1] ?? dates2[n - 1];
+    const realN     = dates2.length;
+    const minIdx    = Math.max(0, realN - initBars2);
+    const maxIdx    = realN - 1;
+    const allLabels = priceChartObj.scales.x?.labels || priceChartObj.data.labels || dates2;
+    const minLbl    = allLabels[minIdx] ?? dates2[minIdx];
+    const maxLbl    = allLabels[maxIdx] ?? dates2[maxIdx];
     priceChartObj.options.scales.x.min = minLbl;
     priceChartObj.options.scales.x.max = maxLbl;
     if (leverageChartObj) {
-      leverageChartObj.options.scales.x.min = minLbl;
-      leverageChartObj.options.scales.x.max = maxLbl;
+      // 副圖 linear scale 用索引
+      leverageChartObj.options.scales.x.min = minIdx;
+      leverageChartObj.options.scales.x.max = maxIdx;
       leverageChartObj.update('none');
     }
     priceChartObj.resetZoom?.();
+    // K 棒寬度還原
+    const ds = priceChartObj.data.datasets[0];
+    if (ds) ds.maxBarThickness = _computeMaxBarThickness(priceChartObj);
     priceChartObj.update('none');
   }
   const el = document.getElementById('badgeZoom');
@@ -1409,13 +1444,19 @@ function _initChartPan(canvas) {
     const maxIdx = typeof curMax === 'number' ? curMax : labels.indexOf(String(curMax));
     const areaH  = (chart.chartArea?.bottom ?? canvas.clientHeight) - (chart.chartArea?.top ?? 0);
 
+    // Y 軸起始範圍：優先讀 option 設定的 min/max，其次用 scale 實測值（Chart.js auto-fit 後的結果）
+    const optYMin = chart.options.scales?.y?.min;
+    const optYMax = chart.options.scales?.y?.max;
+    const startYMin = (typeof optYMin === 'number') ? optYMin : scaleY?.min;
+    const startYMax = (typeof optYMax === 'number') ? optYMax : scaleY?.max;
+
     _panDrag = {
       startClientX: e.clientX,
       startClientY: e.clientY,
       startMinIdx:  Math.max(0, minIdx),
       startMaxIdx:  Math.min(labels.length - 1, maxIdx),
-      startYMin:    scaleY?.min ?? null,
-      startYMax:    scaleY?.max ?? null,
+      startYMin:    (typeof startYMin === 'number') ? startYMin : null,
+      startYMax:    (typeof startYMax === 'number') ? startYMax : null,
       areaH:        Math.max(1, areaH),
       isLogY:       chart.options.scales?.y?.type === 'logarithmic',
       labels,
@@ -1449,10 +1490,11 @@ function _initChartPan(canvas) {
       if (chart.options.scales.x.min !== minLbl) {
         chart.options.scales.x.min = minLbl;
         chart.options.scales.x.max = maxLbl;
-        // 同步副圖 X 軸
+        // 同步副圖 X 軸（linear scale 需傳「索引」而非標籤字串；
+        // 若主圖滑入右側 padding 區，副圖維持在最後一根真實資料不再右移）
         if (leverageChartObj) {
-          leverageChartObj.options.scales.x.min = minLbl;
-          leverageChartObj.options.scales.x.max = maxLbl;
+          leverageChartObj.options.scales.x.min = newMin;
+          leverageChartObj.options.scales.x.max = newMax;
         }
         // 更新 K 棒寬度
         const ds = chart.data.datasets[0];
@@ -2275,6 +2317,11 @@ function renderInventory(market, state, misData) {
         // 無可信 ref → 清空避免誤導（顯示 —）
         chg = null; chgPct = '';
       }
+
+      // ── sdkPosPx 覆蓋後補齊 month（夜盤 SDK 無法從行情取得月份時，從持倉合約推導）──
+      if (month === '—' || !month) {
+        month = _heldContractMonth(sym) || _symToMonthYYYYMM(sdkQ?.symbol) || '—';
+      }
     }
 
     // ── 台指系列品質檢查：TXFR1/MTXR1 若 last 與 MXFR1 差距 > 100 點，視為錯誤資料
@@ -2309,11 +2356,12 @@ function renderInventory(market, state, misData) {
         const d = new Date();
         return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
       })();
-      let nearMon = month || '';
+      // 週合約（含 'W'）不視為月合約近月，以免次月被判錯（週→月，而非月→月）
+      let nearMon = (month && !month.includes('W')) ? month : '';
       if (!nearMon) {
         for (const r of allM) {
           const m = r['ContractMonth(Week)'] || '';
-          if (m && m >= todayYM) { nearMon = m; break; }
+          if (m && m >= todayYM && !m.includes('W')) { nearMon = m; break; }  // 只取月合約
         }
         if (!nearMon) nearMon = allM[0]?.['ContractMonth(Week)'] || '';
       }
@@ -2322,6 +2370,7 @@ function renderInventory(market, state, misData) {
         const mRow = allM[mi];
         const mMon = mRow['ContractMonth(Week)'] || '';
         if (!mMon) continue;
+        if (mMon.includes('W')) continue;  // 跳過週合約，次月只顯示月合約
         if (mMon === nearMon) continue;  // 近月已顯示（或被 next 模式跳過），不重複
         if (mMon < nearMon)  continue;  // 已到期月份，跳過
         shownAfterNear++;
@@ -2347,11 +2396,12 @@ function renderInventory(market, state, misData) {
           const d = new Date();
           return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`;
         })();
-        let nearMon = month || '';
+        // 週合約不視為月合約近月（同主路徑邏輯）
+        let nearMon = (month && !month.includes('W')) ? month : '';
         if (!nearMon) {
           for (const r of tfAll) {
             const m = r['ContractMonth(Week)'] || '';
-            if (m && m >= todayYM) { nearMon = m; break; }
+            if (m && m >= todayYM && !m.includes('W')) { nearMon = m; break; }  // 只取月合約
           }
           if (!nearMon) nearMon = tfAll[0]?.['ContractMonth(Week)'] || '';
         }
@@ -2360,6 +2410,7 @@ function renderInventory(market, state, misData) {
           const mRow = tfAll[mi];
           const mMon = mRow['ContractMonth(Week)'] || '';
           if (!mMon) continue;
+          if (mMon.includes('W')) continue;  // 跳過週合約
           if (mMon === nearMon) continue;
           if (mMon < nearMon)  continue;  // 已到期月份，跳過
           shownAfterNear++;
@@ -2586,21 +2637,49 @@ async function fetchAndRenderPositions(force = false) {
     }
 
     // ── 用 SDK 即時淨值更新頂部「帳戶淨值」卡片 ──────────────────────
-    const sdkEquity = data.margin?.equity ?? data.margin?.today_balance;
+    // ★ 重要：margin.equity = today_balance + 結算價未實現（非即時價）
+    //   正確做法：today_balance（已結算現金，價格無關）+ position.unrealized_pnl（即時價計算）
+    //   若混用 margin.equity（結算價基礎）與 exposure（即時價），槓桿會嚴重偏高/偏低。
+    const todayBal       = data.margin?.today_balance;
+    const posUnrealTotal = positions.reduce((s, p) => s + (Number(p.unrealized_pnl) || 0), 0);
+    // 真實即時淨值：已結算現金 + 持倉即時未實現損益
+    const trueEquity = (todayBal != null && todayBal > 0 && positions.length > 0)
+      ? todayBal + posUnrealTotal
+      : (data.margin?.equity ?? data.margin?.today_balance);
+    const sdkEquity = trueEquity;
+    // 記錄 fmx_positions.py 算出的已實現損益（錨點 + FIFO 累加），供下方「已實現損益」卡使用
+    if (data.margin?.realized_pnl != null) {
+      _sdkRealized = Number(data.margin.realized_pnl);
+      const realEl = document.getElementById('statRealized');
+      if (realEl) {
+        realEl.textContent = fmt(_sdkRealized);
+        realEl.className   = 'value ' + colorClass(_sdkRealized);
+      }
+    }
     if (sdkEquity != null && sdkEquity > 0) {
-      _sdkEquity = sdkEquity;   // 供即時槓桿計算用
-      // 累計口數（所有部位）
-      const totalContracts = positions.reduce((s, p) => s + Math.abs(p.quantity ?? p.orig_lots ?? 0), 0);
-      if (totalContracts > 0) _sdkContracts = totalContracts;
+      _sdkEquity = sdkEquity;   // 供即時槓桿計算用（即時價基礎）
+      // 累計口數（所有部位）— positions 使用 qty 欄位
+      const totalContracts = positions.reduce((s, p) => s + Math.abs(Number(p.qty) || 0), 0);
+      if (totalContracts > 0) {
+        _sdkContracts = totalContracts;
+        document.getElementById('statContracts').textContent = totalContracts;
+        // 同步部位名目 (exposure) — 用 daemon cache 最新價估算
+        const _expPort = _computePortfolioNotional();
+        const _expSubEl = document.getElementById('statContractsSub');
+        if (_expSubEl && _expPort && _expPort.notional > 0) {
+          _expSubEl.textContent = `口 · 名目 ${fmt(_expPort.notional)}`;
+        }
+      }
       document.getElementById('statEquity').textContent = sdkEquity.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
       document.getElementById('statEquity').className   = 'value ' + colorClass(sdkEquity - 300000);
       const _eqLabel = document.getElementById('statEquity').closest('.stat-card')?.querySelector('.label');
       if (_eqLabel) _eqLabel.textContent = '帳戶權益數 (SDK)';
       document.getElementById('statEquitySub').textContent =
-        (data.margin.unrealized_pnl != null ? '未實現 ' + (data.margin.unrealized_pnl >= 0 ? '+' : '') +
-          data.margin.unrealized_pnl.toLocaleString('zh-TW', {maximumFractionDigits:0}) + ' | ' : '') +
+        (posUnrealTotal !== 0 ? '未實現 ' + (posUnrealTotal >= 0 ? '+' : '') +
+          posUnrealTotal.toLocaleString('zh-TW', {maximumFractionDigits:0}) + ' | ' : '') +
         (data.margin.realized_pnl != null ? '已實現 ' + (data.margin.realized_pnl >= 0 ? '+' : '') +
-          data.margin.realized_pnl.toLocaleString('zh-TW', {maximumFractionDigits:0}) : '');
+          data.margin.realized_pnl.toLocaleString('zh-TW', {maximumFractionDigits:0}) : '') +
+        (todayBal != null ? ` | 結算現金 ${todayBal.toLocaleString('zh-TW',{maximumFractionDigits:0})}` : '');
     }
 
     // ── 更新可用保證金卡片 ────────────────────────────────────────────
@@ -2623,15 +2702,18 @@ async function fetchAndRenderPositions(force = false) {
     }
 
     // ── 以 SDK 未實現損益為基準，供即時調整用 ────────────────────────
-    // 庫存的 unrealized_pnl 是 Fubon SDK 的官方值（與庫存表一致）
-    // 我們把它存下來，作為即時 P&L 調整的參考起點
+    // ★ 重要：使用 position.unrealized_pnl（即時價計算），而非 margin.unrealized_pnl（結算價計算）
+    //   margin.unrealized 基於結算價，與 exposure（即時價）混用會造成槓桿算錯。
+    //   position.unrealized = qty × (cur_price - avg) × mult — 與庫存表「即時現價」一致。
     const sdkMxfPos = positions.find(p =>
       (p.symbol || '').replace(/R\d$/, '') === currentSymbol.replace(/R\d$/, '') ||
       p.symbol === 'MXFR1' || p.symbol === 'FITM'
     );
-    if (data.margin?.unrealized_pnl != null) {
-      _sdkPosUnreal   = data.margin.unrealized_pnl;         // SDK 官方未實現 P&L
-      _sdkPosPriceRef = sdkMxfPos?.market_price ?? null;    // 對應的市場成本參考價
+    // 優先用 position.unrealized_pnl（即時價），fallback 到 margin.unrealized_pnl（結算價）
+    const posUnrealRef = sdkMxfPos?.unrealized_pnl ?? data.margin?.unrealized_pnl;
+    if (posUnrealRef != null) {
+      _sdkPosUnreal   = Number(posUnrealRef);                // 即時價未實現損益（與 _sdkEquity 一致）
+      _sdkPosPriceRef = Number(sdkMxfPos?.cur_price ?? 0) || null;  // 對應的即時現價
       // 立即更新右側面板（與庫存表同步）
       const unrealEl = document.getElementById('statUnreal');
       if (unrealEl) {
@@ -2651,6 +2733,26 @@ async function fetchAndRenderPositions(force = false) {
       ? '請重啟 server.py（Ctrl+C → python server.py）後再試'
       : `連線失敗: ${e.message}`;
     tbody.innerHTML = `<tr><td colspan="9" class="inv-empty" style="color:var(--red)">${hint}</td></tr>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════════════════
+/** 更新頂端「實盤/模擬」徽章的文字與樣式 */
+function _setModeBadge(isDryRun) {
+  const el = document.getElementById('modeLabel');
+  if (!el) return;
+  if (isDryRun) {
+    el.textContent = '🟡 模擬';
+    el.classList.remove('live');
+    el.classList.add('sim');
+    el.title = '目前為模擬模式 (DRY RUN) — 不會真實下單';
+  } else {
+    el.textContent = '🟢 實盤';
+    el.classList.remove('sim');
+    el.classList.add('live');
+    el.title = '⚠ 目前為實盤模式 (LIVE) — 會真實下單，請謹慎操作';
   }
 }
 
@@ -2692,6 +2794,38 @@ async function fetchChartData(kInterval) {
   // yfScale：部分商品（BRF/GDF）Yahoo Finance 報價單位（USD）與 TAIFEX 報價單位（NTD）
   //   GDF: GC=F (USD/oz) × 32/31.1 ≈ NTD/g；BRF: BZ=F (USD/bbl) × ~32 ≈ NTD/bbl
   const yfScale   = prod?.yfScale ?? 1;
+
+  // ── 台指期貨（MXFR1/TXFR1/MTXR1）intraday K 線改走 Fubon SDK ──
+  // 這樣 K 線會顯示真實期貨價（含正價差），而不是現貨 ^TWII
+  // 日/週/月 K 仍使用 ^TWII（期貨歷史 API 訂閱受限）
+  const _intradayTf = { hourly:'60', min15:'15', min5:'5' };
+  if (prod?.futKline && _intradayTf[kInterval]) {
+    try {
+      const fk = await fetch(
+        `${BASE}/futopt/kline?symbol=${encodeURIComponent(currentSymbol)}`
+        + `&interval=${_intradayTf[kInterval]}&range=${cfg.range}&yf=${encodeURIComponent(yfTicker)}`
+      );
+      const fj = await fk.json();
+      const cdls = fj?.candles || [];
+      if (cdls.length > 0) {
+        const dp = prod?.dp ?? 0;
+        return {
+          dates:     cdls.map(b => b.t),
+          opens:     cdls.map(b => +b.o.toFixed(dp)),
+          closes:    cdls.map(b => +b.c.toFixed(dp)),
+          highs:     cdls.map(b => +b.h.toFixed(dp)),
+          lows:      cdls.map(b => +b.l.toFixed(dp)),
+          _interval: kInterval, _initBars: cfg.initBars, _unit: cfg.unit,
+          _intraday: true, _source: fj.source || 'fubon',
+          _sourceSymbol: fj.symbol,
+        };
+      }
+      // candles 為空則 fallthrough 到 Yahoo Finance
+    } catch (e) {
+      console.warn('[futopt/kline] fetch failed, fallback to yfinance', e);
+    }
+  }
+
   const yfEncoded = encodeURIComponent(yfTicker);
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yfEncoded}?interval=${cfg.interval}&range=${cfg.range}`;
   const proxied = `${BASE}/proxy?url=${encodeURIComponent(url)}`;
@@ -2849,10 +2983,18 @@ function renderPriceChart(chartData, state) {
     }
     return d; // 'YYYY-MM-DD'（跨年唯一，不能用 MM/dd 否則重複）
   });
+  // 右側留白：允許拖曳超過最後一根 K 棒（顯示未來空白區域）
+  // padding 數量 = 初始可見棒數的 30%（intraday 多一點方便觀察）
+  const PAD_BARS = Math.max(15, Math.floor((chartData._initBars || 90) * (isIntraday ? 0.4 : 0.3)));
+  const padLabels = Array.from({ length: PAD_BARS }, (_, i) => `__pad_${i}`);
+  catLabels.push(...padLabels);
   // 顯示用格式化函數（tick callback 使用）
   const fmtCatLabel = lbl => {
+    if (!lbl || typeof lbl !== 'string') return '';
+    if (lbl.startsWith('__pad_')) return '';  // 右側 padding 不顯示時間戳
     if (isIntraday) return lbl;            // 'MM/dd HH:mm'
     const [y, m, day] = lbl.split('-');
+    if (!y || !m || !day) return lbl;
     if (kInterval === 'monthly') return `${y.slice(2)}/${m}`;
     return `${m}/${day}`;                  // daily/weekly: 'MM/dd'
   };
@@ -2875,17 +3017,18 @@ function renderPriceChart(chartData, state) {
   // 初始 maxBarThickness：依畫布寬度與初始顯示棒數自動計算
   // 畫布寬 × 0.88 估算 chart area（扣除 Y軸/邊距），再除以可見 bar 數
   const _initSlotPx = ((canvas.clientWidth || 900) * 0.88) / Math.max(initBars, 1);
-  const _initMaxBarThick = Math.max(2, Math.min(30, Math.floor(_initSlotPx * 0.75)));
+  const _initMaxBarThick = Math.max(2, Math.min(60, Math.floor(_initSlotPx * 0.75)));
 
   // ── X 軸設定（category scale 統一處理）──────────────────────────────
-  const n = catLabels.length;
-  const catMinIdx = Math.max(0, n - initBars);
-  // category scale 的 min/max 用標籤字串（用索引有時不生效）
+  const realN = dates.length;          // 實際資料根數
+  const n     = catLabels.length;      // 含右側 padding 的總根數（= realN + PAD_BARS）
+  const catMinIdx = Math.max(0, realN - initBars);
+  // 初始顯示範圍：最後 initBars 根「真實」K 棒（右邊界 = 最後一根真實 K，padding 不預設顯示）
   const xScaleConfig = {
     type: 'category',
     labels: catLabels,
     min: catLabels[catMinIdx],
-    max: catLabels[n - 1],
+    max: catLabels[realN - 1],
     offset: true,
     ticks: {
       color: '#555', font: { size: 10 },
@@ -2895,6 +3038,7 @@ function renderPriceChart(chartData, state) {
     },
     grid: { color: '#1f252d' },
   };
+  // pan/zoom 允許的 X 範圍：包含右側 padding（讓使用者可拖到未來空白區）
   const xLimitsConfig = { x: { min: catLabels[0], max: catLabels[n - 1], minRange: isIntraday ? 5 : 3 } };
 
   priceChartObj = new Chart(ctx, {
@@ -3001,21 +3145,22 @@ function renderPriceChart(chartData, state) {
           },
         },
         zoom: {
-          // 滾輪 → XY 整體縮放（時間+價格同步放大縮小）
+          // 滾輪（任一方向）→ X 軸縮放（改變可見 K 棒數量）
+          //   向上（放大）→ 顯示更少 K 棒、bar 變粗（但間距比例固定）
+          //   向下（縮小）→ 顯示更多 K 棒、bar 變細
           // Shift + 滾輪 → 僅 Y 軸縮放（微調價格範圍）
-          // 左鍵拖曳 → 移動 K 線顯示範圍（由下方 _initChartPan 自訂實作）
+          // 左鍵拖曳 → 上下左右移動 K 線（由 _initChartPan 自訂實作）
           zoom:  {
-            wheel: { enabled: true, speed: 0.08 },
-            pinch: { enabled: false },   // pinch 由自訂 pan 處理
-            mode: () => (_shiftHeld ? 'y' : 'xy'),
-            drag: { enabled: false },    // 停用拖曳縮放，改為拖曳平移
+            wheel: { enabled: true, speed: 0.10 },
+            pinch: { enabled: false },
+            mode: () => (_shiftHeld ? 'y' : 'x'),
+            drag: { enabled: false },
             onZoom: ({ chart }) => _onChartZoom(chart),
           },
           pan:   {
-            enabled: true, mode: 'x',
-            modifierKey: null,           // 無需修飾鍵
-            button: 0,                   // 左鍵觸發（作為 touch 備援）
-            onPan: ({ chart }) => _onChartZoom(chart),
+            // 關閉 plugin 內建 pan，避免攔截左鍵事件而只能 X 軸平移
+            // 統一由 _initChartPan 自訂 handler 處理 X+Y 同時平移
+            enabled: false,
           },
           limits: xLimitsConfig,
         },
@@ -3205,15 +3350,36 @@ function updateStats(state, chartData) {
     return;
   }
 
-  // Mode label
-  document.getElementById('modeLabel').textContent = state.dry_run ? 'DRY RUN' : 'LIVE';
+  // Mode label — 實盤/模擬 狀態徽章
+  _setModeBadge(state.dry_run);
+
+  // 同步 Dry Run toggle 勾選狀態：實盤 (dry_run=false) → 關閉 (灰)，模擬 → 開啟 (綠)
+  // 直接指派 .checked 不會觸發 onchange，不會誤觸 applySettings()
+  const _dryToggle = document.getElementById('dryRunToggle');
+  if (_dryToggle && typeof state.dry_run === 'boolean') {
+    _dryToggle.checked = !!state.dry_run;
+  }
+
+  // ── 同步策略參數：從 state 更新模組變數 + 輸入框（:focus 時不覆蓋）──
+  if (state.max_leverage    != null) _maxLevLive         = state.max_leverage;
+  if (state.pyramid_trigger != null) _pyramidTriggerLive = state.pyramid_trigger;
+  const _si = (id, val) => { const el = document.getElementById(id); if (el && val != null && !el.matches(':focus')) el.value = val; };
+  _si('cfgLeverage',   state.target_leverage);
+  _si('cfgMaxLev',     state.max_leverage);
+  _si('cfgPyramid',    state.pyramid_trigger);
+  _si('cfgFee',        state.fee_per_lot);
+  _si('cfgHighPeriod', state.high_period);
+  _si('cfgLowPeriod',  state.low_period);
+  const _ft = document.getElementById('filterToggle');
+  if (_ft && state.trend_filter != null && !_ft.matches(':focus')) _ft.checked = !!state.trend_filter;
 
   // Price / EMA — 優先用圖表最新收盤價（Yahoo Finance 即時），策略檔 state.last_price 可能是舊的日K收盤
   const chartLast = chartData?.closes?.length
     ? chartData.closes[chartData.closes.length - 1] : null;
   const price  = chartLast || state.last_price;
-  const ema200 = state.ema200;
-  document.getElementById('statEMA').textContent   = ema200 ? fmt(ema200) : '—';
+  const ema200   = state.ema200;
+  const ma100    = state.rolling_low;   // 100日SMA（清倉觸發線）
+  document.getElementById('statEMA').textContent = ma100 ? fmt(ma100) : (ema200 ? fmt(ema200) : '—');
 
   // Equity — 如果 SDK 已提供即時權益數（_sdkEquity），不要用策略檔的舊值覆蓋
   if (_sdkEquity == null) {
@@ -3229,15 +3395,22 @@ function updateStats(state, chartData) {
   if (_sdkContracts == null) {
     document.getElementById('statContracts').textContent = state.contracts ?? '—';
   }
+  // 初始部位名目（state.exposure 由 strategy-fmx-live.py 寫入；尚未收到 live tick 時先顯示）
+  // 之後 _updateLeverageLive 每次 tick 都會覆寫成即時值
+  const _contractsSub = document.getElementById('statContractsSub');
+  if (_contractsSub) {
+    const expo = state.exposure;
+    _contractsSub.textContent = (expo && expo > 0) ? `口 · 名目 ${fmt(expo)}` : '口';
+  }
   const lev = state.leverage;
   const levEl = document.getElementById('statLeverage');
   // 槓桿由 _updateLeverageLive 即時算，state.leverage 當 fallback
   if (levEl.textContent === '—' || levEl.textContent === '') {
     levEl.textContent = lev != null ? lev.toFixed(2) + 'x' : '—';
-    levEl.className = 'value ' + (lev > (state.max_leverage || 6) ? 'red' : lev > (state.target_leverage || 5) ? 'gold' : 'green');
+    levEl.className = 'value ' + (lev > (_maxLevLive || 6.8) ? 'red' : lev > (_pyramidTriggerLive || 5.9) ? 'gold' : 'green');
   }
   document.getElementById('statLeverageSub').textContent =
-    `目標 ${state.target_leverage || 5}x / 上限 ${state.max_leverage || 6}x`;
+    `下限 ${state.pyramid_trigger || 5.9}x / 上限 ${state.max_leverage || 6.8}x`;
 
   // Avg cost / Liq price — SDK 均價優先
   if (_sdkAvgPrice == null) {
@@ -3253,46 +3426,36 @@ function updateStats(state, chartData) {
   }
 
   // ── 反推加槓桿 / 減槓桿觸發價 ──────────────────────────────
-  const pyramidTrigger = state.pyramid_trigger ?? 4.9;
-  const maxLev         = state.max_leverage    ?? 6.0;
+  const pyramidTrigger = state.pyramid_trigger ?? 5.9;
+  const maxLev         = state.max_leverage    ?? 6.8;
   const pyramidEl = document.getElementById('statPyramidPx');
   const pyrSubEl  = document.getElementById('statPyramidPxSub');
   const deLevEl   = document.getElementById('statDeleveragePx');
   const deLevSub  = document.getElementById('statDeleveragePxSub');
   if (state.contracts && state.contracts > 0) {
-    const pxPyramid   = _calcLeverageTriggerPx(pyramidTrigger, state);
+    const pxPyramid    = _calcLeverageTriggerPx(pyramidTrigger, state);
     const pxDeleverage = _calcLeverageTriggerPx(maxLev, state);
-    if (pxPyramid != null && isFinite(pxPyramid)) {
-      pyramidEl.textContent = fmt(pxPyramid);
-      if (price) {
-        const dist = ((pxPyramid - price) / price * 100);
-        pyrSubEl.textContent = (dist >= 0 ? '需漲 ' : '已超過 ') +
-          Math.abs(dist).toFixed(2) + `% (槓桿<${pyramidTrigger}x)`;
-      } else {
-        pyrSubEl.textContent = `槓桿<${pyramidTrigger}x 觸發`;
-      }
+    // 存入模組快取，供 _updateLeverageLive 即時更新百分比
+    _pyrTriggerPx = (pxPyramid   != null && isFinite(pxPyramid))    ? pxPyramid    : null;
+    _delTriggerPx = (pxDeleverage != null && isFinite(pxDeleverage)) ? pxDeleverage : null;
+    if (_pyrTriggerPx != null) {
+      pyramidEl.textContent = fmt(_pyrTriggerPx);
     } else {
       pyramidEl.textContent = '—';
       pyrSubEl.textContent  = '';
     }
-    if (pxDeleverage != null && isFinite(pxDeleverage)) {
-      deLevEl.textContent = fmt(pxDeleverage);
-      if (price) {
-        const dist = ((price - pxDeleverage) / price * 100);
-        deLevSub.textContent = (dist >= 0 ? '需跌 ' : '已超過 ') +
-          Math.abs(dist).toFixed(2) + `% (槓桿>${maxLev}x)`;
-      } else {
-        deLevSub.textContent = `槓桿>${maxLev}x 觸發`;
-      }
+    if (_delTriggerPx != null) {
+      deLevEl.textContent = fmt(_delTriggerPx);
     } else {
       deLevEl.textContent = '—';
       deLevSub.textContent = '';
     }
+    // 立即用 state 內的 last_price 更新百分比（live 更新會再蓋過）
+    _updateTriggerPxSubs(price || state.last_price);
   } else {
-    pyramidEl.textContent = '—';
-    pyrSubEl.textContent  = '';
-    deLevEl.textContent   = '—';
-    deLevSub.textContent  = '';
+    _pyrTriggerPx = null; _delTriggerPx = null;
+    pyramidEl.textContent = '—'; pyrSubEl.textContent  = '';
+    deLevEl.textContent   = '—'; deLevSub.textContent  = '';
   }
 
   // Unrealized / Realized — SDK 已有即時未實現時不覆蓋
@@ -3305,8 +3468,11 @@ function updateStats(state, chartData) {
       document.getElementById('statUnrealPct').textContent = fmtPct(upct) + ' vs 均攤';
     }
   }
-  document.getElementById('statRealized').textContent = state.realized_pnl != null ? fmt(state.realized_pnl) : '—';
-  document.getElementById('statRealized').className   = 'value ' + colorClass(state.realized_pnl);
+  // 已實現損益：優先用 fmx_positions.py 的錨點+累加值（160,967 以後會持續累加），
+  // 若 SDK 尚未回應才退用 fmx_state.realized_pnl（策略自己的累計，可能較舊）
+  const _displayRealized = (_sdkRealized != null) ? _sdkRealized : state.realized_pnl;
+  document.getElementById('statRealized').textContent = _displayRealized != null ? fmt(_displayRealized) : '—';
+  document.getElementById('statRealized').className   = 'value ' + colorClass(_displayRealized);
   document.getElementById('statCreated').textContent  = state.created_date || '—';
 
   // Badges
@@ -3324,7 +3490,7 @@ function updateStats(state, chartData) {
     const useLev = isFinite(liveLev) && liveLev > 0 ? liveLev : lev;
     if (useLev != null && isFinite(useLev)) {
       badgeLev.textContent = `槓桿 ${useLev.toFixed(1)}x`;
-      badgeLev.className   = 'badge ' + (useLev > (state.max_leverage || 6) ? 'red' : 'gold');
+      badgeLev.className   = 'badge ' + (useLev > (state.max_leverage || 6.8) ? 'red' : 'gold');
     }
   }
 
@@ -3396,17 +3562,82 @@ function updateStats(state, chartData) {
 //  LOG PANEL
 // ════════════════════════════════════════════════════════
 function updateLog(state) {
-  if (!state?.recent_logs) return;
   const panel = document.getElementById('logPanel');
+  if (!panel) return;
+  const logs = Array.isArray(state?.recent_logs) ? state.recent_logs : [];
+  if (logs.length === 0) {
+    panel.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px 0">（暫無日誌）</div>';
+    return;
+  }
+
+  // ── 濾掉重複的 tick 心跳訊號 ──────────────────────────────
+  // 規則：
+  //   • 非心跳訊號（BUY/SELL/PYRAMID/DELEV/ERROR…）一律保留
+  //   • 心跳「▶ N 口 · 槓桿 X.XXx」：
+  //       - 口數與上一筆已顯示的 tick 不同 → 保留（口數變化一定顯示）
+  //       - 口數相同但小時跳號 → 保留（每小時至少一筆）
+  //       - 其他（同小時內槓桿微調）→ 濾掉
+  //   依時間順序（舊→新）走一次，用 trail 記住上次顯示的 tick 資訊
+  const _TICK_RE = /▶\s*(\d+)\s*口.*?槓桿\s*([\d.]+)\s*x/i;
+  const _hourOf = (ts) => {
+    // ts 可能是 "HH:MM:SS" 或 "YYYY-MM-DD HH:MM:SS"
+    const m = String(ts || '').match(/(\d{1,2}):\d{2}:\d{2}/);
+    return m ? parseInt(m[1], 10) : -1;
+  };
+  const _formatTs = (ts) => {
+    const s = String(ts || '').trim();
+    if (!s) return '';
+    const m = s.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/);
+    if (!m) return s;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (m[1] === today) return m[2];
+    return `${m[1].slice(5)} ${m[2].slice(0, 5)}`;
+  };
+  let _lastShownTickLots = null;
+  let _lastShownTickHour = -1;
+  const _filtered = [];
+  logs.forEach(entry => {
+    const msg = entry.msg || entry.message || '';
+    const tickMatch = msg.match(_TICK_RE);
+    if (!tickMatch) {
+      // 非 tick 心跳，一律保留
+      _filtered.push(entry);
+      return;
+    }
+    const lots = parseInt(tickMatch[1], 10);
+    const hour = _hourOf(entry.time);
+    const lotsChanged = (_lastShownTickLots !== null && lots !== _lastShownTickLots);
+    const hourChanged = (_lastShownTickHour !== -1 && hour !== _lastShownTickHour);
+    const isFirstTick = (_lastShownTickLots === null);
+    if (isFirstTick || lotsChanged || hourChanged) {
+      _filtered.push(entry);
+      _lastShownTickLots = lots;
+      _lastShownTickHour = hour;
+    }
+    // else: 同小時 + 同口數 → 濾掉
+  });
+
   panel.innerHTML = '';
-  [...state.recent_logs].reverse().forEach(entry => {
+  // 以新→舊顯示（已濾過後的列表）
+  [..._filtered].reverse().forEach(entry => {
     const div = document.createElement('div');
     const level = (entry.level || 'info').toLowerCase();
-    const levelClass = level.includes('buy') || level.includes('dca') || level.includes('pyramid') ? 'buy'
-                     : level.includes('sell') || level.includes('delev') ? 'sell'
-                     : level.includes('warn') ? 'warn' : 'info';
+    const msg   = (entry.msg || entry.message || '');
+    const text  = (level + ' ' + msg).toLowerCase();
+    // 同時看 level 與 msg 內容判斷著色
+    const levelClass =
+        (level === 'error')                                                  ? 'warn'
+      : (level === 'warning' || level === 'warn' || text.includes('warn') || text.includes('失敗') || text.includes('錯誤') || text.includes('⚠')) ? 'warn'
+      : (text.includes('buy') || text.includes('dca') || text.includes('pyramid') || text.includes('加倉') || text.includes('加槓桿')) ? 'buy'
+      : (text.includes('sell') || text.includes('delev') || text.includes('減倉') || text.includes('降槓桿') || text.includes('清倉')) ? 'sell'
+      : 'info';
     div.className = `log-item ${levelClass}`;
-    div.innerHTML = `<span class="ts">${entry.time || ''}</span><span class="msg">${entry.msg || entry.message || ''}</span>`;
+    const tsEl  = document.createElement('span'); tsEl.className = 'ts';  tsEl.textContent  = _formatTs(entry.time);
+    const msgEl = document.createElement('span'); msgEl.className = 'msg'; msgEl.textContent = msg;
+    div.appendChild(tsEl);
+    div.appendChild(document.createTextNode(' '));
+    div.appendChild(msgEl);
     panel.appendChild(div);
   });
 }
@@ -3419,8 +3650,11 @@ let lastChartFetch = 0;
 let _lastFilterOn = true;
 
 async function refresh() {
-  document.getElementById('lastRefresh').textContent = '更新中…';
+  const lastRefreshEl = document.getElementById('lastRefresh');
+  lastRefreshEl.textContent = '更新中…';
+  let _refreshError = null;
 
+  try {
   // 庫存並行更新（不阻塞主流程；force=false 使用 server 端快取，避免頻繁登入）
   fetchAndRenderPositions(false).catch(e => console.warn('positions refresh err', e));
 
@@ -3466,16 +3700,30 @@ async function refresh() {
   // Re-render chart if filter toggle changed (force new chart with updated datasets)
   _lastFilterOn = document.getElementById('filterToggle')?.checked ?? true;
 
-  updateStats(state, lastChartData);
-  updateLog(state);
-  updateLivePrice(market, _misCache);
-  renderInventory(market, state, _misCache);
+  // 每個 render 函式獨立保護，單一失敗不影響其他區塊，也不會卡在「更新中…」
+  try { updateStats(state, lastChartData); }       catch(e) { console.error('[updateStats]', e);   _refreshError = e; }
+  try { updateLog(state); }                        catch(e) { console.error('[updateLog]', e);     _refreshError = _refreshError || e; }
+  try { updateLivePrice(market, _misCache); }      catch(e) { console.error('[updateLivePrice]', e); _refreshError = _refreshError || e; }
+  try { renderInventory(market, state, _misCache); } catch(e) { console.error('[renderInventory]', e); _refreshError = _refreshError || e; }
 
   // Fubon live quote — 由 startLiveQuotePoll 每秒自動刷新，這裡用快取即可
-  if (_fubonQuoteCache) updateFubonQuoteCard(_fubonQuoteCache);
+  if (_fubonQuoteCache) {
+    try { updateFubonQuoteCard(_fubonQuoteCache); } catch(e) { console.error('[updateFubonQuoteCard]', e); }
+  }
 
-  document.getElementById('lastRefresh').textContent =
-    '最後更新: ' + new Date().toLocaleTimeString('zh-TW');
+  } catch (e) {
+    console.error('[refresh] fatal', e);
+    _refreshError = e;
+  } finally {
+    const now = new Date().toLocaleTimeString('zh-TW');
+    if (_refreshError) {
+      lastRefreshEl.textContent = `更新失敗 (${now}) — ${_refreshError.message || _refreshError}`;
+      lastRefreshEl.style.color = '#ff6b6b';
+    } else {
+      lastRefreshEl.textContent = '最後更新: ' + now;
+      lastRefreshEl.style.color = '';
+    }
+  }
 }
 
 // ════════════════════════════════════════════════════════
@@ -3488,12 +3736,12 @@ function toggleAutoRefresh() {
   clearInterval(autoRefreshTimer);
   clearInterval(_posRefreshTimer);
   if (on) {
-    autoRefreshTimer  = setInterval(refresh, 30000);
+    autoRefreshTimer  = setInterval(refresh, 15000);
     // 每 60 秒強制更新庫存（force=true 重新向 SDK 查詢）
     _posRefreshTimer  = setInterval(() => {
       fetchAndRenderPositions(true).catch(e => console.warn('pos auto-refresh err', e));
     }, 60000);
-    toast('自動刷新已啟動 (行情 30s / 庫存 60s)');
+    toast('自動刷新已啟動 (行情 15s / 庫存 60s)');
   } else {
     toast('自動刷新已停止');
   }
@@ -3519,8 +3767,16 @@ async function ctrlBot(action) {
   let leverageNote = '';
   if (action === 'add_leverage' || action === 'deleverage') {
     const equity    = (_sdkEquity ?? parseFloat((document.getElementById('statEquity')?.textContent || '').replace(/,/g, ''))) || 0;
-    // 現價：優先用 _fubonQuoteCache，再用 _sdkMktQuotesCache（statPrice 已移除）
-    const _livePxSrc = (_fubonQuoteCache?.last) ?? (_sdkMktQuotesCache?.quotes?.[currentSymbol]?.last) ?? 0;
+    // 現價：優先用 _fubonQuoteCache（即時 websocket），再用 _sdkMktQuotesCache，
+    // 再退回 _sdkPositionPriceMap（庫存表回報的現價），最後用持倉的 cur_price。
+    // 重要：若 livePrice 取不到會變 0，導致「新增口數 × 0 = 0」使前後槓桿相同。
+    const _posCurPx = Array.isArray(_sdkPositions)
+      ? Number(_sdkPositions.find(p => _symbolToProductKey(p.symbol) === currentSymbol)?.cur_price) || 0
+      : 0;
+    const _livePxSrc = (_fubonQuoteCache?.last)
+      ?? (_sdkMktQuotesCache?.quotes?.[currentSymbol]?.last)
+      ?? _sdkPositionPriceMap?.[currentSymbol]
+      ?? _posCurPx;
     const livePrice = Number(_livePxSrc) || 0;
     const curMult   = PRODUCTS[currentSymbol]?.mult ?? 10;
 
@@ -3543,8 +3799,12 @@ async function ctrlBot(action) {
     const curLev = equity > 0 && curNotional > 0 ? curNotional / equity : null;
     const newLev = equity > 0 && newNotional > 0 ? newNotional / equity : null;
     if (curLev != null && newLev != null) {
+      // 若 livePrice 是 0，槓桿變化將無法估算，提醒使用者
+      const priceWarn = livePrice > 0 ? '' :
+        `\n⚠ 目前未取得即時價，槓桿變化無法估算（請等行情表載入後再操作）`;
       leverageNote = `\n\n📊 目前 (${currentSymbol})：${curLots} 口，整體槓桿 ${curLev.toFixed(2)}x\n` +
-                     `➡️ 調整後：${newLots} 口，整體槓桿 ${newLev.toFixed(2)}x`;
+                     `➡️ 調整後：${newLots} 口，整體槓桿 ${newLev.toFixed(2)}x` +
+                     priceWarn;
     }
   }
 
@@ -3588,9 +3848,23 @@ async function ctrlBot(action) {
     const j = await r.json();
     toast(j.message || j.status || action + ' sent');
     setTimeout(refresh, 1000);
+    // 交易類動作 → 廣播給 portfolio-tracker.html，讓它立即更新已/未實現損益
+    if (['add_leverage', 'deleverage', 'once'].includes(action)) {
+      _broadcastTradePlaced(action);
+    }
   } catch(e) {
     toast('控制指令失敗: ' + e.message);
   }
+}
+
+// 跨分頁 broadcast：通知其他已開啟的 portfolio-tracker 立即 force-refresh 期貨資料
+function _broadcastTradePlaced(action) {
+  try {
+    if (!('BroadcastChannel' in window)) return;
+    const ch = new BroadcastChannel('pt_futures_sync');
+    ch.postMessage({ type: 'trade_placed', action, ts: Date.now() });
+    ch.close();
+  } catch(_) { /* 靜默失敗：broadcast 不是關鍵路徑 */ }
 }
 
 // ════════════════════════════════════════════════════════
@@ -3598,14 +3872,36 @@ async function ctrlBot(action) {
 // ════════════════════════════════════════════════════════
 async function applySettings() {
   const dry = document.getElementById('dryRunToggle').checked;
-  document.getElementById('modeLabel').textContent = dry ? 'DRY RUN' : 'LIVE';
+
+  // ── 安全確認：由模擬切換成實盤時強制二次確認 ───────────────
+  // 直接比對 state.json 的 dry_run 值，避免 badge 同步延遲造成誤判
+  if (!dry) {
+    const _cur = await fetchState().catch(() => null);
+    const _wasDry = _cur?.dry_run !== false;   // null/undefined/true 都視為「原本是模擬」
+    if (_wasDry) {
+      const ok = confirm(
+        '⚠️ 即將切換成【實盤模式 LIVE】\n\n' +
+        '策略會用真實資金下單，所有交易都會送到富邦。\n' +
+        '目前倉位：' + (_cur?.contracts ?? '?') + ' 口，槓桿 ' + (_cur?.leverage?.toFixed(2) ?? '?') + 'x\n\n' +
+        '確定要切換嗎？'
+      );
+      if (!ok) {
+        document.getElementById('dryRunToggle').checked = true;   // 回復到模擬
+        _setModeBadge(true);
+        toast('已取消切換，維持模擬模式');
+        return;
+      }
+    }
+  }
+
+  _setModeBadge(dry);
   // Re-render chart to show/hide filter lines
   if (lastChartData) {
     const state = await fetchState();
     renderPriceChart(lastChartData, state);
   }
   await ctrlBot('settings');
-  toast('設定已套用');
+  toast(dry ? '已切換：🟡 模擬模式' : '已切換：🟢 實盤模式（真實下單）');
 }
 
 // ════════════════════════════════════════════════════════
@@ -3986,10 +4282,12 @@ function updateLivePrice(market, misData) {
     _applyHeldOverride(fq);
     _updateLeverageLive(dispLast);
 
-  // ── 嘗試 2：MIS 即時 / 日報表（SDK 無資料時備援）──
-  } else if (taifexRow) {
-    const tLast = parseFloat((taifexRow.Last || '').replace(/,/g,'')) || 0;
-    if (tLast > 0 && (_livePxMin === 0 || tLast >= _livePxMin)) {
+  // ── 嘗試 2：MIS 即時 / 日報表（SDK 無資料時備援，且必須有有效價格）──
+  // 注意：tLast > 0 移至外層條件，確保收盤後 taifexRow 有資料但價格為 0 時
+  //       仍能 fall-through 到嘗試 3（SDK 持倉備援）
+  } else if (taifexRow && (parseFloat((taifexRow.Last || '').replace(/,/g,'')) || 0) > 0) {
+    const tLast = parseFloat((taifexRow.Last || '').replace(/,/g,''));
+    if (_livePxMin === 0 || tLast >= _livePxMin) {
       dispLast = tLast;
       dispChg  = parseFloat((taifexRow.Change || '').replace(/,/g,'')) || 0;
       dispPct  = taifexRow['%'] || '';
@@ -4000,10 +4298,13 @@ function updateLivePrice(market, misData) {
       _updateLeverageLive(tLast);
     }
 
-  // ── 嘗試 3：SDK 持倉備援（只有 price，無 change）──
+  // ── 嘗試 3：SDK 持倉備援（只有 price，無 change；或 taifexRow 存在但價格為 0）──
   } else {
-    const sdkHybrid = sdkQ && !sdkQ.error && sdkQ.last != null && (_livePxMin === 0 || sdkQ.last >= _livePxMin);
-    const fqHybrid  = fq && !fq.error && fq.last != null && (_livePxMin === 0 || fq.last >= _livePxMin);
+    const sdkHybrid  = sdkQ && !sdkQ.error && sdkQ.last != null && (_livePxMin === 0 || sdkQ.last >= _livePxMin);
+    const fqHybrid   = fq && !fq.error && fq.last != null && (_livePxMin === 0 || fq.last >= _livePxMin);
+    // 持倉現價：query_hybrid_position 回傳的 cur_price（與庫存表同源，最可靠）
+    const posPx      = _sdkPositionPriceMap[currentSymbol] ?? 0;
+    const posHybrid  = posPx >= _livePxMin;
     if (sdkHybrid) {
       dispLast = sdkQ.last;
       const nightL = (_sdkMktQuotesCache?.night ?? isNightSession()) ? '🌙夜盤' : '⚡日盤';
@@ -4012,6 +4313,16 @@ function updateLivePrice(market, misData) {
     } else if (fqHybrid) {
       dispLast = fq.last;
       dispSrc  = `${isNightSession() ? '🌙夜盤' : '⚡日盤'} SDK(持倉) ｜ ${fq.symbol || currentSymbol}`;
+      document.getElementById('quoteSrcLabel').textContent = `即時報價 (SDK持倉現價 ${currentSymbol})`;
+      _updateLeverageLive(fq.last);
+    } else if (posHybrid) {
+      // MXFR1 夜盤 market_quotes 無 last 但持倉 cur_price 有值時使用
+      dispLast = posPx;
+      const nightL = isNightSession() ? '🌙夜盤' : '⚡日盤';
+      dispSrc  = `${nightL} SDK(持倉現價) ｜ ${currentSymbol}`;
+      document.getElementById('quoteSrcLabel').textContent =
+        `即時報價 (SDK持倉現價 ${currentSymbol})`;
+      _updateLeverageLive(posPx);
     }
   }
 
@@ -4045,6 +4356,28 @@ function updateLivePrice(market, misData) {
     }
   }
 
+  // ── 嘗試 4：fallbackMis SDK 代理報價（MXFR1 夜盤無直接資料時用 TXFR1/MTXR1）──
+  if (dispLast == null && p?.fallbackMis) {
+    const _fbSdkMap = { TXF: 'TXFR1', TX: 'TXFR1', MTX: 'MTXR1' };
+    for (const fbCode of p.fallbackMis) {
+      const fbKey = _fbSdkMap[fbCode];
+      if (!fbKey) continue;
+      const fbQ = _sdkMktQuotesCache?.quotes?.[fbKey];
+      if (fbQ && !fbQ.error && fbQ.last != null && fbQ.last > _livePxMin) {
+        dispLast = fbQ.last;
+        dispChg  = fbQ.change ?? 0;
+        dispPct  = fbQ.change_pct != null
+          ? (fbQ.change_pct >= 0 ? '+' : '') + fbQ.change_pct.toFixed(2) + '%' : '';
+        const nightL = isNightSession() ? '🌙夜盤' : '⚡日盤';
+        dispSrc = `${nightL} SDK(${fbKey}代理) ｜ ${fbQ.symbol || fbKey}`;
+        document.getElementById('quoteSrcLabel').textContent =
+          `即時報價 (SDK ${fbKey} 代理 ${misCode || currentSymbol})`;
+        _updateLeverageLive(dispLast);
+        break;
+      }
+    }
+  }
+
   if (dispLast == null) {
     el.textContent = '—'; chgEl.textContent = ''; info.textContent = '(等待報價…)';
     return;
@@ -4055,10 +4388,38 @@ function updateLivePrice(market, misData) {
   chgEl.textContent = (dispChg >= 0 ? '+' : '') + (typeof dispChg === 'number' ? dispChg.toFixed(dp) : '0') + '  ' + dispPct;
   chgEl.style.color = dispChg >= 0 ? 'var(--green)' : 'var(--red)';
   info.textContent  = dispSrc;
+  // 兜底：不論哪個 branch 都確保百分比與顯示現價一致
+  if (dispLast) _updateTriggerPxSubs(dispLast);
 }
 
 // ════════════════════════════════════════════════════════
 //  REAL-TIME LEVERAGE CALCULATION
+// ════════════════════════════════════════════════════════
+//  即時更新加/減槓桿觸發價距離百分比（每次 live price 更新時呼叫）
+// ════════════════════════════════════════════════════════
+function _updateTriggerPxSubs(livePrice) {
+  if (!livePrice) return;
+  // 優先用 state 同步的模組變數；state 尚未載入時才 fallback 讀 DOM 輸入框
+  const pyramidTrigger = _pyramidTriggerLive ?? parseFloat(document.getElementById('cfgPyramid')?.value) ?? 5.9;
+  const maxLev         = _maxLevLive         ?? parseFloat(document.getElementById('cfgMaxLev')?.value)  ?? 6.8;
+  const pyrSubEl  = document.getElementById('statPyramidPxSub');
+  const deLevSub  = document.getElementById('statDeleveragePxSub');
+  if (_pyrTriggerPx != null && pyrSubEl) {
+    const distPct = (_pyrTriggerPx - livePrice) / livePrice * 100;
+    const distPts = _pyrTriggerPx - livePrice;
+    const pts = Math.abs(Math.round(distPts)).toLocaleString();
+    pyrSubEl.textContent = (distPct >= 0 ? `需漲 ` : `已超過 `) +
+      Math.abs(distPct).toFixed(2) + `% (${pts} 點, 槓桿<${pyramidTrigger}x)`;
+  }
+  if (_delTriggerPx != null && deLevSub) {
+    const distPct = (livePrice - _delTriggerPx) / livePrice * 100;
+    const distPts = livePrice - _delTriggerPx;
+    const pts = Math.abs(Math.round(distPts)).toLocaleString();
+    deLevSub.textContent = (distPct >= 0 ? `需跌 ` : `已超過 `) +
+      Math.abs(distPct).toFixed(2) + `% (${pts} 點, 槓桿>${maxLev}x)`;
+  }
+}
+
 // ════════════════════════════════════════════════════════
 function _updateLeverageLive(livePrice) {
   if (!livePrice) return;
@@ -4083,17 +4444,32 @@ function _updateLeverageLive(livePrice) {
   const levEl  = document.getElementById('statLeverage');
   if (!levEl) return;
   levEl.textContent = lev.toFixed(2) + 'x';
-  // 目標/上限從畫面設定讀取
-  const target = parseFloat(document.getElementById('cfgLeverage')?.value) || 5;
-  const maxLev = parseFloat(document.getElementById('cfgMaxLev')?.value)   || 6;
-  levEl.className = 'value ' + (lev > maxLev ? 'red' : lev > target ? 'gold' : 'green');
+  // 顏色判斷：優先用 state 同步的模組變數（pyramid_trigger / max_leverage）
+  const _lPyramid = _pyramidTriggerLive ?? parseFloat(document.getElementById('cfgPyramid')?.value) ?? 5.9;
+  const _lMaxLev  = _maxLevLive         ?? parseFloat(document.getElementById('cfgMaxLev')?.value)  ?? 6.8;
+  levEl.className = 'value ' + (lev > _lMaxLev ? 'red' : lev > _lPyramid ? 'gold' : 'green');
 
   // ── 即時同步 K 線徽章的槓桿顯示（避免與右側面板數字不一致）──
   //   不走 state.leverage（那是 SDK 同步時的靜態快照），而是用這裡剛算出的 live 值。
   const badgeLev = document.getElementById('badgeLeverage');
   if (badgeLev) {
     badgeLev.textContent = `槓桿 ${lev.toFixed(1)}x`;
-    badgeLev.className   = 'badge ' + (lev > maxLev ? 'red' : 'gold');
+    badgeLev.className   = 'badge ' + (lev > _lMaxLev ? 'red' : 'gold');
+  }
+
+  // ── 即時部位名目 (exposure) — 寫到 statContractsSub ──
+  //   整體 portfolio 的 Σ(qty × mult × live price)。
+  //   優先用 _computePortfolioNotional 的結果（各商品用各自乘數 + 即時價）；
+  //   取不到 portfolio 時用當前商品 fallback（contracts × mult × livePrice）。
+  const expoSub = document.getElementById('statContractsSub');
+  if (expoSub) {
+    let notional = port?.notional;
+    if (!(notional > 0)) {
+      const c = (_sdkContracts ?? parseFloat(document.getElementById('statContracts')?.textContent)) || 0;
+      const m = PRODUCTS[currentSymbol]?.mult ?? 10;
+      notional = c * m * livePrice;
+    }
+    expoSub.textContent = notional > 0 ? `口 · 名目 ${fmt(notional)}` : '口';
   }
 
   // ── 以下 curPos 是目前切換到的商品的持倉（若未持有則為 null）──
@@ -4194,6 +4570,9 @@ function _updateLeverageLive(livePrice) {
       }
     }
   }
+
+  // ── 即時更新加/減槓桿觸發價距離百分比 ──────────────────────
+  _updateTriggerPxSubs(livePrice);
 }
 
 // ════════════════════════════════════════════════════════
@@ -4341,6 +4720,7 @@ async function doRollover() {
     closeRolloverModal();
     toast(j.message || '轉倉指令已送出', 3500);
     setTimeout(refresh, 3000);  // 3 秒後刷新，讓 bot 有時間執行
+    _broadcastTradePlaced('rollover');
   } catch(e) {
     toast('轉倉失敗: ' + e.message);
   }

@@ -59,6 +59,7 @@ STATE_FILE       = os.path.join(DIR, 'fmx_state.json')
 LIVE_QUOTES_FILE = os.path.join(DIR, 'fmx_live_quotes.json')
 STRATEGY_SCRIPT  = os.path.join(BOT, 'strategy-fmx-live.py')
 CONFIG_FILE      = os.path.join(BOT, 'config.yaml')
+SUB_HOLDINGS_FILE = os.path.join(E01BOT, 'subbrokerage_holdings.json')
 
 # ── subprocess environment ────────────────────────────────
 _ENV = {**os.environ, 'PYTHONIOENCODING': 'utf-8'}
@@ -301,10 +302,59 @@ def _crypto_balance_scheduler():
         time.sleep(60)   # 每 1 分鐘檢查一次
 
 
+def _find_orphan_daemons():
+    """掃描系統中所有 fmx_quote_daemon.py 的 PID（不含當前 server.py 自己）。"""
+    pids = []
+    try:
+        out = subprocess.check_output(
+            ['wmic', 'process', 'where',
+             "name='python.exe' or name='python_stock.exe'",
+             'get', 'ProcessId,CommandLine'],
+            text=True, errors='replace', timeout=5,
+            creationflags=NWIN_FLAG,
+        )
+        for line in out.splitlines():
+            if 'fmx_quote_daemon' in line:
+                parts = line.strip().split()
+                if parts:
+                    try:
+                        pids.append(int(parts[-1]))
+                    except ValueError:
+                        pass
+    except Exception as e:
+        print(f'[daemon] 掃描殭屍失敗: {e}', flush=True)
+    return pids
+
+
+def _kill_orphan_daemons():
+    """殺掉所有現存的 fmx_quote_daemon.py 進程（server 啟動時用）。"""
+    pids = _find_orphan_daemons()
+    if not pids:
+        return 0
+    killed = 0
+    for pid in pids:
+        try:
+            subprocess.run(
+                ['taskkill', '/F', '/PID', str(pid)],
+                capture_output=True, text=True, timeout=5,
+                creationflags=NWIN_FLAG,
+            )
+            print(f'[daemon] 清除殭屍 PID {pid}', flush=True)
+            killed += 1
+        except Exception as e:
+            print(f'[daemon] 殺 PID {pid} 失敗: {e}', flush=True)
+    return killed
+
+
 def _daemon_watchdog():
     """背景執行緒：確保 fmx_quote_daemon.py 持續運行"""
     global _daemon_proc
     time.sleep(3)   # 等 server 啟動完成
+    # ── 啟動時先清理任何殘留的舊 daemon（避免 server.py 重啟累積殭屍）──
+    n = _kill_orphan_daemons()
+    if n > 0:
+        print(f'[daemon] 清除 {n} 個舊 daemon，準備啟動新 daemon…', flush=True)
+        time.sleep(2)   # 給作業系統時間釋放檔案鎖
     print('[daemon] watchdog 啟動', flush=True)
     while True:
         try:
@@ -403,6 +453,7 @@ FUTOPT_KLINE_TTL_DAILY    = 600  # 日 K+：10 分鐘
 # ── sub (複委託) positions cache ──────────────────────────
 _sub_pos_cache = None
 _sub_pos_ts    = 0.0
+_sub_pos_src_mtime = None
 _sub_pos_lock  = threading.Lock()
 SUB_POS_TTL    = 60   # seconds
 
@@ -414,6 +465,7 @@ SUB_QUOTE_TTL    = 20
 # 複委託 balance 快取（跟 positions 同一份 JSON，30s 內不重複 spawn）
 _sub_bal_cache   = None
 _sub_bal_ts      = 0.0
+_sub_bal_src_mtime = None
 _sub_bal_lock    = threading.Lock()
 SUB_BAL_TTL      = 30
 
@@ -422,6 +474,12 @@ _sub_ord_cache   = None
 _sub_ord_ts      = 0.0
 _sub_ord_lock    = threading.Lock()
 SUB_ORD_TTL      = 10
+
+def _safe_mtime(path: str):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return None
 
 
 _PY32 = 'C:/py32e01/python.exe'
@@ -592,6 +650,11 @@ _LIVE_LOG_PATH  = os.path.join(BOT, 'logs', 'fmx_live.log')
 _LOG_LINE_RE    = _re_log.compile(
     r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+\s+\[(\w+)\]\s+(.+)$'
 )
+_LOG_TS_FMT = '%Y-%m-%d %H:%M:%S'
+_RECENT_LOG_KEEP_DAYS = 3
+_RECENT_LOG_MIN_COUNT = 20
+_RECENT_LOG_MAX_COUNT = 500
+_RECENT_LOG_READ_BYTES = 2 * 1024 * 1024
 # 關注關鍵字：只留「進出場 / 槓桿變化 / 部位更新」相關的訊息
 _LOG_KEEP_KEYWORDS = (
     'tick ▶',              # 每 5 分鐘 tick 摘要（含 口數 + 槓桿率）
@@ -623,6 +686,7 @@ def _condense_msg(msg: str) -> str:
     return msg
 
 def _read_recent_logs(n: int = 20) -> list:
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=_RECENT_LOG_KEEP_DAYS)
     """
     從 fmx_live.log 讀取最近 N 筆「進出場 / 槓桿變化」的日誌。
     回傳: [{time, level, msg}, ...] 舊→新（前端會再 reverse 顯示新→舊）
@@ -634,8 +698,8 @@ def _read_recent_logs(n: int = 20) -> list:
         # 從檔尾往前讀 256KB（進場事件稀少，tick 每 5 分鐘一筆，需要較大 buffer）
         size = os.path.getsize(path)
         with open(path, 'rb') as f:
-            if size > 262144:
-                f.seek(size - 262144)
+            if size > _RECENT_LOG_READ_BYTES:
+                f.seek(size - _RECENT_LOG_READ_BYTES)
                 f.readline()
             raw = f.read().decode('utf-8', errors='replace')
     except Exception as e:
@@ -650,19 +714,26 @@ def _read_recent_logs(n: int = 20) -> list:
         if not m:
             continue
         ts, level, msg = m.group(1), m.group(2), m.group(3)
+        try:
+            log_dt = datetime.datetime.strptime(ts, _LOG_TS_FMT)
+        except ValueError:
+            log_dt = None
         # 先過黑名單
         if any(sk in msg for sk in _LOG_SKIP_SUBSTR):
             continue
         # 再篩關鍵字
         if not any(kw in msg for kw in _LOG_KEEP_KEYWORDS):
             continue
-        short_ts = ts.split(' ', 1)[1] if ' ' in ts else ts
         out.append({
-            'time':  short_ts,
+            'time':  ts,
             'level': level.lower(),
             'msg':   _condense_msg(msg),
         })
-        if len(out) >= n:
+        enough_count = len(out) >= max(n, _RECENT_LOG_MIN_COUNT)
+        older_than_cutoff = (log_dt is not None and log_dt < cutoff)
+        if len(out) >= _RECENT_LOG_MAX_COUNT:
+            break
+        if enough_count and older_than_cutoff:
             break
     return list(reversed(out))
 
@@ -793,6 +864,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._fmx_market_quotes(parsed)
         elif p == '/fmx/runtime':
             self._fmx_runtime()
+        elif p == '/fmx/config':
+            self._fmx_config()
         elif p == '/stock/quote':
             self._stock_quote(parsed)
         elif p == '/stock/kline':
@@ -838,6 +911,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._sub_gui_order()
         elif p == '/sub/cancel':
             self._sub_cancel()
+        elif p == '/sub/sync_profit_query':
+            self._sub_sync_profit_query()
         else:
             self.send_error(404, f'Not found: {p}')
 
@@ -915,6 +990,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self._send_json(get_fundamentals(symbol))
 
     # ── /fmx/state ────────────────────────────────────────
+    def _fmx_config(self):
+        """讀取 fubon_bot/config.yaml 回傳當前 live bot 的策略參數，供 simulator 套用"""
+        try:
+            import yaml
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f) or {}
+            # 過濾掉敏感欄位（api_key、cert_pass、personal_id 等）
+            sensitive = {'api_key', 'cert_pass', 'cert_path', 'personal_id',
+                         'account', 'futures_account', 'branch_no', 'futures_branch_no'}
+            safe = {k: v for k, v in cfg.items() if k not in sensitive}
+            self._send_json(safe)
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     def _fmx_state(self):
         st = _read_state()
         # 附加最近 20 筆策略日誌，供前端右側「最近日誌」面板使用
@@ -1100,14 +1189,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'status': 'ok', 'message': '設定已儲存'})
 
         elif action == 'start':
-            # 先殺掉所有殘留的 strategy 程序
-            for pid in _find_strategy_procs():
-                try:
-                    subprocess.run(['taskkill', '/F', '/PID', str(pid)],
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
-                                   creationflags=NWIN_FLAG)
-                except Exception:
-                    pass
+            # 防止與 start_bot.bat watchdog 衝突：如果偵測到外部 bot 在跑，拒絕 spawn
+            # 過去經驗：兩個 bot 用同一憑證 → 富邦端拒絕後登 session →「憑證匯入錯誤」全失敗
+            external = _find_strategy_procs()
+            if external:
+                self._send_json({
+                    'status': 'error',
+                    'message': f'已有 strategy-fmx-live.py 在跑 (PID {external})。'
+                               f'若要重啟請先在該視窗 Ctrl+C 或重啟 start_bot.bat。'
+                               f'禁止從 dashboard 重複啟動以免雙憑證衝突。'
+                }, 409)
+                return
             with _strategy_proc_lock:
                 if _strategy_proc and _strategy_proc.poll() is None:
                     _strategy_proc.terminate()
@@ -1513,33 +1605,47 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self._send_json(result)
 
     def _sub_positions(self, parsed):
-        global _sub_pos_cache, _sub_pos_ts
+        global _sub_pos_cache, _sub_pos_ts, _sub_pos_src_mtime
         params  = self._qs(parsed)
         refresh = bool(params.get('refresh'))
         real    = bool(params.get('real'))
         now     = time.time()
+        src_mtime = _safe_mtime(SUB_HOLDINGS_FILE)
         with _sub_pos_lock:
-            if not refresh and _sub_pos_cache and (now - _sub_pos_ts) < SUB_POS_TTL:
+            cache_valid = (
+                not refresh and _sub_pos_cache
+                and (now - _sub_pos_ts) < SUB_POS_TTL
+                and _sub_pos_src_mtime == src_mtime
+            )
+            if cache_valid:
                 self._send_json(_sub_pos_cache); return
             args = ['--real'] if real else []
             result = _run_e01('e01_positions.py', args, timeout=45)
             _sub_pos_cache = result
             _sub_pos_ts    = time.time()
+            _sub_pos_src_mtime = src_mtime
         self._send_json(result)
 
     def _sub_balance(self, parsed):
-        global _sub_bal_cache, _sub_bal_ts
+        global _sub_bal_cache, _sub_bal_ts, _sub_bal_src_mtime
         params  = self._qs(parsed)
         refresh = bool(params.get('refresh'))
         real    = bool(params.get('real'))
         now     = time.time()
+        src_mtime = _safe_mtime(SUB_HOLDINGS_FILE)
         with _sub_bal_lock:
-            if not refresh and _sub_bal_cache and (now - _sub_bal_ts) < SUB_BAL_TTL:
+            cache_valid = (
+                not refresh and _sub_bal_cache
+                and (now - _sub_bal_ts) < SUB_BAL_TTL
+                and _sub_bal_src_mtime == src_mtime
+            )
+            if cache_valid:
                 self._send_json(_sub_bal_cache); return
             args = ['--real'] if real else []
             result = _run_e01('e01_bank_balance.py', args, timeout=30)
             _sub_bal_cache = result
             _sub_bal_ts    = time.time()
+            _sub_bal_src_mtime = src_mtime
         self._send_json(result)
 
     def _sub_orders(self, parsed):
@@ -1561,8 +1667,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _sub_order(self):
         body = self._read_body()
         symbol = str(body.get('symbol', '')).strip().upper()
+        real = bool(body.get('real'))
+        dry_run = bool(body.get('dry_run'))
         if not symbol:
             self._send_json({'status': 'fail', 'error': 'symbol required'}); return
+        if real and dry_run:
+            self._send_json({'status': 'fail', 'error': 'real 與 dry_run 不可同時為 true'}, status=400); return
+        if real:
+            confirm_real = str(body.get('confirm_real', '')).strip().upper()
+            if confirm_real != 'REAL':
+                self._send_json({'status': 'fail', 'error': 'real order requires confirm_real=REAL'}, status=400); return
         args = [
             '--side',   str(body.get('side', 'buy')),
             '--symbol', symbol,
@@ -1573,9 +1687,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ]
         if body.get('market_order'):
             args.append('--market-order')
-        if body.get('dry_run'):
+        if dry_run:
             args.append('--dry-run')
-        if body.get('real'):
+        if real:
             args.append('--real')
         # 下單後清持倉、今日委託快取以便 UI 立刻看到變化
         global _sub_pos_cache, _sub_ord_cache
@@ -1584,6 +1698,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         with _sub_ord_lock:
             _sub_ord_cache = None
         self._send_json(_run_e01('e01_order.py', args, timeout=40))
+
+    def _sub_sync_profit_query(self):
+        global _sub_pos_cache, _sub_pos_ts, _sub_pos_src_mtime
+        global _sub_bal_cache, _sub_bal_ts, _sub_bal_src_mtime
+        body = self._read_body()
+        args = []
+        if body.get('query') is False:
+            args.append('--no-query')
+        result = _run_e01('e01_profit_query_sync.py', args, timeout=120)
+        if result.get('status') == 'ok':
+            with _sub_pos_lock:
+                _sub_pos_cache = None
+                _sub_pos_ts = 0.0
+                _sub_pos_src_mtime = None
+            with _sub_bal_lock:
+                _sub_bal_cache = None
+                _sub_bal_ts = 0.0
+                _sub_bal_src_mtime = None
+        self._send_json(result)
 
     def _sub_gui_order(self):
         """[DISABLED 2026-04] 富邦複委託 API 尚未開放，暫停 GUI 自動下單串接。
@@ -1631,10 +1764,15 @@ if __name__ == '__main__':
     else:
         print(f'[daemon] 找不到 {DAEMON_SCRIPT}，跳過自動啟動', flush=True)
 
-    # 啟動 strategy watchdog 執行緒（在 bot_running=true 時自動重啟掛掉的策略）
+    # 【已停用】strategy watchdog 執行緒
+    # 原因：與 fubon_bot/start_bot.bat 的 watchdog 衝突，會導致雙 spawn 雙下單。
+    # 現在改由 start_bot.bat 單一管控源頭，server.py 不再自動重啟策略。
+    # Dashboard 的「啟動策略」按鈕仍可用（手動 spawn 一次性，crash 後不會自動拉起）。
+    # 若要恢復 watchdog，取消下方註解即可。
     if os.path.exists(STRATEGY_SCRIPT):
-        ts = threading.Thread(target=_strategy_watchdog, daemon=True, name='strategy-watchdog')
-        ts.start()
+        print('[strategy] watchdog 已停用（避免與 start_bot.bat 衝突）', flush=True)
+        # ts = threading.Thread(target=_strategy_watchdog, daemon=True, name='strategy-watchdog')
+        # ts.start()
     else:
         print(f'[strategy] 找不到 {STRATEGY_SCRIPT}，跳過自動守護', flush=True)
 

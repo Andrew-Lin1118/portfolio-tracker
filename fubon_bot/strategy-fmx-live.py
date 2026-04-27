@@ -5,9 +5,52 @@ FMX 微台 動態槓桿策略 — 富邦期貨實單執行程式
 ═══════════════════════════════════════════════════════════
 策略規則：
   1. 初始建倉  : 用目標槓桿買入微台 (MXFR1)
-  2. DCA 攤平  : 從上次買點跌超過 5%，加買 1 口（槓桿 < 上限）
-  3. 動態加碼  : 槓桿 < 下限 且 在 200EMA 之上，補回目標槓桿
-  4. 獲利降槓桿: 價格高於均攤成本 且 槓桿 > 目標值，賣至目標槓桿
+  2. DCA 攤平  : 從上次買點跌超過 5%，加買 1 口（槓桿 < 上限）  [目前未啟用]
+  3. 動態加碼  : 槓桿 < pyramid_trigger 且 在 200EMA 之上，買 1 口
+  4. 動態減碼 : 槓桿 > max_leverage，賣 1 口
+
+═══════════════════════════════════════════════════════════
+【2026-04-21 策略參數升級紀錄】
+═══════════════════════════════════════════════════════════
+config.yaml 參數：
+  target_leverage  : 5      （只用於初始建倉）
+  pyramid_trigger  : 5.9    （加碼下限）
+  max_leverage     : 6.8    （減碼上限）
+  stop_loss_pct    : 已移除（未使用）
+  rsi_*            : 已移除（未使用）
+
+實際運作槓桿範圍：5.9x ~ 6.8x（非名義 5x）
+選定原因：10 年回測全局最佳，榨乾多頭紅利
+
+═══════════════════════════════════════════════════════════
+【實盤 vs 回測 的關鍵差異】
+═══════════════════════════════════════════════════════════
+① DELEV 條件：
+   - 回測 (window_opt.py line 227)：leverage > max AND price > avgCost
+   - 實盤 (strategy-fmx-live.py line 1411)：leverage > max（無 avgCost 檢查）
+   → 實盤在「暴跌+虧損」情境也會減碼，鎖死部分損失換保命
+   → 保留此設計：優先防止連續暴跌被強平歸零
+
+② 減碼量：
+   - 回測：一次減到目標槓桿
+   - 實盤：每 tick 減 1 口（5 分鐘/次）
+   → 保留此設計：避免 V 型反彈時賣太多踏空
+
+③ 預期績效修正（100 萬本金 × 10 年）：
+   - 回測理想值          ：3.75 億（CAGR 111%，MDD 80%）
+   - 實戰估計（含減碼保守）：2~2.5 億（CAGR 85~95%，MDD 60~70%）
+   - 差異來源：V 型反彈事件（如 2024/08/05 日圓套利崩盤）
+     每次機會成本約 15~20 萬 TWD，10 年遇 1~2 次
+
+═══════════════════════════════════════════════════════════
+【風險配置建議】
+═══════════════════════════════════════════════════════════
+  ✓ 投入比例：總資產 5~10%（最壞情境僅傷總資產 7~11%）
+  ✓ 不追加  ：帳戶虧損時絕不從其他帳戶補錢
+  ✓ 不干預  ：MDD 到 60%+ 時讓 bot 自處，不手動平倉
+  ✓ 已知風險：連續跌停 2~3 天會被強平，極端可能倒賠券商
+  ✓ 歷史極端：日圓套利崩盤級事件會鎖死約 10~15 萬實現損失
+═══════════════════════════════════════════════════════════
 
 使用方式:
   python strategy-fmx-live.py              # 正式下單（dry_run 依 config）
@@ -75,6 +118,18 @@ class FMXLiveBot:
         # SDK
         self.sdk: FubonSDK | None = None
         self.account = None
+
+        # 即時期貨權益數（run_loop 每 tick 從 SDK 刷新）
+        self._live_equity:  float | None = None
+        # 已結算現金（today_balance，價格無關，優先用於槓桿計算）
+        # equity = _live_cash + unrealized(即時價) ← 正確公式
+        # equity = _live_equity (= today_equity，結算價基礎) ← 備援，較不精確
+        self._live_cash:    float | None = None
+        # 當日首次成功取得的 SDK equity（供 SDK 失敗時的 fallback）
+        self._daily_equity: float | None = None
+
+        self._sdk_position_lots: int | None = None
+        self._sdk_position_avg:  float | None = None
 
         # Logging
         log_file = self.cfg.get("fmx_log_file", "logs/fmx_live.log")
@@ -242,8 +297,62 @@ class FMXLiveBot:
         return result
 
     def _ensure_login(self) -> None:
+        """確保 SDK 已登入且 session 仍有效。
+        偵測 'Not Login' 類錯誤時強制重新登入。"""
         if self.sdk is None or self.account is None:
             self.login()
+            return
+        # 輕量健檢：若 SDK session 過期（夜盤重連等）主動重登
+        try:
+            r = self.sdk.futopt_accounting.query_margin_equity(self.account)
+            msg = str(getattr(r, "message", "") or "").lower()
+            if "not login" in msg or ("login" in msg and not getattr(r, "is_success", True)):
+                self.log.warning(f"SDK session 過期（{msg}），重新登入…")
+                self.sdk = None; self.account = None
+                self.login()
+        except Exception as e:
+            if any(k in str(e).lower() for k in ("login", "session", "token", "auth")):
+                self.log.warning(f"SDK session 錯誤: {e}，重新登入…")
+                self.sdk = None; self.account = None
+                self.login()
+
+    def _fetch_live_equity(self) -> float | None:
+        """查詢期貨帳戶即時權益數。
+
+        優先取 today_balance（已結算現金），儲存在 self._live_cash。
+        _recalc() 會用 _live_cash + 即時 unrealized 合成正確淨值。
+
+        注意：today_equity 是「結算價」的未實現損益，與即時 exposure 混用會造成槓桿偏高。
+        """
+        try:
+            r = self.sdk.futopt_accounting.query_margin_equity(self.account)
+            if not (hasattr(r, "is_success") and r.is_success):
+                self.log.warning(f"query_margin_equity 失敗: {getattr(r,'message','?')}")
+                return None
+            items = r.data or []
+            item = None
+            for it in items:
+                if str(getattr(it, "currency", "")).upper() in ("TWD", "NTD"):
+                    item = it; break
+            if item is None and items:
+                item = items[0]
+            if item is None:
+                return None
+            # 優先取 today_balance（已結算現金，價格無關）
+            for attr in ("today_balance", "current_balance"):
+                v = getattr(item, attr, None)
+                if v is not None:
+                    self._live_cash = float(v)
+                    self.log.debug(f"_live_cash (today_balance) = {self._live_cash:,.0f}")
+                    break
+            # 同時取 today_equity 作為 _live_equity（備援，結算價基礎）
+            for attr in ("today_equity", "equity", "net_value"):
+                v = getattr(item, attr, None)
+                if v is not None:
+                    return float(v)
+        except Exception as e:
+            self.log.warning(f"_fetch_live_equity 例外: {e}")
+        return None
 
     # ── 報價 ─────────────────────────────────────────────────────────────────
     def get_future_quote(self) -> dict | None:
@@ -294,6 +403,8 @@ class FMXLiveBot:
                                 f"query_hybrid_position: {sym} lots={lots} "
                                 f"market={last}  avg={avg_px}  expiry={expiry}"
                             )
+                            self._sdk_position_lots = lots
+                            self._sdk_position_avg = float(avg_px) if avg_px else None
                             # 記錄實際代碼供下單用
                             if sym and sym not in ("", "N/A"):
                                 self._actual_order_symbol = sym
@@ -348,7 +459,7 @@ class FMXLiveBot:
     # ── 下單 ─────────────────────────────────────────────────────────────────
     def place_future_order(
         self, side: str, contracts: int, price: float,
-        order_type: str = "limit", spread: float = 1.0
+        order_type: str = "limit", spread: float = 15.0
     ) -> bool:
         """
         送出期貨委託。
@@ -356,7 +467,7 @@ class FMXLiveBot:
         contracts  : 口數
         price      : 參考現價
         order_type : 'market' (市價) | 'limit' (限價，預設)
-        spread     : 限價單超出市價的點數（buy+spread, sell-spread），預設 1 點
+        spread     : 限價單超出市價的點數（buy+spread, sell-spread），預設 15 點（避免限價追不到）
         """
         if contracts <= 0:
             return False
@@ -496,6 +607,7 @@ class FMXLiveBot:
         lim_price_str  = f"{int(round(limit_price))}"
         # 也試浮點格式（部分 TAIMEX 端點可能需要）
         cur_price_flt  = f"{float(price):.1f}"
+        lim_price_flt  = f"{float(limit_price):.1f}"
 
         # 安全取得 FutOptMarketType.Future
         market_types = [fut_market]
@@ -508,38 +620,65 @@ class FMXLiveBot:
         self.log.info(f"  市場類型: {[str(m).split('.')[-1] for m in market_types]}")
 
         # sym_list: 轉換代碼優先，再嘗試 TAIFEX 格式
+        configured_symbol = str(self.symbol or "").upper()
+
+        def _compatible_order_symbol(sym: str) -> bool:
+            s = str(sym or "").upper().strip()
+            if not s:
+                return False
+            if configured_symbol.startswith("MXF"):
+                return s.startswith("MXF") or s == "FITM"
+            if configured_symbol.startswith("MTX"):
+                return s.startswith("MTX")
+            if configured_symbol.startswith("TXF"):
+                return s.startswith("TXF") or s == "FITX"
+            return True
+
         sym_list = []
-        if converted_sym and converted_sym not in (order_symbol, ""):
-            sym_list.append(converted_sym)
-        sym_list.append(order_symbol)
+        for sym in [order_symbol, converted_sym]:
+            if not sym or sym in sym_list:
+                continue
+            if _compatible_order_symbol(sym):
+                sym_list.append(sym)
+            else:
+                self.log.warning(
+                    f"  skip incompatible converted symbol: {sym} "
+                    f"(configured={self.symbol}, order_symbol={order_symbol})")
         # 若持倉顯示 FITM，也納入嘗試（它在 close_position 方法中可能有效）
-        if "FITM" not in sym_list:
+        if side == "sell" and configured_symbol.startswith("MXF") and "FITM" not in sym_list:
             sym_list.append("FITM")
         self.log.info(f"  下單代碼候選: {sym_list}")
 
         candidates = []
         try:
-            # ① 限價單（夜盤 TAIMEX 不支援市價，限價最穩）
-            #    轉換代碼（TMFD6）優先，次為 TAIFEX 格式，最後 FITM
+            # ── 建立限價候選清單 ──────────────────────────────────────────
+            lim_cands = []
             for sym in sym_list:
                 for mt in market_types:
                     for ot in [fut_order_type, FutOptOrderType.Auto]:
-                        for px in [cur_price_str, lim_price_str]:
-                            candidates.append(dict(
+                        for px in dict.fromkeys([cur_price_str, lim_price_str, cur_price_flt, lim_price_flt]):
+                            lim_cands.append(dict(
                                 sym=sym, mt=mt, pt=FutOptPriceType.Limit,
                                 tif=TimeInForce.ROD, ot=ot, px=px,
                             ))
-            # ② 市價單（日盤 TAIFEX 支援；夜盤會回 "Price should be empty" 可跳過）
+            # ── 建立市價候選清單（日盤才支援，夜盤回 "Price should be empty"）──
+            mkt_cands = []
             if not is_night:
                 for sym in sym_list:
                     for mt in market_types:
                         for ot in [fut_order_type, FutOptOrderType.Auto]:
                             for tif in [TimeInForce.IOC, TimeInForce.ROD]:
-                                candidates.append(dict(
+                                mkt_cands.append(dict(
                                     sym=sym, mt=mt, pt=FutOptPriceType.Market,
-                                    tif=tif, ot=ot, px="",
+                                    tif=tif, ot=ot, px=None,
                                 ))
-            self.log.info(f"  候選總數={len(candidates)}  (夜盤={is_night})")
+            # ── 順序：is_market=True 且日盤 → 市價優先；否則限價優先 ──────
+            mkt_first = is_market and not is_night
+            candidates = (mkt_cands + lim_cands) if mkt_first else (lim_cands + mkt_cands)
+            self.log.info(
+                f"  候選總數={len(candidates)}  "
+                f"(夜盤={is_night}, 市價優先={mkt_first})"
+            )
         except Exception as e:
             self.log.error(f"  建立候選序列失敗: {type(e).__name__}: {e}")
             self.log.error(traceback.format_exc())
@@ -552,7 +691,7 @@ class FMXLiveBot:
             pt_label  = str(params["pt"]).split(".")[-1]
             tif_label = str(params["tif"]).split(".")[-1]
             ot_label  = str(params["ot"]).split(".")[-1]
-            px_label  = params["px"] or "(空)"
+            px_label  = params["px"] if params["px"] is not None else "(empty)"
             sym_label = params["sym"]
             self.log.info(
                 f"  [嘗試 {idx+1}/{len(candidates)}] "
@@ -560,7 +699,7 @@ class FMXLiveBot:
                 f"price={px_label}  OT={ot_label}  TIF={tif_label}"
             )
             try:
-                order = FutOptOrder(
+                order_kwargs = dict(
                     buy_sell      = buy_sell,
                     symbol        = params["sym"],
                     lot           = int(contracts),
@@ -568,8 +707,10 @@ class FMXLiveBot:
                     price_type    = params["pt"],
                     time_in_force = params["tif"],
                     order_type    = params["ot"],
-                    price         = params["px"],
                 )
+                if params["px"] is not None:
+                    order_kwargs["price"] = params["px"]
+                order = FutOptOrder(**order_kwargs)
             except Exception as e:
                 self.log.warning(f"    FutOptOrder 建立失敗: {type(e).__name__}: {e}")
                 continue
@@ -607,7 +748,7 @@ class FMXLiveBot:
 
     def manual_adjust(
         self, side: str, lots: int = 1,
-        order_type: str = "limit", spread: float = 5.0
+        order_type: str = "limit", spread: float = 15.0
     ) -> None:
         """
         手動加/減槓桿：直接下指定口數的單。
@@ -642,6 +783,7 @@ class FMXLiveBot:
                 self.save_state(new_state, runtime={
                     "last_price":  price,
                     "leverage":    new_st["leverage"],
+                    "exposure":    new_st["exposure"],
                     "equity":      new_st["equity"],
                     "unrealized":  new_st["unrealized"],
                     "liq_price":   new_st["liq_price"],
@@ -656,7 +798,7 @@ class FMXLiveBot:
 
     def manual_rollover(
         self, lots: int | None = None,
-        order_type: str = "limit", spread: float = 5.0
+        order_type: str = "limit", spread: float = 15.0
     ) -> None:
         """
         轉倉：將近月倉位全數或指定口數平倉，並以相同口數建立次月倉位。
@@ -775,6 +917,7 @@ class FMXLiveBot:
         self.save_state(state, runtime={
             "last_price":  price,
             "leverage":    new_st["leverage"],
+            "exposure":    new_st["exposure"],
             "equity":      new_st["equity"],
             "unrealized":  new_st["unrealized"],
             "liq_price":   new_st["liq_price"],
@@ -804,18 +947,20 @@ class FMXLiveBot:
             high_p = int(self.cfg.get("high_period", 10))
             low_p  = int(self.cfg.get("low_period",  100))
             df["RH"] = df["High"].shift(1).rolling(high_p).max()   # 前N日最高點
-            df["RL"] = df["Low"].shift(1).rolling(low_p).min()     # 前M日最低點
+            df["MA10"] = df["Close"].rolling(high_p).mean()        # 低於長均線時的快進快出防守線
+            df["MA"] = df["Close"].rolling(low_p).mean()           # M日收盤SMA（長均線）
             last = df.iloc[-1]
             above = "年線之上" if last["Close"] > last["EMA200"] else "年線之下"
             self.log.info(
                 f"台指收盤:{last['Close']:.0f}  200EMA:{last['EMA200']:.0f}({above})  "
-                f"{high_p}日最高點:{last['RH']:.0f}  {low_p}日最低點:{last['RL']:.0f}"
+                f"{high_p}日最高點:{last['RH']:.0f}  {high_p}日MA:{last['MA10']:.0f}  {low_p}日MA:{last['MA']:.0f}"
             )
             return {
                 "close":           float(last["Close"]),
                 "ema200":          float(last["EMA200"]),
                 "rolling_high_10": float(last["RH"]) if not pd.isna(last["RH"]) else None,
-                "rolling_low_60":  float(last["RL"]) if not pd.isna(last["RL"]) else None,
+                "ma10":            float(last["MA10"]) if not pd.isna(last["MA10"]) else None,
+                "rolling_low_60":  float(last["MA"]) if not pd.isna(last["MA"]) else None,
             }
         except Exception as e:
             self.log.error(f"Yahoo Finance 取得失敗: {e}")
@@ -838,18 +983,21 @@ class FMXLiveBot:
         if runtime:
             merged.update(runtime)
         # 附加策略參數供 dashboard 顯示
-        merged.setdefault("target_leverage",   self.target_leverage)
-        merged.setdefault("max_leverage",      self.max_leverage)
-        merged.setdefault("initial_capital",   self.initial_capital)
-        merged.setdefault("dry_run",           self.dry_run)
+        # 用直接指派（非 setdefault）確保 config.yaml 調參後 state 同步更新
+        merged["target_leverage"]  = self.target_leverage
+        merged["max_leverage"]     = self.max_leverage
+        merged["pyramid_trigger"]  = self.pyramid_trigger
+        merged["initial_capital"]  = self.initial_capital
+        merged["dry_run"]          = self.dry_run
         merged["save_ts"] = datetime.datetime.now().isoformat(timespec="seconds")
         with open(STATE_FILE, "w", encoding="utf-8") as f:
             json.dump(merged, f, ensure_ascii=False, indent=2)
         self.log.info(f"倉位狀態已儲存 → {STATE_FILE}")
 
     def init_state(self, price: float) -> dict:
+        cap = self._live_equity if self._live_equity is not None else self.initial_capital
         contracts = math.floor(
-            self.initial_capital * self.target_leverage / (price * self.multiplier)
+            cap * self.target_leverage / (price * self.multiplier)
         )
         avg_cost = price if contracts > 0 else 0
         realized = -(contracts * self.fee_per_lot) if contracts > 0 else 0
@@ -872,16 +1020,35 @@ class FMXLiveBot:
 
     # ── 核心計算 ─────────────────────────────────────────────────────────────
     def _recalc(self, price: float, state: dict) -> dict:
+        """槓桿 / exposure / 強平價計算。
+
+        Equity 計算優先序：
+          1. _live_cash（today_balance，已結算現金）+ 即時 unrealized  ← 最準確
+          2. _live_equity（today_equity，結算價基礎）                  ← SDK fallback
+          3. initial_capital + realized + unrealized                   ← 最後備援
+
+        注意：today_equity 含結算價 unrealized，若直接用於槓桿計算會偏高/偏低。
+        正確做法是 today_balance（價格無關）+ 當前即時 unrealized。
+        """
         contracts = state["contracts"]
         avg_cost  = state["avg_cost"]
         realized  = state["realized_pnl"]
         unreal    = contracts * (price - avg_cost) * self.multiplier
-        equity    = self.initial_capital + realized + unreal
-        exposure  = contracts * price * self.multiplier
-        leverage  = (exposure / equity) if equity > 0 else 0
+        if self._live_cash is not None:
+            # ★ 最準確：已結算現金 + 即時未實現 = 即時淨值
+            equity = self._live_cash + unreal
+        elif self._live_equity is not None:
+            # 備援：today_equity（結算價基礎，精度略差）
+            equity = self._live_equity
+        else:
+            equity = self.initial_capital + realized + unreal
+        exposure    = contracts * price * self.multiplier
+        leverage    = (exposure / equity) if equity > 0 else 0
         total_maint = contracts * self.maint_margin
+        # 強平價（price-independent：用 cash = equity - unreal 計算）
+        cash      = equity - unreal
         liq_price = (
-            avg_cost + (total_maint - equity) / (contracts * self.multiplier)
+            avg_cost + (total_maint - cash) / (contracts * self.multiplier)
             if contracts > 0 else None
         )
         return {
@@ -892,6 +1059,48 @@ class FMXLiveBot:
 
     def _calc_leverage(self, price: float, state: dict) -> float:
         return self._recalc(price, state)["leverage"]
+
+    def _sync_state_from_sdk_quote(self, state: dict, quote: dict | None, price: float) -> dict:
+        """Use SDK position lots/average cost before making trading decisions."""
+        if not quote:
+            return state
+        sdk_lots = quote.get("lots", self._sdk_position_lots)
+        sdk_avg = quote.get("ref", self._sdk_position_avg)
+        if sdk_lots is None:
+            return state
+
+        old_lots = int(state.get("contracts", 0) or 0)
+        old_avg = float(state.get("avg_cost") or 0)
+        sdk_lots = int(sdk_lots)
+        sdk_avg_f = float(sdk_avg) if sdk_avg not in (None, "") else old_avg
+        lots_changed = sdk_lots != old_lots
+        avg_changed = sdk_lots > 0 and sdk_avg_f > 0 and abs(sdk_avg_f - old_avg) > 0.01
+        if not lots_changed and not avg_changed:
+            return state
+
+        synced = dict(state)
+        synced["contracts"] = sdk_lots
+        if sdk_lots > 0 and sdk_avg_f > 0:
+            synced["avg_cost"] = sdk_avg_f
+        if sdk_lots > old_lots and price > 0:
+            synced["last_buy_px"] = price
+        synced["last_updated"] = str(datetime.date.today())
+
+        runtime = self._recalc(price, synced)
+        runtime.update({
+            "last_price": price,
+            "last_signal": "SDK_SYNC",
+            "last_reason": (
+                f"SDK 實倉同步：{old_lots}口/{old_avg:.2f} -> "
+                f"{sdk_lots}口/{sdk_avg_f:.2f}"
+            ),
+        })
+        self.log.warning(
+            f"SDK 實倉與 state 不一致，已同步："
+            f"{old_lots}口/{old_avg:.2f} -> {sdk_lots}口/{sdk_avg_f:.2f}"
+        )
+        self.save_state(synced, runtime=runtime)
+        return synced
 
     def evaluate_signal(
         self, price: float, ema200: float | None, state: dict
@@ -908,8 +1117,8 @@ class FMXLiveBot:
         avg_cost  = state["avg_cost"]
         last_buy  = state["last_buy_px"]
 
-        # 規則 4：降槓桿（價格 > 均攤 且 槓桿超標）
-        if contracts > 0 and price > avg_cost and leverage > self.target_leverage + 0.15:
+        # 規則 1：降槓桿（槓桿超過上限，不限盈虧方向）
+        if contracts > 0 and leverage > self.max_leverage:
             target_exp = equity * self.target_leverage
             to_sell = min(
                 contracts - 1,
@@ -921,33 +1130,17 @@ class FMXLiveBot:
                     "qty":    -to_sell,
                     "reason": (
                         f"降槓桿：賣 {to_sell} 口  "
-                        f"槓桿 {leverage:.2f}x → 目標 {self.target_leverage}x  "
-                        f"均攤成本 {avg_cost:.0f}  獲利 {((price/avg_cost-1)*100):.1f}%"
+                        f"槓桿 {leverage:.2f}x > 上限 {self.max_leverage}x → 目標 {self.target_leverage}x  "
+                        f"均攤 {avg_cost:.0f}  現價 {price:.0f}"
                     ),
                 }
 
-        # 規則 2：DCA（從上次買點跌超過門檻）
-        if last_buy > 0:
-            drop_pct = (1 - price / last_buy) * 100
-            if drop_pct >= self.dca_threshold and leverage < self.max_leverage:
-                new_contracts = contracts + 1
-                new_avg = (contracts * avg_cost + price) / new_contracts
-                return {
-                    "action": "DCA",
-                    "qty":    1,
-                    "reason": (
-                        f"攤平：加買 1 口  "
-                        f"距上次買點 {last_buy:.0f} 跌幅 {drop_pct:.1f}%  "
-                        f"均攤成本 {avg_cost:.0f} → {new_avg:.0f}  "
-                        f"槓桿 {leverage:.2f}x（上限 {self.max_leverage}x）"
-                    ),
-                }
+        # 規則 2：DCA — 停用（策略改為純槓桿調整）
 
-        # 規則 3：動態加碼（槓桿低且在年線之上且獲利）
-        above_ema = (ema200 is not None and price > ema200)
-        if (contracts > 0 and price > avg_cost
-                and leverage < self.pyramid_trigger and above_ema):
-            target_exp = equity * self.target_leverage
+        # 規則 3：動態加碼（槓桿低；虧損亦可；EXIT已保護100日MA）
+        if (contracts > 0 and leverage < self.pyramid_trigger):
+            # 目標：補至 pyramid_trigger（下限），而非 target_leverage
+            target_exp = equity * self.pyramid_trigger
             to_buy = math.floor((target_exp - exposure) / (price * self.multiplier))
             if to_buy > 0:
                 new_contracts = contracts + to_buy
@@ -958,6 +1151,7 @@ class FMXLiveBot:
                     "reason": (
                         f"動態加碼：買 {to_buy} 口  "
                         f"槓桿 {leverage:.2f}x < 下限 {self.pyramid_trigger}x  "
+                        f"目標補至 {self.pyramid_trigger}x  "
                         f"年線 {ema200:.0f} 之上  "
                         f"均攤成本 {avg_cost:.0f} → {new_avg:.0f}"
                     ),
@@ -990,6 +1184,12 @@ class FMXLiveBot:
     def is_trading_session() -> bool:
         """是否在期貨交易時段（日盤或夜盤）"""
         now = datetime.datetime.now()
+        # Friday night session continues past midnight into Saturday 05:00.
+        # Monday pre-dawn should stay closed because there is no Sunday night session.
+        if now.weekday() == 5 and now.time() <= FUT_CLOSE_NIGHT:
+            return True
+        if now.weekday() == 0 and now.time() <= FUT_CLOSE_NIGHT:
+            return False
         if now.weekday() >= 5:   # 週六/日
             return False
         t = now.time()
@@ -1012,11 +1212,12 @@ class FMXLiveBot:
             # 備援：從 SDK 取得即時報價
             q = self.get_future_quote()
             price  = q["last"] if q else None
-            ema200 = rh = rl = None
+            ema200 = rh = ma10 = rl = None
         else:
             price  = mkt["close"]
             ema200 = mkt["ema200"]
             rh     = mkt["rolling_high_10"]   # 前 10 日最高
+            ma10   = mkt.get("ma10")           # 低於長均線時的短均線防守
             rl     = mkt["rolling_low_60"]    # 前 60 日最低
 
         if price is None:
@@ -1075,15 +1276,19 @@ class FMXLiveBot:
             self.log.info(f"今日策略（{today}）已執行，跳過。若要強制執行請加 --reset")
             return
 
-        # ── 濾網：60日破底 → 立即全數清倉 ──────────────────────────────────
-        if trend_filter and state["contracts"] > 0 and rl is not None and price < rl:
+        below_long_ma = trend_filter and rl is not None and price < rl
+        bear_fast_exit = below_long_ma and ma10 is not None and price < ma10
+
+        # ── 熊市防守：低於長均線時，跌破短均線才立即全數清倉 ───────────────
+        if state["contracts"] > 0 and bear_fast_exit:
             qty = state["contracts"]
             self.log.warning(
-                f"🚨 {low_period}日破底濾網觸發！"
-                f"現價 {price:.0f} < {low_period}日低 {rl:.0f}，"
+                f"🚨 熊市10MA防守觸發！"
+                f"現價 {price:.0f} < {high_period}日MA {ma10:.0f}，"
+                f"且仍低於{low_period}日MA {rl:.0f}，"
                 f"清倉 {qty} 口 → 現金保護"
             )
-            success = self.place_future_order("sell", qty, price)
+            success = self.place_future_order("sell", qty, price, order_type="market")
             if success:
                 profit = qty * (price - state["avg_cost"]) * self.multiplier
                 state["realized_pnl"] += profit - qty * self.fee_per_lot
@@ -1091,11 +1296,12 @@ class FMXLiveBot:
                 state["last_updated"]  = today
                 self.save_state(state, runtime={
                     "last_price":  price, "ema200": ema200,
-                    "leverage": 0, "equity": self.initial_capital + state["realized_pnl"],
+                    "leverage": 0, "exposure": 0,
+                    "equity": self.initial_capital + state["realized_pnl"],
                     "unrealized": 0, "liq_price": None,
                     "last_signal": "EXIT",
-                    "last_reason": f"{low_period}日破底清倉（{price:.0f}<{rl:.0f}），持現金等待",
-                    "rolling_high": rh, "rolling_low": rl,
+                    "last_reason": f"低於{low_period}日MA期間跌破{high_period}日MA清倉（{price:.0f}<{ma10:.0f}）",
+                    "rolling_high": rh, "rolling_low": rl, "ma10": ma10,
                     "strategy_last_run": today,
                 })
             return
@@ -1111,34 +1317,43 @@ class FMXLiveBot:
 
         # ── 濾網：現金等待中 → 等 10 日創高重新進場 ────────────────────────
         if state["contracts"] == 0 and trend_filter:
-            if rh is not None and price > rh:
+            if below_long_ma:
+                entry_ok = ma10 is not None and price > ma10
+                entry_desc = f"{high_period}日MA"
+                entry_ref = ma10
+            else:
+                entry_ok = rh is not None and price > rh
+                entry_desc = f"{high_period}日創高"
+                entry_ref = rh
+
+            if entry_ok:
                 target = math.floor(
                     self.initial_capital * self.target_leverage / (price * self.multiplier)
                 )
                 self.log.info(
-                    f"✅ {high_period}日創高進場！{price:.0f} > {rh:.0f}，"
+                    f"✅ {entry_desc}進場！{price:.0f} > {entry_ref:.0f}，"
                     f"重新建倉 {target} 口"
                 )
-                success = self.place_future_order("buy", target, price)
+                success = self.place_future_order("buy", target, price, order_type="market")
                 if success:
                     state = self.init_state(price)
                     state["last_updated"] = today
                     self.save_state(state, runtime={
                         "last_price": price, "ema200": ema200,
                         "last_signal": "ENTRY",
-                        "last_reason": f"{high_period}日創高重新進場（{price:.0f}>{rh:.0f}）",
-                        "rolling_high": rh, "rolling_low": rl,
+                        "last_reason": f"{entry_desc}重新進場（{price:.0f}>{entry_ref:.0f}）",
+                        "rolling_high": rh, "rolling_low": rl, "ma10": ma10,
                         "strategy_last_run": today,
                     })
             else:
+                entry_ref_txt = f"{entry_ref:.0f}" if entry_ref is not None else "?"
                 self.log.info(
-                    f"⏳ 現金等待：{high_period}日高 {rh:.0f}，"
-                    f"需突破 {rh:.0f} 才進場（現價 {price:.0f}）"
+                    f"⏳ 現金等待：需站上 {entry_desc} {entry_ref_txt} 才進場（現價 {price:.0f}）"
                 )
                 self.save_state(state, runtime={
                     "last_price": price, "ema200": ema200,
-                    "last_signal": "CASH", "last_reason": f"等待{high_period}日創高進場",
-                    "rolling_high": rh, "rolling_low": rl,
+                    "last_signal": "CASH", "last_reason": f"等待站上{entry_desc}進場",
+                    "rolling_high": rh, "rolling_low": rl, "ma10": ma10,
                     "strategy_last_run": today,
                 })
             return
@@ -1150,6 +1365,7 @@ class FMXLiveBot:
                 "last_price":   price,
                 "ema200":       ema200,
                 "leverage":     st["leverage"],
+                "exposure":     st["exposure"],
                 "equity":       st["equity"],
                 "unrealized":   st["unrealized"],
                 "liq_price":    st["liq_price"],
@@ -1171,8 +1387,8 @@ class FMXLiveBot:
         self.log.info(f"   理由：{signal['reason']}")
         self.log.info(f"{'='*55}")
 
-        # 下單
-        success = self.place_future_order(side, qty, price)
+        # 下單（策略觸發：日盤用市價，夜盤自動降回限價）
+        success = self.place_future_order(side, qty, price, order_type="market")
 
         if success:
             new_state = self.apply_signal(signal, price, state)
@@ -1187,6 +1403,7 @@ class FMXLiveBot:
                 "last_price":   price,
                 "ema200":       ema200,
                 "leverage":     new_st["leverage"],
+                "exposure":     new_st["exposure"],
                 "equity":       new_st["equity"],
                 "unrealized":   new_st["unrealized"],
                 "liq_price":    new_st["liq_price"],
@@ -1197,29 +1414,268 @@ class FMXLiveBot:
         else:
             self.log.error("下單失敗，倉位狀態未更新")
 
-    # ── 主執行（循環模式）────────────────────────────────────────────────────
+    # ── 主執行（5 分鐘 Intraday 全策略循環）───────────────────────────────
     def run_loop(self, reset: bool = False) -> None:
-        """收盤後循環執行（適合全天掛機）"""
-        loop_sec = int(self.cfg.get("fmx_loop_seconds", 3600))
-        self.log.info(f"循環模式啟動，每 {loop_sec//60} 分鐘檢查一次")
+        """每 intraday_loop_seconds（預設 300s = 5 分鐘）完整執行所有策略規則：
+
+          ① 跌破 100日MA    → EXIT 全數清倉
+          ② 槓桿 > max_lev  → DELEVERAGE 1 口
+          ③ contracts==0 且突破 N 日高 → ENTRY 建倉（一次到 target_leverage）
+          ④ 槓桿 < pyramid_trigger 且獲利且年線之上 → PYRAMID 1 口
+          ⑤ 其他            → HOLD（只更新 runtime 狀態）
+
+        指標（EMA200 / N 日高 / M 日MA）每日從 yfinance 取得一次並快取；
+        期貨即時報價每 tick 從 SDK query_hybrid_position 取得。
+        """
+        tick_sec     = int(self.cfg.get("intraday_loop_seconds", 300))
+        off_hour_sec = max(tick_sec, int(self.cfg.get("fmx_loop_seconds", 900)))
+        high_period  = int(self.cfg.get("high_period", 10))
+        low_period   = int(self.cfg.get("low_period",  100))
+        trend_filter = bool(self.cfg.get("trend_filter", True))
+
+        self.log.info(
+            f"5 分鐘 Intraday 全策略循環啟動  "
+            f"tick={tick_sec}s  "
+            f"EXIT:<{low_period}日MA  ENTRY:>{high_period}日高  "
+            f"PYRAMID:<{self.pyramid_trigger}x  DELEVERAGE:>{self.max_leverage}x"
+        )
+
+        # ── 日線指標快取（每日刷新一次）────────────────────────────────
+        _yf_date:  str | None   = None
+        _rh:       float | None = None   # N 日高（突破進場）
+        _ma10:     float | None = None   # 短均線（低於長均線時快進快出）
+        _ma:       float | None = None   # M 日MA（跌破清倉）
+        _ema200:   float | None = None   # 200 日 EMA（年線過濾）
+
+        def _refresh_yf() -> bool:
+            nonlocal _rh, _ma10, _ma, _ema200, _yf_date
+            mkt = self.fetch_twii_with_ema()
+            if mkt is None:
+                return False
+            _rh    = mkt.get("rolling_high_10")
+            _ma10  = mkt.get("ma10")
+            _ma    = mkt.get("rolling_low_60")   # 鍵名保留舊名，內容為 SMA
+            _ema200 = mkt.get("ema200")
+            _yf_date = str(datetime.date.today())
+            return True
 
         while True:
             try:
-                self.run_once(reset=reset)
-                reset = False    # 重置只第一次
+                if not self.is_trading_session():
+                    time.sleep(off_hour_sec)
+                    continue
+
+                today = str(datetime.date.today())
+
+                # ── 登入 / session 維護 ──────────────────────────────
+                try:
+                    self._ensure_login()
+                except Exception as e:
+                    self.log.warning(f"登入失敗，跳過本輪: {e}")
+                    time.sleep(tick_sec); continue
+
+                # ── 日線指標（每日更新一次）──────────────────────────
+                if _yf_date != today:
+                    if not _refresh_yf():
+                        self.log.warning("yfinance 失敗，沿用 state 快取指標")
+                        _s = self.load_state()
+                        _rh    = _s.get("rolling_high") or _rh
+                        _ma10  = _s.get("ma10")         or _ma10
+                        _ma    = _s.get("rolling_low")  or _ma
+                        _ema200 = _s.get("ema200")      or _ema200
+
+                # ── 即時報價 ─────────────────────────────────────────
+                q = self.get_future_quote()
+                if not q or not q.get("last"):
+                    self.log.warning("intraday: 無法取得即時報價，跳過")
+                    time.sleep(tick_sec); continue
+                price = float(q["last"])
+
+                # 偵測 stale 報價（SDK 失敗，get_future_quote fallback 到 state）
+                _s = self.load_state()
+                _state_px = float(_s.get("last_price") or 0)
+                if _state_px > 0 and abs(price - _state_px) < 0.01:
+                    self.log.warning(f"報價 {price:.0f} 等於 state 舊值，可能 SDK 失敗，跳過")
+                    time.sleep(tick_sec); continue
+
+                # ── 即時權益 ─────────────────────────────────────────
+                # _fetch_live_equity() 會同時更新 self._live_cash（today_balance）
+                # _recalc() 優先用 _live_cash + 即時 unrealized 合成正確淨值
+                live_eq = self._fetch_live_equity()
+                if live_eq is not None:
+                    self._live_equity  = live_eq
+                    self._daily_equity = live_eq    # 更新當日快取
+                elif self._daily_equity is not None:
+                    self._live_equity = self._daily_equity
+                    # _live_cash 若有快取則保留，否則仍可用 _live_equity 備援
+                    self.log.warning(f"SDK equity 失敗，使用當日快取 {self._daily_equity:,.0f}")
+                else:
+                    self.log.warning("無法取得 equity（SDK 失敗且無快取），跳過")
+                    time.sleep(tick_sec); continue
+
+                state     = self.load_state()
+                state     = self._sync_state_from_sdk_quote(state, q, price)
+                contracts = int(state.get("contracts", 0) or 0)
+                avg_cost  = float(state.get("avg_cost") or 0)
+                st        = self._recalc(price, state)
+                leverage  = st["leverage"]
+                equity    = st["equity"]
+
+                self.log.info(
+                    f"tick ▶ {contracts}口  現價:{price:.0f}  均攤:{avg_cost:.0f}  "
+                    f"lev:{leverage:.2f}x  eq:{equity:,.0f}  "
+                    f"{high_period}日高:{f'{_rh:.0f}' if _rh else '?'}  "
+                    f"{low_period}日MA:{f'{_ma:.0f}' if _ma else '?'}"
+                )
+
+                # ── ① EXIT：跌破 M 日 MA ─────────────────────────────
+                below_long_ma = trend_filter and _ma and price < _ma
+                bear_fast_exit = below_long_ma and _ma10 and price < _ma10
+                if contracts > 0 and bear_fast_exit:
+                    self.log.warning(
+                        f"🚨 EXIT：現價 {price:.0f} < {high_period}MA {_ma10:.0f}，且仍低於{low_period}日MA {_ma:.0f}，"
+                        f"清倉 {contracts} 口"
+                    )
+                    ok = self.place_future_order("sell", contracts, price, order_type="market")
+                    if ok:
+                        profit = contracts * (price - avg_cost) * self.multiplier
+                        state["realized_pnl"] = float(state.get("realized_pnl",0)) \
+                            + profit - contracts * self.fee_per_lot
+                        state["contracts"]    = 0
+                        state["last_updated"] = today
+                        new_st = self._recalc(price, state)
+                        self.save_state(state, runtime={
+                            "last_price": price, "ema200": _ema200,
+                            "leverage": 0, "exposure": 0,
+                            "equity": new_st["equity"],
+                            "unrealized": 0, "liq_price": None,
+                            "last_signal": "EXIT",
+                            "last_reason":  f"低於{low_period}日MA期間跌破{high_period}MA {_ma10:.0f}（現價{price:.0f}）",
+                            "rolling_high": _rh, "rolling_low": _ma, "ma10": _ma10,
+                        })
+                    else:
+                        self.log.error("EXIT 下單失敗")
+                    time.sleep(tick_sec); continue
+
+                # ── ② DELEVERAGE：槓桿超過上限 → 賣 1 口 ─────────────
+                # 【設計說明 2026-04-21】實盤此處故意不檢查 price > avg_cost
+                # 與回測 (window_opt.py line 227) 的差異是蓄意的防御設計：
+                #   - 暴跌時仍減碼 → 防止連續下跌被強平歸零
+                #   - 每 tick 只減 1 口 → 防止 V 型反彈時賣太多
+                # 代價：V 型反彈事件每次約損失 15~20 萬 TWD 機會成本
+                # 獲得：極端連續下跌時能保命
+                if contracts > 1 and leverage > self.max_leverage:
+                    self.log.warning(
+                        f"🔻 DELEVERAGE：lev={leverage:.2f}x > {self.max_leverage}x，"
+                        f"賣 1 口 @ {price:.0f}"
+                    )
+                    ok = self.place_future_order("sell", 1, price, order_type="market")
+                    if ok:
+                        profit = (price - avg_cost) * self.multiplier
+                        state["realized_pnl"] = float(state.get("realized_pnl",0)) \
+                            + profit - self.fee_per_lot
+                        state["contracts"]    = contracts - 1
+                        state["last_updated"] = today
+                        new_st = self._recalc(price, state)
+                        self.save_state(state, runtime={
+                            "last_price": price, "ema200": _ema200,
+                            "leverage": new_st["leverage"], "exposure": new_st["exposure"],
+                            "equity": new_st["equity"],
+                            "unrealized": new_st["unrealized"], "liq_price": new_st["liq_price"],
+                            "last_signal": "DELEVERAGE",
+                            "last_reason":  f"lev={leverage:.2f}x>{self.max_leverage}x，賣1口（{price:.0f}）",
+                            "rolling_high": _rh, "rolling_low": _ma,
+                        })
+                    else:
+                        self.log.error("DELEVERAGE 下單失敗")
+                    time.sleep(tick_sec); continue
+
+                # ── ③ ENTRY：現金等待 + 突破 N 日高 ─────────────────
+                if below_long_ma:
+                    entry_ok = bool(_ma10 and price > _ma10)
+                    entry_ref = _ma10
+                    entry_desc = f"{high_period}MA"
+                else:
+                    entry_ok = bool(_rh and price > _rh)
+                    entry_ref = _rh
+                    entry_desc = f"{high_period}日高"
+
+                if trend_filter and contracts == 0 and entry_ok:
+                    target = math.floor(equity * self.target_leverage / (price * self.multiplier))
+                    target = max(target, 1)
+                    self.log.info(
+                        f"✅ ENTRY：現價 {price:.0f} > {entry_desc} {entry_ref:.0f}，"
+                        f"建倉 {target} 口"
+                    )
+                    ok = self.place_future_order("buy", target, price, order_type="market")
+                    if ok:
+                        state = self.init_state(price)
+                        state["last_updated"] = today
+                        new_st = self._recalc(price, state)
+                        self.save_state(state, runtime={
+                            "last_price": price, "ema200": _ema200,
+                            "leverage": new_st["leverage"], "exposure": new_st["exposure"],
+                            "equity": new_st["equity"],
+                            "unrealized": new_st["unrealized"], "liq_price": new_st["liq_price"],
+                            "last_signal": "ENTRY",
+                            "last_reason":  f"{entry_desc}突破進場（{price:.0f}>{entry_ref:.0f}）",
+                            "rolling_high": _rh, "rolling_low": _ma, "ma10": _ma10,
+                        })
+                    else:
+                        self.log.error("ENTRY 下單失敗")
+                    time.sleep(tick_sec); continue
+
+                # ── ④ PYRAMID：槓桿低 → 買 1 口（虧損亦可；EXIT已保護100日MA）──
+                if contracts > 0 and leverage < self.pyramid_trigger:
+                    self.log.info(
+                        f"📈 PYRAMID：lev={leverage:.2f}x < {self.pyramid_trigger}x，"
+                        f"買 1 口 @ {price:.0f}（均攤{avg_cost:.0f}）"
+                    )
+                    ok = self.place_future_order("buy", 1, price, order_type="market")
+                    if ok:
+                        new_total = contracts + 1
+                        state["avg_cost"]     = (contracts * avg_cost + price) / new_total
+                        state["contracts"]    = new_total
+                        state["realized_pnl"] = float(state.get("realized_pnl",0)) \
+                            - self.fee_per_lot
+                        state["last_buy_px"]  = price
+                        state["last_updated"] = today
+                        new_st = self._recalc(price, state)
+                        self.save_state(state, runtime={
+                            "last_price": price, "ema200": _ema200,
+                            "leverage": new_st["leverage"], "exposure": new_st["exposure"],
+                            "equity": new_st["equity"],
+                            "unrealized": new_st["unrealized"], "liq_price": new_st["liq_price"],
+                            "last_signal": "PYRAMID",
+                            "last_reason":  f"lev={leverage:.2f}x<{self.pyramid_trigger}x，買1口（{price:.0f}>{avg_cost:.0f}）",
+                            "rolling_high": _rh, "rolling_low": _ma,
+                        })
+                    else:
+                        self.log.error("PYRAMID 下單失敗")
+                    time.sleep(tick_sec); continue
+
+                # ── ⑤ HOLD ───────────────────────────────────────────
+                self.save_state(state, runtime={
+                    "last_price": price, "ema200": _ema200,
+                    "leverage": leverage, "exposure": st["exposure"],
+                    "equity": equity,
+                    "unrealized": st["unrealized"], "liq_price": st["liq_price"],
+                    "last_signal": "HOLD", "last_reason": "",
+                    "rolling_high": _rh, "rolling_low": _ma,
+                })
+
             except KeyboardInterrupt:
-                self.log.info("使用者中斷")
+                self.log.info("使用者中斷，退出")
                 break
             except Exception as e:
-                self.log.error(f"執行錯誤: {e}", exc_info=True)
+                self.log.error(f"tick 執行錯誤: {e}", exc_info=True)
                 try:
-                    self.sdk = None
-                    self.account = None
+                    self.sdk = None; self.account = None
                     time.sleep(60)
                     self._ensure_login()
                 except Exception as le:
                     self.log.error(f"重新登入失敗: {le}")
-            time.sleep(loop_sec)
+            time.sleep(tick_sec)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1237,7 +1693,7 @@ def main():
     parser.add_argument("--lots",            type=int,   default=None,    help="手動操作口數（預設 None=全部）")
     parser.add_argument("--order-type",      choices=["limit","market"],
                                              default="limit",              help="委託類型")
-    parser.add_argument("--spread",          type=float, default=5.0,     help="限價委託偏移點數（預設 5）")
+    parser.add_argument("--spread",          type=float, default=15.0,    help="限價委託偏移點數（預設 15，避免限價追不到）")
     args = parser.parse_args()
 
     if not os.path.exists(args.config):

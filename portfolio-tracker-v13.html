@@ -860,10 +860,22 @@
             let totalCostUSD = 0, totalValueUSD = 0, totalCostTWD = 0, totalValueTWD = 0;
             let totalDayPnLUSD  = 0, totalDayPnLTWD  = 0, hasDayPnL  = false;
             let totalPrevDayPnLUSD = 0, totalPrevDayPnLTWD = 0, hasPrevDayPnL = false;
-            // 週末（美東時間）：非加密貨幣視為未開盤，避免 prevClose=currentPrice 導致 dayChangePct=0
+            // 週末判定：依「該股票市場時區」判斷，避免 NY 週日 = HK/TW 週一被誤判為週末
             const _CRYPTO_SYMS = new Set(['BTC-USD','ETH-USD','LTC-USD','BNB-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD']);
-            const _csNow = new Date().toLocaleDateString('en-US', {timeZone:'America/New_York', weekday:'short'});
-            const _isWeekendNow = (_csNow === 'Sat' || _csNow === 'Sun');
+            const _now = new Date();
+            const _wd = (tz) => _now.toLocaleDateString('en-US', {timeZone: tz, weekday: 'short'});
+            const _isWE = (w) => (w === 'Sat' || w === 'Sun');
+            const _isWeekendUS = _isWE(_wd('America/New_York'));
+            const _isWeekendHK = _isWE(_wd('Asia/Hong_Kong'));
+            const _isWeekendTW = _isWE(_wd('Asia/Taipei'));
+            const _isWeekendBySym = (h) => {
+                if (_CRYPTO_SYMS.has(h.symbol)) return false;
+                if (h.market === 'HK' || (typeof h.symbol === 'string' && h.symbol.endsWith('.HK'))) return _isWeekendHK;
+                if (h.market === 'TW') return _isWeekendTW;
+                return _isWeekendUS;
+            };
+            // 兼容變數（其他地方若有用到）
+            const _isWeekendNow = _isWeekendUS;
 
             // 第一遍：計算各持倉的 USD/TWD 市值並累加總計
             let holdingsWithStats = holdings.map(h => {
@@ -918,8 +930,8 @@
                 }
                 // 當日損益：若 _marketOpenedToday 明確為 false（槓桿 ETF 今日未開盤）則跳過
                 const _mkt = window._marketOpenedToday;
-                // 週末フォールバック：キャッシュが stale でも非暗号通貨は必ず未開盤扱い
-                const marketNotOpened = (_isWeekendNow && !_CRYPTO_SYMS.has(h.symbol)) ||
+                // 週末判定改為「依該股票市場時區」：避免 HK 週一台灣早上被 NY 週日誤判
+                const marketNotOpened = _isWeekendBySym(h) ||
                     (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false);
                 let dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
                 if (!marketNotOpened && prevClose != null && prevClose > 0) {
@@ -2633,6 +2645,7 @@
         // 直接套用股價（不跳確認視窗）
         function directApplyPrices(prices) {
             saveHistory();
+            _seedPrevCloseFromPriceJson(window._priceJsonCache, holdings.map(h => h.symbol));
             let updated = 0;
             holdings.forEach(h => {
                 const newP = prices[h.symbol];
@@ -3878,7 +3891,7 @@
                             const _hkMin = parseInt(new Date().toLocaleString('en-US', {timeZone:'Asia/Hong_Kong', minute:'numeric', hour12:false}));
                             const _hkDow = new Date().toLocaleDateString('en-US', {timeZone:'Asia/Hong_Kong', weekday:'short'});
                             const _hkWkd = (_hkDow === 'Sat' || _hkDow === 'Sun');
-                            _hkOpened = !_hkWkd && ((_hkH === 9 && _hkMin >= 30) || (_hkH >= 10 && _hkH < 16));
+                            _hkOpened = !_hkWkd && ((_hkH === 9 && _hkMin >= 30) || _hkH >= 10);
                         }
                         _tmpMarketOpened[r.holding] = _hkOpened;
                     });
@@ -5055,6 +5068,23 @@
                 || (sym.endsWith('.TW') && sym.slice(0,-3) in priceMap);
         }
 
+        function _seedPrevCloseFromPriceJson(pj, symbols) {
+            if (!pj) return;
+            if (!window._prevCloseCache) window._prevCloseCache = {};
+            if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
+            const wanted = symbols ? new Set(symbols) : null;
+            Object.entries(pj.prev_closes || {}).forEach(([sym, val]) => {
+                if (wanted && !wanted.has(sym)) return;
+                const n = Number(val);
+                if (n > 0 && !(window._prevCloseCache[sym] > 0)) window._prevCloseCache[sym] = n;
+            });
+            Object.entries(pj.prev_prev_closes || {}).forEach(([sym, val]) => {
+                if (wanted && !wanted.has(sym)) return;
+                const n = Number(val);
+                if (n > 0 && !(window._prevPrevCloseCache[sym] > 0)) window._prevPrevCloseCache[sym] = n;
+            });
+        }
+
         // ==================== 期貨持倉（Fubon SDK via server.py） ====================
         // 資料來源：
         //   /fmx/positions  → SDK 即時 positions + margin（equity / available / realized / unrealized）
@@ -5453,6 +5483,7 @@
                 if (pjRes.ok) {
                     const pj = await pjRes.json();
                     const ageMs = Date.now() - new Date(pj.generated ?? 0).getTime();
+                    _seedPrevCloseFromPriceJson(pj, holdings.map(h => h.symbol));
                     Object.assign(prices, pj.prices ?? {});   // 股價：永遠採用（非盤中顯示昨收）
                     if (ageMs < 4 * 60 * 60 * 1000) {         // 匯率：4 小時內才更新
                         if (pj.rates?.USD_TWD) mergedRates.USD_TWD = pj.rates.USD_TWD;

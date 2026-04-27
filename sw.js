@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v6';   // ← 2026-04-25：圓餅圖外部引線 + 垂直堆疊防重疊
+const CACHE_NAME = 'portfolio-tracker-v7';   // ← 2026-04-27：今日漲跌週末判定改為依該股票市場時區（修 HK/TW 週一誤判）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

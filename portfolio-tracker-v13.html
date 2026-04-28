@@ -282,6 +282,7 @@
         <!-- Tab Navigation -->
         <div style="display:flex; gap:0; margin-bottom:0; border-bottom:2px solid rgba(251,191,36,0.25); flex-wrap:wrap;">
             <button class="tab-btn active" id="tab-btn-1" onclick="switchTab(1)">📊 持倉管理</button>
+            <button class="tab-btn" id="tab-btn-8" onclick="switchTab(8)">🔥 美股熱力圖</button>
             <button class="tab-btn" id="tab-btn-2" onclick="switchTab(2)">📈 基本面</button>
             <button class="tab-btn" id="tab-btn-3" onclick="switchTab(3)">🔬 技術面</button>
             <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">📊 財報分析</button>
@@ -660,6 +661,46 @@
             </div>
         </div><!-- /tab-pane-7 -->
 
+        <!-- Tab 8: 美股漲跌熱力圖 -->
+        <div id="tab-pane-8" class="tab-pane" style="padding-top:1rem;">
+            <div class="glass-card" style="padding:1.5rem 2rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">🔥 美股漲跌熱力圖</h2>
+                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <select id="heatmap-source" onchange="renderHeatmap()" style="padding:0.5rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                            <option value="SPX500">S&amp;P 500</option>
+                            <option value="NASDAQ100">NASDAQ 100</option>
+                            <option value="DJ:DJI">道瓊 30</option>
+                            <option value="SP_400">中型股 S&amp;P 400</option>
+                            <option value="SP_600">小型股 S&amp;P 600</option>
+                            <option value="ALLUSCOMMON">全美股 (大盤)</option>
+                            <option value="Crypto">加密貨幣</option>
+                        </select>
+                        <select id="heatmap-grouping" onchange="renderHeatmap()" style="padding:0.5rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                            <option value="sector">依產業分組</option>
+                            <option value="no_group">不分組</option>
+                        </select>
+                        <select id="heatmap-period" onchange="renderHeatmap()" style="padding:0.5rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                            <option value="change">當日漲跌</option>
+                            <option value="Perf.W">近 1 週</option>
+                            <option value="Perf.1M">近 1 月</option>
+                            <option value="Perf.3M">近 3 月</option>
+                            <option value="Perf.6M">近 6 月</option>
+                            <option value="Perf.YTD">今年至今</option>
+                            <option value="Perf.Y">近 1 年</option>
+                        </select>
+                        <button onclick="renderHeatmap()" style="padding:0.5rem 0.9rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:8px; font-size:0.85rem; text-transform:none; letter-spacing:0;">🔄 重新整理</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:0.75rem; padding:0.6rem 1rem; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; font-size:0.8rem; color:#64748b;">
+                    💡 區塊大小依市值，顏色依所選期間漲跌幅。可滾輪縮放、點擊個股查看詳細資料。資料由 TradingView 提供。
+                </div>
+                <div id="heatmap-container" style="min-height:650px;">
+                    <div style="text-align:center; padding:3rem; color:#64748b;">載入中...</div>
+                </div>
+            </div>
+        </div><!-- /tab-pane-8 -->
+
 
     <!-- Modals -->
     <!-- News Modal -->
@@ -914,8 +955,20 @@
                 totalCostTWD += costTWD; totalValueTWD += valueTWD;
 
                 // 當日損益：從 _prevCloseCache 取昨收價；昨日漲跌：從 _prevPrevCloseCache 取前日收盤
-                const prevClose     = window._prevCloseCache?.[h.symbol]     ?? null;
-                const prevPrevClose = window._prevPrevCloseCache?.[h.symbol] ?? null;
+                let prevClose     = window._prevCloseCache?.[h.symbol]     ?? null;
+                let prevPrevClose = window._prevPrevCloseCache?.[h.symbol] ?? null;
+                if (prevClose != null && prevPrevClose != null && Math.abs(prevClose - prevPrevClose) < 0.0001) {
+                    const pjPrev = Number(window._priceJsonCache?.prev_closes?.[h.symbol]);
+                    const pjPrevPrev = Number(window._priceJsonCache?.prev_prev_closes?.[h.symbol]);
+                    if (pjPrev > 0 && pjPrevPrev > 0 && Math.abs(pjPrev - pjPrevPrev) > 0.0001) {
+                        prevClose = pjPrev;
+                        prevPrevClose = pjPrevPrev;
+                        if (!window._prevCloseCache) window._prevCloseCache = {};
+                        if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
+                        window._prevCloseCache[h.symbol] = pjPrev;
+                        window._prevPrevCloseCache[h.symbol] = pjPrevPrev;
+                    }
+                }
                 let prevDayChangePct = null;
                 let prevDayPnlUSD = null, prevDayPnlTWD = null;
                 if (prevClose != null && prevClose > 0 && prevPrevClose != null && prevPrevClose > 0) {
@@ -947,11 +1000,14 @@
                 }
                 // 當日損益：若 _marketOpenedToday 明確為 false（槓桿 ETF 今日未開盤）則跳過
                 const _mkt = window._marketOpenedToday;
+                const _hasExtendedQuote = window._extendedQuoteActive?.[h.symbol] === true;
                 // 開盤判定改為「依該股票市場時區 + 開盤時間」：
                 //   - HK 週一台灣早上 11:00 → HK 11:00（已過 09:30）→ 開盤 ✅
                 //   - HK 週一台灣早上 08:00 → HK 08:00（未過 09:30）→ 未開盤
-                const marketNotOpened = !_isMarketOpenedToday(h) ||
-                    (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false);
+                const marketNotOpened = !_hasExtendedQuote && (
+                    !_isMarketOpenedToday(h) ||
+                    (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false)
+                );
                 let dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
                 if (!marketNotOpened && prevClose != null && prevClose > 0) {
                     const dayChange = h.currentPrice - prevClose;
@@ -2812,6 +2868,82 @@
             if (n === 7 && holdings.length > 0 && !_newsLoaded) {
                 loadNews(false);
             }
+            // 切換到熱力圖 Tab：首次自動載入（widget 一次載入後常駐）
+            if (n === 8 && !_heatmapLoaded) {
+                renderHeatmap();
+            }
+        }
+
+        // ==================== Tab 8：美股熱力圖 (TradingView Widget) ====================
+        let _heatmapLoaded = false;
+        function renderHeatmap() {
+            const container = document.getElementById('heatmap-container');
+            if (!container) return;
+            const source   = document.getElementById('heatmap-source')?.value   || 'SPX500';
+            const grouping = document.getElementById('heatmap-grouping')?.value || 'sector';
+            const period   = document.getElementById('heatmap-period')?.value   || 'change';
+            const isCrypto = source === 'Crypto';
+
+            // 清掉舊 widget 容器
+            container.innerHTML = '<div style="text-align:center;padding:2rem;color:#64748b;">載入中...</div>';
+
+            // 構造 TradingView widget DOM 結構（script 標籤的 innerHTML 會被 embed 腳本讀取）
+            const wrap = document.createElement('div');
+            wrap.className = 'tradingview-widget-container';
+            wrap.style.height = '650px';
+            const widgetDiv = document.createElement('div');
+            widgetDiv.className = 'tradingview-widget-container__widget';
+            widgetDiv.style.height = '100%';
+            wrap.appendChild(widgetDiv);
+
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.async = true;
+            const cfg = isCrypto ? {
+                dataSource: 'Crypto',
+                blockSize: 'market_cap_calc',
+                blockColor: '24h_close_change|5',
+                locale: 'zh_TW',
+                symbolUrl: '',
+                colorTheme: 'dark',
+                hasTopBar: false,
+                isDataSetEnabled: false,
+                isZoomEnabled: true,
+                hasSymbolTooltip: true,
+                isMonoSize: false,
+                width: '100%',
+                height: '650'
+            } : {
+                exchanges: [],
+                dataSource: source,
+                grouping: grouping,
+                blockSize: 'market_cap_basic',
+                blockColor: period,        // 'change' = 當日；'Perf.1M' / 'Perf.3M' 等 = 期間
+                locale: 'zh_TW',
+                symbolUrl: '',
+                colorTheme: 'dark',
+                hasTopBar: false,
+                isDataSetEnabled: false,
+                isZoomEnabled: true,
+                hasSymbolTooltip: true,
+                isMonoSize: false,
+                width: '100%',
+                height: '650'
+            };
+            script.src = isCrypto
+                ? 'https://s3.tradingview.com/external-embedding/embed-widget-crypto-coins-heatmap.js'
+                : 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js';
+            // TradingView embed script 讀取 <script> 的 textContent 作為 JSON 設定
+            script.text = JSON.stringify(cfg);
+            wrap.appendChild(script);
+
+            // 等下一個 tick 再清空 + append，讓「載入中」訊息至少瞬間可見
+            setTimeout(() => {
+                container.innerHTML = '';
+                container.appendChild(wrap);
+            }, 50);
+
+            _heatmapLoaded = true;
         }
 
         // ==================== Leveraged ETF → Underlying Map ====================
@@ -3588,6 +3720,17 @@
                     if (d.marketOpenedToday != null) _tmpMarketOpened[r.holding]  = d.marketOpenedToday;
                 }
             });
+            // 自動報價刷新若已用 Yahoo 5d 算出較新的昨收/前日收，優先沿用；
+            // 避免分析快取或盤前 prices.json 把「昨日」蓋回前一交易日。
+            rows.forEach(r => {
+                const pc = Number(window._prevCloseCache?.[r.holding]);
+                const ppc = Number(window._prevPrevCloseCache?.[r.holding]);
+                if (pc > 0) _tmpPrevClose[r.holding] = pc;
+                if (ppc > 0) _tmpPrevPrevClose[r.holding] = ppc;
+                if (window._marketOpenedToday?.hasOwnProperty(r.holding)) {
+                    _tmpMarketOpened[r.holding] = window._marketOpenedToday[r.holding];
+                }
+            });
 
             // ── 補抓 prevClose（快取有效時若 prevPrevClose 仍缺失也補抓，例如假日 API 失敗後的快取）──
             // Step 0：先從 fundamentals.json 直接補（不需要 CORS，手機也能用）
@@ -3856,36 +3999,33 @@
                         }
                     });
 
-                    // Step 0.5c+：所有標的 prevClose & prevPrevClose 以最新檔案強制更新
-                    //   正常情況：prices.json 最新（GitHub Actions 每 5 分鐘更新）→ 以 prices.json 為準
-                    //   若 prices.json 比 fundamentals.json 舊 > 6 小時，視為 stale，
-                    //   改以 fundamentals.json 強制覆蓋（避免 allResults/localStorage 殘留的更舊值）
+                    // Step 0.5c+：prices.json / fundamentals.json 只作缺值備援。
+                    // 它們可能在美股開盤前產生；若強制覆蓋，台北盤後會把「昨日」誤顯示成前日。
                     const _fjGen = window._fundJsonCache?.generated
                         ? new Date(window._fundJsonCache.generated).getTime() : 0;
                     const _pjGen = _pjFin.generated ? new Date(_pjFin.generated).getTime() : 0;
                     const _pricesStale = _fjGen > 0 && _pjGen > 0 && (_fjGen - _pjGen > 6 * 3600 * 1000);
                     if (_pricesStale) {
                         console.warn(`[prevClose] prices.json stale (${((_fjGen-_pjGen)/3600000).toFixed(1)}h older than fundamentals.json); falling back to fundamentals.json`);
-                        // fundamentals.json 強制覆蓋（僅當有值）
                         const _fjData = window._fundJsonCache?.data || {};
                         rows.forEach(r => {
                             const fjKey = r.isProxy ? r.holding : r.query;
                             const fj = _fjData[fjKey];
                             if (!fj) return;
-                            if (fj.prev_close      != null && fj.prev_close      > 0) _tmpPrevClose[r.holding]     = fj.prev_close;
-                            if (fj.prev_prev_close != null && fj.prev_prev_close > 0) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
+                            if (_tmpPrevClose[r.holding] == null && fj.prev_close      != null && fj.prev_close      > 0) _tmpPrevClose[r.holding]     = fj.prev_close;
+                            if (_tmpPrevPrevClose[r.holding] == null && fj.prev_prev_close != null && fj.prev_prev_close > 0) _tmpPrevPrevClose[r.holding] = fj.prev_prev_close;
                         });
                     } else {
                         if (_pjFin.prev_closes) {
                             rows.forEach(r => {
                                 const pc = _pjFin.prev_closes[r.holding];
-                                if (pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
+                                if (_tmpPrevClose[r.holding] == null && pc != null && pc > 0) _tmpPrevClose[r.holding] = pc;
                             });
                         }
                         if (_pjFin.prev_prev_closes) {
                             rows.forEach(r => {
                                 const ppc = _pjFin.prev_prev_closes[r.holding];
-                                if (ppc != null && ppc > 0) _tmpPrevPrevClose[r.holding] = ppc;
+                                if (_tmpPrevPrevClose[r.holding] == null && ppc != null && ppc > 0) _tmpPrevPrevClose[r.holding] = ppc;
                             });
                         }
                     }
@@ -5161,8 +5301,93 @@
             Object.entries(pj.prev_prev_closes || {}).forEach(([sym, val]) => {
                 if (wanted && !wanted.has(sym)) return;
                 const n = Number(val);
-                if (n > 0 && !(window._prevPrevCloseCache[sym] > 0)) window._prevPrevCloseCache[sym] = n;
+                const pc = Number(window._prevCloseCache[sym]);
+                const ppc = Number(window._prevPrevCloseCache[sym]);
+                const staleOrBad = !(ppc > 0) || (pc > 0 && Math.abs(pc - ppc) < 0.0001 && Math.abs(pc - n) > 0.0001);
+                if (n > 0 && staleOrBad) window._prevPrevCloseCache[sym] = n;
             });
+        }
+
+        function _marketTzForSymbol(symbol) {
+            if (symbol?.endsWith('.HK')) return 'Asia/Hong_Kong';
+            if (symbol?.endsWith('.TW') || symbol?.endsWith('.TWO')) return 'Asia/Taipei';
+            if (symbol?.endsWith('.KS') || symbol?.endsWith('.KQ')) return 'Asia/Seoul';
+            if (symbol?.endsWith('.T')) return 'Asia/Tokyo';
+            return 'America/New_York';
+        }
+
+        function _dateKeyInTz(date, timeZone) {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone, year: 'numeric', month: '2-digit', day: '2-digit'
+            }).formatToParts(date).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+            return `${parts.year}-${parts.month}-${parts.day}`;
+        }
+
+        function _deriveYahooDailyCloses(chartResult, symbol, scale = 1) {
+            const ts = chartResult?.timestamp ?? [];
+            const rawCloses = chartResult?.indicators?.quote?.[0]?.close ?? [];
+            const tz = _marketTzForSymbol(symbol);
+            const byDate = new Map();
+            for (let i = 0; i < Math.min(ts.length, rawCloses.length); i++) {
+                const close = Number(rawCloses[i]);
+                if (!ts[i] || !isFinite(close) || close <= 0) continue;
+                const key = _dateKeyInTz(new Date(ts[i] * 1000), tz);
+                byDate.set(key, { ts: ts[i], close: close * scale, date: key });
+            }
+            const bars = [...byDate.values()].sort((a, b) => a.ts - b.ts);
+            if (!bars.length) return null;
+
+            const todayKey = _dateKeyInTz(new Date(), tz);
+            const lastBarKey = bars[bars.length - 1].date;
+            const marketOpenedToday = todayKey === lastBarKey;
+
+            const prevIdx = marketOpenedToday ? bars.length - 2 : bars.length - 1;
+            const prevPrevIdx = marketOpenedToday ? bars.length - 3 : bars.length - 2;
+            return {
+                marketOpenedToday,
+                prevClose: prevIdx >= 0 ? bars[prevIdx].close : null,
+                prevPrevClose: prevPrevIdx >= 0 ? bars[prevPrevIdx].close : null,
+                latestClose: bars[bars.length - 1].close,
+                lastBarDate: lastBarKey
+            };
+        }
+
+        function _nyClockParts() {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/New_York',
+                weekday: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).formatToParts(new Date()).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+            const hour = Number(parts.hour === '24' ? 0 : parts.hour);
+            return { weekday: parts.weekday, hour, minute: Number(parts.minute) };
+        }
+
+        function _isUsPreMarketNow() {
+            const p = _nyClockParts();
+            if (p.weekday === 'Sat' || p.weekday === 'Sun') return false;
+            const mins = p.hour * 60 + p.minute;
+            return mins >= 4 * 60 && mins < 9 * 60 + 30;
+        }
+
+        function _isUsStockSymbol(symbol) {
+            return !!symbol && !symbol.includes('.') && !['BTC-USD','ETH-USD','LTC-USD','BNB-USD','XRP-USD','SOL-USD','ADA-USD','DOGE-USD'].includes(symbol);
+        }
+
+        function _deriveYahooIntradayQuote(chartResult, symbol, scale = 1) {
+            const ts = chartResult?.timestamp ?? [];
+            const rawCloses = chartResult?.indicators?.quote?.[0]?.close ?? [];
+            const tz = _marketTzForSymbol(symbol);
+            const todayKey = _dateKeyInTz(new Date(), tz);
+            for (let i = Math.min(ts.length, rawCloses.length) - 1; i >= 0; i--) {
+                const close = Number(rawCloses[i]);
+                if (!ts[i] || !isFinite(close) || close <= 0) continue;
+                const barDate = _dateKeyInTz(new Date(ts[i] * 1000), tz);
+                if (barDate !== todayKey) continue;
+                return { price: close * scale, time: ts[i] };
+            }
+            return null;
         }
 
         // ==================== 期貨持倉（Fubon SDK via server.py） ====================
@@ -5571,6 +5796,8 @@
         async function silentRefreshPrices(skipProxyFetch = false) {
             const prices = {}, mergedRates = {};
             const sheetPrices = {}; // Sheet 提供的標的（yfFetch 不得覆蓋）
+            const usPreMarketNow = _isUsPreMarketNow();
+            if (!usPreMarketNow) window._extendedQuoteActive = {};
 
             // ── 優先：data/prices.json（GitHub Actions 定時更新，同域無 CORS）──
             // 股價：無論新舊都使用（非市場時段仍顯示昨收）
@@ -5648,6 +5875,10 @@
                         if (_e && _e.price > 0 && (_now - _e.ts) < _freshMs
                             && !_hasPriceKey(_s, sheetPrices)) {
                             prices[_s] = _e.price;
+                            if (_e.extended && usPreMarketNow) {
+                                if (!window._extendedQuoteActive) window._extendedQuoteActive = {};
+                                window._extendedQuoteActive[_s] = true;
+                            }
                         }
                     });
                 }
@@ -5655,30 +5886,26 @@
 
             // ── 所有持倉：yfFetch 即時報價補強（節流：每 60 秒才執行一次）──
             // prices.json 是定時快照（GitHub Actions）；若快取舊、或非美股時段 GitHub Actions 未跑，
-            // 以 range=1d interval=1d 取 meta.regularMarketPrice（即時現價）及
-            // meta.chartPreviousClose（昨日官方收盤）直接補強，各市場各用各自時區。
+            // 以 range=5d interval=1d 取 meta.regularMarketPrice（即時現價）；
+            // 昨收/前日收改由最近日 K 推導，避免台北時區看到美股盤後時，
+            // prices.json 或 chartPreviousClose 仍停在前一交易日。
             // 注意：proxy ETF 與原型股都要跑（AXTI/AAOI/STX 等原型股若沒這段，
             // prices.json 昨收快照會讓今日漲跌永遠 0%）。
             if (!skipProxyFetch) {
-                // 市場時區對照：供 regularMarketTime 判斷「今日是否已開盤」
-                const _suffixTz = {
-                    'HK': 'Asia/Hong_Kong',
-                    'KS': 'Asia/Seoul', 'KQ': 'Asia/Seoul',
-                    'TW': 'Asia/Taipei', 'TWO': 'Asia/Taipei',
-                    'T':  'Asia/Tokyo',
-                };
                 const _allFetch = holdings.slice();
                 for (let _pi = 0; _pi < _allFetch.length; _pi++) {
                     const _ph = _allFetch[_pi];
                     try {
                         const _pd = await yfFetch(
-                            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1d&range=1d`
+                            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1d&range=5d`
                         );
-                        const _pm = _pd?.chart?.result?.[0]?.meta;
+                        const _ch = _pd?.chart?.result?.[0];
+                        const _pm = _ch?.meta;
                         if (!_pm) continue;
                         // 幣別換算：僅 HK_USD_PRICED 的 .HK 股且 Yahoo 回傳 HKD 時需轉換
                         const _pScale = (_ph.symbol.endsWith('.HK') && HK_USD_PRICED.has(_ph.symbol) && (_pm.currency ?? '') === 'HKD')
                             ? (exchangeRates.HKD_TWD / exchangeRates.USD_TWD) : 1;
+                        const _daily = _deriveYahooDailyCloses(_ch, _ph.symbol, _pScale);
                         // 即時報價（覆蓋 prices.json 定時快照）
                         // ★ 但 Sheet 已提供者不覆蓋：Sheet 內通常是使用者手動維護 / GOOGLEFINANCE
                         //   即時價，而 Yahoo 對台股/港股有 15–20 分鐘延遲，會把 Sheet 的新值拉回舊值。
@@ -5694,25 +5921,37 @@
                             if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
                             window._proxyIntradayCache[_ph.symbol] = { price: _livePx, ts: Date.now() };
                         }
-                        // 昨收（chartPreviousClose 跨越空白交易日仍準確，直接寫入全域快取）
-                        if (_pm.chartPreviousClose != null && _pm.chartPreviousClose > 0) {
-                            if (!window._prevCloseCache) window._prevCloseCache = {};
-                            window._prevCloseCache[_ph.symbol] = _pm.chartPreviousClose * _pScale;
+                        // 美股盤前：Yahoo 日 K 不會把 pre-market 放進 regularMarketPrice，
+                        // 需另抓 1m includePrePost，用最新盤前分鐘價對昨收計算今日漲跌。
+                        if (usPreMarketNow && _isUsStockSymbol(_ph.symbol) && !_hasPriceKey(_ph.symbol, sheetPrices)) {
+                            try {
+                                const _id = await yfFetch(
+                                    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1m&range=1d&includePrePost=true`
+                                );
+                                const _ich = _id?.chart?.result?.[0];
+                                const _iq = _deriveYahooIntradayQuote(_ich, _ph.symbol, _pScale);
+                                if (_iq?.price > 0) {
+                                    prices[_ph.symbol] = _iq.price;
+                                    if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
+                                    window._proxyIntradayCache[_ph.symbol] = { price: _iq.price, ts: Date.now(), extended: true };
+                                    if (!window._extendedQuoteActive) window._extendedQuoteActive = {};
+                                    window._extendedQuoteActive[_ph.symbol] = true;
+                                }
+                            } catch(_) {}
                         }
-                        // marketOpenedToday：用 regularMarketTime 判斷是否今日已有交易 bar
-                        //   loadAnalysis 可能已把它設為 false（yfFetch CORS 失敗或 5d 資料偏誤），
-                        //   這裡每 60s 會重新校正一次，避免盤中永久「-」。
-                        try {
-                            if (_pm.regularMarketTime) {
-                                const _sfx = _ph.symbol.includes('.') ? _ph.symbol.split('.').pop().toUpperCase() : '';
-                                const _mktTz = _suffixTz[_sfx] || 'America/New_York';
-                                const _mktTodayLoc = new Date().toLocaleDateString('en-US', {timeZone: _mktTz});
-                                const _mktBarLoc   = new Date(_pm.regularMarketTime * 1000).toLocaleDateString('en-US', {timeZone: _mktTz});
-                                const _openedToday = (_mktTodayLoc === _mktBarLoc);
-                                if (!window._marketOpenedToday) window._marketOpenedToday = {};
-                                window._marketOpenedToday[_ph.symbol] = _openedToday;
-                            }
-                        } catch(_) {}
+                        // 昨收 / 前日收：用 5d 日 K 判斷最新完成交易日，避免 prices.json 盤前快照造成「昨日=前日」。
+                        if (_daily?.prevClose != null && _daily.prevClose > 0) {
+                            if (!window._prevCloseCache) window._prevCloseCache = {};
+                            window._prevCloseCache[_ph.symbol] = _daily.prevClose;
+                        }
+                        if (_daily?.prevPrevClose != null && _daily.prevPrevClose > 0) {
+                            if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
+                            window._prevPrevCloseCache[_ph.symbol] = _daily.prevPrevClose;
+                        }
+                        if (_daily) {
+                            if (!window._marketOpenedToday) window._marketOpenedToday = {};
+                            window._marketOpenedToday[_ph.symbol] = _daily.marketOpenedToday;
+                        }
                     } catch(_) {} // yfFetch 失敗 → 維持 prices.json 值（靜默降級）
                     if (_pi < _allFetch.length - 1) await new Promise(r => setTimeout(r, 120));
                 }

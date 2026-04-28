@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v9';   // ← 2026-04-27：期貨今日損益改用 equity 差分（修把全部未實現算成今日的問題）
+const CACHE_NAME = 'portfolio-tracker-v10';  // ← 2026-04-27：新增美股漲跌熱力圖分頁 (TradingView widget)
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

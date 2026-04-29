@@ -3130,6 +3130,42 @@
             return LEVERAGED_MAP[symbol] || symbol;
         }
 
+        // 個股新聞用關鍵字白名單：用於 Yahoo Finance 搜尋查詢字 + 結果過濾
+        // 第一個元素 = 搜尋查詢字（用公司英文名比 ticker 找到的新聞更相關）
+        // 後面元素 = 接受的關鍵字（標題或摘要含其中一個就保留）
+        const NEWS_KEYWORDS = {
+            // 槓桿 ETF（用原型股）
+            'NVDL':    ['NVIDIA',     'NVDA', 'Nvidia'],
+            'AMDL':    ['AMD',        'Advanced Micro'],
+            'ASTX':    ['AST SpaceMobile', 'ASTS'],
+            'AVGX':    ['Broadcom',   'AVGO'],
+            'COHX':    ['Coherent',   'COHR'],
+            'FBL':     ['Meta Platforms', 'Meta', 'Facebook', 'META'],
+            'GGLL':    ['Alphabet',   'Google', 'GOOGL'],
+            'LITX':    ['Lumentum',   'LITE'],
+            'MUU':     ['Micron',     'MU'],
+            'NBIG':    ['Nebius',     'NBIS'],
+            'ORCU':    ['Oracle',     'ORCL'],
+            'PLTU':    ['Palantir',   'PLTR'],
+            'SNXX':    ['SanDisk',    'SNDK'],
+            'TSLL':    ['Tesla',      'TSLA'],
+            'TSMX':    ['Taiwan Semiconductor', 'TSMC', 'TSM'],
+            'WDCX':    ['Western Digital', 'WDC'],
+            'USD':     ['Semiconductor ETF', 'SOXX', 'PHLX'],   // 半導體 ETF
+            '7709.HK': ['SK Hynix',   'Hynix',  '000660'],
+            '9747.HK': ['Samsung Electronics', 'Samsung', '005930'],
+        };
+
+        // 取得用於新聞搜尋與過濾的關鍵字陣列；非槓桿 ETF 直接用 symbol
+        function getNewsKeywords(holdingSym) {
+            return NEWS_KEYWORDS[holdingSym] || [holdingSym];
+        }
+        // 篩選：標題或摘要含任一關鍵字才算相關
+        function _newsMatchesKeywords(item, keywords) {
+            const t = ((item.title || '') + ' ' + (item.summary || '')).toLowerCase();
+            return keywords.some(k => t.includes(k.toLowerCase()));
+        }
+
         // 掛牌港交所但以美金（USD）計價的 ETF — 損益/市值換算用 USD_TWD，幣別顯示 $
         const HK_USD_PRICED = new Set(['9747.HK']);
 
@@ -6551,7 +6587,14 @@
 
             const nowSec = Math.floor(Date.now() / 1000);
             const sevenDaysAgo = nowSec - 7 * 24 * 3600;
-            const symbols = [...new Set(holdings.map(h => getQuerySymbol(h.symbol)))];
+            // 改成 iterate「持倉」而不是「querySymbol」，這樣可以拿到原始 holding symbol 來查 keyword
+            const uniqueHoldings = [];
+            const seenSym = new Set();
+            for (const h of holdings) {
+                if (seenSym.has(h.symbol)) continue;
+                seenSym.add(h.symbol);
+                uniqueHoldings.push(h);
+            }
             const allNews = [];
 
             // Finnhub Token + 7 天日期區間 (YYYY-MM-DD)
@@ -6564,14 +6607,16 @@
             const toYmd   = _ymd(nowSec);
 
             // 統計各來源筆數
-            let cntFinnhub = 0, cntYahoo = 0, finnhubFailed = 0;
+            let cntFinnhub = 0, cntYahoo = 0, finnhubFailed = 0, cntFiltered = 0;
 
-            for (let i = 0; i < symbols.length; i++) {
-                const sym = symbols[i];
-                const holding = holdings.find(h => getQuerySymbol(h.symbol) === sym);
-                const holdingSym = holding?.symbol || sym;
-                const market = holding?.market;
-                if (statusEl) statusEl.textContent = `(${i+1}/${symbols.length}) 查詢 ${sym}...`;
+            for (let i = 0; i < uniqueHoldings.length; i++) {
+                const holding = uniqueHoldings[i];
+                const holdingSym = holding.symbol;
+                const sym = getQuerySymbol(holdingSym);   // proxy 標的（如 NVDL→NVDA）
+                const market = holding.market;
+                const keywords = getNewsKeywords(holdingSym);
+                const searchQuery = keywords[0];           // 用關鍵字陣列第一個（公司名）做搜尋
+                if (statusEl) statusEl.textContent = `(${i+1}/${uniqueHoldings.length}) 查詢 ${holdingSym}（${searchQuery}）...`;
 
                 let gotItems = false;
 
@@ -6582,8 +6627,8 @@
                     const fhSym = _finnhubMapSymbol(sym, market);
                     if (fhSym) {
                         try {
+                            // Finnhub 是針對 ticker 的精準新聞，不需另外過濾
                             const arr = await _fetchFinnhubNews(fhSym, fromYmd, toYmd, fhToken);
-                            // 依時間倒序、只取最新 PER_SYMBOL_LIMIT 筆
                             const sorted = (Array.isArray(arr) ? arr : [])
                                 .filter(it => it && it.headline && (Number(it.datetime) || 0) >= sevenDaysAgo)
                                 .sort((a, b) => (Number(b.datetime)||0) - (Number(a.datetime)||0))
@@ -6606,27 +6651,36 @@
                             gotItems = sorted.length > 0;
                         } catch(e) {
                             finnhubFailed++;
-                            // Fallback to Yahoo for this symbol
                         }
                     }
                 }
 
                 // ── Fallback: Yahoo Finance（無 token / 港台股 / Finnhub 失敗）──
+                // 用「公司英文名」搜尋，命中率比用 ticker 高；再用 keywords 過濾掉不相關新聞
                 if (!gotItems) {
                     try {
                         const data = await yfFetch(
-                            `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=7&quotesCount=0`
+                            `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(searchQuery)}&newsCount=10&quotesCount=0`
                         );
                         for (const item of (data?.news || [])) {
-                            if ((item.providerPublishTime || 0) >= sevenDaysAgo) {
-                                allNews.push({ ...item, _querySymbol: sym, _holdingSymbol: holdingSym, _source: 'yahoo' });
-                                cntYahoo++;
+                            if ((item.providerPublishTime || 0) < sevenDaysAgo) continue;
+                            // 必須命中關鍵字（標題或摘要含任一）才保留
+                            if (!_newsMatchesKeywords(item, keywords)) {
+                                cntFiltered++;
+                                continue;
                             }
+                            allNews.push({
+                                ...item,
+                                _querySymbol: sym,
+                                _holdingSymbol: holdingSym,
+                                _source: 'yahoo'
+                            });
+                            cntYahoo++;
                         }
                     } catch(e) {}
                 }
 
-                if (i < symbols.length - 1) await new Promise(r => setTimeout(r, fhToken ? 200 : 400));
+                if (i < uniqueHoldings.length - 1) await new Promise(r => setTimeout(r, fhToken ? 200 : 400));
             }
 
             // 去重（uuid + 標題）+ 時間排序
@@ -6660,6 +6714,7 @@
                 const parts = [`共 ${unique.length} 則`];
                 if (cntFinnhub > 0) parts.push(`Finnhub ${cntFinnhub}`);
                 if (cntYahoo > 0)   parts.push(`Yahoo ${cntYahoo}`);
+                if (cntFiltered > 0) parts.push(`<span style="color:#94a3b8;">過濾 ${cntFiltered} 則無關</span>`);
                 if (finnhubFailed > 0) parts.push(`<span style="color:#f59e0b;">⚠ Finnhub 失敗 ${finnhubFailed}</span>`);
                 parts.push(new Date().toLocaleTimeString('zh-TW'));
                 statusEl.innerHTML = parts.join(' · ');

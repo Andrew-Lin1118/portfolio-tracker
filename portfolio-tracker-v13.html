@@ -3292,6 +3292,228 @@
             return parts;
         }
 
+        // ── 產業深度分析模板（依 yfinance industry 分類）─────────────
+        // 每個產業定義：當前主題（趨勢）、核心觀察 KPI、主要風險、業界 KPI 基準
+        const INDUSTRY_TEMPLATES = {
+            'Semiconductors': {
+                title: '半導體',
+                themes: [
+                    { icon: '🔥', label: 'AI 拉動超級週期', text: 'GPU / HBM / CoWoS 產能吃緊，雲端 hyperscaler capex 連續 3 季加碼，2026 GenAI 訓練 + 推論需求並進。' },
+                    { icon: '📦', label: '記憶體價格上行',   text: 'DRAM / NAND 合約價自 2024 Q3 起連 7 季漲，HBM3e/4 領跑；PC、手機通用記憶體去化中。' },
+                    { icon: '🇨🇳', label: '地緣 + 出口管制', text: '美國對中 AI 晶片出口禁令持續收緊，台廠 / 美廠 China 營收比重需密切觀察。' },
+                    { icon: '⚙️', label: '先進製程競賽',     text: '3nm/2nm 量產 + 後端封裝（CoWoS / SoIC）成關鍵差異化。' },
+                ],
+                kpis: [
+                    'AI / 資料中心業務占比（≥40% 為高曝險）',
+                    '毛利率（產業中位 ~50%）',
+                    '客戶集中度（Top 5 客戶 ≤ 50% 較分散）',
+                    '存貨天數（DOI > 90 天為警訊）',
+                    'Capex / 營收比（先進製程廠通常 25–35%）',
+                    'HBM / Advanced 業務年增率',
+                ],
+                risks: [
+                    '通用 DRAM/NAND 庫存週期反轉',
+                    'China 出口管制升級導致營收掉失',
+                    '台海地緣風險（TSMC 集中度）',
+                    '客戶 in-house ASIC 取代外購 GPU',
+                ],
+                bench: { gross_margin_med: 50, gross_margin_top: 65, rev_yoy_med: 15, rev_yoy_top: 35, op_margin_med: 25, op_margin_top: 50 },
+            },
+            'Computer Hardware': {
+                title: '硬碟 / 儲存',
+                themes: [
+                    { icon: '💾', label: 'AI 拉動 HDD 復甦', text: 'Nearline HDD 出貨量自 2025 起回升，AI 訓練資料儲存 + 影片內容拉動 PB 級需求。' },
+                    { icon: '🚀', label: 'HAMR 技術導入',    text: 'Seagate/WD 30TB+ HAMR 量產，單碟容量提升驅動 ASP 與毛利率。' },
+                    { icon: '⚡', label: 'NAND/SSD 競爭',    text: 'QLC SSD 滲透率、NAND 價格走勢影響 HDD 替代速度；超大容量區段 HDD 仍具成本優勢。' },
+                ],
+                kpis: [
+                    'Mass Capacity / Nearline 業務占比',
+                    '毛利率（產業中位 ~30%，HAMR 後可望 35%+）',
+                    'Exabyte shipments YoY',
+                    'Hyperscaler 客戶集中度',
+                    'NAND 自有產能 / 採購來源',
+                ],
+                risks: [
+                    'NAND 大幅跌價 → SSD 加速取代',
+                    '消費型 HDD（PC、外接）萎縮',
+                    '單一 Hyperscaler 砍單',
+                    '製程良率（HAMR 過渡期）',
+                ],
+                bench: { gross_margin_med: 30, gross_margin_top: 38, rev_yoy_med: 5, rev_yoy_top: 25 },
+            },
+            'Internet Content & Information': {
+                title: '網際網路內容平台',
+                themes: [
+                    { icon: '🤖', label: 'AI 內容戰',    text: 'Llama / Gemini / GPT 各家投入鉅額 capex，AI 助理 / 搜尋競爭加劇。' },
+                    { icon: '💰', label: '廣告週期',     text: '品牌 + 中小企業廣告需求回升；定向廣告 + AI 推薦提升轉換率。' },
+                    { icon: '📱', label: 'Reels / 短影音', text: '短影音 ARPU 追上 Feed，影音廣告填充率持續優化。' },
+                    { icon: '🛡️', label: '監管風險',     text: 'EU DMA、美國反托拉斯、中國 / 印度資料法規多管齊下。' },
+                ],
+                kpis: [
+                    'DAU / MAU 變化、stickiness',
+                    'ARPU（北美最高、新興市場提升空間）',
+                    'AI capex 占營收比（>15% 為高投資期）',
+                    '營業現金流 / FCF',
+                    'Reality Labs / 新事業虧損 (Meta 特有)',
+                ],
+                risks: [
+                    'AI 軍備競賽 capex 失控',
+                    '監管罰款 / 拆分壓力',
+                    'iOS 隱私政策影響定向廣告',
+                    'TikTok / 新平台分流注意力',
+                ],
+                bench: { gross_margin_med: 75, gross_margin_top: 85, rev_yoy_med: 10, rev_yoy_top: 25, op_margin_med: 30, op_margin_top: 45 },
+            },
+            'Consumer Electronics': {
+                title: '消費電子',
+                themes: [
+                    { icon: '📱', label: 'iPhone 換機週期',  text: 'AI on-device（Apple Intelligence）刺激 16/17 系列換機，但中國 iPhone 銷量受華為夾擊。' },
+                    { icon: '💼', label: 'Services 高毛利', text: 'App Store + iCloud + Apple Music 服務收入毛利 70%+，撐住整體獲利。' },
+                    { icon: '🎧', label: 'Wearables 飽和',   text: 'Apple Watch / AirPods 進入存量市場，Vision Pro 滲透率仍低。' },
+                ],
+                kpis: [
+                    'iPhone 銷量 YoY（中國市場為關鍵）',
+                    'Services 業務毛利率與占比',
+                    '硬體毛利率（>40% 為健康）',
+                    '回購力道（FCF / 流通股數）',
+                ],
+                risks: [
+                    '中國市場份額流失（華為 + 國補）',
+                    'AI 功能落後競品',
+                    '反托拉斯（App Store 抽成爭議）',
+                    'iPhone 高價策略遭到中端機種侵蝕',
+                ],
+                bench: { gross_margin_med: 42, gross_margin_top: 48, rev_yoy_med: 5, rev_yoy_top: 12, op_margin_med: 28, op_margin_top: 32 },
+            },
+            'Software—Infrastructure': {
+                title: '軟體 / 基礎建設',
+                themes: [
+                    { icon: '☁️', label: '雲端遷移持續',     text: 'AWS / Azure / GCP 等 hyperscaler 業績驗證企業上雲不減速。' },
+                    { icon: '🤖', label: 'AI 軟體變現',      text: 'Copilot / 各類 AI 助理導入企業，按使用量計費新模式興起。' },
+                    { icon: '🔒', label: '資安 / 數據防護',   text: 'SaaS 滲透率高、資料外洩風險升 → 資安預算逆勢成長。' },
+                ],
+                kpis: [
+                    'NRR / Net Retention Rate（>120% 為優異）',
+                    'ARR 年增率',
+                    '營業利益率（成熟 SaaS >25%）',
+                    'Rule of 40（成長率 + 利潤率 ≥40%）',
+                    'AI 業務 / GenAI 收入占比',
+                ],
+                risks: [
+                    'AI 開源模型壓縮專屬軟體價值',
+                    '企業預算緊縮延後採購',
+                    '客戶從 SaaS 轉向自建 / 開源',
+                    '評價（FCF yield 低）',
+                ],
+                bench: { gross_margin_med: 75, gross_margin_top: 85, rev_yoy_med: 15, rev_yoy_top: 30, op_margin_med: 25, op_margin_top: 45 },
+            },
+            'Software - Infrastructure': null,  // alias 給 yfinance 的格式（dash 與 em-dash 都可能出現）
+            'Auto Manufacturers': {
+                title: '汽車製造',
+                themes: [
+                    { icon: '⚡', label: 'EV 滲透率',         text: '全球 EV 滲透率 2026 預估 22%，但成熟市場補貼退場、中國捲價競爭。' },
+                    { icon: '🔋', label: 'LFP / 電池成本',    text: 'LFP 電池滲透率提升、電池成本下探 100 USD/kWh，新車低價化。' },
+                    { icon: '🚗', label: 'Robotaxi / FSD',    text: 'Tesla FSD V13/V14 推進、Cybercab 量產時程；Waymo 城市拓展。' },
+                    { icon: '🇨🇳', label: '中國車廠崛起',      text: 'BYD / 比亞迪 / 蔚來 / 小米 大舉出海，毛利戰持續。' },
+                ],
+                kpis: [
+                    '汽車毛利率（不含碳權，特斯拉 ~17–20% 為健康）',
+                    '交車量 YoY',
+                    'Energy Storage / FSD / 服務 業務增速',
+                    'ASP（價格戰會壓低）',
+                    '存貨天數',
+                ],
+                risks: [
+                    '價格戰持續壓低毛利率',
+                    'EV 補貼 / 法規退坡',
+                    'Robotaxi / FSD 監管延宕',
+                    '電池供應鏈風險',
+                ],
+                bench: { gross_margin_med: 16, gross_margin_top: 22, rev_yoy_med: 5, rev_yoy_top: 30 },
+            },
+        };
+        // alias 處理（yfinance 不同公司可能用不同破折號）
+        INDUSTRY_TEMPLATES['Software - Infrastructure'] = INDUSTRY_TEMPLATES['Software—Infrastructure'];
+
+        // 比對公司 KPI 與產業基準，回傳評語
+        function _benchmarkCompare(value, med, top, higherBetter, unit) {
+            if (value == null || med == null) return '';
+            const fmt = (v) => v == null ? '-' : v.toFixed(1) + (unit || '');
+            const above = higherBetter ? value >= top : value <= med * 0.7;
+            const good  = higherBetter ? value >= med : value <= med;
+            if (above) return `<span style="color:#10b981;">🔥 領先群（產業中位 ${fmt(med)}）</span>`;
+            if (good)  return `<span style="color:#fbbf24;">✓ 優於中位（${fmt(med)}）</span>`;
+            return     `<span style="color:#94a3b8;">中位以下（產業中位 ${fmt(med)}）</span>`;
+        }
+
+        function _renderIndustrySection(d) {
+            const ind = d.industry || '';
+            const sec = d.sector  || '';
+            const tmpl = INDUSTRY_TEMPLATES[ind] || null;
+            if (!tmpl) {
+                // 找不到對應模板：給通用框架
+                return `<div style="background:rgba(15,30,60,0.4); border:1px solid rgba(148,163,184,0.15); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem;">
+                    <div style="color:#94a3b8; font-weight:700; font-size:0.88rem; margin-bottom:0.5rem;">🏭 產業：${ind || sec || '未分類'}</div>
+                    <div style="color:#64748b; font-size:0.82rem; line-height:1.5;">本產業尚無專屬深度分析模板，請參考一般財務指標與券商觀點。</div>
+                </div>`;
+            }
+            // 產業主題卡（橫排，自動 wrap）
+            const themesHtml = tmpl.themes.map(t => `
+                <div style="background:rgba(15,30,60,0.55); border-left:3px solid #818cf8; padding:0.55rem 0.8rem; border-radius:6px;">
+                    <div style="color:#c084fc; font-weight:700; font-size:0.82rem; margin-bottom:0.25rem;">${t.icon} ${t.label}</div>
+                    <div style="color:#cbd5e1; font-size:0.78rem; line-height:1.55;">${t.text}</div>
+                </div>`).join('');
+
+            // 公司 KPI 對標
+            const latest = (d.quarters || [])[0] || {};
+            const b = tmpl.bench || {};
+            const benchRows = [];
+            if (b.gross_margin_med != null && latest.gross_margin != null) {
+                benchRows.push({label: '毛利率', val: latest.gross_margin, med: b.gross_margin_med, top: b.gross_margin_top, higher: true, unit: '%'});
+            }
+            if (b.op_margin_med != null && latest.operating_margin != null) {
+                benchRows.push({label: '營益率', val: latest.operating_margin, med: b.op_margin_med, top: b.op_margin_top, higher: true, unit: '%'});
+            }
+            if (b.rev_yoy_med != null && latest.rev_yoy != null) {
+                benchRows.push({label: '營收 YoY', val: latest.rev_yoy, med: b.rev_yoy_med, top: b.rev_yoy_top, higher: true, unit: '%'});
+            }
+            const benchHtml = benchRows.length ? `<div style="margin-top:0.85rem; padding-top:0.7rem; border-top:1px dashed rgba(148,163,184,0.18);">
+                <div style="color:#fbbf24; font-weight:700; font-size:0.82rem; margin-bottom:0.45rem;">📐 公司 KPI 對標產業基準</div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.4rem;">
+                    ${benchRows.map(r => `<div style="font-size:0.8rem;">
+                        <span style="color:#94a3b8;">${r.label}：</span>
+                        <strong style="color:#e2e8f0;">${r.val.toFixed(1)}${r.unit}</strong>
+                        ${_benchmarkCompare(r.val, r.med, r.top, r.higher, r.unit)}
+                    </div>`).join('')}
+                </div>
+            </div>` : '';
+
+            // 觀察 KPI + 風險
+            const kpisHtml = (tmpl.kpis || []).map(k => `<li style="margin-bottom:0.2rem;">${k}</li>`).join('');
+            const risksHtml = (tmpl.risks || []).map(k => `<li style="margin-bottom:0.2rem;">${k}</li>`).join('');
+
+            return `<div style="background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.04)); border:1px solid rgba(168,85,247,0.22); border-radius:10px; padding:0.95rem 1.1rem; margin-bottom:1rem;">
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.7rem;">
+                    <span style="color:#c084fc; font-weight:700; font-size:0.95rem;">🏭 產業深度：${tmpl.title}</span>
+                    <span style="color:#64748b; font-size:0.74rem;">${ind}${sec ? ` · ${sec}` : ''}</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0.55rem; margin-bottom:0.9rem;">
+                    ${themesHtml}
+                </div>
+                ${benchHtml}
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:0.7rem; margin-top:0.85rem;">
+                    <div style="background:rgba(15,30,60,0.45); border-radius:8px; padding:0.6rem 0.85rem;">
+                        <div style="color:#fbbf24; font-weight:700; font-size:0.8rem; margin-bottom:0.3rem;">🔍 核心觀察 KPI</div>
+                        <ul style="margin:0; padding-left:1.1rem; color:#cbd5e1; font-size:0.78rem; line-height:1.55;">${kpisHtml}</ul>
+                    </div>
+                    <div style="background:rgba(15,30,60,0.45); border-radius:8px; padding:0.6rem 0.85rem;">
+                        <div style="color:#ef4444; font-weight:700; font-size:0.8rem; margin-bottom:0.3rem;">⚠️ 主要風險</div>
+                        <ul style="margin:0; padding-left:1.1rem; color:#cbd5e1; font-size:0.78rem; line-height:1.55;">${risksHtml}</ul>
+                    </div>
+                </div>
+            </div>`;
+        }
+
         // 渲染券商資料區塊
         function _renderBrokerSection(brokerData) {
             if (!brokerData) {
@@ -3468,6 +3690,9 @@
                         <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:1rem;">無季度資料</td></tr>'}</tbody>
                     </table>
                 </div>
+
+                <!-- 產業深度分析 -->
+                ${_renderIndustrySection(d)}
 
                 <!-- 亮點 / 警訊 -->
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:0.8rem; margin-bottom:1rem;">

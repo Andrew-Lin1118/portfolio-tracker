@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v25';  // ← 2026-04-29：Tab9 加入券商觀點（評級異動、共識分布、彙整摘要）
+const CACHE_NAME = 'portfolio-tracker-v26';  // ← 2026-04-29：Tab9 新增產業深度分析（半導體/硬碟/網際網路/消費電子/軟體/汽車）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

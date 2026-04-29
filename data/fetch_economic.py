@@ -25,7 +25,12 @@ import os, sys, json, datetime, csv, io
 import urllib.request, urllib.error
 
 OUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'economic_data.json')
-HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; portfolio-tracker/1.0)'}
+# 用真實瀏覽器 UA，避免被 FRED 拒絕
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/csv,*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
 
 # 指標清單：(FRED ID, 顯示名稱, 計算方式)
 # kind: 'level' = 直接用最後值；'yoy' = 自行算 12 個月年增率
@@ -39,14 +44,30 @@ SERIES = [
 ]
 
 
-def http_get(url, timeout=20):
+def http_get(url, timeout=12):
     req = urllib.request.Request(url, headers=HEADERS)
     return urllib.request.urlopen(req, timeout=timeout).read().decode('utf-8', errors='ignore')
 
 
+def http_get_retry(url, attempts=3, timeout=12):
+    """重試 N 次，每次失敗 sleep 2 秒"""
+    last_err = None
+    import time
+    for i in range(attempts):
+        try:
+            return http_get(url, timeout=timeout)
+        except Exception as e:
+            last_err = e
+            print(f'    [retry {i+1}/{attempts}] {type(e).__name__}: {str(e)[:80]}', flush=True)
+            if i < attempts - 1:
+                time.sleep(2)
+    raise last_err
+
+
 def fetch_fred_csv(series_id):
-    url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
-    text = http_get(url)
+    # FRED CSV：直連最穩；若失敗備援抓 series JSON 端點（非官方）
+    primary = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
+    text = http_get_retry(primary)
     rows = list(csv.reader(io.StringIO(text)))
     out = []
     for row in rows[1:]:  # 跳過 header
@@ -110,25 +131,37 @@ def build_indicator(series_id, name, kind):
 
 
 def main():
-    print('抓取 FRED 經濟指標...', flush=True)
-    indicators = {}
-    for sid, name, kind in SERIES:
-        ind = build_indicator(sid, name, kind)
-        if ind:
-            print(f'  ✓ {sid:10s} {ind["date"]} = {ind["value"]}'
-                  + (f' (上期 {ind["prev"]}, 月變 {ind["mom"]:+.2f}pt)' if ind['prev'] is not None else ''),
-                  flush=True)
-            indicators[sid] = ind
-        else:
-            indicators[sid] = None
+    print('抓取 FRED 經濟指標（並行）...', flush=True)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    indicators = {sid: None for sid, _, _ in SERIES}
 
+    # 6 個 series 並行抓（耗時從 6×~5s = 30s 縮到 ~5s）
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = {pool.submit(build_indicator, sid, name, kind): sid for sid, name, kind in SERIES}
+        for fut in as_completed(futures, timeout=180):
+            sid = futures[fut]
+            try:
+                ind = fut.result()
+                if ind:
+                    indicators[sid] = ind
+                    print(f'  ✓ {sid:10s} {ind["date"]} = {ind["value"]}'
+                          + (f' (上期 {ind["prev"]}, 月變 {ind["mom"]:+.2f}pt)' if ind['prev'] is not None else ''),
+                          flush=True)
+                else:
+                    print(f'  ✗ {sid:10s} 無資料', flush=True)
+            except Exception as e:
+                print(f'  ✗ {sid:10s} 例外：{e}', flush=True)
+
+    # 即使全部失敗，也要寫出 JSON（含 generated + 全 null indicators）
     payload = {
         'generated': datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z',
         'indicators': indicators,
     }
+    os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
     with open(OUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f'\n寫入 → {OUT_FILE}', flush=True)
+    ok_count = sum(1 for v in indicators.values() if v is not None)
+    print(f'\n寫入 → {OUT_FILE}（{ok_count}/{len(SERIES)} 成功）', flush=True)
 
 
 if __name__ == '__main__':

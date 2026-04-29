@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v18';  // ← 2026-04-29：經濟指標改用後端 JSON、個股新聞翻譯成中文
+const CACHE_NAME = 'portfolio-tracker-v19';  // ← 2026-04-29：個股新聞限額（每檔 8 + 全域 80）+ FRED 修復
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

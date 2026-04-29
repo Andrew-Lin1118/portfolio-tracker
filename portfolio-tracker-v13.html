@@ -6564,15 +6564,20 @@
                 let gotItems = false;
 
                 // ── 優先用 Finnhub（若有 token 且為美股可支援）──
+                // 每檔最多取 8 則最新（Finnhub 一檔 7 天內可能回 100+ 則，避免轟炸翻譯 API）
+                const PER_SYMBOL_LIMIT = 8;
                 if (fhToken) {
                     const fhSym = _finnhubMapSymbol(sym, market);
                     if (fhSym) {
                         try {
                             const arr = await _fetchFinnhubNews(fhSym, fromYmd, toYmd, fhToken);
-                            for (const it of arr) {
-                                if (!it || !it.headline) continue;
+                            // 依時間倒序、只取最新 PER_SYMBOL_LIMIT 筆
+                            const sorted = (Array.isArray(arr) ? arr : [])
+                                .filter(it => it && it.headline && (Number(it.datetime) || 0) >= sevenDaysAgo)
+                                .sort((a, b) => (Number(b.datetime)||0) - (Number(a.datetime)||0))
+                                .slice(0, PER_SYMBOL_LIMIT);
+                            for (const it of sorted) {
                                 const ts = Number(it.datetime) || 0;
-                                if (ts < sevenDaysAgo) continue;
                                 allNews.push({
                                     uuid: 'fh_' + (it.id || (ts + '_' + (it.headline||'').slice(0,20))),
                                     title: it.headline,
@@ -6586,7 +6591,7 @@
                                 });
                                 cntFinnhub++;
                             }
-                            gotItems = arr.length > 0;
+                            gotItems = sorted.length > 0;
                         } catch(e) {
                             finnhubFailed++;
                             // Fallback to Yahoo for this symbol
@@ -6612,13 +6617,27 @@
                 if (i < symbols.length - 1) await new Promise(r => setTimeout(r, fhToken ? 200 : 400));
             }
 
-            // 去重（uuid）+ 時間排序
-            const seen = new Set();
-            const unique = allNews
-                .filter(n => { if (!n.uuid || seen.has(n.uuid)) return false; seen.add(n.uuid); return true; })
+            // 去重（uuid + 標題）+ 時間排序
+            const seenUuid = new Set();
+            const seenTitle = new Set();
+            let unique = allNews
+                .filter(n => {
+                    if (!n.uuid || seenUuid.has(n.uuid)) return false;
+                    seenUuid.add(n.uuid);
+                    // 跨來源去重：標題正規化後比對
+                    const tk = (n.title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+                    if (tk && seenTitle.has(tk)) return false;
+                    if (tk) seenTitle.add(tk);
+                    return true;
+                })
                 .sort((a, b) => b.providerPublishTime - a.providerPublishTime);
 
-            // 翻譯標題與摘要為繁體中文（MyMemory 免費 API + localStorage 24hr 快取）
+            // 全域上限：最多保留 80 則（避免翻譯 API 過載 + UI 卡頓）
+            const TOTAL_NEWS_LIMIT = 80;
+            const totalBefore = unique.length;
+            if (unique.length > TOTAL_NEWS_LIMIT) unique = unique.slice(0, TOTAL_NEWS_LIMIT);
+
+            // 翻譯標題為繁體中文（只翻標題，不翻摘要，速度快 50%）
             if (statusEl) statusEl.textContent = `翻譯新聞中...（共 ${unique.length} 則）`;
             await _translateNewsItems(unique, statusEl);
 

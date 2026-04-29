@@ -490,6 +490,7 @@ except Exception as _e:
 try:
     print('\n更新經濟指標 (economic_data.json) ...', flush=True)
     import subprocess as _sp, sys as _sy
-    _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=120)
+    # timeout 放寬到 300s（6 個 FRED × 12s × 3 retry = 上限 ~216s，留 buffer）
+    _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=300)
 except Exception as _e:
     print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)

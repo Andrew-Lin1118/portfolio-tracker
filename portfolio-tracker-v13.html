@@ -426,43 +426,60 @@
             <button id="confirm-trade-btn" onclick="addHolding()" style="margin-top:1.5rem; width:100%; padding:0.85rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem;">▲ 確認買入</button>
         </div>
 
-        <!-- Google Sheet URL（移至底部）-->
-        <div class="glass-card" style="padding:1rem 1.5rem; margin-top:1rem;">
-            <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
-                <label style="color:#fbbf24; font-size:0.85rem; font-weight:600; white-space:nowrap;">📊 Google Sheet CSV：</label>
-                <input id="sheet-url" type="text" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQnBPPnq7jgMZ3oZ8UVaxe77InNipxW-ItNAoqxQrAgnKfLNqX1P4xxOLMqKGjKWTRIN-VZ4SkgKFBt/pub?gid=0&single=true&output=csv" onchange="saveToStorage()" style="flex:1; min-width:200px; padding:0.55rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.85rem;">
-                <span style="color:#10b981; font-size:0.8rem; white-space:nowrap;">✓ 已設定</span>
+        <!-- ⚙️ 資料管理（整合：Google Sheet CSV + 跨裝置同步 + 匯入/匯出）-->
+        <div class="glass-card" style="padding:1.25rem 1.5rem; margin-top:1rem;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:0.4rem;">
+                <h3 style="color:#fbbf24; font-size:0.95rem; font-weight:700; margin:0; letter-spacing:0.5px;">⚙️ 資料管理</h3>
+                <button onclick="toggleDataMgmt(this)" id="data-mgmt-toggle" style="padding:0.25rem 0.7rem; font-size:0.75rem; background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">▲ 收合</button>
             </div>
-        </div>
 
-        <!-- 跨裝置同步 -->
-        <div class="glass-card" style="padding:1rem 1.5rem; margin-top:1rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.4rem;">
-                <span style="color:#fbbf24; font-size:0.85rem; font-weight:600;">☁️ 跨裝置同步（GitHub Gist）</span>
-                <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <span id="sync-status" style="font-size:0.78rem; color:#64748b;"></span>
-                    <a href="https://github.com/settings/tokens/new?scopes=gist&description=PortfolioTracker" target="_blank" style="font-size:0.75rem; color:#60a5fa; text-decoration:none; white-space:nowrap;">取得 Token ↗</a>
+            <div id="data-mgmt-body">
+                <!-- ① Google Sheet CSV -->
+                <div style="margin-bottom:0.9rem;">
+                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                        <label style="color:#cbd5e1; font-size:0.82rem; font-weight:600; white-space:nowrap;">📊 Google Sheet CSV</label>
+                        <input id="sheet-url" type="text" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQnBPPnq7jgMZ3oZ8UVaxe77InNipxW-ItNAoqxQrAgnKfLNqX1P4xxOLMqKGjKWTRIN-VZ4SkgKFBt/pub?gid=0&single=true&output=csv" onchange="saveToStorage()" style="flex:1; min-width:200px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.82rem;">
+                        <span style="color:#10b981; font-size:0.78rem; white-space:nowrap;">✓ 已設定</span>
+                    </div>
                 </div>
-            </div>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.6rem;">
-                <input id="sync-token" type="password" placeholder="GitHub Personal Access Token（gist 範圍）"
-                    onchange="saveSyncSettings()"
-                    style="flex:2; min-width:180px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#e2e8f0; font-size:0.82rem;">
-                <input id="sync-gist-id" type="text" placeholder="Gist ID（首次推送後自動填入）"
-                    onchange="saveSyncSettings()"
-                    style="flex:1; min-width:140px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#e2e8f0; font-size:0.82rem;">
-            </div>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                <button onclick="syncPush()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬆ 推送至雲端</button>
-                <button onclick="syncPull()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬇ 從雲端拉取</button>
-            </div>
-        </div>
 
-        <!-- 匯入 / 匯出 持倉數據（移到最下方）-->
-        <div class="glass-card" style="padding:1rem 1.5rem; margin-top:1rem;">
-            <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-                <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span style="font-size:18px;">📤</span>匯入持倉數據</button>
-                <button onclick="exportHoldings()" style="flex:1; min-width:150px; padding:0.75rem 1.5rem; background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;">📥 匯出持倉數據</button>
+                <!-- 分隔線 -->
+                <div style="height:1px; background:rgba(148,163,184,0.12); margin:0.9rem 0;"></div>
+
+                <!-- ② 跨裝置同步（GitHub Gist）-->
+                <div style="margin-bottom:0.9rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.55rem; flex-wrap:wrap; gap:0.4rem;">
+                        <label style="color:#cbd5e1; font-size:0.82rem; font-weight:600;">☁️ 跨裝置同步（GitHub Gist）</label>
+                        <div style="display:flex; align-items:center; gap:0.6rem;">
+                            <span id="sync-status" style="font-size:0.76rem; color:#64748b;"></span>
+                            <a href="https://github.com/settings/tokens/new?scopes=gist&description=PortfolioTracker" target="_blank" style="font-size:0.74rem; color:#60a5fa; text-decoration:none; white-space:nowrap;">取得 Token ↗</a>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                        <input id="sync-token" type="password" placeholder="GitHub Personal Access Token（gist 範圍）"
+                            onchange="saveSyncSettings()"
+                            style="flex:2; min-width:180px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#e2e8f0; font-size:0.8rem;">
+                        <input id="sync-gist-id" type="text" placeholder="Gist ID（首次推送後自動填入）"
+                            onchange="saveSyncSettings()"
+                            style="flex:1; min-width:140px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#e2e8f0; font-size:0.8rem;">
+                    </div>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button onclick="syncPush()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border-radius:8px; font-size:0.84rem; font-weight:600;">⬆ 推送至雲端</button>
+                        <button onclick="syncPull()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; border-radius:8px; font-size:0.84rem; font-weight:600;">⬇ 從雲端拉取</button>
+                    </div>
+                </div>
+
+                <!-- 分隔線 -->
+                <div style="height:1px; background:rgba(148,163,184,0.12); margin:0.9rem 0;"></div>
+
+                <!-- ③ 匯入 / 匯出 -->
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; font-weight:600; margin-bottom:0.55rem; display:block;">📁 持倉數據匯入 / 匯出</label>
+                    <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+                        <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; padding:0.6rem 1.2rem; display:flex; align-items:center; justify-content:center; gap:0.5rem; font-size:0.9rem;"><span style="font-size:16px;">📤</span>匯入持倉數據</button>
+                        <button onclick="exportHoldings()" style="flex:1; min-width:150px; padding:0.6rem 1.2rem; background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem; font-size:0.9rem;">📥 匯出持倉數據</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -897,6 +914,21 @@
             if (btn) btn.textContent = _holdingsDetailHidden ? '▼ 顯示持倉' : '▲ 隱藏持倉';
             if (lst) lst.style.display = _holdingsDetailHidden ? 'none' : '';
         }
+        // 資料管理卡（CSV / Gist 同步 / 匯入匯出）收合切換
+        let _dataMgmtCollapsed = localStorage.getItem('dataMgmtCollapsed') === '1';
+        function _applyDataMgmtState() {
+            const body = document.getElementById('data-mgmt-body');
+            const btn  = document.getElementById('data-mgmt-toggle');
+            if (!body || !btn) return;
+            body.style.display = _dataMgmtCollapsed ? 'none' : '';
+            btn.textContent     = _dataMgmtCollapsed ? '▼ 展開' : '▲ 收合';
+        }
+        function toggleDataMgmt() {
+            _dataMgmtCollapsed = !_dataMgmtCollapsed;
+            localStorage.setItem('dataMgmtCollapsed', _dataMgmtCollapsed ? '1' : '0');
+            _applyDataMgmtState();
+        }
+        document.addEventListener('DOMContentLoaded', _applyDataMgmtState);
 
         function _applyHoldingRowSelection() {
             document.querySelectorAll('#holdings-table tbody tr').forEach(tr => {

@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v24';  // ← 2026-04-29：Tab4 改名「券商目標」+ 新增 Tab9「財報深度分析」
+const CACHE_NAME = 'portfolio-tracker-v25';  // ← 2026-04-29：Tab9 加入券商觀點（評級異動、共識分布、彙整摘要）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -275,9 +275,8 @@ def main():
     targets = []
     for sym, item in fdata.items():
         if not isinstance(item, dict): continue
-        # 只挑美股（fundamentals.json 主要是美股；HK/TW 跳過）
-        if '.' in sym: continue   # 過濾 .HK / .TW / .KS 等
-        # 找最新財報日（earnings_history 最後一筆 report_date）
+        # 接受所有市場（含 HK / KS / TW 等），由 yfinance 自行判斷有無季度資料
+        # （之前過濾 '.' in sym 會誤殺槓桿 ETF 對應的韓股 000660.KS / 005930.KS）
         eh = item.get('earnings_history') or []
         latest_rd = None
         for e in eh:
@@ -286,7 +285,7 @@ def main():
                 latest_rd = rd
         if not latest_rd: continue
         if not args.all and latest_rd < cutoff: continue
-        # 已抓過且資料中財報日 == 最新財報日 → 跳過
+        # 已抓過且資料中財報日 == 最新財報日 → 跳過（同月份就視為已分析）
         if not args.all:
             ex = existing.get(sym)
             if ex and ex.get('last_report_date', '').startswith(latest_rd[:7]):

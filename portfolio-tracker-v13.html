@@ -6666,14 +6666,52 @@
             }
         }
 
-        // ── 新聞翻譯（共用 24hr cache）────────────────────────
+        // ── 翻譯：Google Translate 公開 endpoint（主） + MyMemory（備援）─────────
+        // Google translate 公開端點：translate.googleapis.com，無需 API key、額度遠大於 MyMemory
+        async function _translateOne(text) {
+            // 純英數/數字（沒英文字母）跳過翻譯
+            if (!text || !/[a-zA-Z]/.test(text)) return text;
+            // ① Google Translate（主）— 高額度、品質好
+            try {
+                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-TW&dt=t&q=${encodeURIComponent(text)}`;
+                const r = await fetch(url, { signal: AbortSignal.timeout(7000) });
+                if (r.ok) {
+                    const d = await r.json();
+                    // 回傳格式：[[[ "翻譯結果", "原文", null, null, ...]], ...]
+                    if (Array.isArray(d) && Array.isArray(d[0])) {
+                        const zh = d[0].map(seg => Array.isArray(seg) ? (seg[0] || '') : '').join('');
+                        if (zh && zh.trim() && zh !== text) return zh;
+                    }
+                }
+            } catch(_) {}
+            // ② MyMemory 備援（每日 5000 字元免費）
+            try {
+                const r = await fetch(
+                    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-TW`,
+                    { signal: AbortSignal.timeout(6000) }
+                );
+                if (r.ok) {
+                    const d = await r.json();
+                    const zh = d?.responseData?.translatedText || '';
+                    // MyMemory rate-limit 訊息開頭通常是「MYMEMORY WARNING:」，這種視為失敗
+                    if (zh && !zh.startsWith('MYMEMORY') && !zh.startsWith('PLEASE') && zh !== text) {
+                        return zh;
+                    }
+                }
+            } catch(_) {}
+            // 兩者都失敗 → 回傳原文
+            return text;
+        }
+
         async function _translateNewsItems(items, statusEl, includeSummary) {
             if (!items || items.length === 0) return;
-            const _tCacheKey = 'pf_news_trans_v1';
+            const _tCacheKey = 'pf_news_trans_v2';   // bump 版本：清掉 v1 中可能含 MyMemory 壞資料
             let tCache = {};
             try {
                 const raw = JSON.parse(localStorage.getItem(_tCacheKey) || '{}');
                 tCache = (Date.now() - (raw.ts||0) < 24*3600*1000) ? (raw.data||{}) : {};
+                // 清掉舊 v1 cache（避免占空間）
+                localStorage.removeItem('pf_news_trans_v1');
             } catch(_) {}
             let tUpdated = false;
             // 收集所有要翻譯的字串（標題 + 摘要）
@@ -6682,27 +6720,25 @@
                 if (it.title) tasks.push({ obj: it, key: 'titleZh', text: it.title });
                 if (includeSummary && it.summary) tasks.push({ obj: it, key: 'summaryZh', text: it.summary.slice(0, 500) });
             }
-            for (let i = 0; i < tasks.length; i++) {
-                const t = tasks[i];
-                if (!t.text) { t.obj[t.key] = t.text; continue; }
-                if (tCache[t.text]) { t.obj[t.key] = tCache[t.text]; continue; }
-                if (statusEl) statusEl.textContent = `翻譯中 (${i+1}/${tasks.length})...`;
-                try {
-                    const r = await fetch(
-                        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(t.text)}&langpair=en|zh-TW`,
-                        { signal: AbortSignal.timeout(6000) }
-                    );
-                    if (r.ok) {
-                        const d = await r.json();
-                        const zh = d?.responseData?.translatedText || t.text;
-                        t.obj[t.key] = zh;
+            // 並行翻譯（4 個一批，避免衝太快被 ban）
+            const BATCH = 4;
+            let translated = 0;
+            for (let i = 0; i < tasks.length; i += BATCH) {
+                const batch = tasks.slice(i, i + BATCH);
+                if (statusEl) statusEl.textContent = `翻譯中 (${i+1}~${Math.min(i+BATCH, tasks.length)}/${tasks.length})...`;
+                await Promise.all(batch.map(async t => {
+                    if (!t.text) { t.obj[t.key] = t.text; return; }
+                    if (tCache[t.text]) { t.obj[t.key] = tCache[t.text]; return; }
+                    const zh = await _translateOne(t.text);
+                    t.obj[t.key] = zh;
+                    if (zh && zh !== t.text) {
                         tCache[t.text] = zh;
                         tUpdated = true;
-                    } else {
-                        t.obj[t.key] = t.text;
                     }
-                } catch(_) { t.obj[t.key] = t.text; }
-                await new Promise(r => setTimeout(r, 200));  // 避免 rate limit
+                }));
+                translated += batch.length;
+                // 每批之間短暫休息
+                if (i + BATCH < tasks.length) await new Promise(r => setTimeout(r, 120));
             }
             if (tUpdated) {
                 try { localStorage.setItem(_tCacheKey, JSON.stringify({ ts: Date.now(), data: tCache })); } catch(_) {}

@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v20';  // ← 2026-04-29：FRED proxy 加備援 URL、新聞恢復摘要翻譯
+const CACHE_NAME = 'portfolio-tracker-v21';  // ← 2026-04-29：新聞翻譯改用 Google Translate（MyMemory 已被 rate-limit）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

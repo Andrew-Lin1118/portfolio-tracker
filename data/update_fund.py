@@ -494,3 +494,12 @@ try:
     _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=300)
 except Exception as _e:
     print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+
+# ── 順便更新財報深度分析（針對近 90 天有發財報的標的）──
+try:
+    print('\n更新財報深度分析 (earnings_analysis.json) ...', flush=True)
+    import subprocess as _sp2, sys as _sy2
+    # 每檔 yfinance call ~3s，假設 30 檔上限 → 90s + buffer
+    _sp2.run([_sy2.executable, os.path.join(ROOT, 'fetch_earnings_deep.py')], check=False, timeout=600)
+except Exception as _e:
+    print(f'  [earnings_deep] 更新失敗（不影響 fundamentals）：{_e}', flush=True)

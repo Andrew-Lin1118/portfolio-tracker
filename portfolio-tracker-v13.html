@@ -259,12 +259,6 @@
 
     <div style="max-width:1200px; margin:0 auto; position:relative; z-index:1;">
 
-        <!-- ▼▼▼ 版本標記（暫時用來驗證快取是否更新；確認後可移除） ▼▼▼ -->
-        <div id="version-banner" style="background:linear-gradient(90deg, rgba(245,158,11,0.25), rgba(245,158,11,0.05)); border:1px solid rgba(245,158,11,0.5); border-radius:8px; padding:0.6rem 1rem; margin:1rem 0; color:#fbbf24; font-size:0.9rem; font-weight:600;">
-            ✅ v13 · 2026-04-23c · 新增期貨「🔄 立即更新」按鈕 + 交易後自動同步已/未實現損益
-        </div>
-        <!-- ▲▲▲ 版本標記 ▲▲▲ -->
-
         <!-- Currency Toggle -->
         <div id="currency-toggle" style="position:fixed; top:1.25rem; right:1.25rem; z-index:999; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35); box-shadow:0 4px 20px rgba(0,0,0,0.4);">
             <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:rgba(10,22,40,0.92); color:#64748b;">$ USD</button>
@@ -285,7 +279,8 @@
             <button class="tab-btn" id="tab-btn-8" onclick="switchTab(8)">🔥 美股熱力圖</button>
             <button class="tab-btn" id="tab-btn-2" onclick="switchTab(2)">📈 基本面</button>
             <button class="tab-btn" id="tab-btn-3" onclick="switchTab(3)">🔬 技術面</button>
-            <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">📊 財報分析</button>
+            <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">🎯 券商目標</button>
+            <button class="tab-btn" id="tab-btn-9" onclick="switchTab(9)">📊 財報分析</button>
             <button class="tab-btn" id="tab-btn-5" onclick="switchTab(5)">🌐 總體經濟</button>
             <button class="tab-btn" id="tab-btn-6" onclick="switchTab(6)">📉 資產變化</button>
             <button class="tab-btn" id="tab-btn-7" onclick="switchTab(7)">📰 個股新聞</button>
@@ -362,8 +357,6 @@
                 <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
                     <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">📊 持倉一覽</h2>
                     <button id="holdings-table-toggle-btn" onclick="toggleHoldingsTable()" style="padding:0.25rem 0.65rem; font-size:0.78rem; background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">▲ 隱藏</button>
-                    <button onclick="openTradeModal('buy')" style="padding:0.35rem 0.9rem; font-size:0.82rem; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#0a1628; border:none; border-radius:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:700;">▲ 買入</button>
-                    <button onclick="openTradeModal('sell')" style="padding:0.35rem 0.9rem; font-size:0.82rem; background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%); color:#fff; border:none; border-radius:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:700;">▼ 賣出</button>
                 </div>
                 <div style="display:flex; gap:1rem; font-size:0.8rem; color:#64748b;"><span>USD/TWD <strong id="rate-usd-twd" style="color:#fbbf24;">31.50</strong></span><span>HKD/TWD <strong id="rate-hkd-twd" style="color:#fbbf24;">4.0500</strong></span></div>
             </div>
@@ -412,6 +405,17 @@
             </div>
 
             <div id="data-mgmt-body">
+                <!-- 交易操作 -->
+                <div style="margin-bottom:0.9rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; padding:0.75rem 0.85rem; border:1px solid rgba(251,191,36,0.22); border-radius:10px; background:rgba(251,191,36,0.06);">
+                        <label style="color:#fbbf24; font-size:0.82rem; font-weight:700; white-space:nowrap;">交易操作</label>
+                        <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
+                            <button onclick="openTradeModal('buy')" style="padding:0.4rem 1rem; font-size:0.84rem; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#0a1628; border:none; border-radius:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:800;">▲ 買入</button>
+                            <button onclick="openTradeModal('sell')" style="padding:0.4rem 1rem; font-size:0.84rem; background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%); color:#fff; border:none; border-radius:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:800;">▼ 賣出</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ① Google Sheet CSV -->
                 <div style="margin-bottom:0.9rem;">
                     <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
@@ -573,18 +577,18 @@
             </div>
         </div><!-- /tab-pane-3 -->
 
-        <!-- Tab 4: 財報分析 -->
+        <!-- Tab 4: 券商目標（原「財報分析」改名）-->
         <div id="tab-pane-4" class="tab-pane" style="padding-top:1rem;">
             <div class="glass-card" style="padding:1.5rem 2rem;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
-                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">📊 近期財報分析 &amp; 券商評級</h2>
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">🎯 券商目標 &amp; 評級共識</h2>
                     <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
                         <button onclick="loadEarningsAnalysis(true)" id="earnings-btn" style="padding:0.6rem 1.2rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.88rem; text-transform:none; letter-spacing:0;">🔄 載入分析</button>
                         <span id="earnings-status" style="font-size:0.78rem; color:#64748b;"></span>
                     </div>
                 </div>
                 <div style="margin-bottom:0.75rem; padding:0.6rem 1rem; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; font-size:0.8rem; color:#64748b;">
-                    💡 顯示各持倉標的近4季EPS財報（預估 vs 實際 / 驚喜幅度）、毛利率、營益率、券商評級共識、近30天評級異動及目標股價。
+                    💡 顯示券商目標股價（最低/中位/平均/最高）、評級共識、近30天評級異動，搭配近4季EPS、毛利率、營益率作參考。
                 </div>
                 <div id="earnings-list">
                     <div style="text-align:center; padding:3rem; color:#64748b;">點擊「載入分析」開始抓取</div>
@@ -720,6 +724,31 @@
             </div>
         </div><!-- /tab-pane-8 -->
 
+        <!-- Tab 9: 財報分析（深度）-->
+        <div id="tab-pane-9" class="tab-pane" style="padding-top:1rem;">
+            <div class="glass-card" style="padding:1.5rem 2rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">📊 個股財報深度分析</h2>
+                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <button onclick="loadEarningsDeep(true)" id="earnings-deep-btn" style="padding:0.6rem 1.2rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.88rem; text-transform:none; letter-spacing:0;">🔄 重新整理</button>
+                        <span id="earnings-deep-status" style="font-size:0.78rem; color:#64748b;"></span>
+                    </div>
+                </div>
+                <div style="margin-bottom:0.75rem; padding:0.6rem 1rem; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2); border-radius:8px; font-size:0.8rem; color:#64748b;">
+                    💡 針對近期公布財報的持倉標的進行深度分析：4 季營收、毛利率、營益率、淨利率、EPS、現金流變化，搭配 heuristic 亮點與警訊。後端每日自動更新（GitHub Actions）。
+                </div>
+                <div id="earnings-deep-list">
+                    <div style="text-align:center; padding:3rem; color:#64748b;">載入中...</div>
+                </div>
+            </div>
+        </div><!-- /tab-pane-9 -->
+
+
+        <!-- ▼▼▼ 版本標記（暫時用來驗證快取是否更新；確認後可移除） ▼▼▼ -->
+        <div id="version-banner" style="background:linear-gradient(90deg, rgba(245,158,11,0.25), rgba(245,158,11,0.05)); border:1px solid rgba(245,158,11,0.5); border-radius:8px; padding:0.6rem 1rem; margin:1.25rem 0 1rem; color:#fbbf24; font-size:0.9rem; font-weight:600;">
+            ✅ v13 · 2026-04-23c · 新增期貨「🔄 立即更新」按鈕 + 交易後自動同步已/未實現損益
+        </div>
+        <!-- ▲▲▲ 版本標記 ▲▲▲ -->
 
     <!-- Modals -->
     <!-- Trade Modal（買入 / 賣出）-->
@@ -920,7 +949,11 @@
         function _extendedChangeNoteHtml(h, compact = false) {
             const text = _extendedChangeText(h);
             if (!text) return '';
-            return `<span style="display:${compact?'inline-block':'block'};margin-${compact?'left':'top'}:${compact?'0.35rem':'0.18rem'};color:#93c5fd;font-size:${compact?'0.68rem':'0.72rem'};font-weight:700;white-space:nowrap;">${text}</span>`;
+            const pct = Number(h.extendedQuote?.changePct);
+            const points = Number(h.extendedQuote?.changePoints);
+            const basis = isFinite(points) ? points : pct;
+            const color = basis >= 0 ? '#10b981' : '#ef4444';
+            return `<span style="display:${compact?'inline-block':'block'};margin-${compact?'left':'top'}:${compact?'0.35rem':'0.18rem'};color:${color};font-size:${compact?'0.68rem':'0.72rem'};font-weight:700;white-space:nowrap;">${text}</span>`;
         }
 
         function sortHoldings(col) {
@@ -3044,6 +3077,177 @@
             if (n === 8 && !_heatmapLoaded) {
                 renderHeatmap();
             }
+            // 切換到財報分析（深度）Tab：首次自動載入
+            if (n === 9 && !_earningsDeepLoaded) {
+                loadEarningsDeep(false);
+            }
+        }
+
+        // ==================== Tab 9：財報深度分析 ====================
+        let _earningsDeepLoaded = false;
+        let _earningsDeepData = null;
+
+        async function loadEarningsDeep(forceRefresh) {
+            const listDiv = document.getElementById('earnings-deep-list');
+            const statusEl = document.getElementById('earnings-deep-status');
+            const btn = document.getElementById('earnings-deep-btn');
+            if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
+            if (statusEl) statusEl.textContent = '抓取後端 JSON...';
+
+            try {
+                const r = await fetch('./data/earnings_analysis.json' + (forceRefresh ? '?t=' + Date.now() : ''), { cache: 'no-store' });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                _earningsDeepData = await r.json();
+            } catch(e) {
+                if (listDiv) listDiv.innerHTML = `<div style="text-align:center; padding:3rem; color:#94a3b8;">
+                    尚無財報深度分析資料<br>
+                    <span style="color:#64748b; font-size:0.85rem;">後端首次運行需經 GitHub Actions 觸發（每日自動）。<br>或手動執行 <code style="background:rgba(15,30,60,0.5);padding:0.1rem 0.3rem;border-radius:4px;">python data/fetch_earnings_deep.py</code></span>
+                </div>`;
+                if (btn) { btn.textContent = '🔄 重新整理'; btn.disabled = false; }
+                if (statusEl) statusEl.textContent = '無資料';
+                return;
+            }
+            renderEarningsDeep(_earningsDeepData);
+            _earningsDeepLoaded = true;
+            if (btn) { btn.textContent = '🔄 重新整理'; btn.disabled = false; }
+            if (statusEl) {
+                const gen = _earningsDeepData?.generated;
+                const t = gen ? new Date(gen).toLocaleString('zh-TW', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+                const cnt = Object.keys(_earningsDeepData?.data || {}).length;
+                statusEl.textContent = `${cnt} 檔 · 後端更新 ${t}`;
+            }
+        }
+
+        function renderEarningsDeep(payload) {
+            const listDiv = document.getElementById('earnings-deep-list');
+            if (!listDiv) return;
+            const data = payload?.data || {};
+            // 只顯示「目前持倉中且有分析資料」的標的
+            const holdingSyms = new Set(holdings.map(h => getQuerySymbol(h.symbol)));
+            const items = Object.values(data)
+                .filter(d => holdingSyms.has(d.symbol))
+                .sort((a, b) => (b.last_report_date || '').localeCompare(a.last_report_date || ''));
+            if (items.length === 0) {
+                listDiv.innerHTML = `<div style="text-align:center; padding:3rem; color:#94a3b8;">
+                    目前持倉中尚無近期公布財報的標的<br>
+                    <span style="color:#64748b; font-size:0.85rem;">後端只分析近 90 天有發財報的公司</span>
+                </div>`;
+                return;
+            }
+            listDiv.innerHTML = items.map(d => _renderEarningsDeepCard(d)).join('');
+        }
+
+        function _renderEarningsDeepCard(d) {
+            const fmtNum = (v, dec=0) => v == null ? '-' : Number(v).toLocaleString('en-US', {maximumFractionDigits:dec, minimumFractionDigits:dec});
+            const fmtAbbr = (v) => {
+                if (v == null) return '-';
+                const a = Math.abs(v);
+                if (a >= 1e12) return (v/1e12).toFixed(2) + 'T';
+                if (a >= 1e9)  return (v/1e9).toFixed(2)  + 'B';
+                if (a >= 1e6)  return (v/1e6).toFixed(1)  + 'M';
+                if (a >= 1e3)  return (v/1e3).toFixed(1)  + 'K';
+                return fmtNum(v, 2);
+            };
+            const fmtPct = (v) => v == null ? '-' : (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+            const fmtPctSimple = (v) => v == null ? '-' : Number(v).toFixed(1) + '%';
+            const colorPct = (v) => v == null ? '#64748b' : (v >= 0 ? '#10b981' : '#ef4444');
+            const ccy = d.currency || 'USD';
+            const ccySign = ccy === 'USD' ? '$' : '';
+
+            // 季度表（最近 4 季）
+            const qtrs = (d.quarters || []).slice(0, 4);
+            const tableRows = qtrs.map((q, i) => {
+                const period = q.period?.slice(0, 7) || '-';
+                return `<tr style="${i%2===0?'background:rgba(15,30,60,0.3);':''}">
+                    <td style="padding:0.4rem 0.6rem;color:#cbd5e1;white-space:nowrap;">${period}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#e2e8f0;">${ccySign}${fmtAbbr(q.revenue)}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">${fmtPctSimple(q.gross_margin)}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#a78bfa;">${fmtPctSimple(q.operating_margin)}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#e2e8f0;">${ccySign}${fmtAbbr(q.net_income)}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#60a5fa;">${q.eps_actual != null ? '$' + Number(q.eps_actual).toFixed(2) : '-'}${q.eps_estimate != null ? `<small style="color:#64748b;display:block;font-size:0.7rem;">預估 $${Number(q.eps_estimate).toFixed(2)}</small>` : ''}</td>
+                </tr>`;
+            }).join('');
+
+            const latest = qtrs[0] || {};
+            const yoyRev = latest.rev_yoy;
+            const qoqRev = latest.rev_qoq;
+            const yoyEps = latest.eps_yoy;
+            const qoqEps = latest.eps_qoq;
+
+            // 亮點 / 警訊
+            const hl = (d.highlights || []).map(h => `<li style="color:#10b981;margin-bottom:0.3rem;">${h}</li>`).join('');
+            const wn = (d.warnings   || []).map(w => `<li style="color:#ef4444;margin-bottom:0.3rem;">${w}</li>`).join('');
+
+            // 下次財報
+            const nxt = d.next_earnings_date || '';
+            const tgt = d.target_mean_price ? `$${Number(d.target_mean_price).toFixed(2)}` : '-';
+
+            return `<div class="glass-card" style="padding:1.4rem 1.6rem; margin-bottom:1rem; border-left:4px solid #818cf8;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.9rem;">
+                    <div>
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.25rem;">
+                            <span style="background:rgba(251,191,36,0.18);color:#fbbf24;padding:0.2rem 0.6rem;border-radius:6px;font-weight:700;font-size:0.95rem;">${d.symbol}</span>
+                            <span style="color:#e2e8f0; font-weight:600; font-size:0.95rem;">${d.name || ''}</span>
+                            ${d.sector ? `<span style="color:#64748b; font-size:0.78rem;">${d.sector}</span>` : ''}
+                        </div>
+                        <div style="color:#94a3b8; font-size:0.78rem;">最新財報 ${d.last_report_date || '-'} · 幣別 ${ccy}</div>
+                    </div>
+                    <div style="display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
+                        ${nxt ? `<span style="color:#64748b; font-size:0.76rem;">下次財報 <strong style="color:#fbbf24;">${nxt}</strong></span>` : ''}
+                        ${d.target_mean_price ? `<span style="color:#64748b; font-size:0.76rem;">目標價 <strong style="color:#10b981;">${tgt}</strong>${d.number_of_analysts ? `<small style="color:#475569;"> (${d.number_of_analysts} 位)</small>` : ''}</span>` : ''}
+                    </div>
+                </div>
+
+                <!-- KPI bar -->
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.6rem; margin-bottom:0.9rem;">
+                    <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
+                        <div style="color:#94a3b8; font-size:0.72rem;">營收 (本季)</div>
+                        <div style="color:#e2e8f0; font-weight:700; font-size:1rem;">${ccySign}${fmtAbbr(latest.revenue)}</div>
+                        <div style="font-size:0.72rem;"><span style="color:${colorPct(yoyRev)};">YoY ${fmtPct(yoyRev)}</span> <span style="color:#64748b;">/ QoQ <span style="color:${colorPct(qoqRev)}">${fmtPct(qoqRev)}</span></span></div>
+                    </div>
+                    <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
+                        <div style="color:#94a3b8; font-size:0.72rem;">EPS (本季)</div>
+                        <div style="color:#60a5fa; font-weight:700; font-size:1rem;">${latest.eps_actual != null ? '$' + Number(latest.eps_actual).toFixed(2) : '-'}</div>
+                        <div style="font-size:0.72rem;"><span style="color:${colorPct(yoyEps)};">YoY ${fmtPct(yoyEps)}</span> <span style="color:#64748b;">/ QoQ <span style="color:${colorPct(qoqEps)}">${fmtPct(qoqEps)}</span></span></div>
+                    </div>
+                    <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
+                        <div style="color:#94a3b8; font-size:0.72rem;">毛利率</div>
+                        <div style="color:#fbbf24; font-weight:700; font-size:1rem;">${fmtPctSimple(latest.gross_margin)}</div>
+                    </div>
+                    <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
+                        <div style="color:#94a3b8; font-size:0.72rem;">營益率</div>
+                        <div style="color:#a78bfa; font-weight:700; font-size:1rem;">${fmtPctSimple(latest.operating_margin)}</div>
+                    </div>
+                </div>
+
+                <!-- 季度表 -->
+                <div style="overflow-x:auto; margin-bottom:0.9rem;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.82rem; min-width:520px;">
+                        <thead><tr style="border-bottom:1px solid rgba(148,163,184,0.2);">
+                            <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">季度</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">營收</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">毛利率</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">營益率</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">淨利</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">EPS</th>
+                        </tr></thead>
+                        <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:1rem;">無季度資料</td></tr>'}</tbody>
+                    </table>
+                </div>
+
+                <!-- 亮點 / 警訊 -->
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:0.8rem;">
+                    ${hl ? `<div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:8px; padding:0.75rem 1rem;">
+                        <div style="color:#10b981; font-weight:700; font-size:0.85rem; margin-bottom:0.4rem;">📈 亮點</div>
+                        <ul style="margin:0; padding-left:1.1rem; font-size:0.85rem; line-height:1.55;">${hl}</ul>
+                    </div>` : ''}
+                    ${wn ? `<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; padding:0.75rem 1rem;">
+                        <div style="color:#ef4444; font-weight:700; font-size:0.85rem; margin-bottom:0.4rem;">⚠️ 警訊</div>
+                        <ul style="margin:0; padding-left:1.1rem; font-size:0.85rem; line-height:1.55;">${wn}</ul>
+                    </div>` : ''}
+                    ${(!hl && !wn) ? `<div style="color:#64748b; font-size:0.85rem;">尚無自動分析（資料不足）</div>` : ''}
+                </div>
+            </div>`;
         }
 
         // ==================== Tab 8：美股熱力圖 (TradingView Widget) ====================

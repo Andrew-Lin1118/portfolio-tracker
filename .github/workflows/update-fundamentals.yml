@@ -37,7 +37,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # update_fund.py 末尾會順便跑 fetch_market_pe.py + fetch_economic.py
           # 用「檔案存在才 add」的方式，避免某個 fetch 失敗導致整步 fail
-          for f in data/fundamentals.json data/market_pe.json data/economic_data.json; do
+          for f in data/fundamentals.json data/market_pe.json data/economic_data.json data/earnings_analysis.json; do
             if [ -f "$f" ]; then
               git add "$f"
               echo "  added: $f"

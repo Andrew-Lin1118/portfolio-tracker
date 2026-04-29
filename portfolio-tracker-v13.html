@@ -357,11 +357,13 @@
         </div>
 
         <!-- Holdings Table -->
-        <div id="table-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; overflow-x:auto; display:none;">
+        <div id="table-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; overflow-x:auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.5rem;">
-                <div style="display:flex; align-items:center; gap:0.75rem;">
+                <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
                     <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">📊 持倉一覽</h2>
                     <button id="holdings-table-toggle-btn" onclick="toggleHoldingsTable()" style="padding:0.25rem 0.65rem; font-size:0.78rem; background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:6px; cursor:pointer; text-transform:none; letter-spacing:0;">▲ 隱藏</button>
+                    <button onclick="openTradeModal('buy')" style="padding:0.35rem 0.9rem; font-size:0.82rem; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#0a1628; border:none; border-radius:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:700;">▲ 買入</button>
+                    <button onclick="openTradeModal('sell')" style="padding:0.35rem 0.9rem; font-size:0.82rem; background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%); color:#fff; border:none; border-radius:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:700;">▼ 賣出</button>
                 </div>
                 <div style="display:flex; gap:1rem; font-size:0.8rem; color:#64748b;"><span>USD/TWD <strong id="rate-usd-twd" style="color:#fbbf24;">31.50</strong></span><span>HKD/TWD <strong id="rate-hkd-twd" style="color:#fbbf24;">4.0500</strong></span></div>
             </div>
@@ -400,30 +402,6 @@
                 </div>
             </div>
             <div id="holdings-list"></div>
-        </div>
-
-        <!-- Trade Form -->
-        <div class="glass-card" style="padding:2rem; margin-top:1rem; margin-bottom:1rem;">
-            <div style="display:flex; gap:0; margin-bottom:1.5rem; border-radius:12px; overflow:hidden; border:2px solid rgba(148,163,184,0.15); width:fit-content;">
-                <button onclick="setTradeType('buy')" id="buy-btn" style="padding:0.6rem 2rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem;">▲ 買入</button>
-                <button onclick="setTradeType('sell')" id="sell-btn" style="padding:0.6rem 2rem; background:rgba(15,30,60,0.6); color:#64748b; font-weight:700; font-size:1rem;">▼ 賣出</button>
-            </div>
-            <p id="trade-hint" style="color:#64748b; font-size:0.85rem; margin-bottom:1.5rem; margin-top:-0.5rem;">買入時若代碼已存在將自動加倉並重算加權平均成本</p>
-            <div id="trade-form-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
-                <div id="form-market-wrap"><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">市場</label><select id="form-market"><option value="US">🇺🇸 美股</option><option value="TW">🇹🇼 台股</option><option value="HK">🇭🇰 港股</option></select></div>
-                <div>
-                    <label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">股票代碼 *</label>
-                    <input id="form-symbol" type="text" placeholder="例: AAPL, 2330, 0700" style="text-transform:uppercase;">
-                    <select id="form-symbol-sell" onchange="updateSellQtyHint()" style="display:none; width:100%; padding:0.5rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#f1f5f9; font-size:0.9rem;"></select>
-                </div>
-                <div>
-                    <label id="form-qty-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入股數 *</label>
-                    <input id="form-quantity" type="number" step="0.0001" placeholder="數量">
-                    <div id="sell-qty-hint" style="display:none; color:#fbbf24; font-size:0.78rem; margin-top:0.35rem;"></div>
-                </div>
-                <div><label id="form-price-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入價格 *</label><input id="form-cost" type="number" step="0.0001" placeholder="此次買入均價"></div>
-            </div>
-            <button id="confirm-trade-btn" onclick="addHolding()" style="margin-top:1.5rem; width:100%; padding:0.85rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem;">▲ 確認買入</button>
         </div>
 
         <!-- ⚙️ 資料管理（整合：Google Sheet CSV + 跨裝置同步 + 匯入/匯出）-->
@@ -726,6 +704,39 @@
 
 
     <!-- Modals -->
+    <!-- Trade Modal（買入 / 賣出）-->
+    <div id="trade-modal" onclick="if(event.target===this)closeTradeModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.78); display:none; align-items:center; justify-content:center; z-index:2100; padding:1rem;">
+        <div class="glass-card" style="padding:1.75rem 2rem; max-width:680px; width:100%; max-height:92vh; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 id="trade-modal-title" style="color:#fbbf24; font-size:1.15rem; margin:0; font-weight:700;">▲ 買入 / ▼ 賣出</h3>
+                <button onclick="closeTradeModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
+            </div>
+            <div style="display:flex; gap:0; margin-bottom:1.25rem; border-radius:12px; overflow:hidden; border:2px solid rgba(148,163,184,0.15); width:fit-content;">
+                <button onclick="setTradeType('buy')" id="buy-btn" style="padding:0.55rem 1.6rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:0.95rem;">▲ 買入</button>
+                <button onclick="setTradeType('sell')" id="sell-btn" style="padding:0.55rem 1.6rem; background:rgba(15,30,60,0.6); color:#64748b; font-weight:700; font-size:0.95rem;">▼ 賣出</button>
+            </div>
+            <p id="trade-hint" style="color:#64748b; font-size:0.83rem; margin-bottom:1.25rem; margin-top:-0.25rem;">買入時若代碼已存在將自動加倉並重算加權平均成本</p>
+            <div id="trade-form-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+                <div id="form-market-wrap"><label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">市場</label><select id="form-market"><option value="US">🇺🇸 美股</option><option value="TW">🇹🇼 台股</option><option value="HK">🇭🇰 港股</option></select></div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">股票代碼 *</label>
+                    <input id="form-symbol" type="text" placeholder="例: AAPL, 2330, 0700" style="text-transform:uppercase;">
+                    <select id="form-symbol-sell" onchange="updateSellQtyHint()" style="display:none; width:100%; padding:0.5rem 0.75rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#f1f5f9; font-size:0.9rem;"></select>
+                </div>
+                <div>
+                    <label id="form-qty-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入股數 *</label>
+                    <input id="form-quantity" type="number" step="0.0001" placeholder="數量">
+                    <div id="sell-qty-hint" style="display:none; color:#fbbf24; font-size:0.78rem; margin-top:0.35rem;"></div>
+                </div>
+                <div><label id="form-price-label" style="color:#cbd5e1; font-size:0.85rem; margin-bottom:0.5rem; display:block;">買入價格 *</label><input id="form-cost" type="number" step="0.0001" placeholder="此次買入均價"></div>
+            </div>
+            <div style="display:flex; gap:0.6rem; margin-top:1.25rem;">
+                <button onclick="closeTradeModal()" style="flex:1; padding:0.75rem; background:rgba(100,116,139,0.15); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:8px; font-weight:600;">取消</button>
+                <button id="confirm-trade-btn" onclick="addHolding()" style="flex:2; padding:0.85rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:1rem; border-radius:8px;">▲ 確認買入</button>
+            </div>
+        </div>
+    </div>
+
     <!-- News Modal -->
     <div id="news-modal" onclick="if(event.target===this)hideNewsModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:2000; padding:1rem;">
         <div class="glass-card" style="padding:2rem; max-width:640px; width:100%; max-height:88vh; overflow:hidden; display:flex; flex-direction:column;">
@@ -1240,6 +1251,40 @@
             const h = holdings.find(x => x.symbol === sel.value);
             hint.textContent = h ? `目前持有：${h.quantity} 股（成本 ${h.costPrice}）` : '';
         }
+
+        // 交易 Modal：開啟（type = 'buy' | 'sell'）
+        function openTradeModal(type) {
+            const modal = document.getElementById('trade-modal');
+            if (!modal) return;
+            // 切換類型 + 清空欄位
+            setTradeType(type || 'buy');
+            const sym = document.getElementById('form-symbol'); if (sym) sym.value = '';
+            const qty = document.getElementById('form-quantity'); if (qty) qty.value = '';
+            const cst = document.getElementById('form-cost');     if (cst) cst.value = '';
+            // 標題
+            const title = document.getElementById('trade-modal-title');
+            if (title) title.textContent = type === 'sell' ? '▼ 賣出持倉' : '▲ 買入 / 加倉';
+            modal.style.display = 'flex';
+            // 自動 focus 到第一個輸入欄位
+            setTimeout(() => {
+                if (type === 'sell') {
+                    document.getElementById('form-symbol-sell')?.focus();
+                } else {
+                    document.getElementById('form-symbol')?.focus();
+                }
+            }, 30);
+        }
+        function closeTradeModal() {
+            const modal = document.getElementById('trade-modal');
+            if (modal) modal.style.display = 'none';
+        }
+        // ESC 關閉
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                const m = document.getElementById('trade-modal');
+                if (m && m.style.display === 'flex') closeTradeModal();
+            }
+        });
 
         // ==================== 渲染 ====================
         // 金額格式化：個位數（不含小數）
@@ -1952,7 +1997,8 @@
             renderTable(stats);
             renderHoldingsDetail(stats);
             if (_shouldRenderPie(stats)) renderPie(stats);
-            document.getElementById('table-section').style.display = holdings.length > 0 ? 'block' : 'none';
+            // table-section 永遠顯示（即使無持倉也要看得到「買入」按鈕）
+            document.getElementById('table-section').style.display = 'block';
             document.getElementById('rate-usd-twd').textContent = exchangeRates.USD_TWD.toFixed(2);
             document.getElementById('rate-hkd-twd').textContent = exchangeRates.HKD_TWD.toFixed(4);
             // 重套用隱藏狀態（renderTable/renderHoldingsDetail 重建 DOM 後需恢復）
@@ -2527,6 +2573,8 @@
             renderAll();
             // 賣出後重新整理下拉選單
             if (!isBuy) setTradeType('sell');
+            // 成功後關閉交易 Modal
+            if (typeof closeTradeModal === 'function') closeTradeModal();
         }
 
         function updateQuantity(id, newQty) { const parsed = parseFloat(newQty); if (isNaN(parsed)) return; saveHistory(); const h = holdings.find(item => item.id === id); if (h) h.quantity = parsed; renderAll(); }

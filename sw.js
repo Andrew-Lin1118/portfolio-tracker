@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v14';  // ← 2026-04-29：合併 CSV + Gist 同步 + 匯入/匯出 為單一「資料管理」卡片
+const CACHE_NAME = 'portfolio-tracker-v15';  // ← 2026-04-29：買入/賣出整併到持倉一覽 header；點擊才彈出輸入 Modal
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

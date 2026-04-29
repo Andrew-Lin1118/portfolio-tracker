@@ -5854,7 +5854,26 @@
         // 頻率：每 30 秒拉一次（server.py 對 /fmx/positions 內建 60s 快取，再密也沒意義）
         // 計入總資產：預設 ON，透過 localStorage 'fut_include_total' 切換
         // 多品項同列：目前只追一檔（微型台指 MXFR1）；若日後加 TXF/MTX，把 positions[0] 改成 reduce
-        const FMX_API_BASE = window.FMX_API_BASE || 'http://localhost:3000';
+        // FMX_API_BASE 動態解析：
+        //   - 手機在同網段瀏覽 http://192.168.x.x:3000/... → 直接用同 origin（連電腦 server.py）
+        //   - localhost / 127.0.0.1 → 直接用 origin
+        //   - GitHub Pages / file:// 等 → 沒 server.py，回 localhost:3000（讓 fetch 自然 fail，UI 會 fallback 到靜態檔）
+        const FMX_API_BASE = window.FMX_API_BASE || (() => {
+            try {
+                const loc = window.location;
+                const h = loc.hostname || '';
+                // http(s) 協定 + 私有網段 / localhost：用同 origin（含埠）
+                if ((loc.protocol === 'http:' || loc.protocol === 'https:') && h && (
+                    h === 'localhost' || h === '127.0.0.1' ||
+                    /^192\.168\./.test(h) ||
+                    /^10\./.test(h) ||
+                    /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+                )) {
+                    return loc.origin;   // 例如 http://192.168.1.5:3000
+                }
+            } catch(_) {}
+            return 'http://localhost:3000';
+        })();
         const FUT_MULTIPLIER = 10;      // 微型台指每點 NT$10
         const FUT_INCLUDE_KEY = 'fut_include_total';
         let _futuresData = null;         // { positions, margin, state, ts }

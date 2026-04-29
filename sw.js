@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v11';  // ← 2026-04-29：刷新 Futu 24H 報價 UI
+const CACHE_NAME = 'portfolio-tracker-v12';  // ← 2026-04-29：買入賣出介面移到 CSV 上方、成本價欄位移至最右
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

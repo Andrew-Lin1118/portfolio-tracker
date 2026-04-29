@@ -44,30 +44,51 @@ SERIES = [
 ]
 
 
-def http_get(url, timeout=12):
+def http_get(url, timeout=15, force_https_unverified=False):
+    import ssl
     req = urllib.request.Request(url, headers=HEADERS)
+    if force_https_unverified:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return urllib.request.urlopen(req, timeout=timeout, context=ctx).read().decode('utf-8', errors='ignore')
     return urllib.request.urlopen(req, timeout=timeout).read().decode('utf-8', errors='ignore')
 
 
-def http_get_retry(url, attempts=3, timeout=12):
+def http_get_retry(url, attempts=3, timeout=15):
     """重試 N 次，每次失敗 sleep 2 秒"""
     last_err = None
     import time
     for i in range(attempts):
         try:
-            return http_get(url, timeout=timeout)
+            return http_get(url, timeout=timeout, force_https_unverified=(i == attempts - 1))
         except Exception as e:
             last_err = e
-            print(f'    [retry {i+1}/{attempts}] {type(e).__name__}: {str(e)[:80]}', flush=True)
+            print(f'    [retry {i+1}/{attempts}] {type(e).__name__}: {str(e)[:120]}', flush=True)
             if i < attempts - 1:
                 time.sleep(2)
     raise last_err
 
 
 def fetch_fred_csv(series_id):
-    # FRED CSV：直連最穩；若失敗備援抓 series JSON 端點（非官方）
-    primary = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
-    text = http_get_retry(primary)
+    """主來源 FRED CSV；若連線失敗就嘗試 stlouisfed.org 鏡像端點"""
+    urls = [
+        f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}',
+        f'https://fred.stlouisfed.org/data/{series_id}.csv',  # 備援
+    ]
+    text = None
+    last_err = None
+    for u in urls:
+        try:
+            print(f'    嘗試 URL: {u}', flush=True)
+            text = http_get_retry(u, attempts=2, timeout=20)
+            print(f'    ✓ 取得 {len(text)} bytes', flush=True)
+            break
+        except Exception as e:
+            last_err = e
+            print(f'    ✗ {u} 失敗：{type(e).__name__}: {str(e)[:120]}', flush=True)
+    if text is None:
+        raise last_err if last_err else RuntimeError('all URLs failed')
     rows = list(csv.reader(io.StringIO(text)))
     out = []
     for row in rows[1:]:  # 跳過 header

@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v19';  // ← 2026-04-29：個股新聞限額（每檔 8 + 全域 80）+ FRED 修復
+const CACHE_NAME = 'portfolio-tracker-v20';  // ← 2026-04-29：FRED proxy 加備援 URL、新聞恢復摘要翻譯
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

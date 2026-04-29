@@ -5031,34 +5031,46 @@
         ];
 
         // FRED CSV 抓取（透過 CORS proxy；FRED 直連會被瀏覽器 CORS 擋）
+        // 每個指標獨立試完 3 個 proxy + 1 個備援 URL；任何一個成功就用
         async function _fetchFredCsv(seriesId) {
-            const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
-            const proxies = [
-                u => 'https://corsproxy.io/?' + encodeURIComponent(u),
-                u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
-                u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+            const csvUrls = [
+                `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`,
+                `https://fred.stlouisfed.org/data/${seriesId}.csv`,
             ];
-            for (const mkProxy of proxies) {
-                try {
-                    const ctrl = new AbortController();
-                    const tid = setTimeout(() => ctrl.abort(), 8000);
-                    const res = await fetch(mkProxy(url), { signal: ctrl.signal });
-                    clearTimeout(tid);
-                    if (!res.ok) continue;
-                    const text = await res.text();
-                    const lines = text.trim().split(/\r?\n/);
-                    if (lines.length < 2) continue;
-                    const out = [];
-                    for (let i = 1; i < lines.length; i++) {
-                        const parts = lines[i].split(',');
-                        if (parts.length < 2) continue;
-                        const date = parts[0];
-                        const val = parseFloat(parts[1]);
-                        if (isFinite(val)) out.push({ date, value: val });
-                    }
-                    if (out.length > 0) return out;
-                } catch(_) {}
+            const proxies = [
+                u => 'https://corsproxy.io/?'                  + encodeURIComponent(u),
+                u => 'https://api.allorigins.win/raw?url='     + encodeURIComponent(u),
+                u => 'https://api.codetabs.com/v1/proxy?quest='+ encodeURIComponent(u),
+            ];
+            for (const baseUrl of csvUrls) {
+                for (const mkProxy of proxies) {
+                    try {
+                        const ctrl = new AbortController();
+                        const tid = setTimeout(() => ctrl.abort(), 10000);
+                        const res = await fetch(mkProxy(baseUrl), { signal: ctrl.signal });
+                        clearTimeout(tid);
+                        if (!res.ok) continue;
+                        const text = await res.text();
+                        // 必須是 CSV，不能是 HTML 錯誤頁
+                        if (text.trimStart().startsWith('<')) continue;
+                        const lines = text.trim().split(/\r?\n/);
+                        if (lines.length < 2) continue;
+                        const out = [];
+                        for (let i = 1; i < lines.length; i++) {
+                            const parts = lines[i].split(',');
+                            if (parts.length < 2) continue;
+                            const date = parts[0];
+                            const val = parseFloat(parts[1]);
+                            if (isFinite(val)) out.push({ date, value: val });
+                        }
+                        if (out.length > 0) {
+                            console.log(`[FRED] ${seriesId} ← ${out.length} 筆 (proxy ok)`);
+                            return out;
+                        }
+                    } catch(e) { /* 繼續試下個 proxy */ }
+                }
             }
+            console.warn(`[FRED] ${seriesId} 全部 proxy 失敗`);
             return null;
         }
 
@@ -6637,9 +6649,9 @@
             const totalBefore = unique.length;
             if (unique.length > TOTAL_NEWS_LIMIT) unique = unique.slice(0, TOTAL_NEWS_LIMIT);
 
-            // 翻譯標題為繁體中文（只翻標題，不翻摘要，速度快 50%）
-            if (statusEl) statusEl.textContent = `翻譯新聞中...（共 ${unique.length} 則）`;
-            await _translateNewsItems(unique, statusEl);
+            // 翻譯標題 + 摘要為繁體中文（24hr cache，重複不會再翻）
+            if (statusEl) statusEl.textContent = `翻譯新聞中...（共 ${unique.length} 則，含摘要）`;
+            await _translateNewsItems(unique, statusEl, /*includeSummary=*/true);
 
             renderNewsTab(unique);
             _newsLoaded = true;
@@ -6655,7 +6667,7 @@
         }
 
         // ── 新聞翻譯（共用 24hr cache）────────────────────────
-        async function _translateNewsItems(items, statusEl) {
+        async function _translateNewsItems(items, statusEl, includeSummary) {
             if (!items || items.length === 0) return;
             const _tCacheKey = 'pf_news_trans_v1';
             let tCache = {};
@@ -6668,7 +6680,7 @@
             const tasks = [];
             for (const it of items) {
                 if (it.title) tasks.push({ obj: it, key: 'titleZh', text: it.title });
-                if (it.summary) tasks.push({ obj: it, key: 'summaryZh', text: it.summary.slice(0, 500) });
+                if (includeSummary && it.summary) tasks.push({ obj: it, key: 'summaryZh', text: it.summary.slice(0, 500) });
             }
             for (let i = 0; i < tasks.length; i++) {
                 const t = tasks[i];
@@ -6690,7 +6702,7 @@
                         t.obj[t.key] = t.text;
                     }
                 } catch(_) { t.obj[t.key] = t.text; }
-                await new Promise(r => setTimeout(r, 250));  // 避免 rate limit
+                await new Promise(r => setTimeout(r, 200));  // 避免 rate limit
             }
             if (tUpdated) {
                 try { localStorage.setItem(_tCacheKey, JSON.stringify({ ts: Date.now(), data: tCache })); } catch(_) {}

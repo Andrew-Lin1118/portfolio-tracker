@@ -32,10 +32,20 @@ jobs:
 
       - name: Commit & push updated data
         run: |
+          set +e   # 容許後面的 git add 對不存在檔案失敗
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # update_fund.py 末尾會順便跑 fetch_market_pe.py + fetch_economic.py，三者一併 commit
-          git add data/fundamentals.json data/market_pe.json data/economic_data.json
+          # update_fund.py 末尾會順便跑 fetch_market_pe.py + fetch_economic.py
+          # 用「檔案存在才 add」的方式，避免某個 fetch 失敗導致整步 fail
+          for f in data/fundamentals.json data/market_pe.json data/economic_data.json; do
+            if [ -f "$f" ]; then
+              git add "$f"
+              echo "  added: $f"
+            else
+              echo "  skip (not exists): $f"
+            fi
+          done
+          set -e
           if git diff --cached --quiet; then
             echo "No changes; skipping commit."
             exit 0

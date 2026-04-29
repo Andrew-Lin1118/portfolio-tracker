@@ -314,8 +314,6 @@
 
         <!-- Action Buttons -->
         <div style="display:flex; gap:1rem; margin-bottom:0.5rem; flex-wrap:wrap;">
-            <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span style="font-size:18px;">📤</span>匯入持倉數據</button>
-            <button onclick="exportHoldings()" style="flex:1; min-width:150px; padding:0.75rem 1.5rem; background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;">📥 匯出持倉數據</button>
             <button onclick="refreshAllData()" id="refresh-btn" style="flex:1; min-width:180px; padding:0.75rem 1.5rem; background:rgba(16,185,129,0.1); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span id="refresh-icon" style="display:inline-block;">🔄</span><span id="refresh-text">一鍵更新報價 + 匯率</span></button>
             <button onclick="undoLastAction()" id="undo-btn" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">↩ 上一步 (0)</button>
             <button onclick="redoLastAction()" id="redo-btn" disabled style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(100,116,139,0.1); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:8px; font-weight:600; opacity:0.4;">↪ 下一步 (0)</button>
@@ -457,6 +455,14 @@
             <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                 <button onclick="syncPush()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬆ 推送至雲端</button>
                 <button onclick="syncPull()" style="flex:1; padding:0.5rem 1rem; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; border-radius:8px; font-size:0.85rem; font-weight:600;">⬇ 從雲端拉取</button>
+            </div>
+        </div>
+
+        <!-- 匯入 / 匯出 持倉數據（移到最下方）-->
+        <div class="glass-card" style="padding:1rem 1.5rem; margin-top:1rem;">
+            <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                <button onclick="showImportConfirm()" class="btn-primary" style="flex:1; min-width:170px; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span style="font-size:18px;">📤</span>匯入持倉數據</button>
+                <button onclick="exportHoldings()" style="flex:1; min-width:150px; padding:0.75rem 1.5rem; background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;">📥 匯出持倉數據</button>
             </div>
         </div>
 

@@ -820,12 +820,55 @@
             return [
                 h.symbol, h.quantity, h.costPrice, h.currentPrice,
                 h.dayChangePct?.toFixed(2) ?? '-',
+                h.dayChangePoints?.toFixed(3) ?? '-',
+                h.extendedQuote?.label ?? '-',
+                h.extendedQuote?.changePct?.toFixed(2) ?? '-',
+                h.extendedQuote?.changePoints?.toFixed(3) ?? '-',
                 h.prevDayChangePct?.toFixed(2) ?? '-',
+                h.prevDayChangePoints?.toFixed(3) ?? '-',
                 h.valueTotalUSD?.toFixed(2),
                 h.percentage?.toFixed(2),
                 currency,
                 _expandedCards.has(h.id) ? '1' : '0'
             ].join('|');
+        }
+
+        function _signedPctText(v) {
+            if (v == null || v === '') return '-';
+            const n = Number(v);
+            if (!isFinite(n)) return '-';
+            return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+        }
+
+        function _signedPointText(v) {
+            if (v == null || v === '') return '-';
+            const n = Number(v);
+            if (!isFinite(n)) return '-';
+            return (n >= 0 ? '+' : '') + n.toFixed(2);
+        }
+
+        function _changeWithPointsText(pct, points) {
+            const pctText = _signedPctText(pct);
+            const pointText = _signedPointText(points);
+            return pointText === '-' ? pctText : `${pointText} (${pctText})`;
+        }
+
+        function _todayChangeText(h) {
+            return _changeWithPointsText(h.dayChangePct, h.dayChangePoints);
+        }
+
+        function _extendedChangeText(h) {
+            const label = h.extendedQuote?.label;
+            const pct = Number(h.extendedQuote?.changePct ?? h.dayChangePct);
+            const points = h.extendedQuote?.changePoints;
+            if (!label || !isFinite(pct)) return '';
+            return `${label} ${_changeWithPointsText(pct, points)}`;
+        }
+
+        function _extendedChangeNoteHtml(h, compact = false) {
+            const text = _extendedChangeText(h);
+            if (!text) return '';
+            return `<span style="display:${compact?'inline-block':'block'};margin-${compact?'left':'top'}:${compact?'0.35rem':'0.18rem'};color:#93c5fd;font-size:${compact?'0.68rem':'0.72rem'};font-weight:700;white-space:nowrap;">${text}</span>`;
         }
 
         function sortHoldings(col) {
@@ -970,10 +1013,12 @@
                     }
                 }
                 let prevDayChangePct = null;
+                let prevDayChangePoints = null;
                 let prevDayPnlUSD = null, prevDayPnlTWD = null;
                 if (prevClose != null && prevClose > 0 && prevPrevClose != null && prevPrevClose > 0) {
-                    prevDayChangePct = (prevClose - prevPrevClose) / prevPrevClose * 100;
-                    const prevDayPnlNative = (prevClose - prevPrevClose) * h.quantity;
+                    prevDayChangePoints = prevClose - prevPrevClose;
+                    prevDayChangePct = prevDayChangePoints / prevPrevClose * 100;
+                    const prevDayPnlNative = prevDayChangePoints * h.quantity;
                     if (_isHK_HKD) {
                         prevDayPnlUSD = prevDayPnlNative * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
                         prevDayPnlTWD = prevDayPnlNative * exchangeRates.HKD_TWD;
@@ -994,6 +1039,7 @@
                     const _uPC  = window._prevCloseCache?.[_uSym]     ?? null;
                     const _uPPC = window._prevPrevCloseCache?.[_uSym] ?? null;
                     if (_uPC != null && _uPPC != null && _uPC > 0 && _uPPC > 0) {
+                        prevDayChangePoints = (_uPC - _uPPC) * 2;
                         prevDayChangePct = (_uPC - _uPPC) / _uPPC * 200; // 2× 槓桿近似值
                         hasPrevDayPnL = true;
                     }
@@ -1001,6 +1047,15 @@
                 // 當日損益：若 _marketOpenedToday 明確為 false（槓桿 ETF 今日未開盤）則跳過
                 const _mkt = window._marketOpenedToday;
                 const _hasExtendedQuote = window._extendedQuoteActive?.[h.symbol] === true;
+                const _extendedMeta = _hasExtendedQuote ? (window._extendedQuoteMeta?.[h.symbol] ?? null) : null;
+                let extendedQuote = _extendedMeta ? {
+                    label: _extendedMeta.label || '盤前/盤後',
+                    phase: _extendedMeta.phase || 'extended',
+                    price: _extendedMeta.price ?? h.currentPrice,
+                    changePoints: _extendedMeta.changePoints ?? null,
+                    changePct: _extendedMeta.changePct ?? null,
+                    ts: _extendedMeta.ts ?? null
+                } : null;
                 // 開盤判定改為「依該股票市場時區 + 開盤時間」：
                 //   - HK 週一台灣早上 11:00 → HK 11:00（已過 09:30）→ 開盤 ✅
                 //   - HK 週一台灣早上 08:00 → HK 08:00（未過 09:30）→ 未開盤
@@ -1008,11 +1063,11 @@
                     !_isMarketOpenedToday(h) ||
                     (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false)
                 );
-                let dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
+                let dayChangePoints = null, dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
                 if (!marketNotOpened && prevClose != null && prevClose > 0) {
-                    const dayChange = h.currentPrice - prevClose;
-                    dayChangePct = (dayChange / prevClose) * 100;
-                    const dayPnlNative = dayChange * h.quantity;
+                    dayChangePoints = h.currentPrice - prevClose;
+                    dayChangePct = (dayChangePoints / prevClose) * 100;
+                    const dayPnlNative = dayChangePoints * h.quantity;
                     if (_isHK_HKD) {
                         dayPnlUSD = dayPnlNative * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
                         dayPnlTWD = dayPnlNative * exchangeRates.HKD_TWD;
@@ -1027,12 +1082,23 @@
                     totalDayPnLTWD += dayPnlTWD;
                     hasDayPnL = true;
                 }
+                if (extendedQuote && prevClose != null && prevClose > 0) {
+                    const extendedPrice = Number(extendedQuote.price ?? h.currentPrice);
+                    if (isFinite(extendedPrice) && extendedPrice > 0) {
+                        const fallbackPoints = extendedPrice - prevClose;
+                        extendedQuote = {
+                            ...extendedQuote,
+                            changePoints: Number.isFinite(Number(extendedQuote.changePoints)) ? Number(extendedQuote.changePoints) : fallbackPoints,
+                            changePct: Number.isFinite(Number(extendedQuote.changePct)) ? Number(extendedQuote.changePct) : (fallbackPoints / prevClose * 100)
+                        };
+                    }
+                }
 
                 return { ...h, costTotalUSD: costUSD, valueTotalUSD: valueUSD,
                     costTotalTWD: costTWD, valueTotalTWD: valueTWD, percentage: 0,
                     prevClose, prevPrevClose,
-                    prevDayChangePct, prevDayPnlUSD, prevDayPnlTWD,
-                    dayChangePct, dayPnlUSD, dayPnlTWD };
+                    prevDayChangePct, prevDayChangePoints, prevDayPnlUSD, prevDayPnlTWD,
+                    dayChangePct, dayChangePoints, dayPnlUSD, dayPnlTWD, extendedQuote };
             });
 
             // 第二遍：計算占比
@@ -1423,7 +1489,7 @@
                     const pp = h.prevDayChangePct >= 0;
                     prevDayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;">'
                         + '<span style="padding:0.2rem 0.5rem;border-radius:6px;background:'+(pp?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)')+';color:'+(pp?'#6ee7b7':'#fca5a5')+';font-size:0.88rem;">'
-                        + (pp?'+':'') + h.prevDayChangePct.toFixed(2) + '%</span></td>';
+                        + _changeWithPointsText(h.prevDayChangePct, h.prevDayChangePoints) + '</span></td>';
                 }
                 // 當日漲跌幅 & 當日損益
                 let dayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;color:#64748b;">-</td>';
@@ -1432,7 +1498,8 @@
                     const cp = h.dayChangePct >= 0;
                     dayChgCell = '<td style="padding:0.55rem 0.75rem;text-align:right;">'
                         + '<span style="padding:0.2rem 0.5rem;border-radius:6px;background:'+(cp?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)')+';color:'+(cp?'#10b981':'#ef4444')+';font-weight:600;">'
-                        + (cp?'+':'') + h.dayChangePct.toFixed(2) + '%</span></td>';
+                        + _todayChangeText(h) + '</span>'
+                        + _extendedChangeNoteHtml(h) + '</td>';
                     const dp    = currency==='USD' ? h.dayPnlUSD : h.dayPnlTWD;
                     const dpp   = dp >= 0;
                     const dpStr = fmtPnl(dp, currency);
@@ -1497,7 +1564,7 @@
                 // ── 今日漲跌標籤（header 常駐顯示）
                 const todayTag = h.dayChangePct != null ? (() => {
                     const cp = h.dayChangePct >= 0;
-                    return `<span style="padding:0.15rem 0.45rem;border-radius:5px;background:${cp?'rgba(16,185,129,0.18)':'rgba(239,68,68,0.18)'};color:${cp?'#10b981':'#ef4444'};font-size:0.82rem;font-weight:700;">${cp?'+':''}${h.dayChangePct.toFixed(2)}%</span>`;
+                    return `<span style="padding:0.15rem 0.45rem;border-radius:5px;background:${cp?'rgba(16,185,129,0.18)':'rgba(239,68,68,0.18)'};color:${cp?'#10b981':'#ef4444'};font-size:0.82rem;font-weight:700;">${_todayChangeText(h)}</span>${_extendedChangeNoteHtml(h, true)}`;
                 })() : '';
 
                 // ── 總損益標籤（header 常駐顯示）
@@ -1524,7 +1591,7 @@
                     // 昨日漲跌
                     if (h.prevDayChangePct != null) {
                         const pp = h.prevDayChangePct >= 0;
-                        parts.push(`<div style="margin-top:0.5rem;"><span style="color:#64748b;font-size:0.78rem;">昨日漲跌 </span><span class="mono" style="color:${pp?'#6ee7b7':'#fca5a5'};font-size:0.85rem;">${pp?'+':''}${h.prevDayChangePct.toFixed(2)}%</span></div>`);
+                        parts.push(`<div style="margin-top:0.5rem;"><span style="color:#64748b;font-size:0.78rem;">昨日漲跌 </span><span class="mono" style="color:${pp?'#6ee7b7':'#fca5a5'};font-size:0.85rem;">${_changeWithPointsText(h.prevDayChangePct, h.prevDayChangePoints)}</span></div>`);
                     }
                     // 今日損益金額
                     if (h.dayChangePct != null) {
@@ -5288,6 +5355,61 @@
                 || (sym.endsWith('.TW') && sym.slice(0,-3) in priceMap);
         }
 
+        async function _fetchFutuQuotes(symbols) {
+            try {
+                const list = [...new Set((symbols || []).filter(Boolean))];
+                if (!list.length) return null;
+                const url = `${FMX_API_BASE}/futu/quotes?symbols=${encodeURIComponent(list.join(','))}`;
+                const res = await fetch(url, { cache: 'no-store' });
+                if (!res?.ok) return null;
+                const data = await res.json();
+                return data?.ok ? data : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function _applyFutuQuotes(futuData, prices, futuPrices) {
+            const quotes = futuData?.quotes || {};
+            if (!quotes || !Object.keys(quotes).length) return 0;
+            if (!window._prevCloseCache) window._prevCloseCache = {};
+            if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
+            if (!window._marketOpenedToday) window._marketOpenedToday = {};
+            if (!window._extendedQuoteActive) window._extendedQuoteActive = {};
+            if (!window._extendedQuoteMeta) window._extendedQuoteMeta = {};
+
+            let applied = 0;
+            Object.entries(quotes).forEach(([sym, q]) => {
+                if (!q) return;
+                const last = Number(q.last_price);
+                if (isFinite(last) && last > 0) {
+                    prices[sym] = last;
+                    if (futuPrices) futuPrices[sym] = last;
+                    applied++;
+                }
+                const prev = Number(q.prev_close_price);
+                if (isFinite(prev) && prev > 0) window._prevCloseCache[sym] = prev;
+                const prevPrev = Number(q.prev_prev_close_price);
+                if (isFinite(prevPrev) && prevPrev > 0) window._prevPrevCloseCache[sym] = prevPrev;
+                window._marketOpenedToday[sym] = true;
+
+                const ext = q.extended;
+                const extPrice = Number(ext?.price);
+                if (ext && isFinite(extPrice) && extPrice > 0) {
+                    window._extendedQuoteActive[sym] = true;
+                    window._extendedQuoteMeta[sym] = {
+                        label: ext.label || '盤前/盤後',
+                        phase: ext.phase || 'extended',
+                        price: extPrice,
+                        changePoints: ext.changePoints ?? null,
+                        changePct: ext.changePct ?? null,
+                        ts: futuData.ts || Date.now()
+                    };
+                }
+            });
+            return applied;
+        }
+
         function _seedPrevCloseFromPriceJson(pj, symbols) {
             if (!pj) return;
             if (!window._prevCloseCache) window._prevCloseCache = {};
@@ -5365,10 +5487,73 @@
         }
 
         function _isUsPreMarketNow() {
+            return _usExtendedSessionNow().phase === 'pre';
+        }
+
+        function _usExtendedSessionNow() {
+            const p = _nyClockParts();
+            if (p.weekday === 'Sat' || p.weekday === 'Sun') {
+                return { active: false, phase: 'regular', label: '' };
+            }
+            const mins = p.hour * 60 + p.minute;
+            if (mins >= 4 * 60 && mins < 9 * 60 + 30) {
+                return { active: true, phase: 'pre', label: '盤前' };
+            }
+            if (mins >= 16 * 60 && mins < 20 * 60) {
+                return { active: true, phase: 'post', label: '盤後' };
+            }
+            return { active: false, phase: 'regular', label: '' };
+        }
+
+        function _isUsRegularMarketNow() {
             const p = _nyClockParts();
             if (p.weekday === 'Sat' || p.weekday === 'Sun') return false;
             const mins = p.hour * 60 + p.minute;
-            return mins >= 4 * 60 && mins < 9 * 60 + 30;
+            return mins >= 9 * 60 + 30 && mins < 16 * 60;
+        }
+
+        function _extendedQuoteFromYahooMeta(meta, scale = 1) {
+            if (!meta || _isUsRegularMarketNow()) return null;
+            const session = _usExtendedSessionNow();
+            const pre = Number(meta.preMarketPrice);
+            const post = Number(meta.postMarketPrice);
+            const regular = Number(meta.regularMarketPrice);
+            const preChange = Number(meta.preMarketChange);
+            const preChangePct = Number(meta.preMarketChangePercent);
+            const postChange = Number(meta.postMarketChange);
+            const postChangePct = Number(meta.postMarketChangePercent);
+            const hasPre = isFinite(pre) && pre > 0 && (!isFinite(regular) || Math.abs(pre - regular) > 0.0001);
+            const hasPost = isFinite(post) && post > 0 && (!isFinite(regular) || Math.abs(post - regular) > 0.0001);
+            const preMeta = {
+                label: '盤前',
+                phase: 'pre',
+                price: pre * scale,
+                changePoints: isFinite(preChange) ? preChange * scale : null,
+                changePct: isFinite(preChangePct) ? preChangePct : null,
+                ts: meta.preMarketTime ?? Date.now()
+            };
+            const postMeta = {
+                label: '盤後',
+                phase: 'post',
+                price: post * scale,
+                changePoints: isFinite(postChange) ? postChange * scale : null,
+                changePct: isFinite(postChangePct) ? postChangePct : null,
+                ts: meta.postMarketTime ?? Date.now()
+            };
+
+            if (session.phase === 'pre' && hasPre) {
+                return preMeta;
+            }
+            if (session.phase === 'post' && hasPost) {
+                return postMeta;
+            }
+            if (hasPost) {
+                return postMeta;
+            }
+            if (hasPre) {
+                return preMeta;
+            }
+            return null;
         }
 
         function _isUsStockSymbol(symbol) {
@@ -5796,8 +5981,13 @@
         async function silentRefreshPrices(skipProxyFetch = false) {
             const prices = {}, mergedRates = {};
             const sheetPrices = {}; // Sheet 提供的標的（yfFetch 不得覆蓋）
-            const usPreMarketNow = _isUsPreMarketNow();
-            if (!usPreMarketNow) window._extendedQuoteActive = {};
+            const futuPrices = {};  // Futu/Moomoo quotes are preferred over Yahoo fallback.
+            const usExtendedSession = _usExtendedSessionNow();
+            const usExtendedNow = usExtendedSession.active;
+            if (!usExtendedNow) {
+                window._extendedQuoteActive = {};
+                window._extendedQuoteMeta = {};
+            }
 
             // ── 優先：data/prices.json（GitHub Actions 定時更新，同域無 CORS）──
             // 股價：無論新舊都使用（非市場時段仍顯示昨收）
@@ -5846,6 +6036,11 @@
                 } catch(_) {}
             }
 
+            const futuData = await _fetchFutuQuotes(holdings.map(h => h.symbol));
+            if (futuData?.ok) {
+                _applyFutuQuotes(futuData, prices, futuPrices);
+            }
+
             // ── 匯率更新 ──
             if (!mergedRates.USD_TWD) {
                 try {
@@ -5873,11 +6068,21 @@
                     Object.keys(_cache).forEach(_s => {
                         const _e = _cache[_s];
                         if (_e && _e.price > 0 && (_now - _e.ts) < _freshMs
-                            && !_hasPriceKey(_s, sheetPrices)) {
+                            && !_hasPriceKey(_s, sheetPrices)
+                            && !_hasPriceKey(_s, futuPrices)) {
                             prices[_s] = _e.price;
-                            if (_e.extended && usPreMarketNow) {
+                            if (_e.extended && usExtendedNow) {
                                 if (!window._extendedQuoteActive) window._extendedQuoteActive = {};
+                                if (!window._extendedQuoteMeta) window._extendedQuoteMeta = {};
                                 window._extendedQuoteActive[_s] = true;
+                                window._extendedQuoteMeta[_s] = {
+                                    label: _e.extendedLabel || usExtendedSession.label || '盤前/盤後',
+                                    phase: _e.extendedPhase || usExtendedSession.phase || 'extended',
+                                    price: _e.price,
+                                    changePoints: _e.extendedChangePoints ?? null,
+                                    changePct: _e.extendedChangePct ?? null,
+                                    ts: _e.ts
+                                };
                             }
                         }
                     });
@@ -5911,7 +6116,7 @@
                         //   即時價，而 Yahoo 對台股/港股有 15–20 分鐘延遲，會把 Sheet 的新值拉回舊值。
                         if (_pm.regularMarketPrice != null && _pm.regularMarketPrice > 0) {
                             const _livePx = _pm.regularMarketPrice * _pScale;
-                            if (!_hasPriceKey(_ph.symbol, sheetPrices)) {
+                            if (!_hasPriceKey(_ph.symbol, sheetPrices) && !_hasPriceKey(_ph.symbol, futuPrices)) {
                                 prices[_ph.symbol] = _livePx;
                             }
                             // ★ 關鍵：持久化到全域快取，讓 skipProxyFetch=true 的刷新
@@ -5921,9 +6126,40 @@
                             if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
                             window._proxyIntradayCache[_ph.symbol] = { price: _livePx, ts: Date.now() };
                         }
-                        // 美股盤前：Yahoo 日 K 不會把 pre-market 放進 regularMarketPrice，
-                        // 需另抓 1m includePrePost，用最新盤前分鐘價對昨收計算今日漲跌。
-                        if (usPreMarketNow && _isUsStockSymbol(_ph.symbol) && !_hasPriceKey(_ph.symbol, sheetPrices)) {
+                        const _metaExtendedQuote = _isUsStockSymbol(_ph.symbol)
+                            ? _extendedQuoteFromYahooMeta(_pm, _pScale)
+                            : null;
+                        if (_metaExtendedQuote) {
+                            const _hasPreferredPrice = _hasPriceKey(_ph.symbol, sheetPrices) || _hasPriceKey(_ph.symbol, futuPrices);
+                            const _extendedDisplayPrice = _hasPreferredPrice
+                                ? Number(prices[_ph.symbol] ?? _metaExtendedQuote.price)
+                                : _metaExtendedQuote.price;
+                            if (!_hasPreferredPrice) prices[_ph.symbol] = _metaExtendedQuote.price;
+                            if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
+                            window._proxyIntradayCache[_ph.symbol] = {
+                                price: _extendedDisplayPrice,
+                                ts: Date.now(),
+                                extended: true,
+                                extendedLabel: _metaExtendedQuote.label,
+                                extendedPhase: _metaExtendedQuote.phase,
+                                extendedChangePoints: _metaExtendedQuote.changePoints,
+                                extendedChangePct: _metaExtendedQuote.changePct
+                            };
+                            if (!window._extendedQuoteActive) window._extendedQuoteActive = {};
+                            if (!window._extendedQuoteMeta) window._extendedQuoteMeta = {};
+                            window._extendedQuoteActive[_ph.symbol] = true;
+                            window._extendedQuoteMeta[_ph.symbol] = {
+                                label: _metaExtendedQuote.label,
+                                phase: _metaExtendedQuote.phase,
+                                price: _extendedDisplayPrice,
+                                changePoints: _metaExtendedQuote.changePoints,
+                                changePct: _metaExtendedQuote.changePct,
+                                ts: _metaExtendedQuote.ts
+                            };
+                        }
+                        // 美股盤前/盤後：Yahoo 日 K 不會把 extended session 放進 regularMarketPrice，
+                        // 需另抓 1m includePrePost，用最新延長盤分鐘價對昨收計算今日漲跌。
+                        if (usExtendedNow && _isUsStockSymbol(_ph.symbol)) {
                             try {
                                 const _id = await yfFetch(
                                     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1m&range=1d&includePrePost=true`
@@ -5931,11 +6167,42 @@
                                 const _ich = _id?.chart?.result?.[0];
                                 const _iq = _deriveYahooIntradayQuote(_ich, _ph.symbol, _pScale);
                                 if (_iq?.price > 0) {
-                                    prices[_ph.symbol] = _iq.price;
+                                    const _hasPreferredPrice = _hasPriceKey(_ph.symbol, sheetPrices) || _hasPriceKey(_ph.symbol, futuPrices);
+                                    const _extendedDisplayPrice = _hasPreferredPrice
+                                        ? Number(prices[_ph.symbol] ?? _iq.price)
+                                        : _iq.price;
+                                    const _regularPx = Number(_pm.regularMarketPrice ?? NaN) * _pScale;
+                                    const _extendedBase = (usExtendedSession.phase === 'post' && isFinite(_regularPx) && _regularPx > 0)
+                                        ? _regularPx
+                                        : Number(_daily?.prevClose ?? NaN);
+                                    const _extendedChangePoints = (isFinite(_extendedBase) && _extendedBase > 0)
+                                        ? _extendedDisplayPrice - _extendedBase
+                                        : null;
+                                    const _extendedChangePct = (isFinite(_extendedChangePoints) && isFinite(_extendedBase) && _extendedBase > 0)
+                                        ? _extendedChangePoints / _extendedBase * 100
+                                        : null;
+                                    if (!_hasPreferredPrice) prices[_ph.symbol] = _iq.price;
                                     if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
-                                    window._proxyIntradayCache[_ph.symbol] = { price: _iq.price, ts: Date.now(), extended: true };
+                                    window._proxyIntradayCache[_ph.symbol] = {
+                                        price: _extendedDisplayPrice,
+                                        ts: Date.now(),
+                                        extended: true,
+                                        extendedLabel: usExtendedSession.label,
+                                        extendedPhase: usExtendedSession.phase,
+                                        extendedChangePoints: _extendedChangePoints,
+                                        extendedChangePct: _extendedChangePct
+                                    };
                                     if (!window._extendedQuoteActive) window._extendedQuoteActive = {};
+                                    if (!window._extendedQuoteMeta) window._extendedQuoteMeta = {};
                                     window._extendedQuoteActive[_ph.symbol] = true;
+                                    window._extendedQuoteMeta[_ph.symbol] = {
+                                        label: usExtendedSession.label,
+                                        phase: usExtendedSession.phase,
+                                        price: _extendedDisplayPrice,
+                                        changePoints: _extendedChangePoints,
+                                        changePct: _extendedChangePct,
+                                        ts: Date.now()
+                                    };
                                 }
                             } catch(_) {}
                         }
@@ -5969,7 +6236,7 @@
                 const el = document.getElementById('auto-refresh-time');
                 if (el) el.textContent = now;
                 const rateEl = document.getElementById('rate-source');
-                if (rateEl) rateEl.textContent = `✓ 自動更新（${now}）`;
+                if (rateEl) rateEl.textContent = `${futuData?.ok ? 'Futu 24H + ' : ''}即時資料更新（${now}）`;
             }
         }
 

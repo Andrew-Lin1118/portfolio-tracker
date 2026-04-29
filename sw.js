@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v10';  // ← 2026-04-27：新增美股漲跌熱力圖分頁 (TradingView widget)
+const CACHE_NAME = 'portfolio-tracker-v11';  // ← 2026-04-29：刷新 Futu 24H 報價 UI
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

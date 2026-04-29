@@ -39,6 +39,8 @@ import subprocess
 import threading
 import time
 import datetime
+import math
+import socket
 
 # Windows：禁止子行程彈出 CMD 視窗（CREATE_NO_WINDOW）
 # 其他平台為 0（忽略 creationflags）。參見 skill.py pitfall B1。
@@ -103,6 +105,87 @@ CRYPTO_REFRESH_SEC  = 600        # 10 分鐘重新 fetch 一次
 _crypto_last_fetch  = 0          # 上次 fetch 的 unix ts
 # 環境變數 CRYPTO_AUTOPUSH=1 時自動 git commit & push（預設關閉，避免餘額頻繁刷 commit）
 _crypto_autopush    = os.environ.get('CRYPTO_AUTOPUSH', '0') != '0'
+
+# ── Futu/Moomoo quote bridge ──────────────────────────────────────────────
+# Optional dependency: moomoo-api (import name: moomoo) or futu-api (import name: futu).
+# The frontend treats this as best-effort and falls back to Yahoo/Sheet if unavailable.
+FUTU_HOST = os.environ.get('FUTU_HOST', '127.0.0.1')
+FUTU_PORT = int(os.environ.get('FUTU_PORT', '11111'))
+_futu_quote_cache = {'key': None, 'ts': 0.0, 'data': None}
+_futu_quote_lock = threading.Lock()
+
+
+def _import_futu_api():
+    try:
+        import futu as api  # type: ignore
+        return api, 'futu'
+    except Exception:
+        pass
+    try:
+        import moomoo as api  # type: ignore
+        return api, 'moomoo'
+    except Exception:
+        return None, None
+
+
+def _safe_float(v):
+    try:
+        if v is None:
+            return None
+        n = float(v)
+        if not math.isfinite(n):
+            return None
+        return n
+    except Exception:
+        return None
+
+
+def _is_futu_opend_reachable(timeout=1.5):
+    try:
+        with socket.create_connection((FUTU_HOST, FUTU_PORT), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _futu_code_from_symbol(symbol):
+    s = str(symbol or '').strip().upper()
+    if not s:
+        return None
+    if s.startswith(('US.', 'HK.')):
+        return s
+    if s.endswith('.HK'):
+        raw = s[:-3]
+        if raw.isdigit():
+            return 'HK.' + raw.zfill(5)
+        return None
+    if s.endswith('.US'):
+        s = s[:-3]
+    if '.' in s:
+        return None
+    return 'US.' + s
+
+
+def _pick_futu_extended(row):
+    sessions = [
+        ('overnight', '24H', 'overnight_price', 'overnight_change_val', 'overnight_change_rate'),
+        ('after', '盤後', 'after_price', 'after_change_val', 'after_change_rate'),
+        ('pre', '盤前', 'pre_price', 'pre_change_val', 'pre_change_rate'),
+    ]
+    for phase, label, price_key, change_key, rate_key in sessions:
+        price = _safe_float(row.get(price_key))
+        if price is None or price <= 0:
+            continue
+        change = _safe_float(row.get(change_key))
+        rate = _safe_float(row.get(rate_key))
+        return {
+            'label': label,
+            'phase': phase,
+            'price': price,
+            'changePoints': change,
+            'changePct': rate,
+        }
+    return None
 
 def _futopt_archive_scheduler():
     """
@@ -432,6 +515,10 @@ _fmx_mq_cache  = None
 _fmx_mq_ts     = 0.0
 _fmx_mq_lock   = threading.Lock()
 FMX_MQ_TTL     = 12   # seconds
+
+_taifex_quote_cache = {}
+_taifex_quote_lock  = threading.Lock()
+TAIFEX_QUOTE_TTL    = 3
 
 # ── stock/positions cache ─────────────────────────────────
 _stock_pos_cache = None
@@ -862,6 +949,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._fmx_quote(parsed)
         elif p == '/fmx/market_quotes':
             self._fmx_market_quotes(parsed)
+        elif p == '/taifex/futures_quotes':
+            self._taifex_futures_quotes(parsed)
+        elif p == '/futu/quotes':
+            self._futu_quotes(parsed)
         elif p == '/fmx/runtime':
             self._fmx_runtime()
         elif p == '/fmx/config':
@@ -948,6 +1039,147 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _qs(self, parsed):
         return urllib.parse.parse_qs(parsed.query)
 
+    def _futu_quotes(self, parsed):
+        params = self._qs(parsed)
+        raw_symbols = params.get('symbols', [''])[0]
+        symbols = []
+        for part in raw_symbols.replace(';', ',').split(','):
+            sym = part.strip().upper()
+            if sym and sym not in symbols:
+                symbols.append(sym)
+        if not symbols:
+            return self._send_json({'ok': False, 'error': 'missing symbols', 'quotes': {}})
+
+        code_to_symbol = {}
+        codes = []
+        for sym in symbols[:400]:
+            code = _futu_code_from_symbol(sym)
+            if code and code not in code_to_symbol:
+                code_to_symbol[code] = sym
+                codes.append(code)
+        if not codes:
+            return self._send_json({'ok': False, 'error': 'no supported Futu symbols', 'quotes': {}})
+
+        cache_key = ','.join(codes)
+        now = time.time()
+        with _futu_quote_lock:
+            if (_futu_quote_cache.get('key') == cache_key
+                    and _futu_quote_cache.get('data')
+                    and now - float(_futu_quote_cache.get('ts') or 0) < 8):
+                return self._send_json(_futu_quote_cache['data'])
+
+        api, api_name = _import_futu_api()
+        if api is None:
+            return self._send_json({
+                'ok': False,
+                'error': 'moomoo-api/futu-api is not installed',
+                'install': 'pip install moomoo-api',
+                'quotes': {},
+            })
+        if not _is_futu_opend_reachable():
+            return self._send_json({
+                'ok': False,
+                'error': f'Futu/Moomoo OpenD is not reachable at {FUTU_HOST}:{FUTU_PORT}',
+                'quotes': {},
+            })
+
+        quote_ctx = None
+        try:
+            quote_ctx = api.OpenQuoteContext(host=FUTU_HOST, port=FUTU_PORT)
+            ret, data = quote_ctx.get_market_snapshot(codes)
+            if ret != getattr(api, 'RET_OK', 0):
+                return self._send_json({'ok': False, 'error': str(data), 'quotes': {}})
+
+            records = data.to_dict('records') if hasattr(data, 'to_dict') else []
+            quotes = {}
+            for row in records:
+                code = str(row.get('code') or row.get('stock_code') or '').upper()
+                sym = code_to_symbol.get(code)
+                if not sym:
+                    continue
+                last_price = _safe_float(row.get('last_price'))
+                prev_close = _safe_float(row.get('prev_close_price'))
+                regular_change = None
+                regular_change_pct = None
+                if last_price is not None and prev_close is not None and prev_close > 0:
+                    regular_change = last_price - prev_close
+                    regular_change_pct = regular_change / prev_close * 100
+
+                quotes[sym] = {
+                    'symbol': sym,
+                    'code': code,
+                    'name': row.get('name'),
+                    'source': api_name,
+                    'last_price': last_price,
+                    'prev_close_price': prev_close,
+                    'prev_prev_close_price': None,
+                    'open_price': _safe_float(row.get('open_price')),
+                    'high_price': _safe_float(row.get('high_price')),
+                    'low_price': _safe_float(row.get('low_price')),
+                    'volume': _safe_float(row.get('volume')),
+                    'regular_change_val': regular_change,
+                    'regular_change_rate': regular_change_pct,
+                    'extended': _pick_futu_extended(row),
+                    'raw_time': row.get('update_time') or row.get('last_trade_time'),
+                }
+
+            for code in codes:
+                sym = code_to_symbol.get(code)
+                if not sym or sym not in quotes:
+                    continue
+                prev_close = quotes[sym].get('prev_close_price')
+                if prev_close is None:
+                    continue
+                try:
+                    end = datetime.date.today().strftime('%Y-%m-%d')
+                    start = (datetime.date.today() - datetime.timedelta(days=14)).strftime('%Y-%m-%d')
+                    ret_k, kl = quote_ctx.request_history_kline(
+                        code,
+                        start=start,
+                        end=end,
+                        ktype=getattr(api.KLType, 'K_DAY'),
+                        autype=getattr(api.AuType, 'QFQ'),
+                        max_count=10,
+                    )
+                    if ret_k != getattr(api, 'RET_OK', 0) or not hasattr(kl, 'to_dict'):
+                        continue
+                    bars = kl.to_dict('records')
+                    closes = [_safe_float(r.get('close')) for r in bars]
+                    closes = [c for c in closes if c is not None and c > 0]
+                    if len(closes) < 2:
+                        continue
+                    idx = None
+                    for i in range(len(closes) - 1, -1, -1):
+                        if abs(closes[i] - prev_close) < max(0.01, prev_close * 0.0001):
+                            idx = i
+                            break
+                    if idx is not None and idx > 0:
+                        quotes[sym]['prev_prev_close_price'] = closes[idx - 1]
+                    elif len(closes) >= 2:
+                        quotes[sym]['prev_prev_close_price'] = closes[-2]
+                except Exception:
+                    continue
+
+            payload = {
+                'ok': True,
+                'source': api_name,
+                'host': FUTU_HOST,
+                'port': FUTU_PORT,
+                'ts': int(time.time() * 1000),
+                'quotes': quotes,
+            }
+            with _futu_quote_lock:
+                _futu_quote_cache.update({'key': cache_key, 'ts': time.time(), 'data': payload})
+            self._send_json(payload)
+        except Exception as e:
+            self._send_json({'ok': False, 'error': str(e), 'quotes': {}})
+        finally:
+            try:
+                if quote_ctx is not None:
+                    quote_ctx.close()
+            except Exception:
+                pass
+
     # ── /proxy ────────────────────────────────────────────
     def _proxy(self, parsed):
         params = self._qs(parsed)
@@ -979,6 +1211,80 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
         except Exception as e:
             self.send_error(502, str(e))
+
+    # ── /taifex/futures_quotes ─────────────────────────────
+    def _taifex_futures_quotes(self, parsed):
+        """Read-only TAIFEX MIS quote list bridge for dashboard display."""
+        global _taifex_quote_cache
+        params = self._qs(parsed)
+        market_type = params.get('market_type', ['0'])[0]  # 0=day, 1=after-hours
+        kind_id = params.get('kind_id', ['1'])[0]          # 1=equity index futures
+        cache_key = f'{market_type}:{kind_id}'
+        now = time.time()
+
+        with _taifex_quote_lock:
+            entry = _taifex_quote_cache.get(cache_key)
+            if entry and (now - entry[0]) < TAIFEX_QUOTE_TTL:
+                self._send_json(entry[1])
+                return
+
+        url = 'https://mis.taifex.com.tw/futures/api/getQuoteList'
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            'Referer': 'https://mis.taifex.com.tw/futures/RegularSession/EquityIndices/FuturesDomestic/',
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json;charset=UTF-8',
+        }
+
+        rows = []
+        quote_count = None
+        try:
+            for page_no in range(1, 13):
+                payload = json.dumps({
+                    'MarketType': str(market_type),
+                    'SymbolType': 'F',
+                    'KindID': str(kind_id),
+                    'CID': '',
+                    'ExpireMonth': '',
+                    'PageNo': str(page_no),
+                    'PageSize': '50',
+                }).encode('utf-8')
+                req = urllib.request.Request(url, data=payload, headers=headers, method='POST')
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    raw = resp.read().decode('utf-8', errors='replace')
+                data = json.loads(raw)
+                if data.get('RtCode') not in (None, '0', 0):
+                    continue
+                rt = data.get('RtData') or {}
+                page_rows = rt.get('QuoteList') or []
+                if quote_count is None:
+                    try:
+                        quote_count = int(rt.get('QuoteCount') or 0)
+                    except Exception:
+                        quote_count = 0
+                if not page_rows:
+                    break
+                rows.extend(page_rows)
+                if quote_count and len(rows) >= quote_count:
+                    break
+
+            result = {
+                'status': 'ok',
+                'source': 'taifex_mis_quote_list',
+                'ts': datetime.datetime.now().isoformat(timespec='seconds'),
+                'market_type': str(market_type),
+                'kind_id': str(kind_id),
+                'RtData': {
+                    'QuoteCount': str(quote_count or len(rows)),
+                    'QuoteList': rows,
+                },
+            }
+            with _taifex_quote_lock:
+                _taifex_quote_cache[cache_key] = (time.time(), result)
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({'status': 'error', 'error': str(e), 'RtData': {'QuoteList': []}}, 502)
 
     # ── /yfundamentals ────────────────────────────────────
     def _fundamentals(self, parsed):

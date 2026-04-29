@@ -450,7 +450,25 @@
                 <!-- 分隔線 -->
                 <div style="height:1px; background:rgba(148,163,184,0.12); margin:0.9rem 0;"></div>
 
-                <!-- ③ 匯入 / 匯出 -->
+                <!-- ③ Finnhub 個股新聞 Token -->
+                <div style="margin-bottom:0.9rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.55rem; flex-wrap:wrap; gap:0.4rem;">
+                        <label style="color:#cbd5e1; font-size:0.82rem; font-weight:600;">📰 Finnhub 新聞 Token（個股新聞用）</label>
+                        <div style="display:flex; align-items:center; gap:0.6rem;">
+                            <span id="finnhub-status" style="font-size:0.76rem; color:#64748b;"></span>
+                            <a href="https://finnhub.io/register" target="_blank" style="font-size:0.74rem; color:#60a5fa; text-decoration:none; white-space:nowrap;">免費申請 ↗</a>
+                        </div>
+                    </div>
+                    <input id="finnhub-token" type="password" placeholder="Finnhub API Token（留空 → 改用 Yahoo Finance）"
+                        onchange="saveFinnhubToken()"
+                        style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.2); border-radius:8px; color:#e2e8f0; font-size:0.8rem;">
+                    <div style="margin-top:0.4rem; color:#64748b; font-size:0.72rem;">免費 60 req/min；公司新聞含 Reuters / Bloomberg 等原始來源（英文，配合內建翻譯使用）</div>
+                </div>
+
+                <!-- 分隔線 -->
+                <div style="height:1px; background:rgba(148,163,184,0.12); margin:0.9rem 0;"></div>
+
+                <!-- ④ 匯入 / 匯出 -->
                 <div>
                     <label style="color:#cbd5e1; font-size:0.82rem; font-weight:600; margin-bottom:0.55rem; display:block;">📁 持倉數據匯入 / 匯出</label>
                     <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
@@ -6445,43 +6463,151 @@
         // ==================== Tab 7：個股新聞 ====================
         let _newsLoaded = false;
 
+        // ── Finnhub Token 管理 ─────────────────────────
+        const FINNHUB_TOKEN_KEY = 'finnhub_token_v1';
+        function saveFinnhubToken() {
+            const inp = document.getElementById('finnhub-token');
+            if (!inp) return;
+            const v = (inp.value || '').trim();
+            if (v) localStorage.setItem(FINNHUB_TOKEN_KEY, v);
+            else   localStorage.removeItem(FINNHUB_TOKEN_KEY);
+            const st = document.getElementById('finnhub-status');
+            if (st) st.textContent = v ? '✓ 已設定' : '';
+        }
+        function getFinnhubToken() {
+            return (localStorage.getItem(FINNHUB_TOKEN_KEY) || '').trim();
+        }
+        // 頁面載入時填入 token + 顯示狀態
+        document.addEventListener('DOMContentLoaded', () => {
+            const inp = document.getElementById('finnhub-token');
+            const t = getFinnhubToken();
+            if (inp && t) inp.value = t;
+            const st = document.getElementById('finnhub-status');
+            if (st && t) st.textContent = '✓ 已設定';
+        });
+
+        // Finnhub 代碼正規化：去掉 .HK / .TW 後綴（Finnhub 用前綴 e.g. "0700.HK" → 不支援港股，
+        //   港股新聞改 fallback 到 Yahoo）。台股 Finnhub 也不支援（需訂閱），同樣 fallback。
+        function _finnhubMapSymbol(querySym, market) {
+            // Finnhub 主要支援美股；HK/TW 一律回傳 null 表示不支援
+            if (market === 'HK' || /\.(HK|TW|TWO)$/i.test(querySym)) return null;
+            return querySym.toUpperCase();
+        }
+
+        async function _fetchFinnhubNews(symbol, fromYmd, toYmd, token) {
+            const url = `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbol)}&from=${fromYmd}&to=${toYmd}&token=${encodeURIComponent(token)}`;
+            const ctrl = new AbortController();
+            const tid  = setTimeout(() => ctrl.abort(), 8000);
+            try {
+                const r = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(tid);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const arr = await r.json();
+                return Array.isArray(arr) ? arr : [];
+            } catch(e) {
+                clearTimeout(tid);
+                throw e;
+            }
+        }
+
         async function loadNews(forceRefresh) {
             if (holdings.length === 0) { alert('請先匯入持倉數據'); return; }
             const btn = document.getElementById('news-btn');
             const statusEl = document.getElementById('news-status');
             if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
 
-            const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
+            const nowSec = Math.floor(Date.now() / 1000);
+            const sevenDaysAgo = nowSec - 7 * 24 * 3600;
             const symbols = [...new Set(holdings.map(h => getQuerySymbol(h.symbol)))];
             const allNews = [];
 
+            // Finnhub Token + 7 天日期區間 (YYYY-MM-DD)
+            const fhToken = getFinnhubToken();
+            const _ymd = (sec) => {
+                const d = new Date(sec * 1000);
+                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            };
+            const fromYmd = _ymd(sevenDaysAgo);
+            const toYmd   = _ymd(nowSec);
+
+            // 統計各來源筆數
+            let cntFinnhub = 0, cntYahoo = 0, finnhubFailed = 0;
+
             for (let i = 0; i < symbols.length; i++) {
                 const sym = symbols[i];
+                const holding = holdings.find(h => getQuerySymbol(h.symbol) === sym);
+                const holdingSym = holding?.symbol || sym;
+                const market = holding?.market;
                 if (statusEl) statusEl.textContent = `(${i+1}/${symbols.length}) 查詢 ${sym}...`;
-                const holdingSym = holdings.find(h => getQuerySymbol(h.symbol) === sym)?.symbol || sym;
-                try {
-                    const data = await yfFetch(
-                        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=7&quotesCount=0`
-                    );
-                    for (const item of (data?.news || [])) {
-                        if ((item.providerPublishTime || 0) >= sevenDaysAgo) {
-                            allNews.push({ ...item, _querySymbol: sym, _holdingSymbol: holdingSym });
+
+                let gotItems = false;
+
+                // ── 優先用 Finnhub（若有 token 且為美股可支援）──
+                if (fhToken) {
+                    const fhSym = _finnhubMapSymbol(sym, market);
+                    if (fhSym) {
+                        try {
+                            const arr = await _fetchFinnhubNews(fhSym, fromYmd, toYmd, fhToken);
+                            for (const it of arr) {
+                                if (!it || !it.headline) continue;
+                                const ts = Number(it.datetime) || 0;
+                                if (ts < sevenDaysAgo) continue;
+                                allNews.push({
+                                    uuid: 'fh_' + (it.id || (ts + '_' + (it.headline||'').slice(0,20))),
+                                    title: it.headline,
+                                    providerPublishTime: ts,
+                                    publisher: it.source || 'Finnhub',
+                                    link: it.url,
+                                    summary: it.summary || '',
+                                    _querySymbol: sym,
+                                    _holdingSymbol: holdingSym,
+                                    _source: 'finnhub',
+                                });
+                                cntFinnhub++;
+                            }
+                            gotItems = arr.length > 0;
+                        } catch(e) {
+                            finnhubFailed++;
+                            // Fallback to Yahoo for this symbol
                         }
                     }
-                } catch(e) {}
-                if (i < symbols.length - 1) await new Promise(r => setTimeout(r, 400));
+                }
+
+                // ── Fallback: Yahoo Finance（無 token / 港台股 / Finnhub 失敗）──
+                if (!gotItems) {
+                    try {
+                        const data = await yfFetch(
+                            `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=7&quotesCount=0`
+                        );
+                        for (const item of (data?.news || [])) {
+                            if ((item.providerPublishTime || 0) >= sevenDaysAgo) {
+                                allNews.push({ ...item, _querySymbol: sym, _holdingSymbol: holdingSym, _source: 'yahoo' });
+                                cntYahoo++;
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                if (i < symbols.length - 1) await new Promise(r => setTimeout(r, fhToken ? 200 : 400));
             }
 
-            // 去重 + 時間排序
+            // 去重（uuid）+ 時間排序
             const seen = new Set();
             const unique = allNews
-                .filter(n => { if (seen.has(n.uuid)) return false; seen.add(n.uuid); return true; })
+                .filter(n => { if (!n.uuid || seen.has(n.uuid)) return false; seen.add(n.uuid); return true; })
                 .sort((a, b) => b.providerPublishTime - a.providerPublishTime);
 
             renderNewsTab(unique);
             _newsLoaded = true;
             if (btn) { btn.textContent = '🔄 載入新聞'; btn.disabled = false; }
-            if (statusEl) statusEl.textContent = `共 ${unique.length} 則 · ${new Date().toLocaleTimeString('zh-TW')}`;
+            if (statusEl) {
+                const parts = [`共 ${unique.length} 則`];
+                if (cntFinnhub > 0) parts.push(`Finnhub ${cntFinnhub}`);
+                if (cntYahoo > 0)   parts.push(`Yahoo ${cntYahoo}`);
+                if (finnhubFailed > 0) parts.push(`<span style="color:#f59e0b;">⚠ Finnhub 失敗 ${finnhubFailed}</span>`);
+                parts.push(new Date().toLocaleTimeString('zh-TW'));
+                statusEl.innerHTML = parts.join(' · ');
+            }
         }
 
         function renderNewsTab(items) {
@@ -6496,16 +6622,22 @@
                 const dtStr = dt.toLocaleDateString('zh-TW', {month:'2-digit',day:'2-digit'}) + ' ' +
                               dt.toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'});
                 const sent = newssentiment(item.title);
+                // 來源 badge：Finnhub = 紫、Yahoo = 灰
+                const srcBadge = item._source === 'finnhub'
+                    ? '<span style="background:rgba(168,85,247,0.18);color:#c084fc;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;font-weight:700;">FH</span>'
+                    : '<span style="background:rgba(100,116,139,0.18);color:#94a3b8;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem;font-weight:700;">Y</span>';
                 return `<div class="news-item" onclick='showNewsModal(${JSON.stringify(item).replace(/'/g,"&#39;")})'
                     style="background:linear-gradient(135deg,rgba(15,30,60,0.6),rgba(10,20,40,0.8));
                            border:1px solid rgba(59,130,246,0.2); border-left:3px solid rgba(251,191,36,0.4);
                            border-radius:10px; padding:0.7rem 1rem; margin-bottom:0.45rem; cursor:pointer; transition:all 0.2s;">
                     <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem;">
                         <span style="background:rgba(251,191,36,0.15);color:#fbbf24;padding:0.12rem 0.5rem;border-radius:5px;font-size:0.76rem;font-weight:700;">${item._holdingSymbol}</span>
+                        ${srcBadge}
                         ${sentimentBadge(sent)}
                         <span style="color:#64748b;font-size:0.74rem;">${dtStr} · ${item.publisher||''}</span>
                     </div>
                     <div style="color:#e2e8f0;font-size:0.88rem;line-height:1.45;">${item.title}</div>
+                    ${item.summary ? `<div style="color:#94a3b8;font-size:0.78rem;line-height:1.4;margin-top:0.3rem;">${item.summary.slice(0,160)}${item.summary.length>160?'…':''}</div>` : ''}
                 </div>`;
             }).join('');
         }

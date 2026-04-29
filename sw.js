@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v16';  // ← 2026-04-29：總體經濟新增 失業率/CPI/PCE/PPI（FRED 資料）
+const CACHE_NAME = 'portfolio-tracker-v17';  // ← 2026-04-29：個股新聞整合 Finnhub（美股優先 / 港台股 fallback Yahoo）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -4999,6 +4999,11 @@
             { symbol:'_CRYPT_FG', name:'加密貨幣恐慌指數',  cat:'情緒', special:'crypto_fg' },
             { symbol:'^TNX',      name:'10年期美債殖利率',  cat:'利率' },
             { symbol:'^IRX',      name:'1年期美債殖利率',   cat:'利率' },
+            // ── 經濟指標（FRED 月資料：失業率為 level、CPI/PCE/PPI 為 YoY 年增率）──
+            { symbol:'_FRED_UNRATE', name:'失業率 (U-3)',  cat:'經濟指標', special:'fred', fred:'UNRATE',   kind:'level' },
+            { symbol:'_FRED_CPI',    name:'CPI 年增率',    cat:'經濟指標', special:'fred', fred:'CPIAUCSL', kind:'yoy'   },
+            { symbol:'_FRED_PCE',    name:'PCE 年增率',    cat:'經濟指標', special:'fred', fred:'PCEPI',    kind:'yoy'   },
+            { symbol:'_FRED_PPI',    name:'PPI 年增率',    cat:'經濟指標', special:'fred', fred:'PPIFIS',   kind:'yoy'   },
             { symbol:'DX-Y.NYB',  name:'美元指數',          cat:'外匯' },
             { symbol:'GC=F',      name:'黃金',              cat:'商品' },
             { symbol:'SI=F',      name:'白銀',              cat:'商品' },
@@ -5006,6 +5011,38 @@
             { symbol:'BTC-USD',   name:'Bitcoin',           cat:'加密' },
             { symbol:'ETH-USD',   name:'Ethereum (ETH)',    cat:'加密' },
         ];
+
+        // FRED CSV 抓取（透過 CORS proxy；FRED 直連會被瀏覽器 CORS 擋）
+        async function _fetchFredCsv(seriesId) {
+            const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
+            const proxies = [
+                u => 'https://corsproxy.io/?' + encodeURIComponent(u),
+                u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+                u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+            ];
+            for (const mkProxy of proxies) {
+                try {
+                    const ctrl = new AbortController();
+                    const tid = setTimeout(() => ctrl.abort(), 8000);
+                    const res = await fetch(mkProxy(url), { signal: ctrl.signal });
+                    clearTimeout(tid);
+                    if (!res.ok) continue;
+                    const text = await res.text();
+                    const lines = text.trim().split(/\r?\n/);
+                    if (lines.length < 2) continue;
+                    const out = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        const parts = lines[i].split(',');
+                        if (parts.length < 2) continue;
+                        const date = parts[0];
+                        const val = parseFloat(parts[1]);
+                        if (isFinite(val)) out.push({ date, value: val });
+                    }
+                    if (out.length > 0) return out;
+                } catch(_) {}
+            }
+            return null;
+        }
 
         async function loadMacro(forceRefresh) {
             const btn = document.getElementById('macro-btn');
@@ -5060,6 +5097,47 @@
                         const label = _fgLabel.zh[rating] || rating;
                         results.push({ ...m, price: !isNaN(score) ? score : null, label, chg1d:null, chg7d:null });
                     } catch(_) { results.push({ ...m, price:null, label:null, chg1d:null, chg7d:null }); }
+                    if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 350));
+                    continue;
+                }
+
+                // ── FRED 經濟指標：失業率(level)、CPI/PCE/PPI(YoY) ──
+                if (m.special === 'fred') {
+                    try {
+                        const series = await _fetchFredCsv(m.fred);
+                        if (series && series.length > 0) {
+                            let curVal = null, prevVal = null, dateLabel = '';
+                            const last = series[series.length - 1];
+                            dateLabel = last.date || '';
+                            if (m.kind === 'yoy') {
+                                if (series.length > 12) {
+                                    const cur = last.value;
+                                    const yearAgo = series[series.length - 13].value;
+                                    if (yearAgo !== 0) curVal = (cur - yearAgo) / yearAgo * 100;
+                                    if (series.length > 13) {
+                                        const prev = series[series.length - 2].value;
+                                        const prevYearAgo = series[series.length - 14].value;
+                                        if (prevYearAgo !== 0) prevVal = (prev - prevYearAgo) / prevYearAgo * 100;
+                                    }
+                                }
+                            } else {
+                                curVal = last.value;
+                                if (series.length > 1) prevVal = series[series.length - 2].value;
+                            }
+                            const mom = (curVal != null && prevVal != null) ? (curVal - prevVal) : null;
+                            results.push({
+                                ...m,
+                                price: curVal,
+                                _isFred: true,
+                                _dateLabel: dateLabel,
+                                _prevValue: prevVal,
+                                _momChange: mom,    // 月變化（百分點 pt）
+                                chg1d: null, chg7d: null,
+                            });
+                        } else {
+                            results.push({ ...m, price:null, chg1d:null, chg7d:null });
+                        }
+                    } catch(_) { results.push({ ...m, price:null, chg1d:null, chg7d:null }); }
                     if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 350));
                     continue;
                 }
@@ -5197,20 +5275,40 @@
                     if (score <= 75) return '#10b981';
                     return '#22c55e';
                 };
+                // FRED 月變化（百分點 pt）顯示：上升通膨/失業=負面紅、下降=正面綠
+                const ptCell = (v) => {
+                    if (v == null) return '';
+                    const pos = v >= 0;
+                    const sign = pos ? '+' : '';
+                    // 多數 FRED 指標（CPI/PCE/PPI/UNRATE）下降才是好事 → 統一用「上升紅、下降綠」
+                    const col = pos ? '#ef4444' : '#10b981';
+                    const bg  = pos ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)';
+                    return `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:${bg};color:${col};font-size:0.76rem;">較上月 ${sign}${v.toFixed(2)}pt</span>`;
+                };
                 perfDiv.innerHTML = cats.map(cat => {
                     const items = data.filter(d => d.cat === cat);
                     return `<div style="margin-bottom:1.25rem;">
                         <div style="color:#fbbf24;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">${cat}</div>
                         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.5rem;">
                         ${items.map(item => {
-                            const isFG = !!item.label;
-                            const col  = isFG ? fgColor(item.price) : null;
+                            const isFG  = !!item.label;
+                            const isFred = !!item._isFred;
+                            const col   = isFG ? fgColor(item.price) : null;
                             const priceStr = item.price != null
-                                ? (isFG ? item.price : item.price.toFixed(2))
+                                ? (isFG ? item.price : (isFred ? item.price.toFixed(2) + '%' : item.price.toFixed(2)))
                                 : '-';
-                            const bottomRow = isFG
-                                ? `<span style="padding:0.1rem 0.45rem;border-radius:4px;background:${col}22;color:${col};font-size:0.76rem;font-weight:600;">${item.label || '-'}</span>`
-                                : `${pctCell(item.chg1d,'今日')}${pctCell(item.chg7d,'7天')}`;
+                            let bottomRow;
+                            if (isFG) {
+                                bottomRow = `<span style="padding:0.1rem 0.45rem;border-radius:4px;background:${col}22;color:${col};font-size:0.76rem;font-weight:600;">${item.label || '-'}</span>`;
+                            } else if (isFred) {
+                                const dateShort = (item._dateLabel || '').slice(0, 7);  // YYYY-MM
+                                const dateTag = dateShort
+                                    ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.12);color:#818cf8;font-size:0.72rem;">${dateShort}</span>`
+                                    : '';
+                                bottomRow = `${dateTag}${ptCell(item._momChange)}`;
+                            } else {
+                                bottomRow = `${pctCell(item.chg1d,'今日')}${pctCell(item.chg7d,'7天')}`;
+                            }
                             return `
                             <div class="macro-card">
                                 <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.2rem;">${item.name}</div>

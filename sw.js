@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v15';  // ← 2026-04-29：買入/賣出整併到持倉一覽 header；點擊才彈出輸入 Modal
+const CACHE_NAME = 'portfolio-tracker-v16';  // ← 2026-04-29：總體經濟新增 失業率/CPI/PCE/PPI（FRED 資料）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

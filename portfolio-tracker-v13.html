@@ -5086,6 +5086,12 @@
             if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
             if (perfDiv) perfDiv.innerHTML = '<div style="text-align:center;padding:2rem;color:#64748b;">⏳ 抓取總經數據中...</div>';
 
+            // 預先載入後端產生的經濟指標 JSON（如果存在）
+            try {
+                const r = await fetch('./data/economic_data.json', { cache: 'no-store' });
+                if (r.ok) window._econData = await r.json();
+            } catch(_) { window._econData = null; }
+
             const _fgLabel = { zh: {'Extreme Fear':'極度恐懼','Fear':'恐懼','Neutral':'中性','Greed':'貪婪','Extreme Greed':'極度貪婪'} };
             const results = [];
             for (let i = 0; i < MACRO_SYMBOLS.length; i++) {
@@ -5121,42 +5127,53 @@
 
                 // ── FRED 經濟指標：失業率(level)、CPI/PCE/PPI(YoY) ──
                 if (m.special === 'fred') {
-                    try {
-                        const series = await _fetchFredCsv(m.fred);
-                        if (series && series.length > 0) {
-                            let curVal = null, prevVal = null, dateLabel = '';
-                            const last = series[series.length - 1];
-                            dateLabel = last.date || '';
-                            if (m.kind === 'yoy') {
-                                if (series.length > 12) {
-                                    const cur = last.value;
-                                    const yearAgo = series[series.length - 13].value;
-                                    if (yearAgo !== 0) curVal = (cur - yearAgo) / yearAgo * 100;
-                                    if (series.length > 13) {
-                                        const prev = series[series.length - 2].value;
-                                        const prevYearAgo = series[series.length - 14].value;
-                                        if (prevYearAgo !== 0) prevVal = (prev - prevYearAgo) / prevYearAgo * 100;
-                                    }
-                                }
-                            } else {
-                                curVal = last.value;
-                                if (series.length > 1) prevVal = series[series.length - 2].value;
-                            }
-                            const mom = (curVal != null && prevVal != null) ? (curVal - prevVal) : null;
-                            results.push({
-                                ...m,
-                                price: curVal,
-                                _isFred: true,
-                                _dateLabel: dateLabel,
-                                _prevValue: prevVal,
-                                _momChange: mom,    // 月變化（百分點 pt）
-                                chg1d: null, chg7d: null,
-                            });
-                        } else {
-                            results.push({ ...m, price:null, chg1d:null, chg7d:null });
+                    let curVal = null, prevVal = null, dateLabel = '';
+                    // ① 優先用後端產生的 economic_data.json（GitHub Actions 自動更新，最穩定）
+                    if (window._econData && window._econData.indicators) {
+                        const ind = window._econData.indicators[m.fred];
+                        if (ind && ind.value != null) {
+                            curVal    = ind.value;
+                            prevVal   = ind.prev != null ? ind.prev : null;
+                            dateLabel = ind.date || '';
                         }
-                    } catch(_) { results.push({ ...m, price:null, chg1d:null, chg7d:null }); }
-                    if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 350));
+                    }
+                    // ② 後端沒值才走前端 CORS proxy fallback
+                    if (curVal == null) {
+                        try {
+                            const series = await _fetchFredCsv(m.fred);
+                            if (series && series.length > 0) {
+                                const last = series[series.length - 1];
+                                dateLabel = last.date || '';
+                                if (m.kind === 'yoy') {
+                                    if (series.length > 12) {
+                                        const cur = last.value;
+                                        const yearAgo = series[series.length - 13].value;
+                                        if (yearAgo !== 0) curVal = (cur - yearAgo) / yearAgo * 100;
+                                        if (series.length > 13) {
+                                            const prev = series[series.length - 2].value;
+                                            const prevYearAgo = series[series.length - 14].value;
+                                            if (prevYearAgo !== 0) prevVal = (prev - prevYearAgo) / prevYearAgo * 100;
+                                        }
+                                    }
+                                } else {
+                                    curVal = last.value;
+                                    if (series.length > 1) prevVal = series[series.length - 2].value;
+                                }
+                            }
+                        } catch(_) {}
+                    }
+                    const mom = (curVal != null && prevVal != null) ? (curVal - prevVal) : null;
+                    // 標記為 FRED 卡片（即使資料抓不到，顯示文字也用中文「等待後端更新」）
+                    results.push({
+                        ...m,
+                        price: curVal,
+                        _isFred: true,
+                        _dateLabel: dateLabel,
+                        _prevValue: prevVal,
+                        _momChange: mom,
+                        chg1d: null, chg7d: null,
+                    });
+                    if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 100));
                     continue;
                 }
 
@@ -5319,11 +5336,15 @@
                             if (isFG) {
                                 bottomRow = `<span style="padding:0.1rem 0.45rem;border-radius:4px;background:${col}22;color:${col};font-size:0.76rem;font-weight:600;">${item.label || '-'}</span>`;
                             } else if (isFred) {
-                                const dateShort = (item._dateLabel || '').slice(0, 7);  // YYYY-MM
-                                const dateTag = dateShort
-                                    ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.12);color:#818cf8;font-size:0.72rem;">${dateShort}</span>`
-                                    : '';
-                                bottomRow = `${dateTag}${ptCell(item._momChange)}`;
+                                if (item.price == null) {
+                                    bottomRow = `<span style="color:#64748b;font-size:0.74rem;">等待後端更新（GitHub Actions 自動產生）</span>`;
+                                } else {
+                                    const dateShort = (item._dateLabel || '').slice(0, 7);  // YYYY-MM
+                                    const dateTag = dateShort
+                                        ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.12);color:#818cf8;font-size:0.72rem;">${dateShort}</span>`
+                                        : '';
+                                    bottomRow = `${dateTag}${ptCell(item._momChange)}`;
+                                }
                             } else {
                                 bottomRow = `${pctCell(item.chg1d,'今日')}${pctCell(item.chg7d,'7天')}`;
                             }
@@ -6597,6 +6618,10 @@
                 .filter(n => { if (!n.uuid || seen.has(n.uuid)) return false; seen.add(n.uuid); return true; })
                 .sort((a, b) => b.providerPublishTime - a.providerPublishTime);
 
+            // 翻譯標題與摘要為繁體中文（MyMemory 免費 API + localStorage 24hr 快取）
+            if (statusEl) statusEl.textContent = `翻譯新聞中...（共 ${unique.length} 則）`;
+            await _translateNewsItems(unique, statusEl);
+
             renderNewsTab(unique);
             _newsLoaded = true;
             if (btn) { btn.textContent = '🔄 載入新聞'; btn.disabled = false; }
@@ -6607,6 +6632,49 @@
                 if (finnhubFailed > 0) parts.push(`<span style="color:#f59e0b;">⚠ Finnhub 失敗 ${finnhubFailed}</span>`);
                 parts.push(new Date().toLocaleTimeString('zh-TW'));
                 statusEl.innerHTML = parts.join(' · ');
+            }
+        }
+
+        // ── 新聞翻譯（共用 24hr cache）────────────────────────
+        async function _translateNewsItems(items, statusEl) {
+            if (!items || items.length === 0) return;
+            const _tCacheKey = 'pf_news_trans_v1';
+            let tCache = {};
+            try {
+                const raw = JSON.parse(localStorage.getItem(_tCacheKey) || '{}');
+                tCache = (Date.now() - (raw.ts||0) < 24*3600*1000) ? (raw.data||{}) : {};
+            } catch(_) {}
+            let tUpdated = false;
+            // 收集所有要翻譯的字串（標題 + 摘要）
+            const tasks = [];
+            for (const it of items) {
+                if (it.title) tasks.push({ obj: it, key: 'titleZh', text: it.title });
+                if (it.summary) tasks.push({ obj: it, key: 'summaryZh', text: it.summary.slice(0, 500) });
+            }
+            for (let i = 0; i < tasks.length; i++) {
+                const t = tasks[i];
+                if (!t.text) { t.obj[t.key] = t.text; continue; }
+                if (tCache[t.text]) { t.obj[t.key] = tCache[t.text]; continue; }
+                if (statusEl) statusEl.textContent = `翻譯中 (${i+1}/${tasks.length})...`;
+                try {
+                    const r = await fetch(
+                        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(t.text)}&langpair=en|zh-TW`,
+                        { signal: AbortSignal.timeout(6000) }
+                    );
+                    if (r.ok) {
+                        const d = await r.json();
+                        const zh = d?.responseData?.translatedText || t.text;
+                        t.obj[t.key] = zh;
+                        tCache[t.text] = zh;
+                        tUpdated = true;
+                    } else {
+                        t.obj[t.key] = t.text;
+                    }
+                } catch(_) { t.obj[t.key] = t.text; }
+                await new Promise(r => setTimeout(r, 250));  // 避免 rate limit
+            }
+            if (tUpdated) {
+                try { localStorage.setItem(_tCacheKey, JSON.stringify({ ts: Date.now(), data: tCache })); } catch(_) {}
             }
         }
 
@@ -6636,8 +6704,9 @@
                         ${sentimentBadge(sent)}
                         <span style="color:#64748b;font-size:0.74rem;">${dtStr} · ${item.publisher||''}</span>
                     </div>
-                    <div style="color:#e2e8f0;font-size:0.88rem;line-height:1.45;">${item.title}</div>
-                    ${item.summary ? `<div style="color:#94a3b8;font-size:0.78rem;line-height:1.4;margin-top:0.3rem;">${item.summary.slice(0,160)}${item.summary.length>160?'…':''}</div>` : ''}
+                    <div style="color:#e2e8f0;font-size:0.88rem;line-height:1.45;">${item.titleZh || item.title}</div>
+                    ${item.titleZh && item.titleZh !== item.title ? `<div style="color:#475569;font-size:0.74rem;margin-top:0.15rem;">${item.title}</div>` : ''}
+                    ${(item.summaryZh || item.summary) ? `<div style="color:#94a3b8;font-size:0.78rem;line-height:1.4;margin-top:0.3rem;">${(item.summaryZh || item.summary).slice(0,180)}${(item.summaryZh || item.summary).length>180?'…':''}</div>` : ''}
                 </div>`;
             }).join('');
         }
@@ -6699,8 +6768,10 @@
                         <span style="background:rgba(251,191,36,0.15);color:#fbbf24;padding:0.15rem 0.55rem;border-radius:6px;font-size:0.82rem;font-weight:700;">${item._holdingSymbol}</span>
                         ${sentimentBadge(sent)}
                     </div>
-                    <h3 style="color:#f1f5f9;font-size:1rem;font-weight:700;margin:0 0 0.4rem 0;line-height:1.5;">${item.title}</h3>
+                    <h3 style="color:#f1f5f9;font-size:1rem;font-weight:700;margin:0 0 0.4rem 0;line-height:1.5;">${item.titleZh || item.title}</h3>
+                    ${item.titleZh && item.titleZh !== item.title ? `<div style="color:#64748b;font-size:0.78rem;margin:0 0 0.4rem 0;font-style:italic;">${item.title}</div>` : ''}
                     <div style="color:#64748b;font-size:0.8rem;">${item.publisher||''} &nbsp;·&nbsp; ${dtStr}</div>
+                    ${(item.summaryZh || item.summary) ? `<div style="color:#cbd5e1;font-size:0.85rem;line-height:1.55;margin-top:0.65rem;padding:0.6rem 0.8rem;background:rgba(15,30,60,0.45);border-left:3px solid rgba(99,102,241,0.4);border-radius:6px;">${item.summaryZh || item.summary}</div>` : ''}
                 </div>
                 <div style="background:rgba(15,30,60,0.5);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:0.9rem 1rem;margin-bottom:1rem;">
                     <div style="color:#fbbf24;font-size:0.83rem;font-weight:700;margin-bottom:0.45rem;">📊 新聞分析</div>

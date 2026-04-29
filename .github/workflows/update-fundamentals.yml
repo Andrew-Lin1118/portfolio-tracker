@@ -34,8 +34,8 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # update_fund.py 末尾會順便跑 fetch_market_pe.py，要一併 commit
-          git add data/fundamentals.json data/market_pe.json
+          # update_fund.py 末尾會順便跑 fetch_market_pe.py + fetch_economic.py，三者一併 commit
+          git add data/fundamentals.json data/market_pe.json data/economic_data.json
           if git diff --cached --quiet; then
             echo "No changes; skipping commit."
             exit 0

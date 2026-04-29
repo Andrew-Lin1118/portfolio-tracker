@@ -485,3 +485,11 @@ try:
     subprocess.run([_sys.executable, os.path.join(ROOT, 'fetch_market_pe.py')], check=False, timeout=180)
 except Exception as _e:
     print(f'  [market_pe] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+
+# ── 順便更新 FRED 經濟指標（失業率/CPI/PCE/PPI；fetch_economic.py 獨立可運行）──
+try:
+    print('\n更新經濟指標 (economic_data.json) ...', flush=True)
+    import subprocess as _sp, sys as _sy
+    _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=120)
+except Exception as _e:
+    print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)

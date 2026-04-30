@@ -266,6 +266,30 @@ def _apply_official_quarter_patches(data):
         entry['highlights'], entry['warnings'] = _heuristic_highlights(quarters)
 
 
+def _apply_common_quarter_metadata(data):
+    for entry in (data or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        earnings_history = entry.get('_earnings_history') or []
+        for q in entry.get('quarters') or []:
+            if not isinstance(q, dict):
+                continue
+            if not q.get('published_date'):
+                q['published_date'] = _infer_published_date_for_quarter(q.get('period'), earnings_history)
+
+
+def _strip_internal_fields(data):
+    cleaned = {}
+    for sym, entry in (data or {}).items():
+        if not isinstance(entry, dict):
+            cleaned[sym] = entry
+            continue
+        item = dict(entry)
+        item.pop('_earnings_history', None)
+        cleaned[sym] = item
+    return cleaned
+
+
 def _heuristic_highlights(qtrs):
     """
     根據數字產生「亮點 / 警訊」(中文短句)
@@ -404,11 +428,14 @@ def fetch_one(symbol, fund):
         for q in qtrs:
             for e in eh:
                 if e.get('report_date') and e['report_date'].startswith(q['period'][:7]):
+                    q['published_date'] = e.get('report_date')
                     q['eps_estimate'] = _safe_float(e.get('eps_estimate'))
                     if q.get('eps_actual') is None:
                         q['eps_actual'] = _safe_float(e.get('eps_actual'))
                     q['surprise_pct'] = _safe_float(e.get('surprise_pct'))
                     break
+            if not q.get('published_date'):
+                q['published_date'] = _infer_published_date_for_quarter(q.get('period'), eh)
 
         # yfinance sometimes exposes an earnings-date-only quarter before the full
         # income statement is available (TSM can show EPS without revenue/margins).
@@ -463,7 +490,12 @@ def main():
         return
 
     existing = _load_existing()
+    for sym, item in fdata.items():
+        if isinstance(existing.get(sym), dict):
+            existing[sym]['_earnings_history'] = item.get('earnings_history') or []
+    _apply_common_quarter_metadata(existing)
     _apply_official_quarter_patches(existing)
+    _apply_common_quarter_metadata(existing)
 
     # 決定要抓的清單
     today_iso = datetime.date.today().isoformat()
@@ -490,10 +522,13 @@ def main():
 
     if not targets:
         print(f'近 {args.days} 天無新財報需要分析（{len(existing)} 已有資料）', flush=True)
+        if not existing:
+            print('既有 earnings_analysis.json 為空，跳過寫檔以避免清空資料；請使用 --all 重建。', flush=True)
+            return
         # 即使沒新資料也寫一次 generated 時間
         payload = {
             'generated': datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z',
-            'data': existing,
+            'data': _strip_internal_fields(existing),
         }
         with open(OUT_FILE, 'w', encoding='utf-8') as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
@@ -505,15 +540,17 @@ def main():
         print(f'  ({i}/{len(targets)}) {sym} ...', flush=True)
         result = fetch_one(sym, fdata.get(sym, {}))
         if result:
+            result['_earnings_history'] = (fdata.get(sym, {}) or {}).get('earnings_history') or []
             existing[sym] = result
             print(f'    OK {result["last_report_date"]} · 亮點 {len(result["highlights"])} · 警訊 {len(result["warnings"])}', flush=True)
         time.sleep(0.5)
 
     _apply_official_quarter_patches(existing)
+    _apply_common_quarter_metadata(existing)
 
     payload = {
         'generated': datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z',
-        'data': existing,
+        'data': _strip_internal_fields(existing),
     }
     with open(OUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)

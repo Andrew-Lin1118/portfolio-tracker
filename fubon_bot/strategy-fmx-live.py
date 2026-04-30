@@ -98,6 +98,8 @@ class FMXLiveBot:
 
     # ── 初始化 ───────────────────────────────────────────────────────────────
     def __init__(self, config_path: str, force_dry_run: bool = False):
+        self.config_path = config_path
+        self.force_dry_run = force_dry_run
         with open(config_path, encoding="utf-8") as f:
             self.cfg = yaml.safe_load(f)
 
@@ -154,6 +156,40 @@ class FMXLiveBot:
             f"上限:{self.max_leverage}x  加碼觸發:{self.pyramid_trigger}x"
         )
         self.log.info("=" * 62)
+
+    def reload_runtime_config(self) -> bool:
+        """Reload dashboard-editable strategy parameters without restarting the bot."""
+        try:
+            with open(self.config_path, encoding="utf-8") as f:
+                new_cfg = yaml.safe_load(f) or {}
+        except Exception as e:
+            self.log.warning(f"熱載入 config.yaml 失敗，沿用目前設定: {e}")
+            return False
+
+        keys = (
+            "dry_run", "target_leverage", "dca_threshold_pct", "max_leverage",
+            "pyramid_trigger", "fee_per_lot", "maint_margin", "high_period",
+            "low_period", "trend_filter", "intraday_loop_seconds", "fmx_loop_seconds",
+        )
+        if not any(new_cfg.get(k) != self.cfg.get(k) for k in keys):
+            return False
+
+        self.cfg = new_cfg
+        self.dry_run = self.force_dry_run or self.cfg.get("dry_run", True)
+        self.initial_capital = float(self.cfg.get("initial_capital", self.initial_capital))
+        self.target_leverage = float(self.cfg.get("target_leverage", self.target_leverage))
+        self.dca_threshold = float(self.cfg.get("dca_threshold_pct", self.dca_threshold))
+        self.max_leverage = float(self.cfg.get("max_leverage", self.max_leverage))
+        self.pyramid_trigger = float(self.cfg.get("pyramid_trigger", self.pyramid_trigger))
+        self.fee_per_lot = float(self.cfg.get("fee_per_lot", self.fee_per_lot))
+        self.maint_margin = float(self.cfg.get("maint_margin", self.maint_margin))
+        self.log.info(
+            "config.yaml 已熱載入："
+            f"EXIT:<{int(self.cfg.get('low_period', 100))}日MA  "
+            f"ENTRY:>{int(self.cfg.get('high_period', 10))}日高  "
+            f"PYRAMID:<{self.pyramid_trigger}x  DELEVERAGE:>{self.max_leverage}x"
+        )
+        return True
 
     # ── 登入 ─────────────────────────────────────────────────────────────────
     def login(self) -> None:
@@ -989,6 +1025,10 @@ class FMXLiveBot:
         merged["pyramid_trigger"]  = self.pyramid_trigger
         merged["initial_capital"]  = self.initial_capital
         merged["dry_run"]          = self.dry_run
+        merged["trend_filter"]     = bool(self.cfg.get("trend_filter", True))
+        merged["high_period"]      = int(self.cfg.get("high_period", 10))
+        merged["low_period"]       = int(self.cfg.get("low_period", 100))
+        merged["fee_per_lot"]      = self.fee_per_lot
         merged["save_ts"] = datetime.datetime.now().isoformat(timespec="seconds")
         with open(STATE_FILE, "w", encoding="utf-8") as f:
             json.dump(merged, f, ensure_ascii=False, indent=2)
@@ -1464,6 +1504,14 @@ class FMXLiveBot:
                 if not self.is_trading_session():
                     time.sleep(off_hour_sec)
                     continue
+
+                if self.reload_runtime_config():
+                    tick_sec     = int(self.cfg.get("intraday_loop_seconds", tick_sec))
+                    off_hour_sec = max(tick_sec, int(self.cfg.get("fmx_loop_seconds", off_hour_sec)))
+                    high_period  = int(self.cfg.get("high_period", high_period))
+                    low_period   = int(self.cfg.get("low_period", low_period))
+                    trend_filter = bool(self.cfg.get("trend_filter", trend_filter))
+                    _yf_date = None  # force recalculation with the new MA/high periods
 
                 today = str(datetime.date.today())
 

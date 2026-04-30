@@ -329,7 +329,14 @@
     .signal-box .signal-value { font-size: 14px; font-weight: 700; letter-spacing: 0.3px; }
 
     /* 日誌 */
-    .log-panel { max-height: 100px; }
+    .right-panel.mob-active .log-title-section { flex-shrink: 0; }
+    .right-panel.mob-active .log-panel {
+      flex: 0 0 auto;
+      min-height: 170px;
+      max-height: none;
+      overflow-y: visible;
+      padding-bottom: 22px;
+    }
     .log-item  { font-size: 10px; }
 
     /* 富邦報價 grid */
@@ -337,7 +344,7 @@
     .fq-label { font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
     .fq-val   { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-    /* ── 圖表 tab ── */
+    /* ── 圖表 / 庫存 tab：手機版明確分離內容 ── */
     .center-panel.mob-active { flex-direction: column; }
     .badges { flex-wrap: wrap; gap: 4px; padding: 6px 10px; }
     .badge  { font-size: 10px; letter-spacing: 0.3px; }
@@ -345,6 +352,23 @@
     .chart-wrapper { flex: 1; min-height: 180px; }
     .chart-small { height: 80px !important; }
     .chart-label { font-size: 10px; letter-spacing: 0.3px; }
+    .center-panel.mob-chart-mode #invSection1,
+    .center-panel.mob-chart-mode #invSection2,
+    .center-panel.mob-chart-mode #rowDrag1,
+    .center-panel.mob-chart-mode #rowDrag2 {
+      display: none !important;
+    }
+    .center-panel.mob-inventory-mode .badges,
+    .center-panel.mob-inventory-mode #chartArea,
+    .center-panel.mob-inventory-mode #rowDrag1 {
+      display: none !important;
+    }
+    .center-panel.mob-inventory-mode #invSection1,
+    .center-panel.mob-inventory-mode #invSection2 {
+      height: auto !important;
+      min-height: 170px;
+      flex: 1 1 0;
+    }
 
     /* 行情表格 */
     .inv-section { height: 110px !important; }
@@ -601,6 +625,7 @@
         <b style="color:var(--gold)">買入</b>：價格突破近 N 日高<br>
         <b style="color:var(--red)">清倉</b>：價格跌破 M 日移動平均線
       </div>
+      <button class="btn gold" style="width:100%;margin-top:6px" onclick="applySettings()">套用順勢濾網</button>
     </div>
 
   </div><!-- end left-panel -->
@@ -616,7 +641,7 @@
       <span class="badge gray" id="badgeLiq">強平距離 —</span>
       <span class="badge gray" id="badgeSignal">訊號 —</span>
       <span class="badge gray" id="badgeFilterHi" style="display:none">10日高 —</span>
-      <span class="badge gray" id="badgeFilterLo" style="display:none">100日MA —</span>
+      <span class="badge gray" id="badgeFilterLo" style="display:none">清倉MA —</span>
       <span class="badge gray" id="badgeZoom" style="cursor:pointer;margin-left:auto;border-color:#555"
             onclick="resetChartZoom()" title="還原縮放 (雙擊圖表)&#10;滾輪: Y軸縮放 | Shift+滾輪: X軸縮放">⊕ 還原縮放</span>
       <span style="margin-left:8px;display:inline-flex;gap:3px;align-items:center">
@@ -680,6 +705,7 @@
               <th>名稱</th>
               <th>月份</th>
               <th>現價</th>
+              <th>價差</th>
               <th>漲跌</th>
               <th>漲跌%</th>
               <th>成交量</th>
@@ -687,7 +713,7 @@
             </tr>
           </thead>
           <tbody id="invBody">
-            <tr><td colspan="8" class="inv-empty">載入中…</td></tr>
+            <tr><td colspan="9" class="inv-empty">載入中…</td></tr>
           </tbody>
         </table>
       </div>
@@ -813,8 +839,8 @@
         <div class="value" id="statAvgCost">—</div>
       </div>
       <div class="stat-card">
-        <div class="label" style="color:#388bfd">100日MA（清倉線）</div>
-        <div class="value" id="statEMA">—</div>
+        <div class="label" id="statMALabel" style="color:var(--orange)">清倉MA（清倉線）</div>
+        <div class="value" id="statEMA" style="color:var(--orange)">—</div>
       </div>
     </div>
 
@@ -859,7 +885,7 @@
       <div style="font-size:10px;color:var(--muted);margin-top:3px" id="signalReason"></div>
     </div>
 
-    <div class="panel-section" style="border-top:1px solid var(--border)">
+    <div class="panel-section log-title-section" style="border-top:1px solid var(--border)">
       <div class="section-title">最近日誌</div>
     </div>
     <div class="log-panel" id="logPanel"></div>
@@ -1018,10 +1044,10 @@ const _PROD_MIN_PX = {
 
 const PRODUCTS = {
   // mis: TAIFEX MIS 即時行情 base code（不含月份）
-  // fallbackMis: MXF 不在期交所公開行情中，改用 TX/TXF 的參考價計算漲跌
-  'MXFR1': { name: '微型台指期貨', taifex: null,  mis: 'MXF', fallbackMis: ['TXF','TX','MTX'], yf: '^TWII', futKline: true, mult: 10,   maint: 18300 },
+  // TMF=微型臺指, MXF=小臺, TXF=臺指；這裡只影響 dashboard 行情顯示，不影響下單代碼。
+  'MXFR1': { name: '微型台指期貨', taifex: null,  mis: 'TMF', fallbackMis: ['MXF','TXF','TX'], yf: '^TWII', futKline: true, mult: 10,   maint: 18300 },
   'TXFR1': { name: '台股期貨(大台)',taifex: 'TX',  mis: 'TXF', yf: '^TWII', futKline: true, mult: 200,  maint: 366000 },
-  'MTXR1': { name: '小型台指期貨', taifex: 'MTX', mis: 'MTX', yf: '^TWII', futKline: true, mult: 50,   maint: 91500 },
+  'MTXR1': { name: '小型台指期貨', taifex: 'MTX', mis: 'MXF', yf: '^TWII', futKline: true, mult: 50,   maint: 91500 },
   'TE':    { name: '電子期貨',     taifex: 'TE',  mis: 'TE',  yf: null,    mult: 4000, maint: 511000 },
   'TF':    { name: '金融期貨',     taifex: 'TF',  mis: 'TF',  yf: null,    mult: 1000, maint: 103000 },
   // GDF: 100g 黃金期貨，報價單位 NTD/g；BRF: 200桶布蘭特，報價單位 NTD/桶
@@ -1558,6 +1584,7 @@ const _TAIFEX_MO_MAP = {F:1,G:2,H:3,J:4,K:5,M:6,N:7,Q:8,U:9,V:10,X:11,Z:12};
 // 只加入與 TAIFEX 不衝突的字母（A/B/C/D/E/I/L）
 // F/G/H/J/K/M/N/Q/U/V/X/Z 已被 TAIFEX 使用，優先用 TAIFEX 定義
 const _FUGLE_MO_MAP  = {A:1,B:2,C:3,D:4,E:5,I:9,L:12};
+const _QUOTE_LIST_MO_MAP = {A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,I:9,J:10,K:11,L:12};
 
 // ── 台指系列商品：MXFR1/TXFR1/MTXR1 追蹤同一台股加權指數，effectiveRef 共用 ──
 const _TW_INDEX_KEYS_GLOBAL = new Set(['MXFR1', 'TXFR1', 'MTXR1']);
@@ -1597,14 +1624,8 @@ function _resolveHeldContractRef(sym, info, misData, twIndexEffectiveRef) {
 
   const tryRow = (row) => {
     if (!row) return null;
-    const last = parseFloat(String(row.Last   || '').replace(/[,△▲▼\s]/g, '')) || 0;
-    const chg  = parseFloat(String(row.Change || '').replace(/[△▲▼,\s]/g, ''));
-    if (last < 100 || isNaN(chg) || chg === 0) return null;
-    const ref = last - chg;
-    if (ref < 100) return null;
-    // 合理性檢查：同月 ref 應與 last 相近（<10% 差距）
-    if (Math.abs(chg) / ref > 0.10) return null;
-    return ref;
+    const refInfo = _quoteRowRef(row);
+    return refInfo ? refInfo.ref : null;
   };
 
   const codes = [
@@ -1701,6 +1722,201 @@ function _normToYYYYMM(m) {
   return '';
 }
 
+function _normQuoteListToYYYYMM(m) {
+  if (!m) return '';
+  const s = String(m).trim();
+  if (/^\d{6}$/.test(s)) return s;
+  if (/^\d{4}$/.test(s)) return '20' + s;
+  if (s.length === 2) {
+    const mo = _QUOTE_LIST_MO_MAP[s[0].toUpperCase()];
+    const yr = parseInt(s[1]);
+    if (mo && !isNaN(yr)) return `${2020 + yr}${String(mo).padStart(2,'0')}`;
+  }
+  return '';
+}
+
+function _parseSignedMarketNumber(v) {
+  if (v == null || v === '') return null;
+  const raw = String(v).trim();
+  const n = parseFloat(raw.replace(/,/g, '').replace(/[^\d.-]/g, ''));
+  if (isNaN(n)) return null;
+  const negativeHint = /[\u25bc\u25bd\u25be\u25bf]/.test(raw) || raw.includes('跌');
+  if (negativeHint && n > 0) return -n;
+  return n;
+}
+
+function _quoteRowRef(row) {
+  if (!row) return null;
+  const last = _parseSignedMarketNumber(row.Last ?? row.CLastPrice ?? row.LastPrice);
+  const chg  = _parseSignedMarketNumber(row.Change ?? row.CDiff ?? row.PriceChange);
+  if (last == null || chg == null || last < 100 || chg === 0) return null;
+  const ref = last - chg;
+  if (!ref || ref < 100) return null;
+  if (Math.abs(chg) / ref > 0.10) return null;
+  return { ref, rowLast: last, rowChg: chg };
+}
+
+function _mxfDisplayChangeFromMis(month = '', misData = null) {
+  const targetMonth = _normToYYYYMM(month) || month || _heldContractMonth('MXFR1') || '';
+  const pick = (code) => {
+    const row = targetMonth
+      ? (_misByCodeMonth[`${code}_${targetMonth}`] || null)
+      : null;
+    return row || misData?.[code] || misData?.[code + 'F'] || _misCache?.[code] || _misCache?.[code + 'F'] || null;
+  };
+  for (const code of ['MXF', 'TXF']) {
+    const row = pick(code);
+    const refInfo = _quoteRowRef(row);
+    if (!row?._quoteList || !refInfo?.rowChg) continue;
+    const pctRaw = row?.['%'] || row?.CDiffRate;
+    const pctNum = parseFloat(String(pctRaw || '').replace('%', ''));
+    const pct = !isNaN(pctNum)
+      ? ((pctNum >= 0 ? '+' : '') + pctNum.toFixed(2) + '%')
+      : ((refInfo.rowChg >= 0 ? '+' : '') + (refInfo.rowChg / refInfo.ref * 100).toFixed(2) + '%');
+    return { chg: Math.round(refInfo.rowChg), pct, code };
+  }
+  return null;
+}
+
+function _findQuoteRowForMonth(codes, month, misData, last = null) {
+  const uniqueCodes = [...new Set((codes || []).filter(Boolean))];
+  const targetLast = Number(last) || null;
+  const candidates = [];
+  const rowMonth = (row) => _normToYYYYMM(
+    row?.['ContractMonth(Week)'] || row?.ContractMonth || row?.month || row?.Month || ''
+  );
+  const addCandidate = (row, code, exactMonth, sourceRank) => {
+    if (!row) return;
+    const refInfo = _quoteRowRef(row);
+    if (!refInfo) return;
+    const distance = targetLast ? Math.abs(targetLast / refInfo.ref - 1) : 0;
+    // Display-only guard: avoid stale SDK/reference rows that are far away from the current quote.
+    if (distance > 0.06) return;
+    candidates.push({ row, code, exactMonth, sourceRank, distance });
+  };
+
+  if (month) {
+    uniqueCodes.forEach((code, idx) => {
+      const row = _misByCodeMonth[`${code}_${month}`];
+      addCandidate(row, code, true, idx);
+    });
+    uniqueCodes.forEach((code, idx) => {
+      const rows = _taifexAllMonths[code] || [];
+      rows.forEach(row => {
+        if (rowMonth(row) === month) addCandidate(row, code, true, idx + 20);
+      });
+    });
+  }
+  uniqueCodes.forEach((code, idx) => {
+    const row = misData?.[code] || misData?.[code + 'F'] || misData?.[code.replace(/F$/, '')];
+    const m = rowMonth(row);
+    if (!month || !m || m === month) addCandidate(row, code, !month || m === month, idx + 40);
+  });
+
+  candidates.sort((a, b) =>
+    Number(b.exactMonth) - Number(a.exactMonth) ||
+    a.distance - b.distance ||
+    a.sourceRank - b.sourceRank
+  );
+  return candidates[0]?.row || null;
+}
+
+function _resolveFubonStyleChange(sym, info, last, misData, opts = {}) {
+  if (last == null || !info) return null;
+  const dp = info.dp || 0;
+  const month = _heldContractMonth(sym) || _symToMonthYYYYMM(sym) || '';
+
+  if (sym === 'MXFR1') {
+    // 顯示層優先完全貼齊富邦犀利的「微型臺指」列：價格、漲跌點、漲跌幅
+    // 必須來自同一筆 MIS QuoteList。若用 SDK 持倉價去反推 MIS 參考價，
+    // 只要持倉價慢幾秒，就會出現 +200 點行情卻顯示成 -13 點的錯覺。
+    const directMicroRow = _findQuoteRowForMonth([info.mis], month, misData || _misCache, last);
+    const directMicroRef = _quoteRowRef(directMicroRow);
+    if (directMicroRow?._quoteList && directMicroRef?.rowLast != null && directMicroRef?.rowChg != null) {
+      const rowPct = directMicroRow?.['%'] || directMicroRow?.CDiffRate;
+      const pctVal = (directMicroRef.rowChg / directMicroRef.ref) * 100;
+      const pctText = rowPct != null && rowPct !== ''
+        ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
+        : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
+      const chg = dp > 0 ? +directMicroRef.rowChg.toFixed(dp) : Math.round(directMicroRef.rowChg);
+      return {
+        ref: directMicroRef.ref,
+        last: directMicroRef.rowLast,
+        chg,
+        pct: pctText,
+        source: 'direct_mis',
+      };
+    }
+
+    const pxRow = _findQuoteRowForMonth([info.mis], month, misData || _misCache, last);
+    const pxRef = _quoteRowRef(pxRow);
+    const changeRow = _findQuoteRowForMonth(info.fallbackMis || ['MXF','TXF'], month, misData || _misCache, last);
+    const changeRef = _quoteRowRef(changeRow);
+    if (changeRow?._quoteList && changeRef?.rowChg != null) {
+      const rowPct = changeRow?.['%'] || changeRow?.CDiffRate;
+      const pctVal = (changeRef.rowChg / changeRef.ref) * 100;
+      const pctText = rowPct != null && rowPct !== ''
+        ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
+        : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
+      const rawLast = opts.preferInputLast && Number(last) > 0
+        ? Number(last)
+        : (pxRef?.rowLast ?? Number(last));
+      const chg = dp > 0 ? +changeRef.rowChg.toFixed(dp) : Math.round(changeRef.rowChg);
+      return {
+        ref: changeRef.ref,
+        last: rawLast,
+        chg,
+        pct: pctText,
+        source: 'index_mis_change',
+      };
+    }
+  }
+
+  // 台指系列在 Fugle/SDK 的漲跌基準偶爾會拿到不同月份或舊參考價。
+  // 若 TAIFEX MIS 有本商品直接代碼（MXFR1=TMF, MTXR1=MXF, TXFR1=TXF）同月份 QuoteList，
+  // 顯示層一律以 MIS 的成交價/漲跌/漲跌幅為準，對齊富邦犀利行情。
+  const directMisRow = _findQuoteRowForMonth([info.mis], month, misData || _misCache, last);
+  const directRef = _quoteRowRef(directMisRow);
+  if (directMisRow?._quoteList && directRef?.rowLast != null && directRef?.rowChg != null) {
+    const rawLast = opts.preferInputLast && Number(last) > 0 ? Number(last) : directRef.rowLast;
+    const rawChg = rawLast - directRef.ref;
+    const rowPct = directMisRow?.['%'] || directMisRow?.CDiffRate;
+    const pctVal = (rawChg / directRef.ref) * 100;
+    const pctText = !opts.preferInputLast && rowPct != null && rowPct !== ''
+      ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
+      : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
+    const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+    return {
+      ref: directRef.ref,
+      last: rawLast,
+      chg,
+      pct: pctText,
+      source: 'direct_mis',
+    };
+  }
+
+  const directCodes = [info.mis, info.taifex, info.mis ? info.mis + 'F' : null];
+  const fallbackCodes = info.fallbackMis || [];
+  const row = _findQuoteRowForMonth([...directCodes, ...fallbackCodes], month, misData || _misCache, last);
+  const refInfo = _quoteRowRef(row);
+  if (!refInfo || !refInfo.ref) return null;
+  const useQuoteListDisplay = row?._quoteList && refInfo.rowLast && !opts.preferInputLast;
+  const rawLast = useQuoteListDisplay ? refInfo.rowLast : Number(last);
+  const rawChg = useQuoteListDisplay ? refInfo.rowChg : rawLast - refInfo.ref;
+  const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+  const pctVal = (rawChg / refInfo.ref) * 100;
+  const rowPct = useQuoteListDisplay ? (row?.['%'] || row?.CDiffRate) : null;
+  const pctText = rowPct != null && rowPct !== ''
+    ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
+    : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
+  return {
+    ref: refInfo.ref,
+    last: rawLast,
+    chg,
+    pct: pctText,
+  };
+}
+
 function isNightSession() {
   const h = new Date().getHours();
   return h >= 15 || h < 5;   // 15:00 ~ 04:59 為夜盤
@@ -1717,11 +1933,13 @@ async function fetchTaifexMIS(force = false) {
     // 日盤：MarketType=1 → 無 MarketType → DailyMarketReportFut
     const misCandidates = isNightSession()
       ? [
+          `${BASE}/taifex/futures_quotes?market_type=1&kind_id=1`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut&MarketType=2`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut`,             // 夜盤備援：無 MarketType 也可能回傳夜盤即時
           `https://openapi.taifex.com.tw/v1/DailyMarketReportFut`,   // 含夜盤場次資料
         ]
       : [
+          `${BASE}/taifex/futures_quotes?market_type=0&kind_id=1`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut&MarketType=1`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut`,
           `https://openapi.taifex.com.tw/v1/DailyMarketReportFut`,
@@ -1729,7 +1947,7 @@ async function fetchTaifexMIS(force = false) {
     let data = null;
     for (const url of misCandidates) {
       try {
-        const proxied = `${BASE}/proxy?url=${encodeURIComponent(url)}`;
+        const proxied = url.startsWith(BASE) ? url : `${BASE}/proxy?url=${encodeURIComponent(url)}`;
         const r = await fetch(proxied, {
           signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined
         });
@@ -1738,6 +1956,7 @@ async function fetchTaifexMIS(force = false) {
         if (!candidate) continue;
         // 確認有實際資料列才採用，避免空回應阻斷後備 URL（夜盤 MarketType=2 可能回傳空 JSON）
         const testRows = candidate?.RtData?.FuturesList
+                      || candidate?.RtData?.QuoteList
                       || candidate?.RtData?.Rows
                       || candidate?.Data?.FuturesList
                       || (Array.isArray(candidate) ? candidate : []);
@@ -1748,6 +1967,7 @@ async function fetchTaifexMIS(force = false) {
 
     // 相容多種回傳結構
     let rows = data?.RtData?.FuturesList
+            || data?.RtData?.QuoteList
             || data?.RtData?.Rows
             || data?.Data?.FuturesList
             || [];
@@ -1769,13 +1989,17 @@ async function fetchTaifexMIS(force = false) {
         // 不用 /^([A-Z]+)\d/ 正則，避免將月份字母（如 K）誤納入產品代碼
         symId  = row.SymbolID || row.Symbol || '';
         if (symId.length < 3) continue;
-        code   = symId.slice(0, -2);   // 'TXFK6' → 'TXF' | 'MXFK6' → 'MXF'
+        const cleanSymId = symId.replace(/-[A-Z]+$/, '');
+        const officialMatch = cleanSymId.match(/^([A-Z]+)([A-Z]\d)$/);
+        code   = officialMatch ? officialMatch[1] : cleanSymId.slice(0, -2);   // 'TXFE6-F' → 'TXF' | 'TMFE6-F' → 'TMF'
         rawPx  = (row.CLastPrice || row.LastPrice || '').replace(/,/g, '');
         rawChg = (row.CDiff || row.PriceChange || '').replace(/,/g, '');
-        rawPct = row.CDiffRate || row.ChangeRate || '';
+        const pctRaw = row.CDiffRate ?? row.ChangeRate ?? '';
+        const pctNum = parseFloat(String(pctRaw).replace('%', ''));
+        rawPct = !isNaN(pctNum) ? ((pctNum >= 0 ? '+' : '') + pctNum.toFixed(2) + '%') : (pctRaw || '');
         rawVol = (row.CTotalVolume || row.Volume || '').replace(/,/g, '');
         rawOI  = (row.COI || row.OpenInterest || '').replace(/,/g, '');
-        month  = symId.slice(-2);      // 'TXFK6' → 'K6' | 'TXFE6' → 'E6'（Fugle格式）
+        month  = officialMatch ? officialMatch[2] : symId.slice(-2);      // 'TXFK6' → 'K6' | 'TXFE6-F' → 'E6'
       } else {
         // DailyMarketReportFut 格式 (夜盤場次過濾)
         // 夜盤時優先取 '夜盤' 行，但也接受 '一般' 行作為備援（第二輪處理）
@@ -1792,6 +2016,8 @@ async function fetchTaifexMIS(force = false) {
         rawPx  = (row.Last   || '').replace(/,/g, '');
         // DailyMarketReportFut 的 Change 可能含 △/▲/▼ 前綴（如 '△231'），需去除才能 parseFloat
         rawChg = (row.Change || '').replace(/[△▲▼,\s]/g, '');
+        const signedChg = _parseSignedMarketNumber(row.Change);
+        if (signedChg != null) rawChg = String(signedChg);
         rawPct = row['%'] || '';
         rawVol = (row.Volume || '').replace(/,/g, '');
         rawOI  = (row.OpenInterest || '').replace(/,/g, '');
@@ -1806,7 +2032,8 @@ async function fetchTaifexMIS(force = false) {
       const lastValid = last > _minPx;
 
       // 月份標準化 → YYYYMM (供對比和 _misByCodeMonth key 使用)
-      const monthYYYYMM = _normToYYYYMM(month) || month;
+      const isOfficialQuoteList = isMISFormat && /-[A-Z]+$/.test(symId || '');
+      const monthYYYYMM = (isOfficialQuoteList ? _normQuoteListToYYYYMM(month) : _normToYYYYMM(month)) || month;
 
       // ── 所有月份快取（供夜盤跨月漲跌修正使用）──
       if (lastValid && monthYYYYMM) {
@@ -1821,6 +2048,7 @@ async function fetchTaifexMIS(force = false) {
             Last: rawPx, Change: rawChg, '%': rawPct,
             Volume: rawVol || '—', OpenInterest: rawOI || '—',
             'ContractMonth(Week)': monthYYYYMM,
+            _quoteList: isMISFormat && !!(row.CDiffRate ?? row.ChangeRate),
             _night: isNightSession(),
           };
         }
@@ -1839,6 +2067,7 @@ async function fetchTaifexMIS(force = false) {
           Change: rawChg, '%': rawPct,
           Volume: rawVol || '—', OpenInterest: rawOI || '—',
           'ContractMonth(Week)': monthYYYYMM,
+          _quoteList: isMISFormat && !!(row.CDiffRate ?? row.ChangeRate),
           _night: isNightSession(),
           _rawLast: rawPx,  // 保留原始值供除錯
         };
@@ -1921,12 +2150,28 @@ function startMISPoll() {
 // SAFE_PCT_THRESHOLD：超過此 % 視為「異常」，需用其他來源覆蓋 / 跳過。
 //  台指期常態波動 < 3%，結算日的錯誤值 ≈ 4-5%，故設 3.0 較安全。
 function _nightChangeFromMIS(misCode, sdkSymbol, nightPrice, info) {
-  const contractMon  = _symToMonthYYYYMM(sdkSymbol) || '';
+  const contractMon  = _symToMonthYYYYMM(sdkSymbol) || _heldContractMonth('MXFR1') || '';
   const SAFE_PCT     = 3.0;
   const fbCodes      = info?.fallbackMis || [];
   const dp           = info?.dp || 0;
   const roundChg     = (v) => dp > 0 ? +Number(v).toFixed(dp) : Math.round(v);
   const fmtPct       = (p) => (p >= 0 ? '+' : '') + p.toFixed(2) + '%';
+
+  if (misCode === 'TMF') {
+    for (const fb of ['MXF', 'TXF']) {
+      const row = contractMon
+        ? _misByCodeMonth[`${fb}_${contractMon}`]
+        : (_misCache[fb] || _misCache[fb + 'F']);
+      const refInfo = _quoteRowRef(row);
+      if (!row?._quoteList || !refInfo?.rowChg) continue;
+      const pctRaw = row?.['%'] || row?.CDiffRate;
+      const pctNum = parseFloat(String(pctRaw || '').replace('%', ''));
+      const pct = !isNaN(pctNum)
+        ? ((pctNum >= 0 ? '+' : '') + pctNum.toFixed(2) + '%')
+        : fmtPct(refInfo.rowChg / refInfo.ref * 100);
+      return { chg: roundChg(refInfo.rowChg), pct };
+    }
+  }
 
   // ── Step 0：用同指數 R1 商品的 change_pct 換算（最穩，TXFR1 不受 Fugle bug 影響）
   // 台指系列（MXF/TXF/MTX）皆追蹤同一指數，pct 應幾乎相同。
@@ -2044,6 +2289,31 @@ function renderInventory(market, state, misData) {
   // Map daily TAIFEX report by contract code
   const mktMap = {};
   for (const row of (market || [])) mktMap[row.Contract] = row;
+  const displayMonthRows = (codes) => {
+    for (const code of [...new Set((codes || []).filter(Boolean))]) {
+      const rows = Object.entries(_misByCodeMonth)
+        .filter(([key, row]) => key.startsWith(`${code}_`) && row?._quoteList)
+        .map(([key, row]) => ({ ...row, _code: code, _monthKey: key.slice(code.length + 1) }))
+        .filter(row => {
+          const m = row['ContractMonth(Week)'] || row._monthKey || '';
+          const px = parseFloat(String(row.Last || '').replace(/,/g, ''));
+          return m && !m.includes('/') && !m.includes('W') && px > 0;
+        })
+        .sort((a, b) => String(a['ContractMonth(Week)'] || a._monthKey).localeCompare(String(b['ContractMonth(Week)'] || b._monthKey)));
+      if (rows.length) return { code, rows };
+    }
+    return { code: null, rows: [] };
+  };
+  const findSpreadRow = (codes, nearMon, nextMon) => {
+    if (!nearMon || !nextMon) return null;
+    const target = `${nearMon}/${nextMon}`;
+    for (const code of [...new Set((codes || []).filter(Boolean))]) {
+      const rows = _taifexAllMonths[code] || [];
+      const row = rows.find(r => (r['ContractMonth(Week)'] || '') === target);
+      if (row) return row;
+    }
+    return null;
+  };
 
   for (const [sym, info] of Object.entries(PRODUCTS)) {
     const tfCode  = info.taifex;          // DailyReport code (e.g. 'TX'), null for MXF
@@ -2326,6 +2596,16 @@ function renderInventory(market, state, misData) {
 
     // ── 台指系列品質檢查：TXFR1/MTXR1 若 last 與 MXFR1 差距 > 100 點，視為錯誤資料
     //   改用 MXFR1 的 SDK 現價代入（同指數，正常差距 < 個位數）
+    const fubonStyleChange = _resolveFubonStyleChange(sym, info, last, misData, {
+      preferInputLast: !!_sdkPositionPriceMap[sym],
+    });
+    if (fubonStyleChange) {
+      if (fubonStyleChange.last != null && !_sdkPositionPriceMap[sym]) last = fubonStyleChange.last;
+      if (fubonStyleChange.source === 'direct_mis' && fubonStyleChange.last != null) last = fubonStyleChange.last;
+      chg = fubonStyleChange.chg;
+      chgPct = fubonStyleChange.pct;
+    }
+
     if (_TW_INDEX_KEYS.has(sym) && sym !== 'MXFR1' && last != null) {
       const mxfPx = _sdkPositionPriceMap['MXFR1']
         ?? (_fubonQuoteCache?.last)
@@ -2344,12 +2624,51 @@ function renderInventory(market, state, misData) {
     }
 
     // ── 近月列：near / all 模式才顯示（next 模式只要次月，不要近月） ──
+    const fubonStyleFinal = _resolveFubonStyleChange(sym, info, last, misData, {
+      preferInputLast: !!_sdkPositionPriceMap[sym],
+    });
+    if (fubonStyleFinal) {
+      if (fubonStyleFinal.last != null && !_sdkPositionPriceMap[sym]) last = fubonStyleFinal.last;
+      if (fubonStyleFinal.source === 'direct_mis' && fubonStyleFinal.last != null) last = fubonStyleFinal.last;
+      chg = fubonStyleFinal.chg;
+      chgPct = fubonStyleFinal.pct;
+    }
+
     if (_monthView === 'near' || _monthView === 'all') {
-      rows.push({ sym, info, last, chg, chgPct, vol, oi, month, isStrategy, night, isRt, isFubon, _isNearMonth: true });
+      rows.push({ sym, info, last, spread: null, chg, chgPct, vol, oi, month, isStrategy, night, isRt, isFubon, _isNearMonth: true });
+    }
+
+    let addedOutrightMonths = false;
+    if (_monthView !== 'near') {
+      const monthCodes = [info.mis, info.taifex, ...(info.fallbackMis || [])];
+      const { rows: outrightRows } = displayMonthRows(monthCodes);
+      if (outrightRows.length >= 2) {
+        const currentMon = month && !String(month).includes('W') && !String(month).includes('/')
+          ? String(month)
+          : outrightRows[0]['ContractMonth(Week)'];
+        let shownAfterNear = 0;
+        for (const mRow of outrightRows) {
+          const mMon = mRow['ContractMonth(Week)'] || mRow._monthKey || '';
+          if (!mMon || mMon === currentMon || mMon < currentMon) continue;
+          shownAfterNear++;
+          if (_monthView === 'next' && shownAfterNear > 1) break;
+          const spreadRow = findSpreadRow(monthCodes, currentMon, mMon);
+          const spreadPx = spreadRow ? parseFloat(String(spreadRow.Last || '').replace(/,/g, '')) : null;
+          const mLast = parseFloat(String(mRow.Last || '').replace(/,/g, '')) || null;
+          const mChg  = parseFloat(String(mRow.Change || '').replace(/,/g, ''));
+          rows.push({
+            sym, info, last: mLast, spread: isNaN(spreadPx) ? null : spreadPx,
+            chg: isNaN(mChg) ? null : mChg, chgPct: mRow['%'] || '',
+            vol: mRow.Volume || '—', oi: mRow.OpenInterest || '—', month: mMon,
+            isStrategy: false, night: mRow._night || false, isRt: true, isFubon: false, _isNearMonth: false,
+          });
+        }
+        addedOutrightMonths = shownAfterNear > 0;
+      }
     }
 
     // ── 次月 / 全部月份：從 _taifexAllMonths 追加其他月份的行 ──
-    if (_monthView !== 'near' && info.taifex && _taifexAllMonths[info.taifex]) {
+    if (!addedOutrightMonths && _monthView !== 'near' && info.taifex && _taifexAllMonths[info.taifex]) {
       const allM = _taifexAllMonths[info.taifex];
       // nearMonth = 近月的 YYYYMM（優先用商品自己解出來的月份，否則取 allM 中最早且 >= 今天的一筆）
       const todayYM = (() => {
@@ -2370,7 +2689,7 @@ function renderInventory(market, state, misData) {
         const mRow = allM[mi];
         const mMon = mRow['ContractMonth(Week)'] || '';
         if (!mMon) continue;
-        if (mMon.includes('W')) continue;  // 跳過週合約，次月只顯示月合約
+        if (mMon.includes('/') || mMon.includes('W')) continue;  // 跳過價差/週合約，次月只顯示月合約
         if (mMon === nearMon) continue;  // 近月已顯示（或被 next 模式跳過），不重複
         if (mMon < nearMon)  continue;  // 已到期月份，跳過
         shownAfterNear++;
@@ -2381,14 +2700,14 @@ function renderInventory(market, state, misData) {
         const mVol  = mRow.Volume || '—';
         const mOI   = mRow.OpenInterest || '—';
         rows.push({
-          sym, info, last: mLast, chg: mChg, chgPct: mPct,
+          sym, info, last: mLast, spread: null, chg: mChg, chgPct: mPct,
           vol: mVol, oi: mOI, month: mMon, isStrategy: false,
           night: mRow._night || false, isRt: false, isFubon: false, _isNearMonth: false,
         });
       }
     }
     // MXF 無 taifex code，但如果選「全部/次月」，可用 fallback 商品的月份補充（TX/TXF/MTX）
-    if (_monthView !== 'near' && !info.taifex && info.fallbackMis) {
+    if (!addedOutrightMonths && _monthView !== 'near' && !info.taifex && info.fallbackMis) {
       for (const fbCode of info.fallbackMis) {
         const tfAll = _taifexAllMonths[fbCode];
         if (!tfAll || tfAll.length <= 1) continue;
@@ -2410,7 +2729,7 @@ function renderInventory(market, state, misData) {
           const mRow = tfAll[mi];
           const mMon = mRow['ContractMonth(Week)'] || '';
           if (!mMon) continue;
-          if (mMon.includes('W')) continue;  // 跳過週合約
+          if (mMon.includes('/') || mMon.includes('W')) continue;  // 跳過價差/週合約
           if (mMon === nearMon) continue;
           if (mMon < nearMon)  continue;  // 已到期月份，跳過
           shownAfterNear++;
@@ -2419,7 +2738,7 @@ function renderInventory(market, state, misData) {
           const mChg  = parseFloat((mRow.Change || '').replace(/,/g,'')) || null;
           const mPct  = mRow['%'] || '';
           rows.push({
-            sym, info, last: mLast, chg: mChg, chgPct: mPct,
+            sym, info, last: mLast, spread: null, chg: mChg, chgPct: mPct,
             vol: mRow.Volume || '—', oi: mRow.OpenInterest || '—', month: mMon,
             isStrategy: false, night: mRow._night || false, isRt: false, isFubon: false, _isNearMonth: false,
           });
@@ -2430,11 +2749,17 @@ function renderInventory(market, state, misData) {
   }
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="inv-empty">無資料，請更新</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="inv-empty">無資料，請更新</td></tr>';
     return;
   }
 
   tbody.innerHTML = rows.map(r => {
+    if (r.sym === 'MXFR1') {
+      const fixedChange = _mxfDisplayChangeFromMis(r.month, misData);
+      if (fixedChange) {
+        r = { ...r, chg: fixedChange.chg, chgPct: fixedChange.pct };
+      }
+    }
     const updown  = (r.chg == null || r.chg >= 0) ? 'up' : 'down';
     const sign    = (r.chg != null && r.chg >= 0) ? '+' : '';
     const dp      = r.info.dp || 0;   // 小數位數（BRF=2, GDF=1, 台指系列=0）
@@ -2444,6 +2769,9 @@ function renderInventory(market, state, misData) {
     const pxStr   = r.last != null
       ? `<b>${r.last.toLocaleString('zh-TW', {minimumFractionDigits: dp, maximumFractionDigits: dp})}</b>${rtBadge}`
       : `—${rtBadge}`;
+    const spreadStr = r.spread != null && !isNaN(r.spread)
+      ? r.spread.toLocaleString('zh-TW', {minimumFractionDigits: dp, maximumFractionDigits: dp})
+      : '—';
     const isSel  = r.sym === currentSymbol && r._isNearMonth !== false;
     // isSubRow：在「近月＋次月同時顯示」的 all 模式才隱藏 sym/name，
     // next 模式每商品只有一行，必須顯示 sym/name
@@ -2460,6 +2788,7 @@ function renderInventory(market, state, misData) {
       <td class="name">${nameDisplay}</td>
       <td>${_normToYYYYMM(r.month) || r.month || '—'}</td>
       <td>${pxStr}</td>
+      <td>${spreadStr}</td>
       <td class="${updown}">${r.chg != null ? sign + r.chg.toFixed(dp) : '—'}</td>
       <td class="${updown}">${r.chgPct}</td>
       <td>${r.vol}</td>
@@ -2924,6 +3253,14 @@ function calcSMA(data, period) {
     return cnt === period ? sum / period : null;
   });
 }
+function lastFiniteValue(arr) {
+  if (!Array.isArray(arr)) return null;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const v = Number(arr[i]);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
 function calcRollingLow(closes, period) {
   return closes.map((_, i) => {
     if (i < period) return null;
@@ -2956,9 +3293,9 @@ function renderPriceChart(chartData, state) {
 
   const isIntraday = chartData._intraday || false;
   _priceChartIsIntraday = isIntraday;   // 供 _computeMaxBarThickness / _onChartZoom 使用
-  const filterOn   = !isIntraday && (document.getElementById('filterToggle')?.checked ?? true);
-  const highN      = parseInt(document.getElementById('cfgHighPeriod')?.value || '10');
-  const lowM       = parseInt(document.getElementById('cfgLowPeriod')?.value  || '100');
+  const filterOn   = !isIntraday && (state?.trend_filter ?? (document.getElementById('filterToggle')?.checked ?? true));
+  const highN      = parseInt(state?.high_period ?? document.getElementById('cfgHighPeriod')?.value ?? 10, 10) || 10;
+  const lowM       = parseInt(state?.low_period  ?? document.getElementById('cfgLowPeriod')?.value  ?? 100, 10) || 100;
   const rollingHi  = filterOn ? calcRollingHigh(highs || closes, highN) : [];
   const rollingLo  = filterOn ? calcSMA(closes, lowM) : [];  // 改為 MA 清倉線
 
@@ -3377,9 +3714,15 @@ function updateStats(state, chartData) {
   const chartLast = chartData?.closes?.length
     ? chartData.closes[chartData.closes.length - 1] : null;
   const price  = chartLast || state.last_price;
-  const ema200   = state.ema200;
-  const ma100    = state.rolling_low;   // 100日SMA（清倉觸發線）
-  document.getElementById('statEMA').textContent = ma100 ? fmt(ma100) : (ema200 ? fmt(ema200) : '—');
+  const ema200      = state.ema200;
+  const lowPeriod   = parseInt(state.low_period ?? document.getElementById('cfgLowPeriod')?.value ?? 100, 10) || 100;
+  const useChartClearingMA = chartData && !chartData._intraday && Array.isArray(chartData.closes);
+  const clearingMA  = useChartClearingMA
+    ? (lastFiniteValue(calcSMA(chartData.closes, lowPeriod)) ?? state.rolling_low)
+    : state.rolling_low;   // fallback: BOT state 快照
+  const maLabelEl = document.getElementById('statMALabel');
+  if (maLabelEl) maLabelEl.textContent = `${lowPeriod}日MA（清倉線）`;
+  document.getElementById('statEMA').textContent = clearingMA ? fmt(clearingMA) : (ema200 ? fmt(ema200) : '—');
 
   // Equity — 如果 SDK 已提供即時權益數（_sdkEquity），不要用策略檔的舊值覆蓋
   if (_sdkEquity == null) {
@@ -3528,7 +3871,13 @@ function updateStats(state, chartData) {
              : sig === 'HOLD' ? 'gray' : 'blue');
 
   // Trend filter badges (dedicated elements, don't overwrite EMA/Liq badges)
-  const rh = state.rolling_high, rl = state.rolling_low;
+  const useChartMA = chartData && !chartData._intraday && Array.isArray(chartData.closes);
+  const chartHighSeries = useChartMA
+    ? calcRollingHigh(chartData.highs || chartData.closes, parseInt(state.high_period ?? document.getElementById('cfgHighPeriod')?.value ?? 10, 10) || 10)
+    : null;
+  const chartLowSeries = useChartMA ? calcSMA(chartData.closes, lowPeriod) : null;
+  const rh = lastFiniteValue(chartHighSeries) ?? state.rolling_high;
+  const rl = lastFiniteValue(chartLowSeries) ?? clearingMA;
   const hiEl = document.getElementById('badgeFilterHi');
   const loEl = document.getElementById('badgeFilterLo');
   if (rh != null && price) {
@@ -3541,7 +3890,7 @@ function updateStats(state, chartData) {
   }
   if (rl != null && price) {
     const belowMA = price < rl;
-    const maPeriod = state.low_period || 100;
+    const maPeriod = lowPeriod;
     loEl.style.display = '';
     loEl.textContent = belowMA ? `⚠ 跌破${maPeriod}日MA！清倉` : `${maPeriod}日MA ${fmt(rl)} 守穩`;
     loEl.className   = 'badge ' + (belowMA ? 'red' : 'green');
@@ -4378,6 +4727,19 @@ function updateLivePrice(market, misData) {
     }
   }
 
+  const fubonStyleLive = _resolveFubonStyleChange(currentSymbol, p, dispLast, misData, {
+    preferInputLast: !!_sdkPositionPriceMap[currentSymbol],
+  });
+  if (fubonStyleLive) {
+    if (fubonStyleLive.last != null && !_sdkPositionPriceMap[currentSymbol]) dispLast = fubonStyleLive.last;
+    if (fubonStyleLive.source === 'direct_mis' && fubonStyleLive.last != null) dispLast = fubonStyleLive.last;
+    dispChg = fubonStyleLive.chg;
+    dispPct = fubonStyleLive.pct;
+    dispSrc = _sdkPositionPriceMap[currentSymbol]
+      ? `富邦SDK持倉現價 + 期交所漲跌 | ${currentSymbol}`
+      : `期交所即時 | ${currentSymbol}`;
+  }
+
   if (dispLast == null) {
     el.textContent = '—'; chgEl.textContent = ''; info.textContent = '(等待報價…)';
     return;
@@ -4792,6 +5154,8 @@ function mobSwitch(idx) {
   panels[0].classList.toggle('mob-active', idx === 0);
   panels[1].classList.toggle('mob-active', showCenter);
   panels[3].classList.toggle('mob-active', idx === 3);
+  panels[1].classList.toggle('mob-chart-mode', idx === 1);
+  panels[1].classList.toggle('mob-inventory-mode', idx === 2);
 
   btns.forEach((b, i) => b?.classList.toggle('active', i === idx));
 
@@ -4800,9 +5164,6 @@ function mobSwitch(idx) {
     setTimeout(() => {
       priceChartObj?.resize();
       leverageChartObj?.resize();
-      if (idx === 2) {
-        document.getElementById('invSection2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
     }, 50);
   }
 

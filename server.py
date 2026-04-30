@@ -106,6 +106,9 @@ _crypto_last_fetch  = 0          # 上次 fetch 的 unix ts
 # 環境變數 CRYPTO_AUTOPUSH=1 時自動 git commit & push（預設關閉，避免餘額頻繁刷 commit）
 _crypto_autopush    = os.environ.get('CRYPTO_AUTOPUSH', '0') != '0'
 
+# ── stock transaction ledger（股票買賣流水 / 已實現損益來源）────
+STOCK_TXNS_FILE = os.path.join(DIR, 'stocker_txns.json')
+
 # ── Futu/Moomoo quote bridge ──────────────────────────────────────────────
 # Optional dependency: moomoo-api (import name: moomoo) or futu-api (import name: futu).
 # The frontend treats this as best-effort and falls back to Yahoo/Sheet if unavailable.
@@ -166,26 +169,55 @@ def _futu_code_from_symbol(symbol):
     return 'US.' + s
 
 
+def _futu_session_quote(row, phase, label, price_key, change_key, rate_key):
+    price = _safe_float(row.get(price_key))
+    if price is None or price <= 0:
+        return None
+    return {
+        'label': label,
+        'phase': phase,
+        'price': price,
+        'changePoints': _safe_float(row.get(change_key)),
+        'changePct': _safe_float(row.get(rate_key)),
+    }
+
+
+def _futu_et_time():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(ZoneInfo('America/New_York')).time()
+    except Exception:
+        # Fallback for older Windows timezone databases; daylight-saving accuracy is best-effort.
+        return (datetime.datetime.utcnow() - datetime.timedelta(hours=4)).time()
+
+
 def _pick_futu_extended(row):
-    sessions = [
-        ('overnight', '24H', 'overnight_price', 'overnight_change_val', 'overnight_change_rate'),
-        ('after', '盤後', 'after_price', 'after_change_val', 'after_change_rate'),
-        ('pre', '盤前', 'pre_price', 'pre_change_val', 'pre_change_rate'),
-    ]
-    for phase, label, price_key, change_key, rate_key in sessions:
-        price = _safe_float(row.get(price_key))
-        if price is None or price <= 0:
-            continue
-        change = _safe_float(row.get(change_key))
-        rate = _safe_float(row.get(rate_key))
-        return {
-            'label': label,
-            'phase': phase,
-            'price': price,
-            'changePoints': change,
-            'changePct': rate,
-        }
+    et_now = _futu_et_time()
+    pre_start = datetime.time(4, 0)
+    regular_start = datetime.time(9, 30)
+    regular_end = datetime.time(16, 0)
+    after_end = datetime.time(20, 0)
+
+    # Pick the active US extended session. During regular trading hours, do not
+    # show stale pre/after/overnight as the primary extended quote.
+    if pre_start <= et_now < regular_start:
+        return _futu_session_quote(row, 'pre', '盤前', 'pre_price', 'pre_change_val', 'pre_change_rate')
+    if regular_end <= et_now < after_end:
+        return _futu_session_quote(row, 'after', '盤後', 'after_price', 'after_change_val', 'after_change_rate')
+    if et_now >= after_end or et_now < pre_start:
+        return _pick_futu_24h(row)
     return None
+
+
+def _pick_futu_24h(row):
+    return _futu_session_quote(
+        row,
+        'overnight',
+        '24H',
+        'overnight_price',
+        'overnight_change_val',
+        'overnight_change_rate',
+    )
 
 def _futopt_archive_scheduler():
     """
@@ -961,6 +993,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._stock_quote(parsed)
         elif p == '/stock/kline':
             self._stock_kline(parsed)
+        elif p in ('/stock/txns', '/stock/txns/'):
+            self._stock_txns_get()
         elif p == '/futopt/kline':
             self._futopt_kline(parsed)
         elif p in ('/stock/positions', '/stock/positions/'):
@@ -996,6 +1030,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._stock_order()
         elif p == '/stock/cancel':
             self._stock_cancel()
+        elif p in ('/stock/txns', '/stock/txns/'):
+            self._stock_txns_post()
         elif p == '/sub/order':
             self._sub_order()
         elif p == '/sub/gui_order':
@@ -1882,6 +1918,122 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         result = _run_subprocess('stock_cancel.py', ['--order-no', order_no], timeout=30)
         self._send_json(result)
+
+    # ── GET /stock/txns ──────────────────────────────────
+    def _stock_txns_get(self):
+        try:
+            if not os.path.exists(STOCK_TXNS_FILE):
+                self._send_json({'status': 'ok', 'transactions': [], 'count': 0})
+                return
+            with open(STOCK_TXNS_FILE, encoding='utf-8') as f:
+                data = json.load(f)
+            txns = data if isinstance(data, list) else data.get('transactions', [])
+            if not isinstance(txns, list):
+                txns = []
+            self._send_json({'status': 'ok', 'transactions': txns, 'count': len(txns)})
+        except Exception as e:
+            self._send_json({'status': 'fail', 'error': f'讀取交易紀錄失敗：{e}'}, status=500)
+
+    def _normalize_stock_txn(self, raw):
+        market = str(raw.get('bourse') or raw.get('market') or 'US').strip().upper()
+        symbol = str(raw.get('sym') or raw.get('symbol') or '').strip().upper()
+        typ = str(raw.get('type') or raw.get('side') or '').strip().lower()
+        if typ in ('buy', 'b'):
+            typ = 'buy'
+        elif typ in ('sell', 's'):
+            typ = 'sell'
+        currency = str(raw.get('currency') or '').strip().upper()
+        if not currency:
+            currency = 'TWD' if market == 'TW' else 'HKD' if market == 'HK' else 'USD'
+        date = str(raw.get('date') or datetime.datetime.now().strftime('%Y-%m-%d')).strip()[:10]
+
+        try:
+            qty = float(raw.get('qty'))
+            price = float(raw.get('price'))
+            fee = float(raw.get('fee') or 0)
+        except (TypeError, ValueError):
+            raise ValueError('qty / price / fee 必須是數字')
+        if not symbol:
+            raise ValueError('symbol required')
+        if typ not in ('buy', 'sell'):
+            raise ValueError('type must be buy or sell')
+        if qty <= 0:
+            raise ValueError('qty 必須大於 0')
+        if price < 0 or fee < 0:
+            raise ValueError('price / fee 不可為負數')
+
+        item = {
+            'date': date,
+            'bourse': market,
+            'sym': symbol,
+            'currency': currency,
+            'type': typ,
+            'qty': qty,
+            'price': price,
+            'fee': fee,
+            'client_id': str(raw.get('client_id') or '').strip(),
+            'source': str(raw.get('source') or 'portfolio-tracker-v13').strip(),
+            'recorded_at': str(raw.get('recorded_at') or datetime.datetime.now().isoformat(timespec='seconds')),
+        }
+        optional_number_keys = (
+            'proceeds', 'sell_proceeds', 'buy_avg', 'avg_cost', 'cost_basis',
+            'cost_basis_orig', 'cost_basis_twd', 'realized', 'realized_orig',
+            'realized_twd', 'pnl_orig', 'pnl_twd', 'realized_pct',
+            'fx_pnl_twd', 'fx_pnl', 'fx_rate',
+        )
+        for key in optional_number_keys:
+            if key not in raw or raw.get(key) in (None, ''):
+                continue
+            try:
+                item[key] = float(raw.get(key))
+            except (TypeError, ValueError):
+                pass
+        if raw.get('report_name'):
+            item['report_name'] = str(raw.get('report_name')).strip()
+        return item
+
+    # ── POST /stock/txns ─────────────────────────────────
+    # body: {date,bourse/symbol,type,qty,price,fee,currency,client_id,dry_run}
+    def _stock_txns_post(self):
+        body = self._read_body()
+        try:
+            raw_items = body.get('transactions') if isinstance(body.get('transactions'), list) else [body]
+            items = [self._normalize_stock_txn(x or {}) for x in raw_items]
+        except Exception as e:
+            self._send_json({'status': 'fail', 'error': str(e)}, status=400)
+            return
+
+        if body.get('dry_run'):
+            self._send_json({'status': 'ok', 'dry_run': True, 'transactions': items, 'count': len(items)})
+            return
+
+        try:
+            txns = []
+            if os.path.exists(STOCK_TXNS_FILE):
+                with open(STOCK_TXNS_FILE, encoding='utf-8') as f:
+                    data = json.load(f)
+                txns = data if isinstance(data, list) else data.get('transactions', [])
+                if not isinstance(txns, list):
+                    txns = []
+
+            seen_client_ids = {str(t.get('client_id')) for t in txns if isinstance(t, dict) and t.get('client_id')}
+            appended = []
+            for item in items:
+                cid = item.get('client_id')
+                if cid and cid in seen_client_ids:
+                    continue
+                txns.append(item)
+                appended.append(item)
+                if cid:
+                    seen_client_ids.add(cid)
+
+            tmp = STOCK_TXNS_FILE + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(txns, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, STOCK_TXNS_FILE)
+            self._send_json({'status': 'ok', 'transactions': appended, 'appended': len(appended), 'count': len(txns)})
+        except Exception as e:
+            self._send_json({'status': 'fail', 'error': f'寫入交易紀錄失敗：{e}'}, status=500)
 
     # ══════════════════════════════════════════════════════════
     # 複委託 (Fubon e01) 路由

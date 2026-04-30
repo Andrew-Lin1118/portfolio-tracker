@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v29';  // ← 2026-04-30：所有分頁改「先顯示舊資料 → 背景刷新」
+const CACHE_NAME = 'portfolio-tracker-v30';  // ← 2026-04-30：已實現損益單筆編輯/刪除
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

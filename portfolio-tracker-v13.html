@@ -759,6 +759,60 @@
         <!-- ▲▲▲ 版本標記 ▲▲▲ -->
 
     <!-- Modals -->
+    <!-- 已實現損益編輯 Modal -->
+    <div id="realized-edit-modal" onclick="if(event.target===this)hideRealizedEditModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.78); display:none; align-items:center; justify-content:center; z-index:2150; padding:1rem;">
+        <div class="glass-card" style="padding:1.5rem 1.75rem; max-width:560px; width:100%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 style="color:#fbbf24; font-size:1.05rem; margin:0; font-weight:700;">✏️ 編輯交易紀錄</h3>
+                <button onclick="hideRealizedEditModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
+            </div>
+            <input type="hidden" id="re-client-id">
+            <div id="re-readonly-info" style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:7px; margin-bottom:0.85rem; font-size:0.78rem; color:#94a3b8;"></div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.85rem; margin-bottom:0.85rem;">
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; display:block; margin-bottom:0.3rem;">日期 *</label>
+                    <input id="re-date" type="date" style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                </div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; display:block; margin-bottom:0.3rem;">代碼 *</label>
+                    <input id="re-symbol" type="text" style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.88rem; text-transform:uppercase;">
+                </div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; display:block; margin-bottom:0.3rem;">市場</label>
+                    <select id="re-bourse" style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                        <option value="US">🇺🇸 US</option>
+                        <option value="TW">🇹🇼 TW</option>
+                        <option value="HK">🇭🇰 HK</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; display:block; margin-bottom:0.3rem;">類型</label>
+                    <select id="re-type" style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                        <option value="sell">賣出</option>
+                        <option value="buy">買入</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; display:block; margin-bottom:0.3rem;">股數 *</label>
+                    <input id="re-qty" type="number" step="0.0001" style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                </div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; display:block; margin-bottom:0.3rem;">價格 *</label>
+                    <input id="re-price" type="number" step="0.0001" style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                </div>
+                <div>
+                    <label style="color:#cbd5e1; font-size:0.82rem; display:block; margin-bottom:0.3rem;">手續費</label>
+                    <input id="re-fee" type="number" step="0.01" style="width:100%; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(148,163,184,0.25); border-radius:8px; color:#f1f5f9; font-size:0.88rem;">
+                </div>
+            </div>
+            <div style="display:flex; gap:0.6rem; margin-top:0.6rem;">
+                <button onclick="confirmDeleteRealizedTxn()" style="padding:0.7rem 0.9rem; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.32); border-radius:8px; font-weight:700; font-size:0.88rem;">🗑 刪除此筆</button>
+                <button onclick="hideRealizedEditModal()" style="flex:1; padding:0.7rem; background:rgba(100,116,139,0.15); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:8px; font-weight:600;">取消</button>
+                <button onclick="saveRealizedEdit()" style="flex:2; padding:0.75rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#0a1628; font-weight:700; font-size:0.95rem; border-radius:8px;">✓ 儲存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ETF 持股 Modal -->
     <div id="etf-holdings-modal" onclick="if(event.target===this)hideEtfHoldingsModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:2050; padding:1rem;">
         <div class="glass-card" style="padding:1.5rem 2rem; max-width:780px; width:100%; max-height:90vh; overflow:hidden; display:flex; flex-direction:column;">
@@ -1647,6 +1701,8 @@
                     fxPnlTWD: reportFxTWD,
                     fxRate: Number.isFinite(reportRate) ? reportRate : null,
                     source: t.source || '',
+                    client_id: t.client_id || '',          // ★ 用於編輯/刪除
+                    rawTxn: { ...t },                       // ★ 保留原 txn 欄位
                     unmatched: remainQty < -0.000001
                 };
                 details.push(detail);
@@ -1686,6 +1742,102 @@
             loadStockTransactions(true);
         }
 
+        // ── 已實現損益編輯 Modal ────────────────────────────
+        function hideRealizedEditModal() {
+            const m = document.getElementById('realized-edit-modal');
+            if (m) m.style.display = 'none';
+        }
+        function openRealizedEditModal(clientId) {
+            if (!clientId) return;
+            const txn = (_stockTxns || []).find(t => t && t.client_id === clientId);
+            if (!txn) {
+                alert('找不到此筆交易紀錄（client_id: ' + clientId + '）');
+                return;
+            }
+            document.getElementById('re-client-id').value = clientId;
+            document.getElementById('re-date').value     = txn.date || '';
+            document.getElementById('re-symbol').value   = String(txn.sym || txn.symbol || '').toUpperCase();
+            document.getElementById('re-bourse').value   = String(txn.bourse || txn.market || 'US').toUpperCase();
+            document.getElementById('re-type').value     = (txn.type || '').toLowerCase() === 'buy' ? 'buy' : 'sell';
+            document.getElementById('re-qty').value      = txn.qty != null ? txn.qty : '';
+            document.getElementById('re-price').value    = txn.price != null ? txn.price : '';
+            document.getElementById('re-fee').value      = txn.fee != null ? txn.fee : 0;
+            const info = document.getElementById('re-readonly-info');
+            if (info) {
+                const src = txn.source ? `來源：${txn.source}` : '';
+                const rec = txn.recorded_at ? ` · 建立 ${new Date(txn.recorded_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}` : '';
+                const upd = txn.updated_at ? ` · 上次修改 ${new Date(txn.updated_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}` : '';
+                info.textContent = `client_id: ${clientId}${src ? ' · ' + src : ''}${rec}${upd}`;
+            }
+            document.getElementById('realized-edit-modal').style.display = 'flex';
+        }
+
+        async function saveRealizedEdit() {
+            const cid = document.getElementById('re-client-id').value.trim();
+            if (!cid) { alert('client_id 遺失'); return; }
+            const payload = {
+                action: 'update',
+                client_id: cid,
+                transaction: {
+                    date:     document.getElementById('re-date').value.trim(),
+                    sym:      document.getElementById('re-symbol').value.trim().toUpperCase(),
+                    bourse:   document.getElementById('re-bourse').value,
+                    type:     document.getElementById('re-type').value,
+                    qty:      parseFloat(document.getElementById('re-qty').value),
+                    price:    parseFloat(document.getElementById('re-price').value),
+                    fee:      parseFloat(document.getElementById('re-fee').value || '0'),
+                }
+            };
+            if (!payload.transaction.date || !payload.transaction.sym ||
+                !(payload.transaction.qty > 0) || !(payload.transaction.price >= 0)) {
+                alert('請填寫日期 / 代碼 / 股數 / 價格');
+                return;
+            }
+            try {
+                const r = await fetch(`${FMX_API_BASE}/stock/txns`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || data.status === 'fail') throw new Error(data.error || ('HTTP ' + r.status));
+                hideRealizedEditModal();
+                if (typeof showImportToast === 'function') showImportToast(`✅ 已更新 ${payload.transaction.sym} 交易紀錄`, 1800);
+                refreshStockRealized();
+            } catch (e) {
+                alert('儲存失敗：' + (e?.message || e));
+            }
+        }
+
+        async function confirmDeleteRealizedTxn() {
+            const cid = document.getElementById('re-client-id').value.trim();
+            if (!cid) return;
+            const sym = document.getElementById('re-symbol').value.trim();
+            const date = document.getElementById('re-date').value.trim();
+            if (!confirm(`確定要刪除 ${date} 的 ${sym} 交易紀錄嗎？\n\n此操作無法復原。`)) return;
+            try {
+                const r = await fetch(`${FMX_API_BASE}/stock/txns`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete', client_id: cid }),
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || data.status === 'fail') throw new Error(data.error || ('HTTP ' + r.status));
+                hideRealizedEditModal();
+                if (typeof showImportToast === 'function') showImportToast(`✅ 已刪除 ${sym} 交易紀錄`, 1800);
+                refreshStockRealized();
+            } catch (e) {
+                alert('刪除失敗：' + (e?.message || e));
+            }
+        }
+        // ESC 關閉 Modal
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                const m = document.getElementById('realized-edit-modal');
+                if (m && m.style.display === 'flex') hideRealizedEditModal();
+            }
+        });
+
         function renderStockRealized() {
             const el = document.getElementById('stock-realized-section');
             if (!el) return;
@@ -1724,7 +1876,12 @@
                     <span style="color:#cbd5e1;font-weight:700;">${_esc(x.symbol)}</span>
                     <span style="color:${x.realizedTWD >= 0 ? '#10b981' : '#ef4444'};">${_stockRealizedDisplay(x.realized, x.currency, x.realizedTWD)}</span>
                 </div>`).join('');
-            const detailRows = r.details.slice(0, 220).map(d => `
+            const detailRows = r.details.slice(0, 220).map(d => {
+                const editable = !!d.client_id && d.source !== 'fubon_realized_report';
+                const editBtn = editable
+                    ? `<button onclick="event.stopPropagation();openRealizedEditModal('${d.client_id}')" title="編輯此筆" style="padding:0.18rem 0.45rem; background:rgba(99,102,241,0.18); color:#a5b4fc; border:1px solid rgba(99,102,241,0.35); border-radius:5px; font-size:0.72rem; cursor:pointer;">✏️</button>`
+                    : `<span title="${d.source === 'fubon_realized_report' ? '富邦券商報表來源不可編輯' : '無 client_id 不可編輯'}" style="color:#475569; font-size:0.72rem;">—</span>`;
+                return `
                 <tr style="border-bottom:1px solid rgba(148,163,184,0.08);">
                     <td style="padding:0.42rem 0.55rem;color:#94a3b8;white-space:nowrap;">${_esc(d.date)}</td>
                     <td style="padding:0.42rem 0.55rem;color:#fbbf24;font-weight:800;white-space:nowrap;">${_esc(d.symbol)}${d.source === 'fubon_realized_report' ? ' <span title="富邦已實現報表" style="color:#60a5fa;">券</span>' : ''}${d.unmatched ? ' <span title="賣出數量超過先前買入紀錄" style="color:#ef4444;">!</span>' : ''}</td>
@@ -1733,7 +1890,9 @@
                     <td style="padding:0.42rem 0.55rem;text-align:right;color:#94a3b8;">${_fmtPlainCurrency(d.avgCost, d.currency)}</td>
                     <td style="padding:0.42rem 0.55rem;text-align:right;color:#64748b;">${Number.isFinite(d.fxPnlTWD) ? _fmtRawCurrency(d.fxPnlTWD, 'TWD') : _fmtPlainCurrency(d.fee, d.currency)}</td>
                     <td style="padding:0.42rem 0.55rem;text-align:right;color:${d.realizedTWD >= 0 ? '#10b981' : '#ef4444'};font-weight:800;">${_stockRealizedDisplay(d.realized, d.currency, d.realizedTWD)}${Number.isFinite(d.realizedPct) ? `<small style="display:block;color:#94a3b8;font-weight:600;">${d.realizedPct.toFixed(2)}%</small>` : ''}</td>
-                </tr>`).join('');
+                    <td style="padding:0.42rem 0.55rem;text-align:center;">${editBtn}</td>
+                </tr>`;
+            }).join('');
             const detailHtml = _stockRealizedExpanded ? `
                 <div style="margin-top:1rem;display:grid;grid-template-columns:minmax(220px,0.9fr) minmax(420px,2fr);gap:1rem;align-items:start;">
                     <div style="background:rgba(15,30,60,0.42);border:1px solid rgba(148,163,184,0.12);border-radius:10px;padding:0.75rem 0.9rem;">
@@ -1751,9 +1910,10 @@
                                     <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">均成本</th>
                                     <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">匯兌/手續費</th>
                                     <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">已實現</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:center;color:#94a3b8;">操作</th>
                                 </tr>
                             </thead>
-                            <tbody>${detailRows || '<tr><td colspan="7" style="padding:1rem;text-align:center;color:#64748b;">尚無股票賣出紀錄</td></tr>'}</tbody>
+                            <tbody>${detailRows || '<tr><td colspan="8" style="padding:1rem;text-align:center;color:#64748b;">尚無股票賣出紀錄</td></tr>'}</tbody>
                         </table>
                         ${r.details.length > 220 ? `<div style="padding:0.55rem 0.75rem;color:#64748b;font-size:0.76rem;">僅顯示最近 220 筆，完整資料共 ${r.details.length} 筆。</div>` : ''}
                     </div>

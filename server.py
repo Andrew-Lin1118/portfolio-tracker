@@ -1994,8 +1994,84 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     # ── POST /stock/txns ─────────────────────────────────
     # body: {date,bourse/symbol,type,qty,price,fee,currency,client_id,dry_run}
+    # 也支援編輯：body 加入 action='update' / 'delete' 並帶 client_id
     def _stock_txns_post(self):
         body = self._read_body()
+        action = (body.get('action') or '').lower()
+
+        # ── action=update：依 client_id 找到該筆並更新欄位 ──
+        if action == 'update':
+            cid = str(body.get('client_id') or '').strip()
+            if not cid:
+                self._send_json({'status': 'fail', 'error': 'client_id required for update'}, status=400)
+                return
+            try:
+                normalized = self._normalize_stock_txn(body.get('transaction') or body)
+            except Exception as e:
+                self._send_json({'status': 'fail', 'error': str(e)}, status=400)
+                return
+            try:
+                txns = []
+                if os.path.exists(STOCK_TXNS_FILE):
+                    with open(STOCK_TXNS_FILE, encoding='utf-8') as f:
+                        data = json.load(f)
+                    txns = data if isinstance(data, list) else data.get('transactions', [])
+                    if not isinstance(txns, list):
+                        txns = []
+                found = False
+                for i, t in enumerate(txns):
+                    if isinstance(t, dict) and str(t.get('client_id') or '') == cid:
+                        # 保留原 client_id 與 source、recorded_at；只覆寫使用者編輯欄位
+                        merged = dict(t)
+                        for k in ('date', 'bourse', 'sym', 'currency', 'type', 'qty', 'price', 'fee'):
+                            if k in normalized:
+                                merged[k] = normalized[k]
+                        merged['client_id'] = cid
+                        merged['updated_at'] = datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+                        txns[i] = merged
+                        found = True
+                        break
+                if not found:
+                    self._send_json({'status': 'fail', 'error': f'client_id {cid} 找不到'}, status=404)
+                    return
+                tmp = STOCK_TXNS_FILE + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(txns, f, ensure_ascii=False, indent=2)
+                os.replace(tmp, STOCK_TXNS_FILE)
+                self._send_json({'status': 'ok', 'action': 'update', 'transaction': txns[i], 'count': len(txns)})
+            except Exception as e:
+                self._send_json({'status': 'fail', 'error': f'更新交易紀錄失敗：{e}'}, status=500)
+            return
+
+        # ── action=delete：依 client_id 刪除 ──
+        if action == 'delete':
+            cid = str(body.get('client_id') or '').strip()
+            if not cid:
+                self._send_json({'status': 'fail', 'error': 'client_id required for delete'}, status=400)
+                return
+            try:
+                txns = []
+                if os.path.exists(STOCK_TXNS_FILE):
+                    with open(STOCK_TXNS_FILE, encoding='utf-8') as f:
+                        data = json.load(f)
+                    txns = data if isinstance(data, list) else data.get('transactions', [])
+                    if not isinstance(txns, list):
+                        txns = []
+                before = len(txns)
+                txns = [t for t in txns if not (isinstance(t, dict) and str(t.get('client_id') or '') == cid)]
+                if len(txns) == before:
+                    self._send_json({'status': 'fail', 'error': f'client_id {cid} 找不到'}, status=404)
+                    return
+                tmp = STOCK_TXNS_FILE + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(txns, f, ensure_ascii=False, indent=2)
+                os.replace(tmp, STOCK_TXNS_FILE)
+                self._send_json({'status': 'ok', 'action': 'delete', 'client_id': cid, 'count': len(txns)})
+            except Exception as e:
+                self._send_json({'status': 'fail', 'error': f'刪除交易紀錄失敗：{e}'}, status=500)
+            return
+
+        # ── 預設：新增（append）──
         try:
             raw_items = body.get('transactions') if isinstance(body.get('transactions'), list) else [body]
             items = [self._normalize_stock_txn(x or {}) for x in raw_items]

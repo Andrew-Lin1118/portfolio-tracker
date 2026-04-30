@@ -2038,20 +2038,13 @@ async function fetchTaifexMIS(force = false) {
       // ── 所有月份快取（供夜盤跨月漲跌修正使用）──
       if (lastValid && monthYYYYMM) {
         const cmKey = `${code}_${monthYYYYMM}`;
-        const existing_cm = _misByCodeMonth[cmKey];
-        const rawChgNum = parseFloat(rawChg) || 0;
-        // 優先保留有 change 的夜盤資料
-        if (!existing_cm ||
-            (isNightSession() && !existing_cm._night) ||
-            (rawChgNum !== 0 && parseFloat(existing_cm.Change||'0') === 0)) {
-          _misByCodeMonth[cmKey] = {
-            Last: rawPx, Change: rawChg, '%': rawPct,
-            Volume: rawVol || '—', OpenInterest: rawOI || '—',
-            'ContractMonth(Week)': monthYYYYMM,
-            _quoteList: isMISFormat && !!(row.CDiffRate ?? row.ChangeRate),
-            _night: isNightSession(),
-          };
-        }
+        _misByCodeMonth[cmKey] = {
+          Last: rawPx, Change: rawChg, '%': rawPct,
+          Volume: rawVol || '—', OpenInterest: rawOI || '—',
+          'ContractMonth(Week)': monthYYYYMM,
+          _quoteList: isMISFormat && !!(row.CDiffRate ?? row.ChangeRate),
+          _night: isNightSession(),
+        };
       }
 
       // 近月優先：同一商品有多個月份時，保留最近月份（月份 YYYYMM 字串比較）
@@ -2816,6 +2809,7 @@ async function fetchAndRenderInventory() {
     fetchState(),
   ]);
   renderInventory(market, state, mis);
+  updateLivePrice(market, mis);
 }
 
 // ════════════════════════════════════════════════════════

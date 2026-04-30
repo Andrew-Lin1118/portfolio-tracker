@@ -974,10 +974,7 @@
         function _extendedChangeNoteHtml(h, compact = false) {
             const text = _extendedChangeText(h);
             if (!text) return '';
-            const pct = Number(h.extendedQuote?.changePct);
-            const points = Number(h.extendedQuote?.changePoints);
-            const basis = isFinite(points) ? points : pct;
-            const color = basis >= 0 ? '#10b981' : '#ef4444';
+            const color = '#e2e8f0';
             return `<span style="display:${compact?'inline-block':'block'};margin-${compact?'left':'top'}:${compact?'0.35rem':'0.18rem'};color:${color};font-size:${compact?'0.68rem':'0.72rem'};font-weight:700;white-space:nowrap;">${text}</span>`;
         }
 
@@ -3514,11 +3511,12 @@
             if ((n === 2 || n === 3) && holdings.length > 0) {
                 loadAnalysis(false, false);
             }
-            // 切換到財報分析 Tab：首次 或 快取到期（12hr）時重新載入
-            if (n === 4 && holdings.length > 0 && (!_earningsLoaded || !_isQsCacheFresh())) {
+            // 切換到券商目標 Tab：永遠呼叫 loadEarningsAnalysis(false)
+            //   內部會「先用任何舊快取渲染 → 必要時背景刷新」，避免 UI 等待
+            if (n === 4 && holdings.length > 0) {
                 loadEarningsAnalysis(false);
             }
-            // 切換到總經 Tab：loadMacro 內部判斷快取有效性（1hr TTL）
+            // 切換到總經 Tab：同上 — 內部處理「舊資料先渲染 + 背景刷新」
             if (n === 5) {
                 loadMacro(false);
             }
@@ -3526,8 +3524,8 @@
             if (n === 6) {
                 renderAssetHistory();
             }
-            // 切換到個股新聞 Tab：首次自動載入
-            if (n === 7 && holdings.length > 0 && !_newsLoaded) {
+            // 切換到個股新聞 Tab：永遠呼叫 — 內部處理「舊資料先渲染 + 背景刷新」
+            if (n === 7 && holdings.length > 0) {
                 loadNews(false);
             }
             // 切換到熱力圖 Tab：首次自動載入（widget 一次載入後常駐）
@@ -4153,6 +4151,16 @@
             const colorPct = (v) => v == null ? '#64748b' : (v >= 0 ? '#10b981' : '#ef4444');
             const ccy = d.currency || 'USD';
             const ccySign = ccy === 'USD' ? '$' : ccy === 'TWD' ? 'NT$' : ccy === 'KRW' ? '₩' : ccy ? `${ccy} ` : '';
+            const epsValue = (q) => q?.eps_adjusted != null ? q.eps_adjusted : q?.eps_actual;
+            const epsLabel = (q) => q?.eps_adjusted != null ? 'Adj.' : (q?.eps_basis || 'GAAP');
+            const epsAltHtml = (q) => (q?.eps_adjusted != null && q?.eps_actual != null)
+                ? `<small style="color:#64748b;display:block;font-size:0.7rem;">GAAP ${ccySign}${Number(q.eps_actual).toFixed(2)}</small>`
+                : '';
+            const metricValue = (q, key) => q?.[`${key}_adjusted`] != null ? q[`${key}_adjusted`] : q?.[key];
+            const metricBasis = (q, key) => q?.[`${key}_adjusted`] != null ? 'Adj.' : 'GAAP';
+            const metricAltHtml = (q, key, suffix='') => (q?.[`${key}_adjusted`] != null && q?.[key] != null)
+                ? `<small style="color:#64748b;display:block;font-size:0.7rem;">GAAP ${Number(q[key]).toFixed(1)}${suffix}</small>`
+                : '';
             const underlyingQuote = _analysisUnderlyingQuote(d.symbol);
             const priceCcy = underlyingQuote?.currency || _currencyForSymbol(d.symbol, 'USD');
             const pricePrefix = _pricePrefixForCurrency(priceCcy);
@@ -4180,10 +4188,10 @@
                 return `<tr style="${i%2===0?'background:rgba(15,30,60,0.3);':''}">
                     <td style="padding:0.4rem 0.6rem;color:#cbd5e1;white-space:nowrap;">${period}</td>
                     <td style="padding:0.4rem 0.6rem;text-align:right;color:#e2e8f0;">${ccySign}${fmtAbbr(q.revenue)}</td>
-                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">${fmtPctSimple(q.gross_margin)}</td>
-                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#a78bfa;">${fmtPctSimple(q.operating_margin)}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">${fmtPctSimple(metricValue(q, 'gross_margin'))}<small style="color:#64748b;display:block;font-size:0.7rem;">${metricBasis(q, 'gross_margin')}</small>${metricAltHtml(q, 'gross_margin', '%')}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#a78bfa;">${fmtPctSimple(metricValue(q, 'operating_margin'))}<small style="color:#64748b;display:block;font-size:0.7rem;">${metricBasis(q, 'operating_margin')}</small>${metricAltHtml(q, 'operating_margin', '%')}</td>
                     <td style="padding:0.4rem 0.6rem;text-align:right;color:#e2e8f0;">${ccySign}${fmtAbbr(q.net_income)}</td>
-                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#60a5fa;">${q.eps_actual != null ? ccySign + Number(q.eps_actual).toFixed(2) : '-'}${q.eps_estimate != null ? `<small style="color:#64748b;display:block;font-size:0.7rem;">預估 ${ccySign}${Number(q.eps_estimate).toFixed(2)}</small>` : ''}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#60a5fa;">${epsValue(q) != null ? ccySign + Number(epsValue(q)).toFixed(2) : '-'}<small style="color:#64748b;display:block;font-size:0.7rem;">${epsLabel(q)}</small>${epsAltHtml(q)}${q.eps_estimate != null ? `<small style="color:#64748b;display:block;font-size:0.7rem;">預估 ${ccySign}${Number(q.eps_estimate).toFixed(2)}</small>` : ''}</td>
                 </tr>`;
             }).join('');
 
@@ -4203,8 +4211,8 @@
                     : `營收年減 ${fmtPct(yoyRev)}，短線需求或週期仍偏弱，需等待連續 1-2 季恢復。`;
                 rows.push({ title: '營收動能', body: `${revTone}${qoqRev != null ? ` QoQ ${fmtPct(qoqRev)}，可作為近季拐點觀察。` : ''}` });
 
-                const gm = latest.gross_margin;
-                const om = latest.operating_margin;
+                const gm = metricValue(latest, 'gross_margin');
+                const om = metricValue(latest, 'operating_margin');
                 const marginTone = [
                     gm != null ? `毛利率 ${fmtPctSimple(gm)}` : '',
                     om != null ? `營益率 ${fmtPctSimple(om)}` : '',
@@ -4227,21 +4235,22 @@
                 const revYoys = qtrs.map(q => Number(q.rev_yoy)).filter(Number.isFinite);
                 const avgRevYoy = revYoys.length ? revYoys.reduce((a,b)=>a+b,0) / revYoys.length : null;
                 const prev = qtrs[1] || {};
-                const gmDelta = gm != null && prev.gross_margin != null ? gm - prev.gross_margin : null;
-                const omDelta = om != null && prev.operating_margin != null ? om - prev.operating_margin : null;
+                const gmDelta = gm != null && metricValue(prev, 'gross_margin') != null ? gm - metricValue(prev, 'gross_margin') : null;
+                const omDelta = om != null && metricValue(prev, 'operating_margin') != null ? om - metricValue(prev, 'operating_margin') : null;
                 rows.push({
                     title: '趨勢連續性',
                     body: `${avgRevYoy != null ? `近 ${revYoys.length} 季平均營收 YoY ${fmtPct(avgRevYoy)}。` : '近季營收 YoY 資料不足。'}${gmDelta != null ? ` 毛利率較前季 ${gmDelta >= 0 ? '提升' : '下滑'} ${Math.abs(gmDelta).toFixed(1)}pt。` : ''}${omDelta != null ? ` 營益率較前季 ${omDelta >= 0 ? '提升' : '下滑'} ${Math.abs(omDelta).toFixed(1)}pt。` : ''}`
                 });
 
-                const epsActual = Number(latest.eps_actual);
+                const epsActual = Number(epsValue(latest));
                 const epsEstimate = Number(latest.eps_estimate);
                 const hasEpsSurprise = Number.isFinite(epsActual) && Number.isFinite(epsEstimate) && epsEstimate !== 0;
+                const epsBasisText = epsValue(latest) != null ? `（${epsLabel(latest)}）` : '';
                 rows.push({
                     title: 'EPS 與預期差',
                     body: hasEpsSurprise
-                        ? `本季 EPS ${ccySign}${epsActual.toFixed(2)}，市場預估 ${ccySign}${epsEstimate.toFixed(2)}，surprise ${fmtPct((epsActual - epsEstimate) / Math.abs(epsEstimate) * 100)}。${epsActual >= epsEstimate ? '獲利優於預期，有利於後續上修。' : '低於預期，需留意券商是否下修。'}`
-                        : `${latest.eps_actual != null ? `本季 EPS ${ccySign}${Number(latest.eps_actual).toFixed(2)}。` : 'EPS 資料不足。'}若缺少市場預估，先以 EPS YoY/QoQ 判斷獲利方向。`
+                        ? `本季 EPS ${ccySign}${epsActual.toFixed(2)}${epsBasisText}，市場預估 ${ccySign}${epsEstimate.toFixed(2)}，surprise ${fmtPct((epsActual - epsEstimate) / Math.abs(epsEstimate) * 100)}。${epsActual >= epsEstimate ? '獲利優於預期，有利於後續上修。' : '低於預期，需留意券商是否下修。'}`
+                        : `${epsValue(latest) != null ? `本季 EPS ${ccySign}${Number(epsValue(latest)).toFixed(2)}${epsBasisText}。` : 'EPS 資料不足。'}若缺少市場預估，先以 EPS YoY/QoQ 判斷獲利方向。`
                 });
 
                 const valParts = [];
@@ -4314,16 +4323,19 @@
                     </div>
                     <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
                         <div style="color:#94a3b8; font-size:0.72rem;">EPS (本季)</div>
-                        <div style="color:#60a5fa; font-weight:700; font-size:1rem;">${latest.eps_actual != null ? ccySign + Number(latest.eps_actual).toFixed(2) : '-'}</div>
+                        <div style="color:#60a5fa; font-weight:700; font-size:1rem;">${epsValue(latest) != null ? ccySign + Number(epsValue(latest)).toFixed(2) : '-'}</div>
+                        <div style="color:#64748b; font-size:0.68rem;">${epsValue(latest) != null ? epsLabel(latest) : ''}${latest.eps_adjusted != null && latest.eps_actual != null ? ` / GAAP ${ccySign}${Number(latest.eps_actual).toFixed(2)}` : ''}</div>
                         <div style="font-size:0.72rem;"><span style="color:${colorPct(yoyEps)};">YoY ${fmtPct(yoyEps)}</span> <span style="color:#64748b;">/ QoQ <span style="color:${colorPct(qoqEps)}">${fmtPct(qoqEps)}</span></span></div>
                     </div>
                     <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
                         <div style="color:#94a3b8; font-size:0.72rem;">毛利率</div>
-                        <div style="color:#fbbf24; font-weight:700; font-size:1rem;">${fmtPctSimple(latest.gross_margin)}</div>
+                        <div style="color:#fbbf24; font-weight:700; font-size:1rem;">${fmtPctSimple(metricValue(latest, 'gross_margin'))}</div>
+                        <div style="color:#64748b; font-size:0.68rem;">${metricValue(latest, 'gross_margin') != null ? metricBasis(latest, 'gross_margin') : ''}${latest.gross_margin_adjusted != null && latest.gross_margin != null ? ` / GAAP ${Number(latest.gross_margin).toFixed(1)}%` : ''}</div>
                     </div>
                     <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
                         <div style="color:#94a3b8; font-size:0.72rem;">營益率</div>
-                        <div style="color:#a78bfa; font-weight:700; font-size:1rem;">${fmtPctSimple(latest.operating_margin)}</div>
+                        <div style="color:#a78bfa; font-weight:700; font-size:1rem;">${fmtPctSimple(metricValue(latest, 'operating_margin'))}</div>
+                        <div style="color:#64748b; font-size:0.68rem;">${metricValue(latest, 'operating_margin') != null ? metricBasis(latest, 'operating_margin') : ''}${latest.operating_margin_adjusted != null && latest.operating_margin != null ? ` / GAAP ${Number(latest.operating_margin).toFixed(1)}%` : ''}</div>
                     </div>
                 </div>
 
@@ -4335,10 +4347,10 @@
                         <thead><tr style="border-bottom:1px solid rgba(148,163,184,0.2);">
                             <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">季度</th>
                             <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">營收</th>
-                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">毛利率</th>
-                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">營益率</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">毛利率 / 口徑</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">營益率 / 口徑</th>
                             <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">淨利</th>
-                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">EPS</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">EPS / 口徑</th>
                         </tr></thead>
                         <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:1rem;">無季度資料</td></tr>'}</tbody>
                     </table>
@@ -5897,10 +5909,18 @@
             }, 60 * 60 * 1000); // 每 1 小時觸發一次（判斷是否需要更新）
         }
 
-        // ==================== Tab 4：財報分析 & 券商評級 ====================
+        // ==================== Tab 4：券商目標 & 評級共識 ====================
         let _earningsLoaded = false;
-        const _QS_CACHE_KEY = 'pf_qs_v5';           // v5：加入券商目標價區塊，強制清除舊快取
-        const _QS_CACHE_TTL = 12 * 60 * 60 * 1000; // 財報分析：12 小時
+        let _earningsBgFetching = false;     // 防止重複背景 fetch
+        const _QS_CACHE_KEY = 'pf_qs_v5';
+        const _QS_CACHE_TTL = 12 * 60 * 60 * 1000;     // 12 小時 TTL（>此值才背景刷新）
+        // ★ 取「任何舊資料」（不檢查 TTL）— 用於先渲染舊內容，避免使用者等待
+        function _loadQsCacheAny() {
+            try { const r = JSON.parse(localStorage.getItem(_QS_CACHE_KEY)||'{}'); return r.data || {}; } catch { return {}; }
+        }
+        function _loadQsCacheTs() {
+            try { const r = JSON.parse(localStorage.getItem(_QS_CACHE_KEY)||'{}'); return r.ts || 0; } catch { return 0; }
+        }
         function _loadQsCache() {
             try { const r = JSON.parse(localStorage.getItem(_QS_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _QS_CACHE_TTL) ? (r.data||{}) : {}; } catch { return {}; }
         }
@@ -5928,12 +5948,51 @@
             if (holdings.length === 0) { alert('請先匯入持倉數據'); return; }
             const btn = document.getElementById('earnings-btn');
             const statusEl = document.getElementById('earnings-status');
-            if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
 
             const symbols = [...new Set(holdings.map(h => getQuerySymbol(h.symbol)))];
+
+            // ★ Step 1：先用「任何舊資料」立即渲染（不論 TTL，避免空白等待）
+            //    forceRefresh=true 時跳過此步，直接重抓
+            if (!forceRefresh) {
+                const anyCache = _loadQsCacheAny();
+                const cachedSymbols = symbols.filter(s => anyCache[s]);
+                if (cachedSymbols.length > 0) {
+                    const subset = {};
+                    cachedSymbols.forEach(s => { subset[s] = anyCache[s]; });
+                    renderEarningsTab(subset);
+                    _earningsLoaded = true;
+                    const cacheTs = _loadQsCacheTs();
+                    const ageMin = cacheTs ? Math.floor((Date.now() - cacheTs) / 60000) : 0;
+                    if (statusEl) {
+                        const ageStr = ageMin < 60 ? `${ageMin} 分鐘前` : `${Math.floor(ageMin/60)} 小時前`;
+                        statusEl.innerHTML = `舊資料（${ageStr}）已顯示 · 背景檢查更新中...`;
+                    }
+                }
+            }
+
+            // ★ Step 2：判斷是否需要背景刷新
+            //    - forceRefresh：永遠刷新
+            //    - cache fresh (12hr 內) 且涵蓋所有 symbols：跳過
+            //    - 否則背景跑（不阻塞 UI）
             const cache = forceRefresh ? {} : _loadQsCache();
             const allQs = { ...cache };
             const toFetch = symbols.filter(s => !allQs[s]);
+
+            if (toFetch.length === 0 && !forceRefresh) {
+                // 所有資料都還新鮮，不刷新
+                if (statusEl) {
+                    const ts = _loadQsCacheTs();
+                    const t = ts ? new Date(ts).toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'}) : '';
+                    statusEl.textContent = `已快取（${t}）· 12hr 內無需更新`;
+                }
+                if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }
+                return;
+            }
+
+            // ★ Step 3：背景刷新 — 不擋畫面，UI 維持顯示舊資料直到完成
+            if (_earningsBgFetching) return;   // 已有背景任務在跑
+            _earningsBgFetching = true;
+            if (btn) { btn.textContent = `背景刷新中 (${toFetch.length})...`; btn.disabled = true; }
 
             // 逐一查詢（循序，避免代理 rate limit）
             // 使用週線 v8/chart?events=earnings → 免認證取得近8季 EPS Actual/Estimate
@@ -6138,8 +6197,9 @@
 
             renderEarningsTab(allQs);
             _earningsLoaded = true;
-            if (btn) { btn.textContent = '🔄 載入分析'; btn.disabled = false; }
-            if (statusEl) statusEl.textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW');
+            _earningsBgFetching = false;
+            if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }
+            if (statusEl) statusEl.textContent = '已更新 ' + new Date().toLocaleTimeString('zh-TW');
         }
 
         // ── 券商評級／動作 → 中文對照表 ──
@@ -6504,29 +6564,47 @@
             return null;
         }
 
+        // ★ 讀「任何舊快取」（不檢查 TTL）— 用於先渲染再背景刷新
+        function _loadMacroCacheAny() {
+            try { return JSON.parse(localStorage.getItem(_MACRO_CACHE_KEY)||'{}'); } catch { return {}; }
+        }
+        let _macroBgFetching = false;
+
         async function loadMacro(forceRefresh) {
             const btn = document.getElementById('macro-btn');
             const statusEl = document.getElementById('macro-status');
             const perfDiv = document.getElementById('macro-perf');
             const newsDiv = document.getElementById('macro-news');
 
-            // ── 快取命中（1小時內）→ 直接渲染，不打 API ──
+            // ★ Step 1：先用「任何舊快取」立即渲染（不檢查 TTL）
             if (!forceRefresh) {
-                const cached = _loadMacroCache();
-                if (cached) {
-                    renderMacroTab(cached.results, cached.news, cached.marketPE);
+                const anyCache = _loadMacroCacheAny();
+                if (anyCache && anyCache.results) {
+                    renderMacroTab(anyCache.results, anyCache.news || [], anyCache.marketPE);
                     _macroLoaded = true;
-                    if (btn) { btn.textContent = '🔄 更新總經數據'; btn.disabled = false; }
+                    const ageMin = anyCache.ts ? Math.floor((Date.now() - anyCache.ts) / 60000) : 0;
                     if (statusEl) {
-                        const t = new Date(cached.ts).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
-                        statusEl.textContent = `快取 ${t}（1hr 後自動更新）`;
+                        const ageStr = ageMin < 60 ? `${ageMin} 分鐘前` : `${Math.floor(ageMin/60)} 小時前`;
+                        statusEl.textContent = `舊資料（${ageStr}）已顯示 · 背景檢查更新中...`;
                     }
-                    return;
+                    // 1hr 內就不用刷
+                    if (anyCache.ts && Date.now() - anyCache.ts < _MACRO_CACHE_TTL) {
+                        const t = new Date(anyCache.ts).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+                        if (statusEl) statusEl.textContent = `已快取（${t}）· 1hr 內無需更新`;
+                        if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }
+                        return;
+                    }
                 }
             }
 
-            if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
-            if (perfDiv) perfDiv.innerHTML = '<div style="text-align:center;padding:2rem;color:#64748b;">⏳ 抓取總經數據中...</div>';
+            // ★ Step 2：背景刷新（不擋畫面，UI 維持顯示舊資料）
+            if (_macroBgFetching) return;
+            _macroBgFetching = true;
+            if (btn) { btn.textContent = '背景刷新中...'; btn.disabled = true; }
+            // 沒有舊資料時才顯示 loading（避免清掉已渲染的舊內容）
+            if (!_macroLoaded && perfDiv) {
+                perfDiv.innerHTML = '<div style="text-align:center;padding:2rem;color:#64748b;">⏳ 首次載入總經數據中...</div>';
+            }
 
             // 預先載入後端產生的經濟指標 JSON（如果存在）
             try {
@@ -6727,8 +6805,9 @@
 
             renderMacroTab(results, macroNews, marketPE);
             _macroLoaded = true;
-            if (btn) { btn.textContent = '🔄 更新總經數據'; btn.disabled = false; }
-            if (statusEl) statusEl.textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW');
+            _macroBgFetching = false;
+            if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }
+            if (statusEl) statusEl.textContent = '已更新 ' + new Date().toLocaleTimeString('zh-TW');
         }
 
         function renderMacroTab(data, news, marketPE) {
@@ -8150,11 +8229,53 @@
             }
         }
 
+        // 個股新聞快取：完整 unique 陣列 + 翻譯後內容
+        const _NEWS_CACHE_KEY = 'pf_news_full_v1';
+        const _NEWS_CACHE_TTL = 1 * 60 * 60 * 1000;   // 1 小時 TTL，過期才背景刷新
+        let _newsBgFetching = false;
+        function _loadNewsCacheAny() {
+            try { const r = JSON.parse(localStorage.getItem(_NEWS_CACHE_KEY)||'{}'); return r.data || null; } catch { return null; }
+        }
+        function _loadNewsCacheTs() {
+            try { const r = JSON.parse(localStorage.getItem(_NEWS_CACHE_KEY)||'{}'); return r.ts || 0; } catch { return 0; }
+        }
+        function _saveNewsCache(data) {
+            try { localStorage.setItem(_NEWS_CACHE_KEY, JSON.stringify({ts:Date.now(), data})); } catch {}
+        }
+
         async function loadNews(forceRefresh) {
             if (holdings.length === 0) { alert('請先匯入持倉數據'); return; }
             const btn = document.getElementById('news-btn');
             const statusEl = document.getElementById('news-status');
-            if (btn) { btn.textContent = '載入中...'; btn.disabled = true; }
+
+            // ★ Step 1：先用任何舊資料立即渲染（避免空白等待）
+            if (!forceRefresh) {
+                const cached = _loadNewsCacheAny();
+                if (cached && Array.isArray(cached) && cached.length > 0) {
+                    renderNewsTab(cached);
+                    _newsLoaded = true;
+                    const ts = _loadNewsCacheTs();
+                    const ageMin = ts ? Math.floor((Date.now() - ts) / 60000) : 0;
+                    if (statusEl) {
+                        const ageStr = ageMin < 60 ? `${ageMin} 分鐘前` : `${Math.floor(ageMin/60)} 小時前`;
+                        statusEl.innerHTML = `舊資料（${ageStr}）已顯示 · 背景檢查更新中...`;
+                    }
+                    // 1 小時內快取直接結束
+                    if (Date.now() - ts < _NEWS_CACHE_TTL) {
+                        if (statusEl) {
+                            const t = ts ? new Date(ts).toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'}) : '';
+                            statusEl.textContent = `已快取（${t}）· 1hr 內無需更新`;
+                        }
+                        if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }
+                        return;
+                    }
+                }
+            }
+
+            // ★ Step 2：背景刷新（不擋畫面）
+            if (_newsBgFetching) return;
+            _newsBgFetching = true;
+            if (btn) { btn.textContent = '背景刷新中...'; btn.disabled = true; }
 
             const nowSec = Math.floor(Date.now() / 1000);
             const sevenDaysAgo = nowSec - 7 * 24 * 3600;
@@ -8279,15 +8400,17 @@
             await _translateNewsItems(unique, statusEl, /*includeSummary=*/true);
 
             renderNewsTab(unique);
+            _saveNewsCache(unique);     // ★ 存到 localStorage 給下次直接顯示
             _newsLoaded = true;
-            if (btn) { btn.textContent = '🔄 載入新聞'; btn.disabled = false; }
+            _newsBgFetching = false;
+            if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }
             if (statusEl) {
                 const parts = [`共 ${unique.length} 則`];
                 if (cntFinnhub > 0) parts.push(`Finnhub ${cntFinnhub}`);
                 if (cntYahoo > 0)   parts.push(`Yahoo ${cntYahoo}`);
                 if (cntFiltered > 0) parts.push(`<span style="color:#94a3b8;">過濾 ${cntFiltered} 則無關</span>`);
                 if (finnhubFailed > 0) parts.push(`<span style="color:#f59e0b;">⚠ Finnhub 失敗 ${finnhubFailed}</span>`);
-                parts.push(new Date().toLocaleTimeString('zh-TW'));
+                parts.push('已更新 ' + new Date().toLocaleTimeString('zh-TW'));
                 statusEl.innerHTML = parts.join(' · ');
             }
         }

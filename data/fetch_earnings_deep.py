@@ -40,12 +40,66 @@ OFFICIAL_QUARTER_PATCHES = {
         'gross_profit': 1447000000.0,
         'operating_income': 998000000.0,
         'net_income': 748000000.0,
+        'net_income_adjusted': 934000000.0,
         'eps_actual': 3.27,
+        'eps_adjusted': 4.10,
+        'eps_basis': 'non-GAAP diluted EPS',
         'gross_margin': 1447000000.0 / 3112000000.0 * 100,
+        'gross_margin_adjusted': 47.0,
         'operating_margin': 998000000.0 / 3112000000.0 * 100,
-        'operating_cash_flow': 571000000.0,
+        'operating_margin_adjusted': 37.5,
+        'operating_cash_flow': 1114000000.0,
+        'free_cash_flow': 953000000.0,
         'source': 'Seagate fiscal Q3 2026 earnings release',
         'published_date': '2026-04-28',
+    },
+    # TSMC 1Q26 official earnings release (published 2026-04-16).
+    # yfinance can expose the latest EPS before the full quarterly statement;
+    # keep the official quarter so the analysis page does not fall back to 4Q25.
+    'TSM': {
+        'period': '2026-03-31',
+        'revenue': 1134103000000.0,
+        'gross_profit': 751295000000.0,
+        'operating_income': 658966000000.0,
+        'net_income': 572480000000.0,
+        'eps_actual': 22.08,
+        'gross_margin': 66.2,
+        'operating_margin': 58.1,
+        'operating_cash_flow': 698976000000.0,
+        'source': 'TSMC 1Q26 earnings release',
+        'published_date': '2026-04-16',
+    },
+    # Alphabet Q1 2026 official earnings release / SEC Exhibit 99.1 (published 2026-04-29).
+    'GOOGL': {
+        'period': '2026-03-31',
+        'revenue': 109896000000.0,
+        'gross_profit': 68625000000.0,
+        'operating_income': 39696000000.0,
+        'net_income': 62578000000.0,
+        'eps_actual': 5.11,
+        'gross_margin': 68625000000.0 / 109896000000.0 * 100,
+        'operating_margin': 36.1,
+        'operating_cash_flow': 45790000000.0,
+        'free_cash_flow': 10116000000.0,
+        'source': 'Alphabet Q1 2026 earnings release',
+        'published_date': '2026-04-29',
+    },
+    # Meta Q1 2026 official earnings release (published 2026-04-29).
+    'META': {
+        'period': '2026-03-31',
+        'revenue': 56311000000.0,
+        'gross_profit': 46093000000.0,
+        'operating_income': 22872000000.0,
+        'net_income': 26773000000.0,
+        'eps_actual': 10.44,
+        'eps_adjusted': 7.31,
+        'eps_basis': 'EPS excluding Q1 tax benefit',
+        'gross_margin': 46093000000.0 / 56311000000.0 * 100,
+        'operating_margin': 41.0,
+        'operating_cash_flow': 32230000000.0,
+        'free_cash_flow': 12390000000.0,
+        'source': 'Meta Q1 2026 earnings release',
+        'published_date': '2026-04-29',
     },
     # SK hynix 1Q26 official earnings release (published 2026-04-23).
     # yfinance may lag for Korean quarterly statements, so keep this patch
@@ -62,6 +116,40 @@ OFFICIAL_QUARTER_PATCHES = {
         'operating_cash_flow': None,
         'source': 'SK hynix 1Q26 earnings release',
         'published_date': '2026-04-23',
+    },
+    # Samsung Electronics 1Q26 official earnings release (published 2026-04-30).
+    '005930.KS': {
+        'period': '2026-03-31',
+        'revenue': 133873000000000.0,
+        'gross_profit': None,
+        'operating_income': 57233000000000.0,
+        'net_income': 47225000000000.0,
+        'eps_actual': None,
+        'gross_margin': None,
+        'operating_margin': 57233000000000.0 / 133873000000000.0 * 100,
+        'operating_cash_flow': None,
+        'source': 'Samsung Electronics 1Q26 earnings release',
+        'published_date': '2026-04-30',
+    },
+}
+
+OFFICIAL_QUARTER_FIELD_PATCHES = {
+    # Official FQ3 2025 non-GAAP comparator from the same Seagate release.
+    # yfinance keeps GAAP EPS, but analyst estimates/market headlines use adjusted EPS.
+    'STX': {
+        '2025-03-31': {
+            'eps_adjusted': 1.90,
+            'eps_basis': 'non-GAAP diluted EPS',
+        },
+    },
+    'TSM': {
+        # yfinance reports TSM ADS EPS; each ADS represents 5 common shares.
+        # Convert historical EPS to TSMC ordinary-share EPS so it matches the
+        # official 1Q26 EPS NT$22.08 shown on the dashboard.
+        '2025-12-31': {'eps_actual': 19.50, 'eps_basis': 'ordinary-share EPS (ADS / 5)'},
+        '2025-09-30': {'eps_actual': 17.44, 'eps_basis': 'ordinary-share EPS (ADS / 5)'},
+        '2025-06-30': {'eps_actual': 15.36, 'eps_basis': 'ordinary-share EPS (ADS / 5)'},
+        '2025-03-31': {'eps_actual': 13.94, 'eps_basis': 'ordinary-share EPS (ADS / 5)'},
     },
 }
 
@@ -114,6 +202,36 @@ def _calc_chg(cur_v, base_v):
     return (cur_v - base_v) / abs(base_v) * 100
 
 
+def _eps_for_analysis(q):
+    if not isinstance(q, dict):
+        return None
+    return q.get('eps_adjusted') if q.get('eps_adjusted') is not None else q.get('eps_actual')
+
+
+def _infer_published_date_for_quarter(period, earnings_history):
+    if not period or not earnings_history:
+        return None
+    try:
+        period_dt = datetime.date.fromisoformat(str(period)[:10])
+    except Exception:
+        return None
+    candidates = []
+    for item in earnings_history:
+        rd = item.get('report_date')
+        if not rd:
+            continue
+        try:
+            report_dt = datetime.date.fromisoformat(str(rd)[:10])
+        except Exception:
+            continue
+        # Most companies report within roughly two months after quarter end.
+        delta = (report_dt - period_dt).days
+        if -7 <= delta <= 90:
+            candidates.append((abs(delta), rd))
+    candidates.sort()
+    return candidates[0][1] if candidates else None
+
+
 def _apply_official_quarter_patches(data):
     for sym, patch in OFFICIAL_QUARTER_PATCHES.items():
         entry = data.get(sym)
@@ -125,14 +243,23 @@ def _apply_official_quarter_patches(data):
         quarters = [q for q in quarters if q.get('revenue') is not None and q.get('net_income') is not None]
         quarters.sort(key=lambda q: q.get('period') or '', reverse=True)
 
+        for q in quarters:
+            updates = OFFICIAL_QUARTER_FIELD_PATCHES.get(sym, {}).get(q.get('period') or '')
+            if updates:
+                q.update(updates)
+            if not q.get('published_date'):
+                q['published_date'] = _infer_published_date_for_quarter(q.get('period'), entry.get('_earnings_history') or [])
+
         for i, q in enumerate(quarters):
             prev = quarters[i + 1] if i + 1 < len(quarters) else None
             yr_ago = next((p for p in quarters[i + 1:] if (p.get('period') or '')[:4] == str(int((q.get('period') or '0000')[:4]) - 1)
                            and (p.get('period') or '')[5:7] == (q.get('period') or '')[5:7]), None)
+            if yr_ago is None and i + 4 < len(quarters):
+                yr_ago = quarters[i + 4]
             q['rev_yoy'] = _calc_chg(q.get('revenue'), yr_ago and yr_ago.get('revenue'))
             q['rev_qoq'] = _calc_chg(q.get('revenue'), prev and prev.get('revenue'))
-            q['eps_yoy'] = _calc_chg(q.get('eps_actual'), yr_ago and yr_ago.get('eps_actual'))
-            q['eps_qoq'] = _calc_chg(q.get('eps_actual'), prev and prev.get('eps_actual'))
+            q['eps_yoy'] = _calc_chg(_eps_for_analysis(q), yr_ago and _eps_for_analysis(yr_ago))
+            q['eps_qoq'] = _calc_chg(_eps_for_analysis(q), prev and _eps_for_analysis(prev))
 
         entry['quarters'] = quarters
         entry['last_report_date'] = quarters[0]['period']
@@ -184,8 +311,8 @@ def _heuristic_highlights(qtrs):
             elif chg <= -3: warnings.append(f'淨利率 {nm_cur:.1f}%，年減 {chg:+.1f}pt')
 
     # EPS surprise
-    if cur.get('eps_actual') is not None and cur.get('eps_estimate') is not None:
-        e_act, e_est = cur['eps_actual'], cur['eps_estimate']
+    if _eps_for_analysis(cur) is not None and cur.get('eps_estimate') is not None:
+        e_act, e_est = _eps_for_analysis(cur), cur['eps_estimate']
         if e_est != 0:
             surp = (e_act - e_est) / abs(e_est) * 100
             if surp >= 10:   highlights.append(f'EPS ${e_act:.2f} 超越預期 {surp:+.1f}%')
@@ -297,8 +424,8 @@ def fetch_one(symbol, fund):
 
         latest['rev_yoy'] = _calc_chg(latest.get('revenue'), yr_ago and yr_ago.get('revenue'))
         latest['rev_qoq'] = _calc_chg(latest.get('revenue'), prev   and prev.get('revenue'))
-        latest['eps_yoy'] = _calc_chg(latest.get('eps_actual'), yr_ago and yr_ago.get('eps_actual'))
-        latest['eps_qoq'] = _calc_chg(latest.get('eps_actual'), prev   and prev.get('eps_actual'))
+        latest['eps_yoy'] = _calc_chg(_eps_for_analysis(latest), yr_ago and _eps_for_analysis(yr_ago))
+        latest['eps_qoq'] = _calc_chg(_eps_for_analysis(latest), prev   and _eps_for_analysis(prev))
 
         highlights, warnings = _heuristic_highlights(qtrs)
 
@@ -379,7 +506,7 @@ def main():
         result = fetch_one(sym, fdata.get(sym, {}))
         if result:
             existing[sym] = result
-            print(f'    ✓ {result["last_report_date"]} · 亮點 {len(result["highlights"])} · 警訊 {len(result["warnings"])}', flush=True)
+            print(f'    OK {result["last_report_date"]} · 亮點 {len(result["highlights"])} · 警訊 {len(result["warnings"])}', flush=True)
         time.sleep(0.5)
 
     _apply_official_quarter_patches(existing)

@@ -5333,6 +5333,9 @@
 
             // 初始資料：從原始快取（localStorage）取，無論哪條路徑都先有基礎值
             let allResults = { ...(_loadCacheRaw().data || {}) };
+            // ★ 有舊資料 → UI 維持顯示舊內容（不再用 loading rows 蓋掉）
+            //   fetch 完成後最後一次 render 會覆蓋成新資料
+            const _hasAnyCachedData = Object.keys(allResults).length > 0;
 
             if (fundFresh && techFresh) {
                 // ── 快取完全有效 → 直接渲染，不發任何 API 請求 ──
@@ -5340,18 +5343,23 @@
 
             } else if (fundFresh && !techFresh) {
                 // ── 技術面過期 → 只重抓 KD/MACD/RSI + prevClose ──
-                if (!silent) {
+                // 有舊資料時跳過 loading rows，背景刷新（前台維持顯示舊資料）
+                if (!silent && !_hasAnyCachedData) {
                     fundTbody.innerHTML = rows.map(r => loadingRow(r, 16, '⏳ 更新技術面...')).join('');
                     techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 更新技術面...')).join('').replace(/arow-/g, 'trow-');
+                } else if (!silent && _hasAnyCachedData) {
+                    if (btn) btn.textContent = '背景刷新中（技術面）...';
                 }
                 for (let i = 0; i < uniqueQueries.length; i++) {
                     const sym = uniqueQueries[i];
-                    if (!silent) {
+                    if (!silent && !_hasAnyCachedData) {
                         const prog = '⏳ 更新技術面（' + (i+1) + '/' + uniqueQueries.length + '）...';
                         rows.filter(r => r.query === sym).forEach(r => {
                             const te = document.getElementById('trow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
                             if (te) { te.cells[1].colSpan = 10; te.cells[1].textContent = prog; }
                         });
+                    } else if (!silent && _hasAnyCachedData && btn) {
+                        btn.textContent = `背景刷新技術面 (${i+1}/${uniqueQueries.length})...`;
                     }
                     try {
                         const tech = await fetchTechDataFromYahoo(sym);
@@ -5424,24 +5432,34 @@
 
             } else {
                 // ── 基本面（或全部）過期 → 完整重抓 ──
-                if (!silent) {
+                // 有舊資料時跳過 loading rows，背景刷新（前台維持顯示舊資料）
+                if (!silent && !_hasAnyCachedData) {
                     fundTbody.innerHTML = rows.map(r => loadingRow(r, 16, '⏳ 查詢中...')).join('');
                     techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 查詢中...')).join('').replace(/arow-/g, 'trow-');
+                } else if (!silent && _hasAnyCachedData) {
+                    if (btn) btn.textContent = '背景刷新中...';
                 }
 
                 const cache = forceRefresh ? {} : _loadCache();
-                allResults = { ...cache };
+                // forceRefresh 時清空 allResults，否則保留舊快取（讓 fetch 失敗時仍有舊值可顯示）
+                if (forceRefresh) allResults = {};
+                else allResults = { ...allResults, ...cache };
                 const toFetch = uniqueQueries.filter(s => !allResults[s]);
 
                 for (let i = 0; i < toFetch.length; i++) {
                     const sym = toFetch[i];
                     const prog = '⏳ 查詢中（' + (i+1) + '/' + toFetch.length + '）...';
-                    if (!silent) rows.filter(r => r.query === sym).forEach(r => {
+                    // 只在「無舊資料」時更新 loading row 文字（有舊資料就不蓋掉現有畫面）
+                    if (!silent && !_hasAnyCachedData) rows.filter(r => r.query === sym).forEach(r => {
                         const fe = document.getElementById('arow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
                         const te = document.getElementById('trow-' + r.holding.replace(/[^a-zA-Z0-9]/g,'_'));
                         if (fe) { fe.cells[1].colSpan = 16; fe.cells[1].textContent = prog; }
                         if (te) { te.cells[1].colSpan = 10; te.cells[1].textContent = prog; }
                     });
+                    // 有舊資料：更新按鈕文字顯示進度（更輕量）
+                    if (!silent && _hasAnyCachedData && btn) {
+                        btn.textContent = `背景刷新中 (${i+1}/${toFetch.length})...`;
+                    }
                     try {
                         allResults[sym] = await fetchSymbolDataFromYahoo(sym);
                     } catch(e) {

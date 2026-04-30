@@ -503,3 +503,11 @@ try:
     _sp2.run([_sy2.executable, os.path.join(ROOT, 'fetch_earnings_deep.py')], check=False, timeout=600)
 except Exception as _e:
     print(f'  [earnings_deep] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+
+# ── 順便更新 ETF 持股（USD swap + 直接持股、SOXX/SMH/XSD/PSI 對照）──
+try:
+    print('\n更新 ETF 持股 (etf_holdings.json) ...', flush=True)
+    import subprocess as _sp3, sys as _sy3
+    _sp3.run([_sy3.executable, os.path.join(ROOT, 'fetch_etf_holdings.py')], check=False, timeout=180)
+except Exception as _e:
+    print(f'  [etf_holdings] 更新失敗（不影響 fundamentals）：{_e}', flush=True)

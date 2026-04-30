@@ -191,7 +191,7 @@
             #main-header .subtitle { font-size: 0.68rem !important; letter-spacing: 0.3px !important; }
 
             /* 幣別切換縮小 */
-            #currency-toggle { top: 0.45rem !important; right: 0.45rem !important; }
+            #currency-toggle { position:static !important; top:auto !important; right:auto !important; box-shadow:none !important; }
             #currency-toggle button { padding: 0.3rem 0.55rem !important; font-size: 0.7rem !important; }
 
             /* Tab 標籤縮小 */
@@ -259,12 +259,6 @@
 
     <div style="max-width:1200px; margin:0 auto; position:relative; z-index:1;">
 
-        <!-- Currency Toggle -->
-        <div id="currency-toggle" style="position:fixed; top:1.25rem; right:1.25rem; z-index:999; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35); box-shadow:0 4px 20px rgba(0,0,0,0.4);">
-            <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:rgba(10,22,40,0.92); color:#64748b;">$ USD</button>
-            <button id="currency-twd" onclick="setCurrency('TWD')" style="padding:0.45rem 1rem; border:none; font-weight:700; font-size:0.85rem; background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color:#0a1628;">NT$ TWD</button>
-        </div>
-
         <!-- Header -->
         <div id="main-header" style="margin-bottom:1.25rem; text-align:center; padding-top:2.5rem;">
             <div id="main-header-wrap" style="display:inline-block; position:relative; padding:1rem 2rem; background:linear-gradient(135deg, rgba(251,191,36,0.1) 0%, rgba(245,158,11,0.05) 100%); border-radius:20px; border:2px solid rgba(251,191,36,0.3); box-shadow:0 0 40px rgba(251,191,36,0.2); margin-bottom:0.5rem;">
@@ -291,6 +285,9 @@
 
         <!-- Stats -->
         <div id="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1.5rem; margin-bottom:2rem;"></div>
+
+        <!-- Stock Realized P/L -->
+        <div id="stock-realized-section" class="glass-card" style="padding:1.15rem 1.35rem; margin-bottom:1.25rem; border:1px solid rgba(251,191,36,0.18);"></div>
 
         <!-- Exchange Rate Controls -->
         <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
@@ -405,6 +402,17 @@
             </div>
 
             <div id="data-mgmt-body">
+                <!-- 顯示幣別 -->
+                <div style="margin-bottom:0.9rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; padding:0.75rem 0.85rem; border:1px solid rgba(59,130,246,0.18); border-radius:10px; background:rgba(59,130,246,0.05);">
+                        <label style="color:#cbd5e1; font-size:0.82rem; font-weight:700; white-space:nowrap;">顯示幣別</label>
+                        <div id="currency-toggle" style="position:static; z-index:1; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35);">
+                            <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.42rem 0.95rem; border:none; font-weight:700; font-size:0.82rem; background:rgba(10,22,40,0.92); color:#64748b;">$ USD</button>
+                            <button id="currency-twd" onclick="setCurrency('TWD')" style="padding:0.42rem 0.95rem; border:none; font-weight:700; font-size:0.82rem; background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color:#0a1628;">NT$ TWD</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 交易操作 -->
                 <div style="margin-bottom:0.9rem;">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; padding:0.75rem 0.85rem; border:1px solid rgba(251,191,36,0.22); border-radius:10px; background:rgba(251,191,36,0.06);">
@@ -751,6 +759,17 @@
         <!-- ▲▲▲ 版本標記 ▲▲▲ -->
 
     <!-- Modals -->
+    <!-- ETF 持股 Modal -->
+    <div id="etf-holdings-modal" onclick="if(event.target===this)hideEtfHoldingsModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:2050; padding:1rem;">
+        <div class="glass-card" style="padding:1.5rem 2rem; max-width:780px; width:100%; max-height:90vh; overflow:hidden; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem; flex-shrink:0;">
+                <div id="etf-holdings-modal-title" style="color:#fbbf24; font-size:1.1rem; font-weight:700;"></div>
+                <button onclick="hideEtfHoldingsModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
+            </div>
+            <div id="etf-holdings-modal-content" style="flex:1; overflow-y:auto;"></div>
+        </div>
+    </div>
+
     <!-- Trade Modal（買入 / 賣出）-->
     <div id="trade-modal" onclick="if(event.target===this)closeTradeModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.78); display:none; align-items:center; justify-content:center; z-index:2100; padding:1rem;">
         <div class="glass-card" style="padding:1.75rem 2rem; max-width:680px; width:100%; max-height:92vh; overflow-y:auto;">
@@ -867,6 +886,12 @@
         // ==================== 全域變數 ====================
         let holdings = [];
         let history = [];
+        let _stockTxns = [];
+        let _stockTxnsLoaded = false;
+        let _stockTxnsError = '';
+        let _stockRealizedExpanded = false;
+        let _stockTxnsPendingCount = 0;
+        const PT_STOCK_TXNS_PENDING_KEY = 'pt_v13_stock_txns_pending';
         let currency = 'TWD';
         let exchangeRates = { USD_TWD: 31.5, HKD_TWD: 4.05 };
         let tradeType = 'buy';
@@ -1251,10 +1276,16 @@
         }
         function setCurrency(c) {
             currency = c;
-            document.getElementById('currency-usd').style.background = c === 'USD' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'rgba(10,22,40,0.92)';
-            document.getElementById('currency-usd').style.color = c === 'USD' ? '#0a1628' : '#64748b';
-            document.getElementById('currency-twd').style.background = c === 'TWD' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'rgba(10,22,40,0.92)';
-            document.getElementById('currency-twd').style.color = c === 'TWD' ? '#0a1628' : '#64748b';
+            const usdBtn = document.getElementById('currency-usd');
+            const twdBtn = document.getElementById('currency-twd');
+            if (usdBtn) {
+                usdBtn.style.background = c === 'USD' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'rgba(10,22,40,0.92)';
+                usdBtn.style.color = c === 'USD' ? '#0a1628' : '#64748b';
+            }
+            if (twdBtn) {
+                twdBtn.style.background = c === 'TWD' ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'rgba(10,22,40,0.92)';
+                twdBtn.style.color = c === 'TWD' ? '#0a1628' : '#64748b';
+            }
             renderAll(); // saveToStorage 已在 renderAll 中呼叫
         }
         function setTradeType(type) {
@@ -1345,6 +1376,416 @@
         }
         function fmtPnl(val, ccy) {
             return (val >= 0 ? '+' : '-') + fmtAmt(val, ccy);
+        }
+
+        function _esc(v) {
+            return String(v ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
+
+        function _stockTxnRate(ccy) {
+            if (ccy === 'TWD') return 1;
+            if (ccy === 'HKD') return exchangeRates.HKD_TWD || 0;
+            return exchangeRates.USD_TWD || 0;
+        }
+
+        function _fmtRawCurrency(v, ccy) {
+            const n = Number(v || 0);
+            const sign = n >= 0 ? '+' : '-';
+            const abs = Math.abs(n);
+            const pfx = ccy === 'TWD' ? 'NT$' : ccy === 'HKD' ? 'HK$' : '$';
+            return sign + pfx + abs.toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+        }
+
+        function _fmtPlainCurrency(v, ccy) {
+            const n = Number(v || 0);
+            const pfx = ccy === 'TWD' ? 'NT$' : ccy === 'HKD' ? 'HK$' : '$';
+            return pfx + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+        }
+
+        function _stockRealizedDisplay(origAmount, origCcy, twdAmount) {
+            if (currency === 'TWD') return _fmtRawCurrency(twdAmount, 'TWD');
+            const ccy = String(origCcy || 'USD').toUpperCase();
+            if (ccy === 'USD') return _fmtRawCurrency(origAmount, 'USD');
+            const usd = exchangeRates.USD_TWD > 0 ? Number(twdAmount || 0) / exchangeRates.USD_TWD : 0;
+            return _fmtRawCurrency(usd, 'USD');
+        }
+
+        function _getPendingStockTxns() {
+            try {
+                const rows = JSON.parse(localStorage.getItem(PT_STOCK_TXNS_PENDING_KEY) || '[]');
+                return Array.isArray(rows) ? rows : [];
+            } catch(_) {
+                return [];
+            }
+        }
+
+        function _savePendingStockTxns(rows) {
+            try {
+                if (rows && rows.length) localStorage.setItem(PT_STOCK_TXNS_PENDING_KEY, JSON.stringify(rows));
+                else localStorage.removeItem(PT_STOCK_TXNS_PENDING_KEY);
+            } catch(_) {}
+        }
+
+        function _stockTxnKey(t) {
+            if (t?.client_id) return 'cid:' + String(t.client_id);
+            return [
+                t?.date || '',
+                t?.bourse || t?.market || '',
+                t?.sym || t?.symbol || '',
+                t?.currency || '',
+                t?.type || t?.side || '',
+                t?.qty || '',
+                t?.price || '',
+                t?.fee || 0
+            ].map(v => String(v).trim().toUpperCase()).join('|');
+        }
+
+        function _mergeStockTxns(remoteRows, pendingRows) {
+            const seen = new Set();
+            const merged = [];
+            [...(remoteRows || []), ...(pendingRows || [])].forEach(row => {
+                const key = _stockTxnKey(row);
+                if (!key || seen.has(key)) return;
+                seen.add(key);
+                merged.push(row);
+            });
+            return merged;
+        }
+
+        function _marketCurrency(market) {
+            const m = String(market || 'US').toUpperCase();
+            if (m === 'TW') return 'TWD';
+            if (m === 'HK') return 'HKD';
+            return 'USD';
+        }
+
+        function _todayTaipeiDate() {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Taipei',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(new Date()).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+            return `${parts.year}-${parts.month}-${parts.day}`;
+        }
+
+        async function _syncPendingStockTransactions(rows) {
+            const pendingRows = rows || _getPendingStockTxns();
+            if (!pendingRows.length) return false;
+            try {
+                const r = await fetch('/stock/txns', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactions: pendingRows })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || data.status === 'fail') throw new Error(data.error || ('HTTP ' + r.status));
+                _savePendingStockTxns([]);
+                _stockTxnsPendingCount = 0;
+                return true;
+            } catch(_) {
+                return false;
+            }
+        }
+
+        async function loadStockTransactions(force = false) {
+            if (_stockTxnsLoaded && !force) return;
+            _stockTxnsError = '';
+            let pendingRows = _getPendingStockTxns();
+            _stockTxnsPendingCount = pendingRows.length;
+            try {
+                let data = null;
+                let lastErr = '';
+                let usedWritableApi = false;
+                for (const url of ['/stock/txns?t=' + Date.now(), './stocker_txns.json?t=' + Date.now()]) {
+                    try {
+                        const r = await fetch(url, { cache: 'no-store' });
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        const payload = await r.json();
+                        data = Array.isArray(payload) ? payload : payload.transactions;
+                        if (Array.isArray(data)) {
+                            usedWritableApi = url.startsWith('/stock/txns');
+                            break;
+                        }
+                    } catch(e) {
+                        lastErr = e?.message || '讀取失敗';
+                    }
+                }
+                if (!Array.isArray(data)) throw new Error(lastErr || '交易紀錄格式錯誤');
+                if (usedWritableApi && pendingRows.length) {
+                    const synced = await _syncPendingStockTransactions(pendingRows);
+                    if (synced) {
+                        pendingRows = [];
+                        const r = await fetch('/stock/txns?t=' + Date.now(), { cache: 'no-store' });
+                        const payload = await r.json();
+                        data = Array.isArray(payload) ? payload : payload.transactions;
+                    }
+                }
+                _stockTxns = _mergeStockTxns(data, pendingRows);
+                _stockTxnsLoaded = true;
+            } catch(e) {
+                _stockTxns = pendingRows;
+                _stockTxnsLoaded = true;
+                _stockTxnsError = pendingRows.length ? '' : (e?.message || '讀取失敗');
+            }
+            renderStockRealized();
+        }
+
+        async function recordStockTransaction(txn) {
+            const rec = {
+                date: txn.date || _todayTaipeiDate(),
+                bourse: String(txn.bourse || txn.market || 'US').toUpperCase(),
+                sym: String(txn.sym || txn.symbol || '').trim().toUpperCase(),
+                currency: String(txn.currency || _marketCurrency(txn.bourse || txn.market)).toUpperCase(),
+                type: String(txn.type || txn.side || '').toLowerCase(),
+                qty: Number(txn.qty),
+                price: Number(txn.price),
+                fee: Number(txn.fee || 0),
+                client_id: txn.client_id || ('pt-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)),
+                source: 'portfolio-tracker-v13',
+                recorded_at: new Date().toISOString()
+            };
+            if (!rec.sym || !['buy', 'sell'].includes(rec.type) || !(rec.qty > 0) || !(rec.price >= 0)) return;
+
+            const pending = _mergeStockTxns(_getPendingStockTxns(), [rec]);
+            _savePendingStockTxns(pending);
+            _stockTxnsPendingCount = pending.length;
+            _stockTxns = _mergeStockTxns(_stockTxns, [rec]);
+            _stockTxnsLoaded = true;
+            renderStockRealized();
+
+            try {
+                const r = await fetch('/stock/txns', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(rec)
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || data.status === 'fail') throw new Error(data.error || ('HTTP ' + r.status));
+                const rest = _getPendingStockTxns().filter(x => _stockTxnKey(x) !== _stockTxnKey(rec));
+                _savePendingStockTxns(rest);
+                _stockTxnsPendingCount = rest.length;
+                await loadStockTransactions(true);
+                if (typeof showImportToast === 'function') showImportToast(`✅ 已留存 ${rec.sym} ${rec.type === 'buy' ? '買進' : '賣出'} 紀錄`, 1800);
+            } catch(e) {
+                _stockTxnsPendingCount = _getPendingStockTxns().length;
+                renderStockRealized();
+                if (typeof showWarnToast === 'function') showWarnToast(`⚠️ 交易已先暫存在本機，server 可用後請重新整理同步`, 3200);
+                console.warn('stock transaction sync failed', e);
+            }
+        }
+
+        function _computeStockRealized(txns) {
+            const positions = {};
+            const details = [];
+            const bySymbol = {};
+            const totalsByCcy = {};
+            let totalTWD = 0;
+            let sells = 0, wins = 0, losses = 0, unmatched = 0;
+            const rows = (txns || [])
+                .filter(t => (t?.bourse || '').toUpperCase() !== 'CRYPTO')
+                .map((t, i) => ({ ...t, _idx: i }))
+                .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || a._idx - b._idx);
+
+            for (const t of rows) {
+                const type = String(t.type || '').toLowerCase();
+                if (type !== 'buy' && type !== 'sell') continue;
+                const sym = String(t.sym || t.symbol || '').trim().toUpperCase();
+                const qty = Number(t.qty);
+                const price = Number(t.price);
+                const fee = Number(t.fee || 0);
+                if (!sym || !Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0) continue;
+                const ccy = String(t.currency || 'USD').toUpperCase();
+                const key = `${sym}|${ccy}`;
+                if (!positions[key]) positions[key] = { qty: 0, cost: 0 };
+                const pos = positions[key];
+
+                if (type === 'buy') {
+                    pos.qty += qty;
+                    pos.cost += qty * price + fee;
+                    continue;
+                }
+
+                const reportAvgCost = Number(t.buy_avg ?? t.avg_cost);
+                const reportCostBasis = Number(t.cost_basis ?? t.cost_basis_orig);
+                const reportProceeds = Number(t.proceeds ?? t.sell_proceeds);
+                const reportRealized = Number(t.realized ?? t.realized_orig ?? t.pnl_orig);
+                const reportRealizedTWD = Number(t.realized_twd ?? t.pnl_twd);
+                const reportFxTWD = Number(t.fx_pnl_twd ?? t.fx_pnl);
+                const reportRate = Number(t.fx_rate);
+
+                const avgCost = Number.isFinite(reportAvgCost) && reportAvgCost > 0 ? reportAvgCost : (pos.qty > 0 ? pos.cost / pos.qty : 0);
+                const costBasis = Number.isFinite(reportCostBasis) ? reportCostBasis : avgCost * qty;
+                const proceeds = Number.isFinite(reportProceeds) ? reportProceeds : qty * price - fee;
+                const realized = Number.isFinite(reportRealized) ? reportRealized : proceeds - costBasis;
+                const remainQty = pos.qty - qty;
+                if (remainQty < -0.000001) unmatched++;
+                if (pos.qty > 0) {
+                    const matchedQty = Math.min(qty, pos.qty);
+                    pos.qty = Math.max(0, pos.qty - matchedQty);
+                    pos.cost = Math.max(0, pos.cost - avgCost * matchedQty);
+                }
+                if (pos.qty <= 0.000001) { pos.qty = 0; pos.cost = 0; }
+
+                const rate = Number.isFinite(reportRate) && reportRate > 0 ? reportRate : _stockTxnRate(ccy);
+                const realizedTWD = Number.isFinite(reportRealizedTWD) ? reportRealizedTWD : (rate > 0 ? realized * rate : 0);
+                const detail = {
+                    date: t.date || '',
+                    symbol: sym,
+                    reportName: t.report_name || '',
+                    market: String(t.bourse || '').toUpperCase(),
+                    currency: ccy,
+                    qty,
+                    sellPrice: price,
+                    avgCost,
+                    fee,
+                    proceeds,
+                    costBasis,
+                    costBasisTWD: Number(t.cost_basis_twd),
+                    realized,
+                    realizedTWD,
+                    realizedPct: Number(t.realized_pct),
+                    fxPnlTWD: reportFxTWD,
+                    fxRate: Number.isFinite(reportRate) ? reportRate : null,
+                    source: t.source || '',
+                    unmatched: remainQty < -0.000001
+                };
+                details.push(detail);
+                sells++;
+                if (realized >= 0) wins++; else losses++;
+                totalsByCcy[ccy] = (totalsByCcy[ccy] || 0) + realized;
+                totalTWD += realizedTWD;
+                const groupKey = `${sym}|${ccy}`;
+                if (!bySymbol[groupKey]) bySymbol[groupKey] = { symbol: sym, currency: ccy, realized: 0, realizedTWD: 0, sells: 0, qty: 0 };
+                bySymbol[groupKey].realized += realized;
+                bySymbol[groupKey].realizedTWD += realizedTWD;
+                bySymbol[groupKey].sells += 1;
+                bySymbol[groupKey].qty += qty;
+            }
+
+            return {
+                details: details.sort((a, b) => String(b.date).localeCompare(String(a.date))),
+                bySymbol: Object.values(bySymbol).sort((a, b) => b.realizedTWD - a.realizedTWD),
+                totalsByCcy,
+                totalTWD,
+                sells,
+                wins,
+                losses,
+                unmatched
+            };
+        }
+
+        function toggleStockRealizedDetails() {
+            _stockRealizedExpanded = !_stockRealizedExpanded;
+            renderStockRealized();
+        }
+
+        function refreshStockRealized() {
+            _stockTxnsLoaded = false;
+            _stockTxns = [];
+            renderStockRealized();
+            loadStockTransactions(true);
+        }
+
+        function renderStockRealized() {
+            const el = document.getElementById('stock-realized-section');
+            if (!el) return;
+            if (!_stockTxnsLoaded) {
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap;">
+                    <div><div style="color:#fbbf24;font-weight:800;">股票已實現損益</div><div style="color:#64748b;font-size:0.82rem;margin-top:0.25rem;">讀取 stocker_txns.json 中...</div></div>
+                    <button onclick="refreshStockRealized()" style="padding:0.35rem 0.75rem;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.32);border-radius:8px;">重新載入</button>
+                </div>`;
+                return;
+            }
+            if (_stockTxnsError) {
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap;">
+                    <div><div style="color:#fbbf24;font-weight:800;">股票已實現損益</div><div style="color:#ef4444;font-size:0.82rem;margin-top:0.25rem;">讀取失敗：${_esc(_stockTxnsError)}</div></div>
+                    <button onclick="refreshStockRealized()" style="padding:0.35rem 0.75rem;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.32);border-radius:8px;">重新載入</button>
+                </div>`;
+                return;
+            }
+
+            const r = _computeStockRealized(_stockTxns);
+            const mainVal = currency === 'USD' && exchangeRates.USD_TWD > 0 ? r.totalTWD / exchangeRates.USD_TWD : r.totalTWD;
+            const mainText = currency === 'USD' ? _fmtRawCurrency(mainVal, 'USD') : _fmtRawCurrency(r.totalTWD, 'TWD');
+            const col = r.totalTWD >= 0 ? '#10b981' : '#ef4444';
+            const winRate = r.sells > 0 ? (r.wins / r.sells * 100).toFixed(1) : '0.0';
+            const altText = currency === 'USD'
+                ? _fmtRawCurrency(r.totalTWD, 'TWD')
+                : _fmtRawCurrency(exchangeRates.USD_TWD > 0 ? r.totalTWD / exchangeRates.USD_TWD : 0, 'USD');
+            const ccyParts = Object.entries(r.totalsByCcy)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([ccy, amt]) => `<span style="color:${amt >= 0 ? '#10b981' : '#ef4444'};">${_fmtRawCurrency(amt, ccy)}</span>`)
+                .join(' · ');
+            const pendingNote = _stockTxnsPendingCount > 0
+                ? ` · <span style="color:#f59e0b;">本機待同步 ${_stockTxnsPendingCount} 筆</span>`
+                : '';
+            const topSymbols = r.bySymbol.slice(0, 6).map(x => `
+                <div style="display:flex;justify-content:space-between;gap:0.6rem;padding:0.38rem 0;border-bottom:1px solid rgba(148,163,184,0.08);">
+                    <span style="color:#cbd5e1;font-weight:700;">${_esc(x.symbol)}</span>
+                    <span style="color:${x.realizedTWD >= 0 ? '#10b981' : '#ef4444'};">${_stockRealizedDisplay(x.realized, x.currency, x.realizedTWD)}</span>
+                </div>`).join('');
+            const detailRows = r.details.slice(0, 220).map(d => `
+                <tr style="border-bottom:1px solid rgba(148,163,184,0.08);">
+                    <td style="padding:0.42rem 0.55rem;color:#94a3b8;white-space:nowrap;">${_esc(d.date)}</td>
+                    <td style="padding:0.42rem 0.55rem;color:#fbbf24;font-weight:800;white-space:nowrap;">${_esc(d.symbol)}${d.source === 'fubon_realized_report' ? ' <span title="富邦已實現報表" style="color:#60a5fa;">券</span>' : ''}${d.unmatched ? ' <span title="賣出數量超過先前買入紀錄" style="color:#ef4444;">!</span>' : ''}</td>
+                    <td style="padding:0.42rem 0.55rem;text-align:right;color:#e2e8f0;">${d.qty.toLocaleString('en-US', {maximumFractionDigits:4})}</td>
+                    <td style="padding:0.42rem 0.55rem;text-align:right;color:#60a5fa;">${_fmtPlainCurrency(d.sellPrice, d.currency)}</td>
+                    <td style="padding:0.42rem 0.55rem;text-align:right;color:#94a3b8;">${_fmtPlainCurrency(d.avgCost, d.currency)}</td>
+                    <td style="padding:0.42rem 0.55rem;text-align:right;color:#64748b;">${Number.isFinite(d.fxPnlTWD) ? _fmtRawCurrency(d.fxPnlTWD, 'TWD') : _fmtPlainCurrency(d.fee, d.currency)}</td>
+                    <td style="padding:0.42rem 0.55rem;text-align:right;color:${d.realizedTWD >= 0 ? '#10b981' : '#ef4444'};font-weight:800;">${_stockRealizedDisplay(d.realized, d.currency, d.realizedTWD)}${Number.isFinite(d.realizedPct) ? `<small style="display:block;color:#94a3b8;font-weight:600;">${d.realizedPct.toFixed(2)}%</small>` : ''}</td>
+                </tr>`).join('');
+            const detailHtml = _stockRealizedExpanded ? `
+                <div style="margin-top:1rem;display:grid;grid-template-columns:minmax(220px,0.9fr) minmax(420px,2fr);gap:1rem;align-items:start;">
+                    <div style="background:rgba(15,30,60,0.42);border:1px solid rgba(148,163,184,0.12);border-radius:10px;padding:0.75rem 0.9rem;">
+                        <div style="color:#94a3b8;font-size:0.78rem;margin-bottom:0.35rem;">依標的彙總（前 6 名）</div>
+                        ${topSymbols || '<div style="color:#64748b;font-size:0.82rem;">尚無賣出紀錄</div>'}
+                    </div>
+                    <div style="overflow-x:auto;background:rgba(15,30,60,0.32);border:1px solid rgba(148,163,184,0.12);border-radius:10px;">
+                        <table style="width:100%;border-collapse:collapse;min-width:760px;font-size:0.8rem;">
+                            <thead style="background:rgba(30,41,59,0.72);">
+                                <tr>
+                                    <th style="padding:0.48rem 0.55rem;text-align:left;color:#94a3b8;">日期</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:left;color:#94a3b8;">代碼</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">賣出股數</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">賣價</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">均成本</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">匯兌/手續費</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">已實現</th>
+                                </tr>
+                            </thead>
+                            <tbody>${detailRows || '<tr><td colspan="7" style="padding:1rem;text-align:center;color:#64748b;">尚無股票賣出紀錄</td></tr>'}</tbody>
+                        </table>
+                        ${r.details.length > 220 ? `<div style="padding:0.55rem 0.75rem;color:#64748b;font-size:0.76rem;">僅顯示最近 220 筆，完整資料共 ${r.details.length} 筆。</div>` : ''}
+                    </div>
+                </div>` : '';
+
+            el.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
+                    <div>
+                        <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;">
+                            <div style="color:#fbbf24;font-weight:900;font-size:1rem;">股票已實現損益</div>
+                            <span style="color:#64748b;font-size:0.76rem;">來源 stocker_txns.json + 新交易自動留存 · 券商報表優先 / 其餘加權平均成本法${pendingNote}</span>
+                        </div>
+                        <div style="margin-top:0.45rem;color:${col};font-size:1.45rem;font-weight:900;letter-spacing:0.3px;">${mainText}</div>
+                        <div style="margin-top:0.18rem;color:#94a3b8;font-size:0.8rem;">約 ${altText} · 原幣 ${ccyParts || '尚無賣出損益'}${r.unmatched ? ` · <span style="color:#f59e0b;">${r.unmatched} 筆賣出缺少完整買入成本</span>` : ''}</div>
+                    </div>
+                    <div style="display:flex;gap:0.6rem;align-items:stretch;flex-wrap:wrap;">
+                        <button onclick="setCurrency('TWD')" style="padding:0.45rem 0.75rem;background:${currency === 'TWD' ? 'rgba(251,191,36,0.22)' : 'rgba(15,30,60,0.5)'};color:${currency === 'TWD' ? '#fbbf24' : '#94a3b8'};border:1px solid rgba(251,191,36,0.28);border-radius:9px;font-weight:800;">台幣</button>
+                        <button onclick="setCurrency('USD')" style="padding:0.45rem 0.75rem;background:${currency === 'USD' ? 'rgba(251,191,36,0.22)' : 'rgba(15,30,60,0.5)'};color:${currency === 'USD' ? '#fbbf24' : '#94a3b8'};border:1px solid rgba(251,191,36,0.28);border-radius:9px;font-weight:800;">美金</button>
+                        <div style="min-width:88px;background:rgba(15,30,60,0.5);border-radius:10px;padding:0.55rem 0.75rem;text-align:center;">
+                            <div style="color:#64748b;font-size:0.72rem;">賣出筆數</div><div style="color:#e2e8f0;font-weight:800;">${r.sells}</div>
+                        </div>
+                        <div style="min-width:88px;background:rgba(15,30,60,0.5);border-radius:10px;padding:0.55rem 0.75rem;text-align:center;">
+                            <div style="color:#64748b;font-size:0.72rem;">勝率</div><div style="color:#10b981;font-weight:800;">${winRate}%</div>
+                        </div>
+                        <button onclick="toggleStockRealizedDetails()" style="padding:0.45rem 0.85rem;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.32);border-radius:9px;font-weight:800;">${_stockRealizedExpanded ? '▲ 收合明細' : '▼ 查看明細'}</button>
+                        <button onclick="refreshStockRealized()" title="重新讀取 stocker_txns.json" style="padding:0.45rem 0.75rem;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.32);border-radius:9px;">重新整理</button>
+                    </div>
+                </div>
+                ${detailHtml}`;
         }
 
         function renderStats(stats) {
@@ -1740,6 +2181,10 @@
                     return parts.join('');
                 })();
 
+                // ETF 持股按鈕（USD/SOXX/SMH/XSD/PSI 才顯示）
+                const etfBtn = (typeof hasEtfHoldings === 'function' && hasEtfHoldings(h.symbol))
+                    ? `<button onclick="event.stopPropagation();showEtfHoldingsModal('${h.symbol}')" title="查看 ${h.symbol} 成分股與比重" style="padding:0.18rem 0.55rem; background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3); border-radius:4px; font-size:0.72rem; cursor:pointer; text-transform:none; letter-spacing:0;">📋 成分股</button>`
+                    : '';
                 return `
                 <div class="holding-row" id="hcard-${h.id}" style="animation-delay:${i*0.05}s;padding:1rem 1.25rem;">
                     <div class="hcard-header" onclick="toggleHoldingCard(${h.id})" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
@@ -1748,6 +2193,7 @@
                             <span class="mono" style="color:#f1f5f9;font-size:1rem;font-weight:700;">${h.symbol}</span>
                             ${h.name ? `<span style="color:#94a3b8;font-size:0.82rem;">${h.name}</span>` : ''}
                             <span style="padding:0.15rem 0.45rem;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:4px;font-size:0.75rem;color:#60a5fa;">${h.percentage.toFixed(2)}%</span>
+                            ${etfBtn}
                         </div>
                         <div style="display:flex;align-items:center;gap:0.75rem;">
                             ${pnlTag} ${todayTag}
@@ -2045,6 +2491,7 @@
             const stats = calculateStats();
             _lastStats = stats;
             renderStats(stats);
+            renderStockRealized();
             renderTable(stats);
             renderHoldingsDetail(stats);
             if (_shouldRenderPie(stats)) renderPie(stats);
@@ -2617,6 +3064,16 @@
                     holdings.push({ id: Date.now(), symbol, market, name: '', quantity, costPrice, currentPrice: costPrice, addedDate: new Date().toISOString() });
                 }
             }
+            recordStockTransaction({
+                date: _todayTaipeiDate(),
+                bourse: market,
+                sym: symbol,
+                currency: _marketCurrency(market),
+                type: isBuy ? 'buy' : 'sell',
+                qty: quantity,
+                price: costPrice,
+                fee: 0
+            });
             alert(isBuy ? `✅ 已買入 ${symbol}` : `✅ 已賣出 ${symbol}`);
             document.getElementById('form-symbol').value = '';
             document.getElementById('form-quantity').value = '';
@@ -3140,6 +3597,9 @@
                 return;
             }
 
+            if (statusEl) statusEl.textContent = '同步原型股價資料...';
+            await _ensureFundamentalsCache();
+
             // 平行抓取 Finnhub 券商資料（如果有 token）
             const fhToken = (typeof getFinnhubToken === 'function') ? getFinnhubToken() : '';
             const data = _earningsDeepData?.data || {};
@@ -3179,6 +3639,22 @@
             }
         }
 
+        async function _ensureFundamentalsCache() {
+            if (window._fundJsonCache?.data) return window._fundJsonCache;
+            try {
+                const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                if (!r.ok) return null;
+                const txt = await r.text();
+                const cleaned = txt.replace(/:\s*NaN/g, ': null')
+                                   .replace(/:\s*Infinity/g, ': null')
+                                   .replace(/:\s*-Infinity/g, ': null');
+                window._fundJsonCache = JSON.parse(cleaned);
+                return window._fundJsonCache;
+            } catch(_) {
+                return null;
+            }
+        }
+
         function renderEarningsDeep(payload) {
             const listDiv = document.getElementById('earnings-deep-list');
             if (!listDiv) return;
@@ -3187,7 +3663,12 @@
             const holdingSyms = new Set(holdings.map(h => getQuerySymbol(h.symbol)));
             const items = Object.values(data)
                 .filter(d => holdingSyms.has(d.symbol))
-                .sort((a, b) => (b.last_report_date || '').localeCompare(a.last_report_date || ''));
+                .sort((a, b) => {
+                    const da = _earningsDeepReportDate(a);
+                    const db = _earningsDeepReportDate(b);
+                    if (da !== db) return db.localeCompare(da);
+                    return (a.symbol || '').localeCompare(b.symbol || '');
+                });
             if (items.length === 0) {
                 listDiv.innerHTML = `<div style="text-align:center; padding:3rem; color:#94a3b8;">
                     目前持倉中尚無近期公布財報的標的<br>
@@ -3195,7 +3676,19 @@
                 </div>`;
                 return;
             }
-            listDiv.innerHTML = items.map(d => _renderEarningsDeepCard(d, _brokerDataMap[d.symbol])).join('');
+            listDiv.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin:0.85rem 0; padding:0.65rem 0.85rem; background:rgba(15,30,60,0.42); border:1px solid rgba(148,163,184,0.16); border-radius:10px;">
+                    <div style="color:#94a3b8; font-size:0.8rem;">依 <strong style="color:#fbbf24;">營收公布時間</strong> 排序（新到舊）</div>
+                    <div style="color:#64748b; font-size:0.78rem;">桌機左右各 1 間公司，共 ${items.length} 間</div>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(520px, 1fr)); gap:1rem; align-items:start;">
+                    ${items.map(d => _renderEarningsDeepCard(d, _brokerDataMap[d.symbol])).join('')}
+                </div>`;
+        }
+
+        function _earningsDeepReportDate(d) {
+            const complete = (d?.quarters || []).find(q => q?.revenue != null && q?.net_income != null);
+            return complete?.period || d?.last_report_date || (d?.quarters || [])[0]?.period || '';
         }
 
         // 券商評級異動色彩
@@ -3593,6 +4086,57 @@
             return tableHtml + recoBar;
         }
 
+        function _renderBrokerReportDigest(d, brokerData) {
+            if (!brokerData) {
+                return `<div style="background:rgba(15,30,60,0.36); border:1px solid rgba(148,163,184,0.14); border-radius:8px; padding:0.65rem 0.8rem; margin-bottom:0.7rem; color:#64748b; font-size:0.8rem; line-height:1.55;">
+                    尚未取得券商報告摘要。可在「資料管理」設定 Finnhub Token，系統會抓取近 90 天評級異動、共識評級與目標價。
+                </div>`;
+            }
+            const updowns = (brokerData.updowns || []).slice().sort((a,b) => (b.gradeTime || 0) - (a.gradeTime || 0));
+            const latestReco = (brokerData.recos || [])[0];
+            const target = brokerData.target || {};
+            const targetMean = Number(target.targetMean ?? d.target_mean_price);
+            const targetHigh = Number(target.targetHigh);
+            const targetLow = Number(target.targetLow);
+            const total = latestReco
+                ? (latestReco.strongBuy||0) + (latestReco.buy||0) + (latestReco.hold||0) + (latestReco.sell||0) + (latestReco.strongSell||0)
+                : 0;
+            const buy = latestReco ? (latestReco.strongBuy||0) + (latestReco.buy||0) : 0;
+            const hold = latestReco ? (latestReco.hold||0) : 0;
+            const sell = latestReco ? (latestReco.sell||0) + (latestReco.strongSell||0) : 0;
+            const reportRows = updowns.slice(0, 3).map(u => {
+                const date = u.gradeTime ? new Date(u.gradeTime * 1000).toLocaleDateString('zh-TW', {month:'2-digit',day:'2-digit'}) : '-';
+                const col = _ratingChangeColor(u.action, u.fromGrade, u.toGrade);
+                return `<div style="display:flex; justify-content:space-between; gap:0.6rem; padding:0.35rem 0; border-top:1px solid rgba(148,163,184,0.1);">
+                    <div style="color:#cbd5e1; font-size:0.78rem; line-height:1.45;"><strong style="color:#e2e8f0;">${u.company || '券商'}</strong> <span style="color:#64748b;">${date}</span><br>${_gradeShort(u.fromGrade)} → <span style="color:${col};font-weight:700;">${_gradeShort(u.toGrade)}</span></div>
+                    <div style="color:${col}; font-size:0.76rem; font-weight:700; white-space:nowrap;">${_ratingChangeLabel(u.action)}</div>
+                </div>`;
+            }).join('');
+            const targetText = isFinite(targetMean)
+                ? `平均目標價 ${targetMean.toFixed(2)}${isFinite(targetLow) && isFinite(targetHigh) ? `，區間 ${targetLow.toFixed(2)}-${targetHigh.toFixed(2)}` : ''}`
+                : '尚無有效目標價';
+            const consensusText = total > 0
+                ? `共識：買進 ${buy} / 中立 ${hold} / 賣出 ${sell}（${total} 位）`
+                : '共識評級資料不足';
+            return `<div style="background:linear-gradient(135deg, rgba(251,191,36,0.08), rgba(15,23,42,0.36)); border:1px solid rgba(251,191,36,0.22); border-radius:10px; padding:0.75rem 0.9rem; margin-bottom:0.75rem;">
+                <div style="display:flex; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.45rem;">
+                    <div style="color:#fbbf24; font-size:0.84rem; font-weight:800;">🧾 券商報告摘要</div>
+                    <div style="color:#64748b; font-size:0.72rem;">Finnhub 評級/目標價資料，非完整研報原文</div>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:0.5rem; margin-bottom:0.45rem;">
+                    <div style="background:rgba(15,30,60,0.45); border-radius:8px; padding:0.55rem 0.7rem;">
+                        <div style="color:#94a3b8; font-size:0.72rem;">目標價</div>
+                        <div style="color:#10b981; font-size:0.82rem; font-weight:700; line-height:1.45;">${targetText}</div>
+                    </div>
+                    <div style="background:rgba(15,30,60,0.45); border-radius:8px; padding:0.55rem 0.7rem;">
+                        <div style="color:#94a3b8; font-size:0.72rem;">分析師共識</div>
+                        <div style="color:#cbd5e1; font-size:0.82rem; font-weight:700; line-height:1.45;">${consensusText}</div>
+                    </div>
+                </div>
+                ${reportRows || '<div style="color:#64748b; font-size:0.8rem;">近 90 天沒有新的券商升降評紀錄。</div>'}
+            </div>`;
+        }
+
         function _renderEarningsDeepCard(d, brokerData) {
             const fmtNum = (v, dec=0) => v == null ? '-' : Number(v).toLocaleString('en-US', {maximumFractionDigits:dec, minimumFractionDigits:dec});
             const fmtAbbr = (v) => {
@@ -3608,10 +4152,29 @@
             const fmtPctSimple = (v) => v == null ? '-' : Number(v).toFixed(1) + '%';
             const colorPct = (v) => v == null ? '#64748b' : (v >= 0 ? '#10b981' : '#ef4444');
             const ccy = d.currency || 'USD';
-            const ccySign = ccy === 'USD' ? '$' : '';
+            const ccySign = ccy === 'USD' ? '$' : ccy === 'TWD' ? 'NT$' : ccy === 'KRW' ? '₩' : ccy ? `${ccy} ` : '';
+            const underlyingQuote = _analysisUnderlyingQuote(d.symbol);
+            const priceCcy = underlyingQuote?.currency || _currencyForSymbol(d.symbol, 'USD');
+            const pricePrefix = _pricePrefixForCurrency(priceCcy);
+            const currentPriceHtml = underlyingQuote
+                ? `${pricePrefix}${Number(underlyingQuote.price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:4})}`
+                : '<span style="color:#475569;">-</span>';
+            const priceSourceHtml = underlyingQuote
+                ? `<small style="color:#64748b;font-size:0.72rem;">原型 ${d.symbol} ${underlyingQuote.label}</small>`
+                : `<small style="color:#64748b;font-size:0.72rem;">尚無原型股價資料</small>`;
+            const targetValue = Number(d.target_mean_price);
+            const hasTarget = Number.isFinite(targetValue) && targetValue > 0;
+            const targetPrefix = pricePrefix;
+            const tgt = hasTarget ? `${targetPrefix}${targetValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}` : '-';
+            const targetUpside = hasTarget && underlyingQuote?.price
+                ? ((targetValue - underlyingQuote.price) / underlyingQuote.price * 100)
+                : null;
+            const targetUpsideHtml = targetUpside != null
+                ? `<small style="color:${targetUpside >= 0 ? '#10b981' : '#ef4444'};"> 空間 ${targetUpside >= 0 ? '+' : ''}${targetUpside.toFixed(1)}%</small>`
+                : '';
 
-            // 季度表（最近 4 季）
-            const qtrs = (d.quarters || []).slice(0, 4);
+            // 季度表（最近 4 季）：排除只有 EPS、缺少營收/損益表資料的半成品列。
+            const qtrs = (d.quarters || []).filter(q => q?.revenue != null && q?.net_income != null).slice(0, 4);
             const tableRows = qtrs.map((q, i) => {
                 const period = q.period?.slice(0, 7) || '-';
                 return `<tr style="${i%2===0?'background:rgba(15,30,60,0.3);':''}">
@@ -3620,15 +4183,103 @@
                     <td style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">${fmtPctSimple(q.gross_margin)}</td>
                     <td style="padding:0.4rem 0.6rem;text-align:right;color:#a78bfa;">${fmtPctSimple(q.operating_margin)}</td>
                     <td style="padding:0.4rem 0.6rem;text-align:right;color:#e2e8f0;">${ccySign}${fmtAbbr(q.net_income)}</td>
-                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#60a5fa;">${q.eps_actual != null ? '$' + Number(q.eps_actual).toFixed(2) : '-'}${q.eps_estimate != null ? `<small style="color:#64748b;display:block;font-size:0.7rem;">預估 $${Number(q.eps_estimate).toFixed(2)}</small>` : ''}</td>
+                    <td style="padding:0.4rem 0.6rem;text-align:right;color:#60a5fa;">${q.eps_actual != null ? ccySign + Number(q.eps_actual).toFixed(2) : '-'}${q.eps_estimate != null ? `<small style="color:#64748b;display:block;font-size:0.7rem;">預估 ${ccySign}${Number(q.eps_estimate).toFixed(2)}</small>` : ''}</td>
                 </tr>`;
             }).join('');
 
             const latest = qtrs[0] || {};
+            const completeReportDate = latest.period || d.last_report_date || '-';
             const yoyRev = latest.rev_yoy;
             const qoqRev = latest.rev_qoq;
             const yoyEps = latest.eps_yoy;
             const qoqEps = latest.eps_qoq;
+            const companyReadout = (() => {
+                const rows = [];
+                const revTone = yoyRev == null
+                    ? '營收年增資料不足，先以未來一季財報與公司指引確認動能。'
+                    : yoyRev >= 30 ? `營收年增 ${fmtPct(yoyRev)}，屬於高成長區間，需確認是否由主力產品/大客戶拉動，而非一次性出貨。`
+                    : yoyRev >= 10 ? `營收年增 ${fmtPct(yoyRev)}，成長動能穩健；若 QoQ 也為正，代表短期需求延續性較好。`
+                    : yoyRev >= 0 ? `營收年增 ${fmtPct(yoyRev)}，仍有成長但斜率偏溫和，後續要看新產品或客戶拉貨是否加速。`
+                    : `營收年減 ${fmtPct(yoyRev)}，短線需求或週期仍偏弱，需等待連續 1-2 季恢復。`;
+                rows.push({ title: '營收動能', body: `${revTone}${qoqRev != null ? ` QoQ ${fmtPct(qoqRev)}，可作為近季拐點觀察。` : ''}` });
+
+                const gm = latest.gross_margin;
+                const om = latest.operating_margin;
+                const marginTone = [
+                    gm != null ? `毛利率 ${fmtPctSimple(gm)}` : '',
+                    om != null ? `營益率 ${fmtPctSimple(om)}` : '',
+                ].filter(Boolean).join(' / ');
+                rows.push({
+                    title: '獲利品質',
+                    body: marginTone
+                        ? `${marginTone}。${om != null && om < 0 ? '營業仍虧損，股價通常更依賴營收成長與轉盈時程。' : om != null && om >= 20 ? '營運槓桿佳，若營收續增，EPS 彈性通常較高。' : '需觀察毛利率是否能持續改善，以及費用率是否壓得住。'}`
+                        : '毛利率/營益率資料不足，需搭配下一版財報資料補強。'
+                });
+
+                const ocf = latest.operating_cash_flow;
+                rows.push({
+                    title: '現金流',
+                    body: ocf == null
+                        ? '營業現金流資料不足，暫時不能確認獲利是否有現金支撐。'
+                        : `${ocf >= 0 ? '營業現金流為正' : '營業現金流為負'}（${ccySign}${fmtAbbr(ocf)}）。${ocf >= 0 ? '若同時 EPS 成長，品質較佳。' : '需注意應收帳款、庫存或一次性支出是否拖累現金。'}`
+                });
+
+                const revYoys = qtrs.map(q => Number(q.rev_yoy)).filter(Number.isFinite);
+                const avgRevYoy = revYoys.length ? revYoys.reduce((a,b)=>a+b,0) / revYoys.length : null;
+                const prev = qtrs[1] || {};
+                const gmDelta = gm != null && prev.gross_margin != null ? gm - prev.gross_margin : null;
+                const omDelta = om != null && prev.operating_margin != null ? om - prev.operating_margin : null;
+                rows.push({
+                    title: '趨勢連續性',
+                    body: `${avgRevYoy != null ? `近 ${revYoys.length} 季平均營收 YoY ${fmtPct(avgRevYoy)}。` : '近季營收 YoY 資料不足。'}${gmDelta != null ? ` 毛利率較前季 ${gmDelta >= 0 ? '提升' : '下滑'} ${Math.abs(gmDelta).toFixed(1)}pt。` : ''}${omDelta != null ? ` 營益率較前季 ${omDelta >= 0 ? '提升' : '下滑'} ${Math.abs(omDelta).toFixed(1)}pt。` : ''}`
+                });
+
+                const epsActual = Number(latest.eps_actual);
+                const epsEstimate = Number(latest.eps_estimate);
+                const hasEpsSurprise = Number.isFinite(epsActual) && Number.isFinite(epsEstimate) && epsEstimate !== 0;
+                rows.push({
+                    title: 'EPS 與預期差',
+                    body: hasEpsSurprise
+                        ? `本季 EPS ${ccySign}${epsActual.toFixed(2)}，市場預估 ${ccySign}${epsEstimate.toFixed(2)}，surprise ${fmtPct((epsActual - epsEstimate) / Math.abs(epsEstimate) * 100)}。${epsActual >= epsEstimate ? '獲利優於預期，有利於後續上修。' : '低於預期，需留意券商是否下修。'}`
+                        : `${latest.eps_actual != null ? `本季 EPS ${ccySign}${Number(latest.eps_actual).toFixed(2)}。` : 'EPS 資料不足。'}若缺少市場預估，先以 EPS YoY/QoQ 判斷獲利方向。`
+                });
+
+                const valParts = [];
+                if (d.pe != null) valParts.push(`PE ${Number(d.pe).toFixed(1)}`);
+                if (d.fpe != null) valParts.push(`FPE ${Number(d.fpe).toFixed(1)}`);
+                if (hasTarget) valParts.push(`券商均價 ${tgt}${targetUpside != null ? `（空間 ${targetUpside >= 0 ? '+' : ''}${targetUpside.toFixed(1)}%）` : ''}`);
+                rows.push({
+                    title: '估值與預期',
+                    body: valParts.length
+                        ? `${valParts.join(' / ')}。${d.number_of_analysts ? `覆蓋分析師 ${d.number_of_analysts} 位，` : ''}若成長放緩但估值仍高，需更保守看待上修空間。`
+                        : '估值與目標價資料不足，暫以營收/EPS 趨勢作為主要判斷。'
+                });
+
+                const warnings = d.warnings || [];
+                const highlights = d.highlights || [];
+                rows.push({
+                    title: '風險/催化劑',
+                    body: `${highlights.length ? `主要催化：${highlights.slice(0,2).join('；')}。` : '暫無明確自動亮點。'}${warnings.length ? ` 主要風險：${warnings.slice(0,2).join('；')}。` : ' 目前未偵測到重大財報警訊。'}`
+                });
+
+                const next = d.next_earnings_date
+                    ? `下一次財報預計 ${d.next_earnings_date}，可追蹤營收指引、毛利率與 EPS surprise。`
+                    : '下一次財報日期尚未取得，建議先以公司公告或券商日曆確認。';
+                rows.push({ title: '下一步追蹤', body: next });
+
+                return `<div style="background:linear-gradient(135deg, rgba(14,165,233,0.08), rgba(15,23,42,0.35)); border:1px solid rgba(96,165,250,0.22); border-radius:10px; padding:0.9rem 1rem; margin-bottom:1rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.6rem;">
+                        <div style="color:#60a5fa; font-weight:800; font-size:0.9rem;">🧭 公司判讀</div>
+                        <div style="color:#64748b; font-size:0.74rem;">依最近營收公布 ${completeReportDate}</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:0.55rem;">
+                        ${rows.map(r => `<div style="background:rgba(15,30,60,0.45); border-radius:8px; padding:0.65rem 0.8rem;">
+                            <div style="color:#fbbf24; font-size:0.78rem; font-weight:700; margin-bottom:0.25rem;">${r.title}</div>
+                            <div style="color:#cbd5e1; font-size:0.8rem; line-height:1.58;">${r.body}</div>
+                        </div>`).join('')}
+                    </div>
+                </div>`;
+            })();
 
             // 亮點 / 警訊
             const hl = (d.highlights || []).map(h => `<li style="color:#10b981;margin-bottom:0.3rem;">${h}</li>`).join('');
@@ -3636,7 +4287,6 @@
 
             // 下次財報
             const nxt = d.next_earnings_date || '';
-            const tgt = d.target_mean_price ? `$${Number(d.target_mean_price).toFixed(2)}` : '-';
 
             return `<div class="glass-card" style="padding:1.4rem 1.6rem; margin-bottom:1rem; border-left:4px solid #818cf8;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.9rem;">
@@ -3646,11 +4296,12 @@
                             <span style="color:#e2e8f0; font-weight:600; font-size:0.95rem;">${d.name || ''}</span>
                             ${d.sector ? `<span style="color:#64748b; font-size:0.78rem;">${d.sector}</span>` : ''}
                         </div>
-                        <div style="color:#94a3b8; font-size:0.78rem;">最新財報 ${d.last_report_date || '-'} · 幣別 ${ccy}</div>
+                        <div style="color:#94a3b8; font-size:0.78rem;">最新完整營收 ${completeReportDate} · 幣別 ${ccy}</div>
                     </div>
                     <div style="display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
+                        <span style="background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.22);border-radius:8px;padding:0.35rem 0.55rem;color:#94a3b8;font-size:0.76rem;">目前股價 <strong style="color:#60a5fa;font-size:0.9rem;">${currentPriceHtml}</strong><br>${priceSourceHtml}</span>
                         ${nxt ? `<span style="color:#64748b; font-size:0.76rem;">下次財報 <strong style="color:#fbbf24;">${nxt}</strong></span>` : ''}
-                        ${d.target_mean_price ? `<span style="color:#64748b; font-size:0.76rem;">目標價 <strong style="color:#10b981;">${tgt}</strong>${d.number_of_analysts ? `<small style="color:#475569;"> (${d.number_of_analysts} 位)</small>` : ''}</span>` : ''}
+                        ${hasTarget ? `<span style="color:#64748b; font-size:0.76rem;">目標價 <strong style="color:#10b981;">${tgt}</strong>${d.number_of_analysts ? `<small style="color:#475569;"> (${d.number_of_analysts} 位)</small>` : ''}<br>${targetUpsideHtml}</span>` : ''}
                     </div>
                 </div>
 
@@ -3663,7 +4314,7 @@
                     </div>
                     <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
                         <div style="color:#94a3b8; font-size:0.72rem;">EPS (本季)</div>
-                        <div style="color:#60a5fa; font-weight:700; font-size:1rem;">${latest.eps_actual != null ? '$' + Number(latest.eps_actual).toFixed(2) : '-'}</div>
+                        <div style="color:#60a5fa; font-weight:700; font-size:1rem;">${latest.eps_actual != null ? ccySign + Number(latest.eps_actual).toFixed(2) : '-'}</div>
                         <div style="font-size:0.72rem;"><span style="color:${colorPct(yoyEps)};">YoY ${fmtPct(yoyEps)}</span> <span style="color:#64748b;">/ QoQ <span style="color:${colorPct(qoqEps)}">${fmtPct(qoqEps)}</span></span></div>
                     </div>
                     <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
@@ -3675,6 +4326,8 @@
                         <div style="color:#a78bfa; font-weight:700; font-size:1rem;">${fmtPctSimple(latest.operating_margin)}</div>
                     </div>
                 </div>
+
+                ${companyReadout}
 
                 <!-- 季度表 -->
                 <div style="overflow-x:auto; margin-bottom:0.9rem;">
@@ -3710,6 +4363,7 @@
                 <!-- 券商評級異動 + 共識分布 -->
                 <div style="background:rgba(15,30,60,0.4); border:1px solid rgba(99,102,241,0.2); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem;">
                     <div style="color:#818cf8; font-weight:700; font-size:0.88rem; margin-bottom:0.6rem;">🏦 券商觀點 (近 90 天)</div>
+                    ${_renderBrokerReportDigest(d, brokerData)}
                     ${_renderBrokerSection(brokerData)}
                 </div>
 
@@ -3809,6 +4463,63 @@
         };
         function getQuerySymbol(symbol) {
             return LEVERAGED_MAP[symbol] || symbol;
+        }
+
+        function _holdingForAnalysisSymbol(symbol) {
+            const sym = getQuerySymbol(symbol);
+            return holdings.find(h => getQuerySymbol(h.symbol) === sym || h.symbol === sym) || null;
+        }
+
+        function _pricePrefixForHolding(h, fallbackCurrency = 'USD') {
+            if (h) {
+                if ((h.market === 'HK' || h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol)) return 'HK$';
+                if (h.market === 'TW') return 'NT$';
+                return '$';
+            }
+            return _pricePrefixForCurrency(fallbackCurrency);
+        }
+
+        function _pricePrefixForCurrency(currency = 'USD') {
+            return currency === 'USD' ? '$' : currency === 'TWD' ? 'NT$' : currency === 'KRW' ? '₩' : currency === 'HKD' ? 'HK$' : currency ? `${currency} ` : '';
+        }
+
+        function _currencyForSymbol(symbol, fallback = 'USD') {
+            const s = String(symbol || '').toUpperCase();
+            if (s.endsWith('.KS') || s.endsWith('.KQ')) return 'KRW';
+            if (s.endsWith('.TW') || s.endsWith('.TWO')) return 'TWD';
+            if (s.endsWith('.HK')) return 'HKD';
+            return fallback;
+        }
+
+        function _firstPositiveNumber(...values) {
+            for (const v of values) {
+                const n = Number(v);
+                if (Number.isFinite(n) && n > 0) return n;
+            }
+            return null;
+        }
+
+        function _analysisUnderlyingQuote(symbol) {
+            const fund = window._fundJsonCache?.data?.[symbol];
+            if (!fund) return null;
+            const price = _firstPositiveNumber(
+                fund.regular_market_price,
+                fund.regularMarketPrice,
+                fund.current_price,
+                fund.currentPrice,
+                fund.price,
+                fund.prev_close
+            );
+            if (price == null) return null;
+            const currency = fund.currency || fund.quote_currency || fund.quoteCurrency || _currencyForSymbol(symbol, 'USD');
+            const label = _firstPositiveNumber(
+                fund.regular_market_price,
+                fund.regularMarketPrice,
+                fund.current_price,
+                fund.currentPrice,
+                fund.price
+            ) != null ? '現價' : '昨收';
+            return { price, currency, label };
         }
 
         // 個股新聞用關鍵字白名單：用於 Yahoo Finance 搜尋查詢字 + 結果過濾
@@ -5008,6 +5719,8 @@
             if (hadSaved && holdings.length > 0) {
                 setTimeout(() => silentRefreshPrices(), 500);
             }
+            // 股票已實現損益：讀取本機交易明細（非阻塞）
+            setTimeout(() => loadStockTransactions(false), 650);
             // 期貨：立即嘗試連 Fubon SDK（失敗則靜默隱藏）
             setTimeout(() => loadFuturesData(true), 800);
             // 加密資產：立即讀一次（server /crypto/balance 有 60s cache；手機退用 data/crypto_balance.json）
@@ -6822,6 +7535,148 @@
                 };
             } catch(_) {}
         })();
+
+        // ==================== ETF 持股結構（data/etf_holdings.json）====================
+        // 涵蓋 USD（含 swap）、SOXX、SMH、XSD、PSI 等半導體 ETF
+        let _etfHoldingsData = null;
+        async function loadEtfHoldings(force) {
+            if (_etfHoldingsData && !force) return _etfHoldingsData;
+            try {
+                const r = await fetch('./data/etf_holdings.json' + (force ? '?t=' + Date.now() : ''), { cache: 'no-store' });
+                if (r.ok) _etfHoldingsData = await r.json();
+            } catch(_) {}
+            return _etfHoldingsData;
+        }
+        // 啟動時靜默載入
+        loadEtfHoldings(false);
+
+        function hasEtfHoldings(symbol) {
+            return !!(_etfHoldingsData?.etfs?.[symbol]);
+        }
+        function hideEtfHoldingsModal() {
+            const m = document.getElementById('etf-holdings-modal');
+            if (m) m.style.display = 'none';
+        }
+        async function showEtfHoldingsModal(symbol) {
+            if (!_etfHoldingsData) await loadEtfHoldings(false);
+            const etf = _etfHoldingsData?.etfs?.[symbol];
+            if (!etf) {
+                alert(`目前無 ${symbol} 的成分股資料。\n\n（後端 fetch_etf_holdings.py 涵蓋的 ETF：USD / SOXX / SMH / XSD / PSI）`);
+                return;
+            }
+            const titleEl   = document.getElementById('etf-holdings-modal-title');
+            const contentEl = document.getElementById('etf-holdings-modal-content');
+            const modal     = document.getElementById('etf-holdings-modal');
+            if (titleEl) titleEl.innerHTML = `📋 ${etf.symbol} · ${etf.name}`;
+            if (contentEl) contentEl.innerHTML = _renderEtfHoldingsContent(etf, _etfHoldingsData?.generated);
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function _renderEtfHoldingsContent(etf, generatedISO) {
+            const fmtPct = v => v == null ? '-' : Number(v).toFixed(2) + '%';
+
+            // header summary
+            const lev = etf.leverage > 1 ? `<span style="background:rgba(239,68,68,0.18);color:#fca5a5;padding:0.15rem 0.55rem;border-radius:5px;font-size:0.78rem;font-weight:700;">${etf.leverage}x 槓桿</span>` : '';
+            const summary = `<div style="background:rgba(15,30,60,0.5); padding:0.85rem 1rem; border-radius:10px; margin-bottom:1rem;">
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-bottom:0.5rem;">
+                    ${lev}
+                    <span style="color:#cbd5e1; font-size:0.86rem;">追蹤：<strong style="color:#fbbf24;">${etf.tracks || '-'}</strong></span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.5rem;">
+                    <div><div style="color:#94a3b8; font-size:0.74rem;">直接持股</div><div style="color:#10b981; font-weight:700;">${fmtPct(etf.equity_total)}</div></div>
+                    ${etf.swap_total > 0 ? `<div><div style="color:#94a3b8; font-size:0.74rem;">Swap 部位</div><div style="color:#a78bfa; font-weight:700;">${fmtPct(etf.swap_total)}</div></div>` : ''}
+                    <div><div style="color:#94a3b8; font-size:0.74rem;">合計曝險</div><div style="color:#fbbf24; font-weight:700;">${fmtPct(etf.total_exposure)}</div></div>
+                </div>
+            </div>`;
+
+            // equity table
+            const equity = (etf.equity || []).slice().sort((a, b) => b.weight - a.weight);
+            const maxW = equity[0]?.weight || 1;
+            const equityRows = equity.map((e, i) => {
+                const barPct = (e.weight / maxW * 100).toFixed(1);
+                // 槓桿後曝險（直接持股 × 槓桿倍數的近似估計）
+                const levered = etf.leverage > 1 ? `<span style="color:#fbbf24; font-size:0.72rem;">→ ${(e.weight * etf.leverage).toFixed(2)}%</span>` : '';
+                return `<tr style="${i%2===0?'background:rgba(15,30,60,0.3);':''}">
+                    <td style="padding:0.4rem 0.6rem; font-family:monospace; color:#e2e8f0; font-weight:600;">${e.symbol}</td>
+                    <td style="padding:0.4rem 0.6rem; color:#cbd5e1; font-size:0.84rem;">${e.name}</td>
+                    <td style="padding:0.4rem 0.6rem; color:#fbbf24; font-weight:700; text-align:right; white-space:nowrap;">${e.weight.toFixed(2)}% ${levered}</td>
+                    <td style="padding:0.4rem 0.4rem; width:90px; vertical-align:middle;">
+                        <div style="background:rgba(99,102,241,0.15); border-radius:3px; overflow:hidden; height:8px;">
+                            <div style="background:linear-gradient(90deg,#3b82f6,#8b5cf6); height:100%; width:${barPct}%;"></div>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            const equitySection = equity.length > 0 ? `<div style="margin-bottom:1rem;">
+                <div style="color:#10b981; font-weight:700; font-size:0.92rem; margin-bottom:0.5rem;">📊 直接持股 (${equity.length} 檔，合計 ${fmtPct(etf.equity_total)})</div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead><tr style="border-bottom:1px solid rgba(148,163,184,0.2);">
+                            <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">代碼</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">公司</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">比重${etf.leverage>1?` <small>(原 → 槓桿後)</small>`:''}</th>
+                            <th></th>
+                        </tr></thead>
+                        <tbody>${equityRows}</tbody>
+                    </table>
+                </div>
+            </div>` : '';
+
+            // swap table
+            let swapSection = '';
+            if (etf.swaps && etf.swaps.length > 0) {
+                const swaps = etf.swaps.slice().sort((a, b) => b.weight - a.weight);
+                const maxSw = swaps[0]?.weight || 1;
+                const swRows = swaps.map((s, i) => {
+                    const barPct = (s.weight / maxSw * 100).toFixed(1);
+                    return `<tr style="${i%2===0?'background:rgba(15,30,60,0.3);':''}">
+                        <td style="padding:0.4rem 0.6rem; color:#cbd5e1; font-size:0.82rem;">${s.counterparty}</td>
+                        <td style="padding:0.4rem 0.6rem; color:#a78bfa; font-weight:700; text-align:right; white-space:nowrap;">${s.weight.toFixed(2)}%</td>
+                        <td style="padding:0.4rem 0.4rem; width:90px; vertical-align:middle;">
+                            <div style="background:rgba(168,85,247,0.15); border-radius:3px; overflow:hidden; height:8px;">
+                                <div style="background:linear-gradient(90deg,#a855f7,#ec4899); height:100%; width:${barPct}%;"></div>
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+                swapSection = `<div style="margin-bottom:1rem;">
+                    <div style="color:#a78bfa; font-weight:700; font-size:0.92rem; margin-bottom:0.5rem;">🔁 Swap 結構 (${swaps.length} 筆，合計 ${fmtPct(etf.swap_total)})</div>
+                    <div style="background:rgba(168,85,247,0.06); border-radius:8px; padding:0.6rem 0.85rem; margin-bottom:0.5rem; font-size:0.78rem; color:#94a3b8; line-height:1.55;">
+                        💡 槓桿 ETF 透過 swap 達成放大曝險。對手方券商支付指數收益，ETF 提供等值抵押品。<br>
+                        <span style="color:#64748b;">（此區為對手方分布，標的同為 <strong style="color:#cbd5e1;">${swaps[0]?.target || etf.tracks}</strong>）</span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                            <thead><tr style="border-bottom:1px solid rgba(148,163,184,0.2);">
+                                <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">對手方券商</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">比重</th>
+                                <th></th>
+                            </tr></thead>
+                            <tbody>${swRows}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+            }
+
+            // 槓桿後 NVDA / AVGO 集中度提醒
+            let warning = '';
+            if (etf.leverage > 1 && equity.length > 0) {
+                const top1 = equity[0];
+                const top2 = equity[1];
+                const top1Lev = (top1.weight * etf.leverage);
+                const top2Lev = top2 ? (top2.weight * etf.leverage) : 0;
+                if (top1Lev >= 30) {
+                    warning = `<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; padding:0.65rem 0.9rem; margin-bottom:0.5rem; color:#fca5a5; font-size:0.83rem; line-height:1.55;">
+                        ⚠️ <strong>集中度提醒</strong>：${etf.leverage}x 槓桿後 ${top1.symbol} 實際曝險 ≈ <strong>${top1Lev.toFixed(1)}%</strong>${top2Lev >= 10 ? `、${top2.symbol} ≈ <strong>${top2Lev.toFixed(1)}%</strong>` : ''}。前 ${top2 ? '2' : '1'} 檔合計 ≈ <strong>${(top1Lev+top2Lev).toFixed(1)}%</strong>，回檔時跌幅會放大。
+                    </div>`;
+                }
+            }
+
+            const generated = generatedISO ? `<div style="color:#64748b; font-size:0.74rem; text-align:right; margin-top:0.5rem;">資料更新：${new Date(generatedISO).toLocaleString('zh-TW')}　·　來源：stockanalysis.com</div>` : '';
+
+            return summary + warning + equitySection + swapSection + generated;
+        }
 
         // 提供給 calculateStats/renderPie 使用：回傳期貨權益（TWD）
         function getFuturesEquityTWD() {

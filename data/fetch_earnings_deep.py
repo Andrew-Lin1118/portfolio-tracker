@@ -30,6 +30,41 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 FUND_FILE = os.path.join(ROOT, 'fundamentals.json')
 OUT_FILE  = os.path.join(ROOT, 'earnings_analysis.json')
 
+OFFICIAL_QUARTER_PATCHES = {
+    # Seagate fiscal Q3 2026 official earnings release (published 2026-04-28).
+    # yfinance quarterly statements can lag by a few days after the release;
+    # keep this patch until upstream includes the 2026-04 fiscal quarter.
+    'STX': {
+        'period': '2026-04-03',
+        'revenue': 3112000000.0,
+        'gross_profit': 1447000000.0,
+        'operating_income': 998000000.0,
+        'net_income': 748000000.0,
+        'eps_actual': 3.27,
+        'gross_margin': 1447000000.0 / 3112000000.0 * 100,
+        'operating_margin': 998000000.0 / 3112000000.0 * 100,
+        'operating_cash_flow': 571000000.0,
+        'source': 'Seagate fiscal Q3 2026 earnings release',
+        'published_date': '2026-04-28',
+    },
+    # SK hynix 1Q26 official earnings release (published 2026-04-23).
+    # yfinance may lag for Korean quarterly statements, so keep this patch
+    # until the upstream statement includes the 2026-03 quarter.
+    '000660.KS': {
+        'period': '2026-03-31',
+        'revenue': 52576300000000.0,
+        'gross_profit': None,
+        'operating_income': 37610300000000.0,
+        'net_income': 40345900000000.0,
+        'eps_actual': None,
+        'gross_margin': None,
+        'operating_margin': 37610300000000.0 / 52576300000000.0 * 100,
+        'operating_cash_flow': None,
+        'source': 'SK hynix 1Q26 earnings release',
+        'published_date': '2026-04-23',
+    },
+}
+
 
 def _load_existing():
     if not os.path.exists(OUT_FILE):
@@ -71,6 +106,37 @@ def _safe_float(v):
         return f
     except Exception:
         return None
+
+
+def _calc_chg(cur_v, base_v):
+    if cur_v is None or base_v is None or base_v == 0:
+        return None
+    return (cur_v - base_v) / abs(base_v) * 100
+
+
+def _apply_official_quarter_patches(data):
+    for sym, patch in OFFICIAL_QUARTER_PATCHES.items():
+        entry = data.get(sym)
+        if not isinstance(entry, dict):
+            continue
+        quarters = entry.get('quarters') or []
+        quarters = [q for q in quarters if q.get('period') != patch['period']]
+        quarters.insert(0, dict(patch))
+        quarters = [q for q in quarters if q.get('revenue') is not None and q.get('net_income') is not None]
+        quarters.sort(key=lambda q: q.get('period') or '', reverse=True)
+
+        for i, q in enumerate(quarters):
+            prev = quarters[i + 1] if i + 1 < len(quarters) else None
+            yr_ago = next((p for p in quarters[i + 1:] if (p.get('period') or '')[:4] == str(int((q.get('period') or '0000')[:4]) - 1)
+                           and (p.get('period') or '')[5:7] == (q.get('period') or '')[5:7]), None)
+            q['rev_yoy'] = _calc_chg(q.get('revenue'), yr_ago and yr_ago.get('revenue'))
+            q['rev_qoq'] = _calc_chg(q.get('revenue'), prev and prev.get('revenue'))
+            q['eps_yoy'] = _calc_chg(q.get('eps_actual'), yr_ago and yr_ago.get('eps_actual'))
+            q['eps_qoq'] = _calc_chg(q.get('eps_actual'), prev and prev.get('eps_actual'))
+
+        entry['quarters'] = quarters
+        entry['last_report_date'] = quarters[0]['period']
+        entry['highlights'], entry['warnings'] = _heuristic_highlights(quarters)
 
 
 def _heuristic_highlights(qtrs):
@@ -217,15 +283,17 @@ def fetch_one(symbol, fund):
                     q['surprise_pct'] = _safe_float(e.get('surprise_pct'))
                     break
 
+        # yfinance sometimes exposes an earnings-date-only quarter before the full
+        # income statement is available (TSM can show EPS without revenue/margins).
+        # Do not treat those partial rows as a completed financial quarter.
+        qtrs = [q for q in qtrs if q.get('revenue') is not None and q.get('net_income') is not None]
+        if not qtrs:
+            return None
+
         latest = qtrs[0]
         # 計算 YoY、QoQ
         yr_ago = qtrs[4] if len(qtrs) > 4 else None
         prev   = qtrs[1] if len(qtrs) > 1 else None
-
-        def _calc_chg(cur_v, base_v):
-            if cur_v is None or base_v is None or base_v == 0:
-                return None
-            return (cur_v - base_v) / abs(base_v) * 100
 
         latest['rev_yoy'] = _calc_chg(latest.get('revenue'), yr_ago and yr_ago.get('revenue'))
         latest['rev_qoq'] = _calc_chg(latest.get('revenue'), prev   and prev.get('revenue'))
@@ -268,6 +336,7 @@ def main():
         return
 
     existing = _load_existing()
+    _apply_official_quarter_patches(existing)
 
     # 決定要抓的清單
     today_iso = datetime.date.today().isoformat()
@@ -312,6 +381,8 @@ def main():
             existing[sym] = result
             print(f'    ✓ {result["last_report_date"]} · 亮點 {len(result["highlights"])} · 警訊 {len(result["warnings"])}', flush=True)
         time.sleep(0.5)
+
+    _apply_official_quarter_patches(existing)
 
     payload = {
         'generated': datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z',

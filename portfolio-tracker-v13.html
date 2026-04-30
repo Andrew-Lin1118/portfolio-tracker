@@ -3817,7 +3817,13 @@
             const listDiv = document.getElementById('earnings-deep-list');
             if (!listDiv) return;
             const data = payload?.data || {};
-            // 只顯示「目前持倉中且有分析資料」的標的
+            // 反查 proxy → 持倉代碼（讓 AAOI 卡片可標記持倉中對應的 AAOX，NVDA → NVDL 等）
+            const proxyToHolding = {};
+            for (const h of holdings) {
+                const proxy = getQuerySymbol(h.symbol);
+                if (!proxyToHolding[proxy]) proxyToHolding[proxy] = [];
+                if (h.symbol !== proxy) proxyToHolding[proxy].push(h.symbol);
+            }
             const holdingSyms = new Set(holdings.map(h => getQuerySymbol(h.symbol)));
             const items = Object.values(data)
                 .filter(d => holdingSyms.has(d.symbol))
@@ -3834,19 +3840,48 @@
                 </div>`;
                 return;
             }
+            // ── 上方快速跳轉 chips（按持倉中對應符號顯示，含原型標示）──
+            const chipsHtml = items.map(d => {
+                const proxies = proxyToHolding[d.symbol] || [];
+                // 顯示持倉中槓桿 ETF 名（e.g. AAOX），如果沒有對應槓桿則顯示原型本身
+                const labelSyms = proxies.length > 0 ? proxies : [d.symbol];
+                const dateStr = _earningsDeepReportDate(d);
+                const dateBadge = dateStr ? `<span style="color:#64748b; font-size:0.66rem; font-weight:500;">${dateStr.slice(5)}</span>` : '';
+                return labelSyms.map(s => `
+                    <button onclick="document.getElementById('edcard-${d.symbol}')?.scrollIntoView({behavior:'smooth', block:'start'});"
+                        title="跳到 ${d.symbol} (${d.name || ''}) · 公布 ${dateStr}"
+                        style="padding:0.3rem 0.6rem; background:rgba(99,102,241,0.14); border:1px solid rgba(99,102,241,0.32); border-radius:7px; color:#a5b4fc; cursor:pointer; font-size:0.78rem; font-weight:700; display:flex; align-items:center; gap:0.35rem; transition:all 0.15s;"
+                        onmouseover="this.style.background='rgba(99,102,241,0.28)';this.style.color='#c7d2fe';"
+                        onmouseout="this.style.background='rgba(99,102,241,0.14)';this.style.color='#a5b4fc';">
+                        <span>${s}</span>
+                        ${dateBadge}
+                    </button>`).join('');
+            }).join('');
+
             listDiv.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin:0.85rem 0; padding:0.65rem 0.85rem; background:rgba(15,30,60,0.42); border:1px solid rgba(148,163,184,0.16); border-radius:10px;">
-                    <div style="color:#94a3b8; font-size:0.8rem;">依 <strong style="color:#fbbf24;">營收公布時間</strong> 排序（新到舊）</div>
-                    <div style="color:#64748b; font-size:0.78rem;">桌機左右各 1 間公司，共 ${items.length} 間</div>
+                <div style="margin:0.85rem 0; padding:0.7rem 0.95rem; background:rgba(15,30,60,0.42); border:1px solid rgba(148,163,184,0.16); border-radius:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.55rem;">
+                        <div style="color:#94a3b8; font-size:0.8rem;">⚡ 快速跳轉（依 <strong style="color:#fbbf24;">營收公布時間</strong> 排序，新到舊）</div>
+                        <div style="color:#64748b; font-size:0.78rem;">共 ${items.length} 間</div>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">${chipsHtml}</div>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(520px, 1fr)); gap:1rem; align-items:start;">
-                    ${items.map(d => _renderEarningsDeepCard(d, _brokerDataMap[d.symbol])).join('')}
+                    ${items.map(d => _renderEarningsDeepCard(d, _brokerDataMap[d.symbol], proxyToHolding[d.symbol] || [])).join('')}
                 </div>`;
         }
 
+        // 排序用：取「公布日」(real announce date) 最新者排前面；缺則 fallback 季度結算日
         function _earningsDeepReportDate(d) {
+            // 1. 優先用最新一季的 published_date / announce_date / report_date
+            const q0 = (d?.quarters || [])[0];
+            const announce = q0?.published_date || q0?.announce_date || q0?.report_date;
+            if (announce) return announce;
+            // 2. top-level last_announce_date（fetch_earnings_deep.py 也會塞這個）
+            if (d?.last_announce_date) return d.last_announce_date;
+            // 3. fallback：用第一筆有完整營收/淨利的季度結算日
             const complete = (d?.quarters || []).find(q => q?.revenue != null && q?.net_income != null);
-            return complete?.period || d?.last_report_date || (d?.quarters || [])[0]?.period || '';
+            return complete?.period || d?.last_report_date || q0?.period || '';
         }
 
         // 券商評級異動色彩
@@ -4295,7 +4330,7 @@
             </div>`;
         }
 
-        function _renderEarningsDeepCard(d, brokerData) {
+        function _renderEarningsDeepCard(d, brokerData, proxyHoldings) {
             const fmtNum = (v, dec=0) => v == null ? '-' : Number(v).toLocaleString('en-US', {maximumFractionDigits:dec, minimumFractionDigits:dec});
             const fmtAbbr = (v) => {
                 if (v == null) return '-';
@@ -4459,11 +4494,16 @@
             // 下次財報
             const nxt = d.next_earnings_date || '';
 
-            return `<div class="glass-card" style="padding:1.4rem 1.6rem; margin-bottom:1rem; border-left:4px solid #818cf8;">
+            // 持倉中對應的槓桿 ETF（e.g. AAOI 卡片標記用戶持有的 AAOX）
+            const proxyBadge = (Array.isArray(proxyHoldings) && proxyHoldings.length > 0)
+                ? proxyHoldings.map(s => `<span title="您的持倉 ${s} 對應到 ${d.symbol} 原型" style="background:rgba(168,85,247,0.18); color:#c084fc; padding:0.18rem 0.5rem; border-radius:5px; font-weight:700; font-size:0.78rem; border:1px solid rgba(168,85,247,0.3);">${s} 原型</span>`).join('')
+                : '';
+            return `<div id="edcard-${d.symbol}" class="glass-card" style="padding:1.4rem 1.6rem; margin-bottom:1rem; border-left:4px solid #818cf8; scroll-margin-top:90px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.9rem;">
                     <div>
                         <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.25rem;">
                             <span style="background:rgba(251,191,36,0.18);color:#fbbf24;padding:0.2rem 0.6rem;border-radius:6px;font-weight:700;font-size:0.95rem;">${d.symbol}</span>
+                            ${proxyBadge}
                             <span style="color:#e2e8f0; font-weight:600; font-size:0.95rem;">${d.name || ''}</span>
                             ${d.sector ? `<span style="color:#64748b; font-size:0.78rem;">${d.sector}</span>` : ''}
                         </div>
@@ -4633,6 +4673,7 @@
             'COHX':'COHR', 'FBL':'META',  'GGLL':'GOOGL', 'LITX':'LITE',
             'MUU':'MU',    'NBIG':'NBIS', 'ORCU':'ORCL',  'PLTU':'PLTR',
             'SNXX':'SNDK', 'TSLL':'TSLA', 'TSMX':'TSM',   'WDCX':'WDC',
+            'AAOX':'AAOI',
             'USD':'SOXX',  '7709.HK':'000660.KS', '9747.HK':'005930.KS'
         };
         function getQuerySymbol(symbol) {
@@ -4717,6 +4758,7 @@
             'TSLL':    ['Tesla',      'TSLA'],
             'TSMX':    ['Taiwan Semiconductor', 'TSMC', 'TSM'],
             'WDCX':    ['Western Digital', 'WDC'],
+            'AAOX':    ['Applied Optoelectronics', 'AAOI'],
             'USD':     ['Semiconductor ETF', 'SOXX', 'PHLX'],   // 半導體 ETF
             '7709.HK': ['SK Hynix',   'Hynix',  '000660'],
             '9747.HK': ['Samsung Electronics', 'Samsung', '005930'],
@@ -6682,9 +6724,40 @@
             { symbol:'ETH-USD',   name:'Ethereum (ETH)',    cat:'加密' },
         ];
 
-        // FRED CSV 抓取（透過 CORS proxy；FRED 直連會被瀏覽器 CORS 擋）
-        // 每個指標獨立試完 3 個 proxy + 1 個備援 URL；任何一個成功就用
+        // FRED 抓取：多重來源備援
+        //  ① DBnomics（FRED 鏡像 JSON API，CORS 開放、不需 key）— 最穩
+        //  ② FRED 官方 CSV 走 CORS proxy（備援）
         async function _fetchFredCsv(seriesId) {
+            // ① DBnomics 主來源（CORS 友善）
+            try {
+                const r = await fetch(`https://api.db.nomics.world/v22/series/FRED/${seriesId}?observations=1`, {
+                    signal: AbortSignal.timeout(8000)
+                });
+                if (r.ok) {
+                    const data = await r.json();
+                    const doc = data?.series?.docs?.[0];
+                    if (doc) {
+                        const periods = doc.period || [];
+                        const values  = doc.value  || [];
+                        const out = [];
+                        for (let i = 0; i < periods.length; i++) {
+                            const v = parseFloat(values[i]);
+                            if (!isFinite(v)) continue;
+                            let p = periods[i];
+                            if (typeof p === 'string' && p.length === 7 && p[4] === '-') p = p + '-01';
+                            out.push({ date: p, value: v });
+                        }
+                        if (out.length > 0) {
+                            console.log(`[FRED via DBnomics] ${seriesId} ← ${out.length} 筆`);
+                            return out;
+                        }
+                    }
+                }
+            } catch(e) {
+                console.warn(`[FRED DBnomics] ${seriesId} 失敗:`, e?.message);
+            }
+
+            // ② Fallback：FRED CSV 透過 CORS proxy
             const csvUrls = [
                 `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`,
                 `https://fred.stlouisfed.org/data/${seriesId}.csv`,
@@ -6703,7 +6776,6 @@
                         clearTimeout(tid);
                         if (!res.ok) continue;
                         const text = await res.text();
-                        // 必須是 CSV，不能是 HTML 錯誤頁
                         if (text.trimStart().startsWith('<')) continue;
                         const lines = text.trim().split(/\r?\n/);
                         if (lines.length < 2) continue;
@@ -6716,13 +6788,13 @@
                             if (isFinite(val)) out.push({ date, value: val });
                         }
                         if (out.length > 0) {
-                            console.log(`[FRED] ${seriesId} ← ${out.length} 筆 (proxy ok)`);
+                            console.log(`[FRED via proxy] ${seriesId} ← ${out.length} 筆`);
                             return out;
                         }
-                    } catch(e) { /* 繼續試下個 proxy */ }
+                    } catch(e) { /* 繼續 */ }
                 }
             }
-            console.warn(`[FRED] ${seriesId} 全部 proxy 失敗`);
+            console.warn(`[FRED] ${seriesId} 全部來源失敗`);
             return null;
         }
 

@@ -262,7 +262,8 @@ def _apply_official_quarter_patches(data):
             q['eps_qoq'] = _calc_chg(_eps_for_analysis(q), prev and _eps_for_analysis(prev))
 
         entry['quarters'] = quarters
-        entry['last_report_date'] = quarters[0]['period']
+        entry['last_report_date']  = quarters[0]['period']
+        entry['last_announce_date'] = quarters[0].get('published_date')   # ★ 真正公布日
         entry['highlights'], entry['warnings'] = _heuristic_highlights(quarters)
 
 
@@ -462,7 +463,8 @@ def fetch_one(symbol, fund):
             'sector':           info.get('sector') or '',
             'industry':         info.get('industry') or '',
             'currency':         info.get('financialCurrency') or info.get('currency') or 'USD',
-            'last_report_date': qtrs[0]['period'],
+            'last_report_date':  qtrs[0]['period'],                          # 季度結算日 (e.g. 2026-03-31)
+            'last_announce_date': qtrs[0].get('published_date'),             # ★ 真正公布日 (e.g. 2026-04-30)
             'quarters':         qtrs,
             'highlights':       highlights,
             'warnings':         warnings,

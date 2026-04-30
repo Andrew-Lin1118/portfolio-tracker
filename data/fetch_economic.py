@@ -70,28 +70,11 @@ def http_get_retry(url, attempts=3, timeout=15):
     raise last_err
 
 
-def fetch_fred_csv(series_id):
-    """主來源 FRED CSV；若連線失敗就嘗試 stlouisfed.org 鏡像端點"""
-    urls = [
-        f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}',
-        f'https://fred.stlouisfed.org/data/{series_id}.csv',  # 備援
-    ]
-    text = None
-    last_err = None
-    for u in urls:
-        try:
-            print(f'    嘗試 URL: {u}', flush=True)
-            text = http_get_retry(u, attempts=2, timeout=20)
-            print(f'    ✓ 取得 {len(text)} bytes', flush=True)
-            break
-        except Exception as e:
-            last_err = e
-            print(f'    ✗ {u} 失敗：{type(e).__name__}: {str(e)[:120]}', flush=True)
-    if text is None:
-        raise last_err if last_err else RuntimeError('all URLs failed')
+def _parse_fred_csv(text):
+    """FRED CSV 格式 → [{date, value}]"""
     rows = list(csv.reader(io.StringIO(text)))
     out = []
-    for row in rows[1:]:  # 跳過 header
+    for row in rows[1:]:
         if len(row) < 2 or row[1] in ('.', '', None):
             continue
         try:
@@ -101,6 +84,97 @@ def fetch_fred_csv(series_id):
         except ValueError:
             continue
     return out
+
+
+def _fetch_dbnomics(series_id):
+    """DBnomics 是 FRED 的免費鏡像 API（CORS 友善、不需 key）。
+    URL 格式：https://api.db.nomics.world/v22/series/FRED/{ID}?observations=1
+    回傳 JSON 結構：series.docs[0].period[] + value[]
+    """
+    url = f'https://api.db.nomics.world/v22/series/FRED/{series_id}?observations=1'
+    print(f'    [dbnomics] {url}', flush=True)
+    text = http_get_retry(url, attempts=3, timeout=15)
+    import json as _j
+    try:
+        data = _j.loads(text)
+    except Exception:
+        raise RuntimeError('DBnomics response not JSON')
+    docs = data.get('series', {}).get('docs', [])
+    if not docs:
+        raise RuntimeError('DBnomics no series.docs')
+    doc = docs[0]
+    periods = doc.get('period', []) or []
+    values  = doc.get('value', []) or []
+    out = []
+    for p, v in zip(periods, values):
+        try:
+            if v is None or v == 'NA': continue
+            f = float(v)
+            if f != f: continue
+            # period 可能是 "2026-04" → 轉成 "2026-04-01"
+            if isinstance(p, str) and len(p) == 7 and p[4] == '-':
+                p = p + '-01'
+            out.append({'date': p, 'value': f})
+        except Exception:
+            continue
+    return out
+
+
+def _fetch_fred_csv(series_id):
+    """直連 FRED CSV，多個 URL 備援"""
+    urls = [
+        f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}',
+        f'https://fred.stlouisfed.org/data/{series_id}.csv',
+    ]
+    last_err = None
+    for u in urls:
+        try:
+            print(f'    [fred-csv] {u}', flush=True)
+            text = http_get_retry(u, attempts=2, timeout=20)
+            return _parse_fred_csv(text)
+        except Exception as e:
+            last_err = e
+            print(f'      ✗ {type(e).__name__}: {str(e)[:120]}', flush=True)
+    raise last_err if last_err else RuntimeError('FRED CSV all URLs failed')
+
+
+def _fetch_stooq(series_id):
+    """Stooq 鏡像 FRED 月資料：https://stooq.com/q/d/l/?s={id}.fr&i=m"""
+    url = f'https://stooq.com/q/d/l/?s={series_id.lower()}.fr&i=m'
+    print(f'    [stooq] {url}', flush=True)
+    text = http_get_retry(url, attempts=2, timeout=15)
+    if not text or 'No data' in text[:60]:
+        raise RuntimeError('Stooq no data')
+    # Stooq CSV header: Date,Open,High,Low,Close,Volume → 取 Close
+    rows = list(csv.reader(io.StringIO(text)))
+    out = []
+    for row in rows[1:]:
+        if len(row) < 5: continue
+        try:
+            d = row[0].strip()
+            v = float(row[4])
+            out.append({'date': d, 'value': v})
+        except ValueError:
+            continue
+    return out
+
+
+def fetch_fred_csv(series_id):
+    """多重來源備援：DBnomics → FRED CSV → Stooq"""
+    sources = [
+        ('DBnomics',   lambda: _fetch_dbnomics(series_id)),
+        ('FRED CSV',   lambda: _fetch_fred_csv(series_id)),
+        ('Stooq',      lambda: _fetch_stooq(series_id)),
+    ]
+    for name, fn in sources:
+        try:
+            data = fn()
+            if data and len(data) > 0:
+                print(f'    [OK via {name}] {len(data)} 筆', flush=True)
+                return data
+        except Exception as e:
+            print(f'    ✗ {name} 失敗：{type(e).__name__}: {str(e)[:120]}', flush=True)
+    raise RuntimeError(f'all sources failed for {series_id}')
 
 
 def compute_yoy(series):

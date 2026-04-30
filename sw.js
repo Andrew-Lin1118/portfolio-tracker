@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v30';  // ← 2026-04-30：已實現損益單筆編輯/刪除
+const CACHE_NAME = 'portfolio-tracker-v31';  // ← 2026-04-30：AAOX→AAOI proxy + Tab9 上方快速跳轉 chips + 公布日排序
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -6116,8 +6116,18 @@
         // ==================== Tab 4：券商目標 & 評級共識 ====================
         let _earningsLoaded = false;
         let _earningsBgFetching = false;     // 防止重複背景 fetch
-        const _QS_CACHE_KEY = 'pf_qs_v5';
+        const _QS_CACHE_KEY = 'pf_qs_v6';    // v6: 升版清舊空殼快取（含 _error / 無 history 的壞資料）
         const _QS_CACHE_TTL = 12 * 60 * 60 * 1000;     // 12 小時 TTL（>此值才背景刷新）
+        // 判斷一筆 cache 是否「有實質資料」（避免空殼快取讓 UI 永遠空白）
+        function _isQsEntryUseful(v) {
+            if (!v || typeof v !== 'object') return false;
+            if (v._error) return false;
+            const hist = v.earningsHistory?.history;
+            if (Array.isArray(hist) && hist.length > 0) return true;
+            // 有目標價也算 useful
+            if (v.financialData?.targetMeanPrice != null && v.financialData.targetMeanPrice > 0) return true;
+            return false;
+        }
         // ★ 取「任何舊資料」（不檢查 TTL）— 用於先渲染舊內容，避免使用者等待
         function _loadQsCacheAny() {
             try { const r = JSON.parse(localStorage.getItem(_QS_CACHE_KEY)||'{}'); return r.data || {}; } catch { return {}; }
@@ -6155,35 +6165,36 @@
 
             const symbols = [...new Set(holdings.map(h => getQuerySymbol(h.symbol)))];
 
-            // ★ Step 1：先用「任何舊資料」立即渲染（不論 TTL，避免空白等待）
+            // ★ Step 1：先用「任何舊有用資料」立即渲染（不論 TTL，避免空白等待）
             //    forceRefresh=true 時跳過此步，直接重抓
             if (!forceRefresh) {
                 const anyCache = _loadQsCacheAny();
-                const cachedSymbols = symbols.filter(s => anyCache[s]);
-                if (cachedSymbols.length > 0) {
+                // 只渲染有實質資料的快取（過濾空殼 / _error / 無 history 的壞資料）
+                const usefulSymbols = symbols.filter(s => _isQsEntryUseful(anyCache[s]));
+                if (usefulSymbols.length > 0) {
                     const subset = {};
-                    cachedSymbols.forEach(s => { subset[s] = anyCache[s]; });
+                    usefulSymbols.forEach(s => { subset[s] = anyCache[s]; });
                     renderEarningsTab(subset);
                     _earningsLoaded = true;
                     const cacheTs = _loadQsCacheTs();
                     const ageMin = cacheTs ? Math.floor((Date.now() - cacheTs) / 60000) : 0;
                     if (statusEl) {
                         const ageStr = ageMin < 60 ? `${ageMin} 分鐘前` : `${Math.floor(ageMin/60)} 小時前`;
-                        statusEl.innerHTML = `舊資料（${ageStr}）已顯示 · 背景檢查更新中...`;
+                        statusEl.innerHTML = `舊資料（${ageStr}）已顯示（${usefulSymbols.length}/${symbols.length} 檔有資料）· 背景檢查更新中...`;
                     }
                 }
             }
 
             // ★ Step 2：判斷是否需要背景刷新
             //    - forceRefresh：永遠刷新
-            //    - cache fresh (12hr 內) 且涵蓋所有 symbols：跳過
-            //    - 否則背景跑（不阻塞 UI）
+            //    - 缺少資料的 symbols（含空殼 / 沒這個 key）→ 都要 fetch
+            //    - 全部都已有「實質資料」且 cache 還新鮮 → 跳過
             const cache = forceRefresh ? {} : _loadQsCache();
             const allQs = { ...cache };
-            const toFetch = symbols.filter(s => !allQs[s]);
+            const toFetch = symbols.filter(s => !_isQsEntryUseful(allQs[s]));
 
             if (toFetch.length === 0 && !forceRefresh) {
-                // 所有資料都還新鮮，不刷新
+                // 所有資料都還新鮮且有實質內容，不刷新
                 if (statusEl) {
                     const ts = _loadQsCacheTs();
                     const t = ts ? new Date(ts).toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'}) : '';

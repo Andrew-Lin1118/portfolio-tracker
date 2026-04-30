@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v31';  // ← 2026-04-30：AAOX→AAOI proxy + Tab9 上方快速跳轉 chips + 公布日排序
+const CACHE_NAME = 'portfolio-tracker-v32';  // ← 2026-04-30：券商目標空殼快取問題修正（cache key 升 v6）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

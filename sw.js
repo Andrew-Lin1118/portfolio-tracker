@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v32';  // ← 2026-04-30：券商目標空殼快取問題修正（cache key 升 v6）
+const CACHE_NAME = 'portfolio-tracker-v33';  // ← 2026-04-30：券商目標兩階段渲染（主資料先顯示，分析師新聞背景補）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

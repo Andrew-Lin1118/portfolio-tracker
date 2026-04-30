@@ -6355,66 +6355,80 @@
             }
             if (acUpdated) _saveCache(analysisCache);
 
-            // ── 取得各標的近90天分析師相關新聞 ───────────────────────────────
-            // Yahoo Finance search API 透過 CORS 代理可無認證取得，過濾分析師關鍵字
-            const _ANALYST_KW = ['upgrade', 'downgrade', 'target', 'analyst', 'price target',
-                                  'outperform', 'underperform', 'overweight', 'underweight',
-                                  'initiates', 'raises', 'cuts', 'rating', 'buy', 'sell',
-                                  'hold', 'neutral', 'coverage'];
-            const cutoff90d = Date.now()/1000 - 90*24*3600;
-            // 使用既有翻譯快取（24hr）
-            const _tCacheKeyNews = 'pf_news_trans_v1';
-            let tCacheNews = {};
-            try {
-                const rawT = JSON.parse(localStorage.getItem(_tCacheKeyNews)||'{}');
-                tCacheNews = (Date.now()-(rawT.ts||0) < 24*3600*1000) ? (rawT.data||{}) : {};
-            } catch(_) {}
-            let tCacheNewsUpdated = false;
-
-            if (statusEl) statusEl.textContent = '取得分析師動態...';
-            for (let ni = 0; ni < symbols.length; ni++) {
-                const sym = symbols[ni];
-                if (!allQs[sym] || allQs[sym]._error) { allQs[sym] = allQs[sym] || {}; allQs[sym].analystNews = []; continue; }
-                try {
-                    const newsData = await yfFetch(
-                        `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=15&quotesCount=0`
-                    ).catch(() => null);
-                    const analystItems = (newsData?.news || [])
-                        .filter(n => (n.providerPublishTime||0) >= cutoff90d)
-                        .filter(n => _ANALYST_KW.some(kw => (n.title||'').toLowerCase().includes(kw)))
-                        .slice(0, 5);
-                    // 翻譯標題（使用快取，跳過已翻譯的項目）
-                    for (const item of analystItems) {
-                        const orig = item.title || '';
-                        if (!orig) { item.titleZh = orig; continue; }
-                        if (tCacheNews[orig]) { item.titleZh = tCacheNews[orig]; continue; }
-                        try {
-                            const tr = await fetch(
-                                `https://api.mymemory.translated.net/get?q=${encodeURIComponent(orig)}&langpair=en|zh-TW`,
-                                { signal: AbortSignal.timeout(5000) }
-                            );
-                            if (tr.ok) {
-                                const td = await tr.json();
-                                item.titleZh = td?.responseData?.translatedText || orig;
-                                tCacheNews[orig] = item.titleZh;
-                                tCacheNewsUpdated = true;
-                            } else { item.titleZh = orig; }
-                        } catch(_) { item.titleZh = orig; }
-                        await new Promise(r => setTimeout(r, 200));
-                    }
-                    allQs[sym].analystNews = analystItems;
-                } catch(_) { allQs[sym].analystNews = []; }
-                if (ni < symbols.length - 1) await new Promise(r => setTimeout(r, 300));
-            }
-            if (tCacheNewsUpdated) {
-                try { localStorage.setItem(_tCacheKeyNews, JSON.stringify({ts:Date.now(), data:tCacheNews})); } catch(_) {}
-            }
-
+            // ★ 第一階段渲染：EPS / 目標價 / 毛利率 都已就緒，立刻顯示
+            //   分析師新聞改在背景慢慢補（不阻塞主畫面）
+            _saveQsCache(allQs);
             renderEarningsTab(allQs);
             _earningsLoaded = true;
-            _earningsBgFetching = false;
             if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }
-            if (statusEl) statusEl.textContent = '已更新 ' + new Date().toLocaleTimeString('zh-TW');
+            if (statusEl) statusEl.textContent = '主資料已就緒 · 分析師動態背景載入中...';
+
+            // ── 取得各標的近90天分析師相關新聞（背景，不擋畫面）─────────────
+            // 真正的「背景任務」：用 setTimeout(0) 把後續工作排到下個 tick，
+            // 讓函數立即返回，主畫面不再被卡住
+            (async () => {
+                const _ANALYST_KW = ['upgrade', 'downgrade', 'target', 'analyst', 'price target',
+                                      'outperform', 'underperform', 'overweight', 'underweight',
+                                      'initiates', 'raises', 'cuts', 'rating', 'buy', 'sell',
+                                      'hold', 'neutral', 'coverage'];
+                const cutoff90d = Date.now()/1000 - 90*24*3600;
+                // 翻譯改用 Google Translate（額度大、品質好），fallback MyMemory
+                const _tCacheKeyNews = 'pf_news_trans_v2';
+                let tCacheNews = {};
+                try {
+                    const rawT = JSON.parse(localStorage.getItem(_tCacheKeyNews)||'{}');
+                    tCacheNews = (Date.now()-(rawT.ts||0) < 24*3600*1000) ? (rawT.data||{}) : {};
+                } catch(_) {}
+                let tCacheNewsUpdated = false;
+
+                let analystDone = 0;
+                for (let ni = 0; ni < symbols.length; ni++) {
+                    const sym = symbols[ni];
+                    if (!allQs[sym] || allQs[sym]._error) { allQs[sym] = allQs[sym] || {}; allQs[sym].analystNews = []; analystDone++; continue; }
+                    try {
+                        const newsData = await yfFetch(
+                            `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=15&quotesCount=0`
+                        ).catch(() => null);
+                        const analystItems = (newsData?.news || [])
+                            .filter(n => (n.providerPublishTime||0) >= cutoff90d)
+                            .filter(n => _ANALYST_KW.some(kw => (n.title||'').toLowerCase().includes(kw)))
+                            .slice(0, 5);
+                        // 翻譯：直接用既有的 _translateOne()（內含 Google Translate + MyMemory fallback）
+                        for (const item of analystItems) {
+                            const orig = item.title || '';
+                            if (!orig) { item.titleZh = orig; continue; }
+                            if (tCacheNews[orig]) { item.titleZh = tCacheNews[orig]; continue; }
+                            try {
+                                const zh = (typeof _translateOne === 'function')
+                                    ? await _translateOne(orig)
+                                    : orig;
+                                item.titleZh = zh;
+                                if (zh && zh !== orig) {
+                                    tCacheNews[orig] = zh;
+                                    tCacheNewsUpdated = true;
+                                }
+                            } catch(_) { item.titleZh = orig; }
+                            // 不再 sleep — Google Translate 容許高頻
+                        }
+                        allQs[sym].analystNews = analystItems;
+                    } catch(_) { allQs[sym].analystNews = []; }
+                    analystDone++;
+                    // 每 5 檔重新 render 一次，讓使用者看到進度
+                    if (analystDone % 5 === 0 && analystDone < symbols.length) {
+                        renderEarningsTab(allQs);
+                        if (statusEl) statusEl.textContent = `分析師動態 ${analystDone}/${symbols.length} ...`;
+                    }
+                    if (ni < symbols.length - 1) await new Promise(r => setTimeout(r, 200));
+                }
+                if (tCacheNewsUpdated) {
+                    try { localStorage.setItem(_tCacheKeyNews, JSON.stringify({ts:Date.now(), data:tCacheNews})); } catch(_) {}
+                }
+                // 最終完整渲染（含分析師新聞）
+                _saveQsCache(allQs);
+                renderEarningsTab(allQs);
+                _earningsBgFetching = false;
+                if (statusEl) statusEl.textContent = '已更新 ' + new Date().toLocaleTimeString('zh-TW');
+            })();
         }
 
         // ── 券商評級／動作 → 中文對照表 ──

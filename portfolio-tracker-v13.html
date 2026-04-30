@@ -7577,13 +7577,15 @@
 
             // header summary
             const lev = etf.leverage > 1 ? `<span style="background:rgba(239,68,68,0.18);color:#fca5a5;padding:0.15rem 0.55rem;border-radius:5px;font-size:0.78rem;font-weight:700;">${etf.leverage}x 槓桿</span>` : '';
+            const indexBadge = etf.symbol === 'DJUSSC' ? `<span style="background:rgba(99,102,241,0.18);color:#c7d2fe;padding:0.15rem 0.55rem;border-radius:5px;font-size:0.78rem;font-weight:700;">指數</span>` : '';
             const summary = `<div style="background:rgba(15,30,60,0.5); padding:0.85rem 1rem; border-radius:10px; margin-bottom:1rem;">
                 <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-bottom:0.5rem;">
-                    ${lev}
+                    ${lev}${indexBadge}
                     <span style="color:#cbd5e1; font-size:0.86rem;">追蹤：<strong style="color:#fbbf24;">${etf.tracks || '-'}</strong></span>
                 </div>
+                ${etf.note ? `<div style="background:rgba(99,102,241,0.08); border-left:3px solid #818cf8; padding:0.5rem 0.7rem; border-radius:4px; margin-bottom:0.55rem; font-size:0.78rem; color:#cbd5e1; line-height:1.55;">📌 ${etf.note}</div>` : ''}
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.5rem;">
-                    <div><div style="color:#94a3b8; font-size:0.74rem;">直接持股</div><div style="color:#10b981; font-weight:700;">${fmtPct(etf.equity_total)}</div></div>
+                    <div><div style="color:#94a3b8; font-size:0.74rem;">${etf.symbol === 'DJUSSC' ? '指數成分股' : '直接持股'}</div><div style="color:#10b981; font-weight:700;">${fmtPct(etf.equity_total)}</div></div>
                     ${etf.swap_total > 0 ? `<div><div style="color:#94a3b8; font-size:0.74rem;">Swap 部位</div><div style="color:#a78bfa; font-weight:700;">${fmtPct(etf.swap_total)}</div></div>` : ''}
                     <div><div style="color:#94a3b8; font-size:0.74rem;">合計曝險</div><div style="color:#fbbf24; font-weight:700;">${fmtPct(etf.total_exposure)}</div></div>
                 </div>
@@ -7675,7 +7677,21 @@
 
             const generated = generatedISO ? `<div style="color:#64748b; font-size:0.74rem; text-align:right; margin-top:0.5rem;">資料更新：${new Date(generatedISO).toLocaleString('zh-TW')}　·　來源：stockanalysis.com</div>` : '';
 
-            return summary + warning + equitySection + swapSection + generated;
+            // USD 額外加「查看追蹤指數」按鈕（切到 DJUSSC）
+            let crossLink = '';
+            if (etf.symbol === 'USD' && _etfHoldingsData?.etfs?.['DJUSSC']) {
+                crossLink = `<div style="margin-bottom:1rem; text-align:center;">
+                    <button onclick="showEtfHoldingsModal('DJUSSC')" style="padding:0.5rem 1rem; background:linear-gradient(135deg, #6366f1, #818cf8); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">📊 查看 DJ U.S. Semi Index 成分股 →</button>
+                </div>`;
+            }
+            // DJUSSC 加「返回 USD」按鈕
+            if (etf.symbol === 'DJUSSC') {
+                crossLink = `<div style="margin-bottom:1rem; text-align:center;">
+                    <button onclick="showEtfHoldingsModal('USD')" style="padding:0.5rem 1rem; background:rgba(168,85,247,0.18); color:#c084fc; border:1px solid rgba(168,85,247,0.35); border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">← 返回 USD ETF（含 swap）</button>
+                </div>`;
+            }
+
+            return summary + crossLink + warning + equitySection + swapSection + generated;
         }
 
         // 提供給 calculateStats/renderPie 使用：回傳期貨權益（TWD）

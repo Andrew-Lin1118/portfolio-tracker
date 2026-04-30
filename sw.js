@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v27';  // ← 2026-04-30：ETF 成分股 Modal（USD swap 結構 + SOXX/SMH/XSD/PSI 對照）
+const CACHE_NAME = 'portfolio-tracker-v28';  // ← 2026-04-30：ETF Modal 加 DJ U.S. Semi Index 推算成分股
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

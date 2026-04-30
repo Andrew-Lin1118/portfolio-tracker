@@ -95,6 +95,28 @@ def fetch_etf(symbol):
         return None
 
 
+def derive_djussc_from_usd(usd_data):
+    """
+    從 USD（ProShares Ultra Semiconductors 2x）的直接持股推算 DJ U.S. Semi Index 權重。
+    依槓桿 ETF 標準作業：直接股票部分按指數比例持有，normalize 到 100% 即為指數權重。
+    """
+    if not usd_data or not usd_data.get('equity'):
+        return None
+    equity = usd_data['equity']
+    total = sum(e['weight'] for e in equity)
+    if total <= 0:
+        return None
+    out = []
+    for e in equity:
+        out.append({
+            'symbol': e['symbol'],
+            'name':   e['name'],
+            'weight': round(e['weight'] / total * 100, 4),
+        })
+    out.sort(key=lambda x: -x['weight'])
+    return out
+
+
 def main():
     print('抓取 ETF 持股...', flush=True)
     result = {
@@ -106,7 +128,6 @@ def main():
         h = fetch_etf(sym)
         if h is None:
             continue
-        # 計算總和（驗證資料合理）
         eq_total = sum(x['weight'] for x in h['equity'])
         sw_total = sum(x['weight'] for x in h['swaps'])
         result['etfs'][sym] = {
@@ -117,11 +138,31 @@ def main():
             'swap_total':   round(sw_total, 2),
             'total_exposure': round(eq_total + sw_total, 2),
         }
-        print(f'    Σ equity {eq_total:.1f}% + swap {sw_total:.1f}% = {eq_total+sw_total:.1f}%', flush=True)
+        print(f'    Sum equity {eq_total:.1f}% + swap {sw_total:.1f}% = {eq_total+sw_total:.1f}%', flush=True)
+
+    # 推算 DJ U.S. Semi Index 成分股（從 USD 直接持股）
+    usd = result['etfs'].get('USD')
+    if usd:
+        idx_equity = derive_djussc_from_usd(usd)
+        if idx_equity:
+            result['etfs']['DJUSSC'] = {
+                'symbol': 'DJUSSC',
+                'name':   'Dow Jones U.S. Semiconductors Index',
+                'leverage': 1,
+                'tracks':  '(Index 本身)',
+                'derived_from': 'USD direct equity (normalized to 100%)',
+                'note':    'DJ U.S. Semi Index 權重推算：USD 直接持股 / 39.6% × 100%。槓桿 ETF 直接股票部分按指數比例持有，normalize 即為指數權重。',
+                'equity':       idx_equity,
+                'swaps':        [],
+                'equity_total': round(sum(e['weight'] for e in idx_equity), 2),
+                'swap_total':   0.0,
+                'total_exposure': round(sum(e['weight'] for e in idx_equity), 2),
+            }
+            print(f'  derived DJUSSC: {len(idx_equity)} constituents from USD direct equity', flush=True)
 
     with open(OUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-    print(f'\n寫入 → {OUT_FILE}（{len(result["etfs"])} 檔 ETF）', flush=True)
+    print(f'\n寫入 → {OUT_FILE}（{len(result["etfs"])} 個 ETF/Index）', flush=True)
 
 
 if __name__ == '__main__':

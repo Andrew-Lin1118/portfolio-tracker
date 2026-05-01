@@ -3952,13 +3952,29 @@
         }
 
         // 排序用：取「公布日」(real announce date) 最新者排前面；缺則 fallback 季度結算日
+        // ★ 同時參考 fundamentals.json 的 earnings_history（EPS 比 income statement 早更新 1-3 天，
+        //   避免 SNDK/WDC 這類剛公布財報但 Yahoo 季度損益表還沒更新時，「本次」chip 顯示的還是上一季）
         function _earningsDeepReportDate(d) {
-            // 1. 優先用最新一季的 published_date / announce_date / report_date
+            // 1. earnings_analysis.json 的最新季度公布日
             const q0 = (d?.quarters || [])[0];
-            const announce = q0?.published_date || q0?.announce_date || q0?.report_date;
-            if (announce) return announce;
-            // 2. top-level last_announce_date（fetch_earnings_deep.py 也會塞這個）
-            if (d?.last_announce_date) return d.last_announce_date;
+            const eaAnnounce = q0?.published_date || q0?.announce_date || q0?.report_date || d?.last_announce_date || '';
+            // 2. fundamentals.json earnings_history 中已公布（eps_actual 非 null）的最後一筆 report_date
+            let fundLatest = '';
+            try {
+                const eh = window._fundJsonCache?.data?.[d?.symbol]?.earnings_history || [];
+                for (let i = eh.length - 1; i >= 0; i--) {
+                    if (eh[i]?.eps_actual != null && eh[i]?.report_date) {
+                        fundLatest = eh[i].report_date;
+                        break;
+                    }
+                }
+            } catch(_) {}
+            // 取較新的（YYYY-MM-DD 字串字典序 = 時間序）
+            const candidates = [eaAnnounce, fundLatest].filter(Boolean);
+            if (candidates.length > 0) {
+                candidates.sort((a, b) => b.localeCompare(a));
+                return candidates[0];
+            }
             // 3. fallback：用第一筆有完整營收/淨利的季度結算日
             const complete = (d?.quarters || []).find(q => q?.revenue != null && q?.net_income != null);
             return complete?.period || d?.last_report_date || q0?.period || '';

@@ -242,6 +242,52 @@
             .glass-card { padding: 0.5rem !important; }
             .stat-card { padding: 0.5rem !important; }
         }
+
+        /* ────────────────────────────────────────────────────────────────────
+           ★ 手機專屬：券商目標 (Tab 4) / 財報深度分析 (Tab 9) 個別公司卡片排版壓縮
+           桌機完全不受影響（min-width:641px 以上不觸發）
+           ──────────────────────────────────────────────────────────────────── */
+        @media (max-width: 640px) {
+            /* —— Tab 4：券商目標卡片 (.ed-broker-card) —— */
+            /* ★ overflow:hidden + max-width:100% 防止內部 slider 絕對定位標籤、長字串等溢出卡片 —— */
+            .ed-broker-card                  { padding: 0.55rem 0.7rem !important; overflow: hidden !important; max-width: 100% !important; box-sizing: border-box; }
+            .ed-broker-header                { margin-bottom: 0.4rem !important; padding-bottom: 0.35rem !important; gap: 0.35rem !important; }
+            .ed-broker-header > *            { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+            .ed-valuation-pills              { margin-bottom: 0.4rem !important; gap: 0.25rem !important; }
+            .ed-eps-title                    { margin-bottom: 0.2rem !important; }
+            .ed-eps-table th,
+            .ed-eps-table td                 { padding: 0.15rem 0.35rem !important; font-size: 0.74rem !important; }
+            .ed-margin-pills                 { margin-top: 0.3rem !important; gap: 0.25rem !important; }
+            /* targetBlock 內部（沒有 class，靠後代選擇器壓縮 padding/間距 + 限制寬度避免 slider 標籤外溢）*/
+            .ed-broker-card > div[style*="display:inline-block"] {
+                padding: 0.4rem 0.6rem !important;
+                margin-bottom: 0.4rem !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                width: 100%;
+                overflow: hidden;          /* 內部絕對定位 slider 標籤超出時被卡住，不溢到卡片外 */
+                box-sizing: border-box;
+            }
+
+            /* —— Tab 9：財報深度卡片 (.ed-deep-card) —— */
+            /* glass-card 既有 mobile rule = 0.65rem padding；這裡再緊一點，並確保 overflow 被限制 */
+            .ed-deep-card                    { padding: 0.55rem !important; margin-bottom: 0.55rem !important; overflow: hidden !important; max-width: 100% !important; box-sizing: border-box; }
+            .ed-deep-header                  { margin-bottom: 0.5rem !important; gap: 0.35rem !important; }
+            .ed-deep-header > *              { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+            .ed-deep-kpi                     { gap: 0.35rem !important; margin-bottom: 0.5rem !important; }
+            .ed-deep-kpi > div               { padding: 0.4rem 0.55rem !important; min-width: 0; overflow: hidden; }
+            .ed-deep-kpi > div > div:nth-child(1) { font-size: 0.68rem !important; }
+            .ed-deep-kpi > div > div:nth-child(2) { font-size: 0.88rem !important; }
+            .ed-deep-kpi > div > div         { font-size: 0.66rem; }
+            .ed-deep-quarters                { margin-bottom: 0.5rem !important; }
+            .ed-deep-quarters table          { font-size: 0.74rem !important; }
+            .ed-deep-quarters th,
+            .ed-deep-quarters td             { padding: 0.25rem 0.4rem !important; }
+            .ed-deep-hlwn                    { gap: 0.5rem !important; margin-bottom: 0.55rem !important; }
+            .ed-deep-hlwn > div              { padding: 0.5rem 0.7rem !important; min-width: 0; }
+            .ed-deep-hlwn ul                 { padding-left: 0.95rem !important; font-size: 0.78rem !important; line-height: 1.45 !important; overflow-wrap: anywhere; }
+            .ed-deep-broker                  { padding: 0.55rem 0.7rem !important; margin-bottom: 0.55rem !important; overflow: hidden; }
+        }
     </style>
 </head>
 <body>
@@ -616,12 +662,6 @@
                 </div>
                 <div id="macro-perf">
                     <div style="text-align:center; padding:3rem; color:#64748b;">點擊「更新總經數據」開始載入</div>
-                </div>
-            </div>
-            <div class="glass-card" style="padding:1.5rem 2rem;">
-                <h3 style="color:#f1f5f9; font-size:1rem; font-weight:600; margin:0 0 0.75rem 0;">📰 近期標的相關新聞</h3>
-                <div id="macro-news">
-                    <div style="text-align:center; padding:2rem; color:#64748b;">載入中...</div>
                 </div>
             </div>
         </div><!-- /tab-pane-5 -->
@@ -1522,11 +1562,30 @@
             return `${parts.year}-${parts.month}-${parts.day}`;
         }
 
+        function _stockTxnsApiUrl(suffix = '') {
+            const base = (typeof FMX_API_BASE !== 'undefined' && FMX_API_BASE) ? FMX_API_BASE : '';
+            return `${base}/stock/txns${suffix}`;
+        }
+
+        function _stockTxnsReadUrls() {
+            const ts = Date.now();
+            const urls = [
+                _stockTxnsApiUrl('?t=' + ts),
+                './stocker_txns.json?t=' + ts,
+                '/stocker_txns.json?t=' + ts,
+                './data/stocker_txns.json?t=' + ts,
+            ];
+            try {
+                urls.push(new URL('stocker_txns.json?t=' + ts, window.location.href).href);
+            } catch(_) {}
+            return [...new Set(urls)];
+        }
+
         async function _syncPendingStockTransactions(rows) {
             const pendingRows = rows || _getPendingStockTxns();
             if (!pendingRows.length) return false;
             try {
-                const r = await fetch('/stock/txns', {
+                const r = await fetch(_stockTxnsApiUrl(), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ transactions: pendingRows })
@@ -1550,18 +1609,18 @@
                 let data = null;
                 let lastErr = '';
                 let usedWritableApi = false;
-                for (const url of ['/stock/txns?t=' + Date.now(), './stocker_txns.json?t=' + Date.now()]) {
+                for (const url of _stockTxnsReadUrls()) {
                     try {
                         const r = await fetch(url, { cache: 'no-store' });
                         if (!r.ok) throw new Error('HTTP ' + r.status);
                         const payload = await r.json();
                         data = Array.isArray(payload) ? payload : payload.transactions;
                         if (Array.isArray(data)) {
-                            usedWritableApi = url.startsWith('/stock/txns');
+                            usedWritableApi = url.includes('/stock/txns');
                             break;
                         }
                     } catch(e) {
-                        lastErr = e?.message || '讀取失敗';
+                        lastErr = `${url.replace(/[?#].*$/, '')}: ${e?.message || '讀取失敗'}`;
                     }
                 }
                 if (!Array.isArray(data)) throw new Error(lastErr || '交易紀錄格式錯誤');
@@ -1569,7 +1628,7 @@
                     const synced = await _syncPendingStockTransactions(pendingRows);
                     if (synced) {
                         pendingRows = [];
-                        const r = await fetch('/stock/txns?t=' + Date.now(), { cache: 'no-store' });
+                        const r = await fetch(_stockTxnsApiUrl('?t=' + Date.now()), { cache: 'no-store' });
                         const payload = await r.json();
                         data = Array.isArray(payload) ? payload : payload.transactions;
                     }
@@ -1608,7 +1667,7 @@
             renderStockRealized();
 
             try {
-                const r = await fetch('/stock/txns', {
+                const r = await fetch(_stockTxnsApiUrl(), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(rec)
@@ -3001,7 +3060,8 @@
                 sheetUrl: document.getElementById('sheet-url')?.value || '',
                 currency,
                 exchangeRates,
-                cashTWD: parseFloat(document.getElementById('cash-twd-input')?.value) || 0,
+                cashTWD:   parseFloat(document.getElementById('cash-twd-input')?.value)    || 0,
+                pionexTWD: parseFloat(document.getElementById('pionex-twd-input')?.value) || 0,
                 savedAt: new Date().toISOString()
             }, null, 2);
         }
@@ -3069,6 +3129,11 @@
                 if (state.cashTWD > 0) {
                     const e = document.getElementById('cash-twd-input');
                     if (e) { e.value = state.cashTWD; saveCash(); }
+                }
+                // 派網金額：拉取後寫回 input（電腦版 savePionexTwd 會順便推到 server，手機版靜默失敗→只更新 localStorage）
+                if (typeof state.pionexTWD === 'number' && state.pionexTWD >= 0) {
+                    const pe = document.getElementById('pionex-twd-input');
+                    if (pe) { pe.value = state.pionexTWD || ''; await savePionexTwd(); }
                 }
                 saveToStorage(); renderAll();
                 const t = new Date().toLocaleTimeString('zh-TW');
@@ -3845,16 +3910,31 @@
                 const proxies = proxyToHolding[d.symbol] || [];
                 // 顯示持倉中槓桿 ETF 名（e.g. AAOX），如果沒有對應槓桿則顯示原型本身
                 const labelSyms = proxies.length > 0 ? proxies : [d.symbol];
-                const dateStr = _earningsDeepReportDate(d);
-                const dateBadge = dateStr ? `<span style="color:#64748b; font-size:0.66rem; font-weight:500;">${dateStr.slice(5)}</span>` : '';
+
+                // 本次（已公布）與下次（預計）財報日期
+                const lastStr = _earningsDeepReportDate(d);
+                const nextStr = d.next_earnings_date || '';
+                // 若 next_earnings_date 已過期就不顯示（資料源還沒滾動到下一季時常見）
+                const _today  = new Date(); _today.setHours(0,0,0,0);
+                const _nextValid = nextStr && (new Date(nextStr + 'T00:00:00') >= _today);
+
+                const lastBadge = lastStr ? `<span title="本次（已公布）${lastStr}" style="color:#64748b; font-size:0.66rem; font-weight:500;">本次 ${lastStr.slice(5)}</span>` : '';
+                const nextBadge = _nextValid ? `<span title="下次（預計）${nextStr}" style="color:#fbbf24; font-size:0.66rem; font-weight:600;">下次 ${nextStr.slice(5)}</span>` : '';
+
+                const tipParts = [`跳到 ${d.symbol} (${d.name || ''})`];
+                if (lastStr)    tipParts.push(`本次 ${lastStr}`);
+                if (_nextValid) tipParts.push(`下次 ${nextStr}`);
+                const tip = tipParts.join(' · ');
+
                 return labelSyms.map(s => `
                     <button onclick="document.getElementById('edcard-${d.symbol}')?.scrollIntoView({behavior:'smooth', block:'start'});"
-                        title="跳到 ${d.symbol} (${d.name || ''}) · 公布 ${dateStr}"
+                        title="${tip}"
                         style="padding:0.3rem 0.6rem; background:rgba(99,102,241,0.14); border:1px solid rgba(99,102,241,0.32); border-radius:7px; color:#a5b4fc; cursor:pointer; font-size:0.78rem; font-weight:700; display:flex; align-items:center; gap:0.35rem; transition:all 0.15s;"
                         onmouseover="this.style.background='rgba(99,102,241,0.28)';this.style.color='#c7d2fe';"
                         onmouseout="this.style.background='rgba(99,102,241,0.14)';this.style.color='#a5b4fc';">
                         <span>${s}</span>
-                        ${dateBadge}
+                        ${lastBadge}
+                        ${nextBadge}
                     </button>`).join('');
             }).join('');
 
@@ -3866,7 +3946,7 @@
                     </div>
                     <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">${chipsHtml}</div>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(520px, 1fr)); gap:1rem; align-items:start;">
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(520px, 100%), 1fr)); gap:1rem; align-items:start;">
                     ${items.map(d => _renderEarningsDeepCard(d, _brokerDataMap[d.symbol], proxyToHolding[d.symbol] || [])).join('')}
                 </div>`;
         }
@@ -4498,8 +4578,8 @@
             const proxyBadge = (Array.isArray(proxyHoldings) && proxyHoldings.length > 0)
                 ? proxyHoldings.map(s => `<span title="您的持倉 ${s} 對應到 ${d.symbol} 原型" style="background:rgba(168,85,247,0.18); color:#c084fc; padding:0.18rem 0.5rem; border-radius:5px; font-weight:700; font-size:0.78rem; border:1px solid rgba(168,85,247,0.3);">${s} 原型</span>`).join('')
                 : '';
-            return `<div id="edcard-${d.symbol}" class="glass-card" style="padding:1.4rem 1.6rem; margin-bottom:1rem; border-left:4px solid #818cf8; scroll-margin-top:90px;">
-                <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.9rem;">
+            return `<div id="edcard-${d.symbol}" class="glass-card ed-deep-card" style="padding:1.4rem 1.6rem; margin-bottom:1rem; border-left:4px solid #818cf8; scroll-margin-top:90px;">
+                <div class="ed-deep-header" style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.9rem;">
                     <div>
                         <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.25rem;">
                             <span style="background:rgba(251,191,36,0.18);color:#fbbf24;padding:0.2rem 0.6rem;border-radius:6px;font-weight:700;font-size:0.95rem;">${d.symbol}</span>
@@ -4517,7 +4597,7 @@
                 </div>
 
                 <!-- KPI bar -->
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.6rem; margin-bottom:0.9rem;">
+                <div class="ed-deep-kpi" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.6rem; margin-bottom:0.9rem;">
                     <div style="background:rgba(15,30,60,0.5); padding:0.55rem 0.75rem; border-radius:8px;">
                         <div style="color:#94a3b8; font-size:0.72rem;">營收 (本季)</div>
                         <div style="color:#e2e8f0; font-weight:700; font-size:1rem;">${ccySign}${fmtAbbr(latest.revenue)}</div>
@@ -4544,7 +4624,7 @@
                 ${companyReadout}
 
                 <!-- 季度表 -->
-                <div style="overflow-x:auto; margin-bottom:0.9rem;">
+                <div class="ed-deep-quarters" style="overflow-x:auto; margin-bottom:0.9rem;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.82rem; min-width:520px;">
                         <thead><tr style="border-bottom:1px solid rgba(148,163,184,0.2);">
                             <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">季度</th>
@@ -4562,7 +4642,7 @@
                 ${_renderIndustrySection(d)}
 
                 <!-- 亮點 / 警訊 -->
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:0.8rem; margin-bottom:1rem;">
+                <div class="ed-deep-hlwn" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:0.8rem; margin-bottom:1rem;">
                     ${hl ? `<div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:8px; padding:0.75rem 1rem;">
                         <div style="color:#10b981; font-weight:700; font-size:0.85rem; margin-bottom:0.4rem;">📈 亮點</div>
                         <ul style="margin:0; padding-left:1.1rem; font-size:0.85rem; line-height:1.55;">${hl}</ul>
@@ -4575,7 +4655,7 @@
                 </div>
 
                 <!-- 券商評級異動 + 共識分布 -->
-                <div style="background:rgba(15,30,60,0.4); border:1px solid rgba(99,102,241,0.2); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem;">
+                <div class="ed-deep-broker" style="background:rgba(15,30,60,0.4); border:1px solid rgba(99,102,241,0.2); border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem;">
                     <div style="color:#818cf8; font-weight:700; font-size:0.88rem; margin-bottom:0.6rem;">🏦 券商觀點 (近 90 天)</div>
                     ${_renderBrokerReportDigest(d, brokerData)}
                     ${_renderBrokerSection(brokerData)}
@@ -5297,7 +5377,7 @@
             if (holdings.length === 0) { if (!silent) alert('請先匯入持倉數據'); return; }
 
             const btn = document.getElementById('analysis-btn');
-            if (!silent) { btn.textContent = '載入中...'; btn.disabled = true; }
+            if (!silent && btn) { btn.textContent = '載入中...'; btn.disabled = true; }
 
             // 使用本地暫存快取，分析完成前保留舊值讓自動更新仍可顯示損益
             // （只有在所有資料抓取完畢後才一次性替換全域快取）
@@ -5318,6 +5398,41 @@
                 query:   getQuerySymbol(h.symbol),
                 isProxy: !!LEVERAGED_MAP[h.symbol]
             }));
+            let allResults = {};
+            const ensureFundJsonCache = async () => {
+                if (window._fundJsonCache) return window._fundJsonCache;
+                try {
+                    const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    if (r.ok) {
+                        const txt = await r.text();
+                        const cleaned = txt.replace(/:\s*NaN/g, ': null')
+                                           .replace(/:\s*Infinity/g, ': null')
+                                           .replace(/:\s*-Infinity/g, ': null');
+                        window._fundJsonCache = JSON.parse(cleaned);
+                    }
+                } catch(_) {}
+                return window._fundJsonCache || {};
+            };
+            const applyLocalProxySnapshot = (_psym) => {
+                const f = window._fundJsonCache?.data?.[_psym];
+                if (!f) return false;
+                const pc = f.prev_close ?? f.prevClose ?? null;
+                const ppc = f.prev_prev_close ?? f.prevPrevClose ?? null;
+                if (pc == null && ppc == null) return false;
+                const _old = allResults[_psym] || {};
+                allResults[_psym] = {
+                    ..._old,
+                    prevClose: pc ?? _old.prevClose ?? null,
+                    prevPrevClose: ppc ?? _old.prevPrevClose ?? null,
+                    marketOpenedToday: _old.marketOpenedToday ?? null,
+                    daily_k: f.daily_k ?? _old.daily_k ?? null,
+                    daily_d: f.daily_d ?? _old.daily_d ?? null,
+                    daily_cross: f.daily_cross ?? _old.daily_cross ?? 'none',
+                    daily_macd: f.daily_macd ?? _old.daily_macd ?? null,
+                    daily_rsi: f.daily_rsi ?? _old.daily_rsi ?? null,
+                };
+                return pc != null && ppc != null;
+            };
 
             // 共用 loading 渲染函數（隱藏查詢標的欄）
             const loadingRow = (r, colspan, msg) =>
@@ -5326,16 +5441,80 @@
                     (r.isProxy ? '<br><small style="color:#f59e0b;font-size:0.72rem;">' + r.query + ' (原型)</small>' : '') + '</td>' +
                 '<td colspan="' + colspan + '" style="text-align:center; color:#64748b; font-size:0.82rem; padding:0.5rem;">' + msg + '</td></tr>';
 
+            try {
             // ── 判斷快取狀態（基本面4hr / 技術面1hr）──
             const fundFresh = !forceRefresh && _isFundFresh();
             const techFresh = !forceRefresh && _isTechFresh();
             const uniqueQueries = [...new Set(rows.map(r => r.query))];
 
             // 初始資料：從原始快取（localStorage）取，無論哪條路徑都先有基礎值
-            let allResults = { ...(_loadCacheRaw().data || {}) };
+            allResults = { ...(_loadCacheRaw().data || {}) };
             // ★ 有舊資料 → UI 維持顯示舊內容（不再用 loading rows 蓋掉）
             //   fetch 完成後最後一次 render 會覆蓋成新資料
             const _hasAnyCachedData = Object.keys(allResults).length > 0;
+
+            // ── 渲染函式（抽出來方便：1) 重新整理頁面後立即用快取填表 2) fetch 完最終再渲染一次）──
+            const _renderAnalysisTables = () => {
+                const fmt  = v => (v != null && !isNaN(v)) ? parseFloat(v).toFixed(2) : '-';
+                const fmtp = v => (v != null && !isNaN(v)) ? (parseFloat(v)*100).toFixed(1) + '%' : '-';
+                const tr   = (v, a) => '<td style="padding:0.5rem 0.6rem; text-align:' + (a||'right') + '; color:#e2e8f0;">' + v + '</td>';
+                const trc  = v => '<td style="padding:0.5rem 0.6rem; text-align:center;">' + v + '</td>';
+                const buildKD = (k, dv, cross) => {
+                    if (k == null) return '<span class="kd-neu">-</span>';
+                    const up = cross==='golden', dn = cross==='death';
+                    const lbl = up ? '▲ 黃金交叉' : dn ? '▼ 死亡交叉' : (parseFloat(k)>parseFloat(dv) ? 'K>D' : 'K<D');
+                    return '<span class="'+(up?'kd-up':dn?'kd-down':'kd-neu')+'">'+ lbl +'</span><br><small style="color:#64748b;font-size:0.75rem;">K:'+parseFloat(k).toFixed(1)+' D:'+parseFloat(dv).toFixed(1)+'</small>';
+                };
+                const fundRowsHtml = [], techRowsHtml = [];
+                rows.forEach(r => {
+                    const rowId  = r.holding.replace(/[^a-zA-Z0-9]/g,'_');
+                    const d      = allResults[r.query];
+                    const symTd  = '<td style="padding:0.5rem 0.6rem; font-weight:700; color:#f1f5f9;">' + r.holding +
+                        (r.isProxy ? '<br><small style="color:#f59e0b;font-size:0.72rem;">' + r.query + ' (原型)</small>' : '') + '</td>';
+                    const rowStyle = 'style="border-bottom:1px solid rgba(255,255,255,0.05);"';
+                    if (!d || d._error) {
+                        const errMsg = '❌ ' + (d?._error||'無數據').split('\n')[0];
+                        fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}<td colspan="16" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
+                        techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}<td colspan="10" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
+                        return;
+                    }
+                    const nextEarnings = (() => {
+                        if (!d.next_earnings_date) return '<span style="color:#475569;">-</span>';
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        const ne = new Date(d.next_earnings_date + 'T00:00:00');
+                        const days = Math.round((ne - today) / 86400000);
+                        if (days < 0) return '<span style="color:#475569;">-</span>';
+                        let badge;
+                        if (days === 0)      badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">🔴 今天</small>`;
+                        else if (days <= 7)  badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">剩 ${days} 天</small>`;
+                        else if (days <= 30) badge = `<small style="color:#fb923c;font-size:0.72rem;font-weight:600;">剩 ${days} 天</small>`;
+                        else                 badge = `<small style="color:#64748b;font-size:0.72rem;">剩 ${days} 天</small>`;
+                        return `<span style="color:#fbbf24;font-weight:600;">${d.next_earnings_date}</span><br>${badge}`;
+                    })();
+                    fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}` +
+                        trc(nextEarnings) +
+                        tr(fmt(d.pe)) + tr(fmt(d.hist_avg_pe)) + tr(fmt(d.fpe)) +
+                        tr(fmt(d.peg)) + tr(fmt(d.ps)) + tr(fmt(d.pb)) +
+                        tr(fmtp(d.rev_yoy)) + tr(fmtp(d.rev_fwd)) +
+                        tr(fmtp(d.gross_margin)) + tr(fmtp(d.operating_margin)) +
+                        tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) +
+                        '</tr>');
+                    techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}` +
+                        trc(buildKD(d.hourly_k, d.hourly_d, d.hourly_cross)) +
+                        trc(buildKD(d.daily_k,  d.daily_d,  d.daily_cross))  +
+                        trc(buildKD(d.weekly_k, d.weekly_d, d.weekly_cross)) +
+                        trc(macdBadge(d.hourly_macd)) + trc(macdBadge(d.daily_macd)) + trc(macdBadge(d.weekly_macd)) +
+                        trc(rsiBadge(d.hourly_rsi))   + trc(rsiBadge(d.daily_rsi))   + trc(rsiBadge(d.weekly_rsi)) +
+                        '<td style="padding:0.5rem 0.6rem; text-align:center; background:rgba(251,191,36,0.04);">' + techSummaryBadge(d) + '</td></tr>');
+                });
+                fundTbody.innerHTML = fundRowsHtml.join('');
+                techTbody.innerHTML = techRowsHtml.join('');
+            };
+
+            // ★ 重新整理頁面後若快取有資料但表格還是空的，立即用快取渲染（不要乾等 fetch）
+            if (_hasAnyCachedData && !fundTbody.innerHTML.trim()) {
+                _renderAnalysisTables();
+            }
 
             if (fundFresh && techFresh) {
                 // ── 快取完全有效 → 直接渲染，不發任何 API 請求 ──
@@ -5375,9 +5554,11 @@
                     if (i < uniqueQueries.length - 1) await new Promise(res => setTimeout(res, 200));
                 }
                 // 槓桿 ETF：用自身日線取技術面 & prevClose
+                await ensureFundJsonCache();
                 const proxyRowsT = rows.filter(r => r.isProxy);
                 for (let pi = 0; pi < proxyRowsT.length; pi++) {
                     const _psym = proxyRowsT[pi].holding;
+                    if (applyLocalProxySnapshot(_psym)) continue;
                     try {
                         const tech = await fetchTechDataFromYahoo(_psym);
                         const _old = allResults[_psym] || {};
@@ -5467,6 +5648,8 @@
                     }
                     if (i < toFetch.length - 1) await new Promise(res => setTimeout(res, 200));
                 }
+                await ensureFundJsonCache();
+                rows.filter(r => r.isProxy).forEach(r => applyLocalProxySnapshot(r.holding));
                 _saveCache(allResults);
 
                 // ── 偵測未在 fundamentals.json 中的新標的（GitHub Pages 模式）──
@@ -5479,68 +5662,8 @@
 
             // ── 毛利率/營益率：v8/chart events 不含此資訊；quoteSummary 需 crumb 已停用 ──
 
-            // ── Render ──（全量重建表格，支援快取直接命中時表格為空的情況）
-            const fmt  = v => (v != null && !isNaN(v)) ? parseFloat(v).toFixed(2) : '-';
-            const fmtp = v => (v != null && !isNaN(v)) ? (parseFloat(v)*100).toFixed(1) + '%' : '-';
-            const tr   = (v, a) => '<td style="padding:0.5rem 0.6rem; text-align:' + (a||'right') + '; color:#e2e8f0;">' + v + '</td>';
-            const trc  = v => '<td style="padding:0.5rem 0.6rem; text-align:center;">' + v + '</td>';
-            const buildKD = (k, dv, cross) => {
-                if (k == null) return '<span class="kd-neu">-</span>';
-                const up = cross==='golden', dn = cross==='death';
-                const lbl = up ? '▲ 黃金交叉' : dn ? '▼ 死亡交叉' : (parseFloat(k)>parseFloat(dv) ? 'K>D' : 'K<D');
-                return '<span class="'+(up?'kd-up':dn?'kd-down':'kd-neu')+'">'+ lbl +'</span><br><small style="color:#64748b;font-size:0.75rem;">K:'+parseFloat(k).toFixed(1)+' D:'+parseFloat(dv).toFixed(1)+'</small>';
-            };
-            const fundRowsHtml = [], techRowsHtml = [];
-            rows.forEach(r => {
-                const rowId  = r.holding.replace(/[^a-zA-Z0-9]/g,'_');
-                const d      = allResults[r.query];
-                const symTd  = '<td style="padding:0.5rem 0.6rem; font-weight:700; color:#f1f5f9;">' + r.holding +
-                    (r.isProxy ? '<br><small style="color:#f59e0b;font-size:0.72rem;">' + r.query + ' (原型)</small>' : '') + '</td>';
-                const rowStyle = 'style="border-bottom:1px solid rgba(255,255,255,0.05);"';
-
-                if (!d || d._error) {
-                    const errMsg = '❌ ' + (d?._error||'無數據').split('\n')[0];
-                    fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}<td colspan="16" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
-                    techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}<td colspan="10" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
-                    return;
-                }
-
-                // 基本面行（含下次財報日期 + 剩餘天數）
-                // 已過日期視為 "-"（資料來源 yfinance 尚未更新至下一季時，
-                // 比顯示「已過 N 天」更符合使用者期待；下次排程更新會自動補上新日期）
-                const nextEarnings = (() => {
-                    if (!d.next_earnings_date) return '<span style="color:#475569;">-</span>';
-                    const today = new Date(); today.setHours(0,0,0,0);
-                    const ne = new Date(d.next_earnings_date + 'T00:00:00');
-                    const days = Math.round((ne - today) / 86400000);
-                    if (days < 0) return '<span style="color:#475569;">-</span>';
-                    let badge;
-                    if (days === 0)      badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">🔴 今天</small>`;
-                    else if (days <= 7)  badge = `<small style="color:#ef4444;font-size:0.72rem;font-weight:700;">剩 ${days} 天</small>`;
-                    else if (days <= 30) badge = `<small style="color:#fb923c;font-size:0.72rem;font-weight:600;">剩 ${days} 天</small>`;
-                    else                 badge = `<small style="color:#64748b;font-size:0.72rem;">剩 ${days} 天</small>`;
-                    return `<span style="color:#fbbf24;font-weight:600;">${d.next_earnings_date}</span><br>${badge}`;
-                })();
-                fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}` +
-                    trc(nextEarnings) +
-                    tr(fmt(d.pe)) + tr(fmt(d.hist_avg_pe)) + tr(fmt(d.fpe)) +
-                    tr(fmt(d.peg)) + tr(fmt(d.ps)) + tr(fmt(d.pb)) +
-                    tr(fmtp(d.rev_yoy)) + tr(fmtp(d.rev_fwd)) +
-                    tr(fmtp(d.gross_margin)) + tr(fmtp(d.operating_margin)) +
-                    tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) +
-                    '</tr>');
-
-                // 技術面行
-                techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}` +
-                    trc(buildKD(d.hourly_k, d.hourly_d, d.hourly_cross)) +
-                    trc(buildKD(d.daily_k,  d.daily_d,  d.daily_cross))  +
-                    trc(buildKD(d.weekly_k, d.weekly_d, d.weekly_cross)) +
-                    trc(macdBadge(d.hourly_macd)) + trc(macdBadge(d.daily_macd)) + trc(macdBadge(d.weekly_macd)) +
-                    trc(rsiBadge(d.hourly_rsi))   + trc(rsiBadge(d.daily_rsi))   + trc(rsiBadge(d.weekly_rsi)) +
-                    '<td style="padding:0.5rem 0.6rem; text-align:center; background:rgba(251,191,36,0.04);">' + techSummaryBadge(d) + '</td></tr>');
-            });
-            fundTbody.innerHTML = fundRowsHtml.join('');
-            techTbody.innerHTML = techRowsHtml.join('');
+            // ── Render ──（全量重建表格，使用最新 allResults）
+            _renderAnalysisTables();
 
             btn.textContent = '🔄 更新分析數據'; btn.disabled = false;
 
@@ -5903,6 +6026,27 @@
             const _timeEl = document.getElementById('last-analysis-time');
             if (_timeEl) _timeEl.textContent = `｜ 最後更新：${_t}`;
             _lastAnalysisLoad = Date.now(); // 記錄完成時間，供 switchTab 判斷是否需要重整
+            } catch(e) {
+                console.error('[loadAnalysis]', e);
+                const msg = (e && e.message) ? e.message : String(e || '未知錯誤');
+                const safeMsg = msg.replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
+                if (fundTbody) {
+                    fundTbody.innerHTML = `<tr><td colspan="17" style="text-align:center; padding:2rem; color:#ef4444;">❌ 基本面載入失敗：${safeMsg}</td></tr>`;
+                }
+                if (techTbody) {
+                    techTbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:2rem; color:#ef4444;">❌ 技術面載入失敗：${safeMsg}</td></tr>`;
+                }
+                const statusEl = document.getElementById('backend-status');
+                if (statusEl) {
+                    statusEl.textContent = `分析載入失敗：${msg.slice(0, 80)}`;
+                    statusEl.style.color = '#ef4444';
+                }
+            } finally {
+                if (!silent && btn) {
+                    btn.textContent = '🔄 更新分析數據';
+                    btn.disabled = false;
+                }
+            }
         }
         // ==================== 初始化 ====================
         function init() {
@@ -6705,11 +6849,11 @@
                     nextBadge = `<span style="padding:0.18rem 0.55rem;border-radius:6px;background:rgba(71,85,105,0.18);color:#475569;font-size:0.74rem;" title="尚無下次財報日期">📅 下次財報 待公布</span>`;
                 }
 
-                return `<div style="background:linear-gradient(135deg,rgba(15,30,60,0.65),rgba(10,20,40,0.85));
+                return `<div class="ed-broker-card" style="background:linear-gradient(135deg,rgba(15,30,60,0.65),rgba(10,20,40,0.85));
                     border:1px solid rgba(59,130,246,0.2);border-left:3px solid rgba(251,191,36,0.5);
                     border-radius:12px;padding:1rem 1.25rem;">
                     <!-- Header -->
-                    <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;margin-bottom:0.75rem;border-bottom:1px solid rgba(255,255,255,0.07);padding-bottom:0.6rem;">
+                    <div class="ed-broker-header" style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;margin-bottom:0.75rem;border-bottom:1px solid rgba(255,255,255,0.07);padding-bottom:0.6rem;">
                         <span style="font-weight:800;color:#f1f5f9;font-size:1rem;">${h.symbol}</span>${proxyLabel}
                         ${recKey ? `<span style="padding:0.18rem 0.6rem;border-radius:6px;background:${recColor}22;color:${recColor};font-weight:700;font-size:0.8rem;">${recLabel}</span>` : ''}
                         ${latestBadge}
@@ -6718,11 +6862,11 @@
                     <!-- 券商平均目標價 -->
                     ${targetBlock}
                     <!-- 估值指標列 -->
-                    ${valuationPills ? `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.75rem;">${valuationPills}</div>` : ''}
+                    ${valuationPills ? `<div class="ed-valuation-pills" style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-bottom:0.75rem;">${valuationPills}</div>` : ''}
                     <!-- 財報 EPS（單欄）-->
-                    <div>
-                        <div style="color:#fbbf24;font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">📋 近4季 EPS</div>
-                        ${eh.length > 0 ? `<table style="width:100%;border-collapse:collapse;">
+                    <div class="ed-eps-section">
+                        <div class="ed-eps-title" style="color:#fbbf24;font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;">📋 近4季 EPS</div>
+                        ${eh.length > 0 ? `<table class="ed-eps-table" style="width:100%;border-collapse:collapse;">
                             <thead><tr style="border-bottom:1px solid rgba(251,191,36,0.2);">
                                 <th style="padding:0.2rem 0.45rem;text-align:left;color:#64748b;font-size:0.74rem;font-weight:600;">季度</th>
                                 <th style="padding:0.2rem 0.45rem;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">預估</th>
@@ -6731,15 +6875,15 @@
                             </tr></thead>
                             <tbody>${earningsRows}</tbody>
                         </table>` : '<div style="color:#64748b;font-size:0.8rem;padding:0.5rem 0;">暫無季度 EPS 歷史（資料更新中）</div>'}
-                        ${marginPills ? `<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;">${marginPills}</div>` : ''}
+                        ${marginPills ? `<div class="ed-margin-pills" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;">${marginPills}</div>` : ''}
                         ${epsRow}
                     </div>
                 </div>`;
             }).filter(Boolean).join('');
 
-            // 桌機 2 欄、平板 / 手機自動降為 1 欄
+            // 桌機 2 欄、平板 / 手機自動降為 1 欄（用 min(480px, 100%) 避免手機 viewport 小於 480px 時溢出）
             container.innerHTML = html
-                ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:0.75rem;">${html}</div>`
+                ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(480px,100%),1fr));gap:0.75rem;">${html}</div>`
                 : '<div style="text-align:center;padding:3rem;color:#64748b;">無法取得分析數據</div>';
         }
 
@@ -6996,77 +7140,6 @@
                     results.push({ ...m, price:null, chg1d:null, chg7d:null });
                 }
                 if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 350));
-            }
-
-            // ── 抓各持倉標的相關新聞（取代舊的總經新聞）──
-            let macroNews = [];
-            try {
-                if (statusEl) statusEl.textContent = '抓取標的相關新聞...';
-                const uniqueSyms = holdings.length > 0
-                    ? [...new Set(holdings.map(h => getQuerySymbol(h.symbol)))].slice(0, 6)
-                    : [];
-                const cutoff = Date.now()/1000 - 7*24*3600;
-                const seenUuids = new Set();
-                for (let si = 0; si < uniqueSyms.length; si++) {
-                    const sym = uniqueSyms[si];
-                    try {
-                        const nd = await yfFetch(
-                            `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&newsCount=5&quotesCount=0`
-                        ).catch(() => null);
-                        const items = (nd?.news||[])
-                            .filter(n => (n.providerPublishTime||0) >= cutoff)
-                            .filter(n => !seenUuids.has(n.uuid) && seenUuids.add(n.uuid))
-                            .map(n => ({...n, _sym: sym}));
-                        macroNews.push(...items);
-                    } catch(_) {}
-                    if (si < uniqueSyms.length - 1) await new Promise(r => setTimeout(r, 250));
-                }
-                // 若無持倉，降級為總體經濟新聞
-                if (macroNews.length === 0) {
-                    const nd = await yfFetch('https://query1.finance.yahoo.com/v1/finance/search?q=economy+fed+inflation+rate&newsCount=10&quotesCount=0').catch(() => null);
-                    macroNews = (nd?.news||[]).filter(n => (n.providerPublishTime||0) >= cutoff);
-                }
-                // 依時間排序（最新優先）
-                macroNews.sort((a,b) => (b.providerPublishTime||0) - (a.providerPublishTime||0));
-                macroNews = macroNews.slice(0, 20); // 最多20則
-            } catch(e) {}
-
-            // 翻譯新聞標題為繁體中文（使用 MyMemory 免費 API，並以 localStorage 快取24hr避免重複翻譯）
-            if (macroNews.length > 0) {
-                try {
-                    if (statusEl) statusEl.textContent = '翻譯新聞標題...';
-                    const _tCacheKey = 'pf_news_trans_v1';
-                    let tCache = {};
-                    try {
-                        const raw = JSON.parse(localStorage.getItem(_tCacheKey)||'{}');
-                        tCache = (Date.now() - (raw.ts||0) < 24*3600*1000) ? (raw.data||{}) : {};
-                    } catch(_) {}
-                    let tUpdated = false;
-                    for (const item of macroNews) {
-                        const orig = item.title || '';
-                        if (!orig) { item.titleZh = orig; continue; }
-                        if (tCache[orig]) { item.titleZh = tCache[orig]; continue; }
-                        try {
-                            const r = await fetch(
-                                `https://api.mymemory.translated.net/get?q=${encodeURIComponent(orig)}&langpair=en|zh-TW`,
-                                { signal: AbortSignal.timeout(6000) }
-                            );
-                            if (r.ok) {
-                                const d = await r.json();
-                                const zh = d?.responseData?.translatedText || orig;
-                                item.titleZh = zh;
-                                tCache[orig] = zh;
-                                tUpdated = true;
-                            } else {
-                                item.titleZh = orig;
-                            }
-                        } catch(_) { item.titleZh = orig; }
-                        await new Promise(r => setTimeout(r, 300)); // 避免 rate limit
-                    }
-                    if (tUpdated) {
-                        try { localStorage.setItem(_tCacheKey, JSON.stringify({ts:Date.now(), data:tCache})); } catch(_) {}
-                    }
-                } catch(_) {}
             }
 
             // ── 抓大盤本益比（data/market_pe.json，由 fetch_market_pe.py 產生）──
@@ -7612,14 +7685,16 @@
             try {
                 const loc = window.location;
                 const h = loc.hostname || '';
-                // http(s) 協定 + 私有網段 / localhost：用同 origin（含埠）
+                // http(s) 協定 + 私有網段 / localhost / Tailscale CGNAT (100.64.0.0/10)：用同 origin（含埠）
+                // GitHub Pages 等 public 來源也用同 origin（fetch 必失敗 → 自動 fallback 到 data/futures_history.json）
                 if ((loc.protocol === 'http:' || loc.protocol === 'https:') && h && (
                     h === 'localhost' || h === '127.0.0.1' ||
                     /^192\.168\./.test(h) ||
                     /^10\./.test(h) ||
-                    /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+                    /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+                    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h)   // Tailscale CGNAT 100.64.0.0/10
                 )) {
-                    return loc.origin;   // 例如 http://192.168.1.5:3000
+                    return loc.origin;   // 例如 http://192.168.1.5:3000、http://100.104.148.20:3000
                 }
             } catch(_) {}
             return 'http://localhost:3000';

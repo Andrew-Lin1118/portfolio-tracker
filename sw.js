@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v34';  // ← 2026-04-30：基本面/技術面有舊資料時跳過 loading rows，背景刷新
+const CACHE_NAME = 'portfolio-tracker-v38';  // ← 2026-05-01：FMX_API_BASE regex 加 Tailscale CGNAT 100.64.0.0/10，手機透過 Tailscale 連接時期貨庫存可正常顯示
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

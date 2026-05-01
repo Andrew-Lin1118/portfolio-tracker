@@ -147,10 +147,19 @@ def calc_rsi(closes_list, period=14):
 
 
 # ── 主迴圈 ────────────────────────────────────────────────────────────────
+# 並行抓取：所有標的同時送 yfinance 請求（避免每天 GitHub Actions 一檔抓 3-5 秒
+# × 42 檔 ≈ 3 分鐘的延遲，導致剛公布的財報要等下次排程才更新）
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 result = {}
+_print_lock = threading.Lock()  # 確保多 thread 印 log 不互相蓋掉同一行
 
-for sym in symbols:
-    print(f'  fetching {sym}...', flush=True)
+def _safe_print(msg):
+    with _print_lock:
+        print(msg, flush=True)
+
+def _process_symbol(sym):
+    _safe_print(f'  fetching {sym}...')
     try:
         t    = yf.Ticker(sym)
         info = t.info
@@ -446,10 +455,24 @@ for sym in symbols:
         print(f'    PE={result[sym]["pe"]}  FPE={result[sym]["fpe"]}', flush=True)
 
     except Exception as e:
-        print(f'    ERROR: {e}', flush=True)
+        _safe_print(f'    [{sym}] ERROR: {e}')
         result[sym] = {'error': str(e)}
 
-    time.sleep(1.0)   # 避免觸發 rate-limit
+
+# ── 平行執行所有標的（max_workers=6 為 yfinance 可承受區間，~30 秒完成 42 檔）──
+print(f'\n[parallel] 並行抓取 {len(symbols)} 個標的（max_workers=6）...', flush=True)
+_t_start = time.time()
+with ThreadPoolExecutor(max_workers=6) as _pool:
+    _futs = {_pool.submit(_process_symbol, sym): sym for sym in symbols}
+    _completed = 0
+    for _fut in as_completed(_futs):
+        _completed += 1
+        try:
+            _fut.result()
+        except Exception as e:
+            _safe_print(f'    [parallel] worker exception: {e}')
+print(f'[parallel] 完成 {_completed}/{len(symbols)} 標的，耗時 {time.time()-_t_start:.1f} 秒\n', flush=True)
+
 
 # ── 財報日期手動覆蓋：EARNINGS_DATE_OVERRIDES > yfinance ────────────────────
 for _ov_sym, _ov_date in EARNINGS_DATE_OVERRIDES.items():

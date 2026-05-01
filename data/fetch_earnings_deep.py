@@ -536,16 +536,39 @@ def main():
             json.dump(payload, f, ensure_ascii=False, indent=2)
         return
 
-    print(f'要分析 {len(targets)} 檔：{", ".join(targets)}', flush=True)
+    print(f'要分析 {len(targets)} 檔（並行 max_workers=6）：{", ".join(targets)}', flush=True)
 
-    for i, sym in enumerate(targets, 1):
-        print(f'  ({i}/{len(targets)}) {sym} ...', flush=True)
-        result = fetch_one(sym, fdata.get(sym, {}))
-        if result:
-            result['_earnings_history'] = (fdata.get(sym, {}) or {}).get('earnings_history') or []
-            existing[sym] = result
-            print(f'    OK {result["last_report_date"]} · 亮點 {len(result["highlights"])} · 警訊 {len(result["warnings"])}', flush=True)
-        time.sleep(0.5)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
+    _print_lock = threading.Lock()
+    def _safe_print(msg):
+        with _print_lock:
+            print(msg, flush=True)
+
+    def _process_one(sym):
+        try:
+            result = fetch_one(sym, fdata.get(sym, {}))
+            return sym, result, None
+        except Exception as e:
+            return sym, None, e
+
+    _t0 = time.time()
+    with ThreadPoolExecutor(max_workers=6) as _pool:
+        _futs = {_pool.submit(_process_one, sym): sym for sym in targets}
+        _done = 0
+        for _fut in as_completed(_futs):
+            _done += 1
+            sym, result, err = _fut.result()
+            if err:
+                _safe_print(f'  ({_done}/{len(targets)}) {sym} ... ERROR: {err}')
+                continue
+            if result:
+                result['_earnings_history'] = (fdata.get(sym, {}) or {}).get('earnings_history') or []
+                existing[sym] = result
+                _safe_print(f'  ({_done}/{len(targets)}) {sym} ... OK {result["last_report_date"]} · 亮點 {len(result["highlights"])} · 警訊 {len(result["warnings"])}')
+            else:
+                _safe_print(f'  ({_done}/{len(targets)}) {sym} ... 無資料')
+    print(f'[parallel] 完成 {len(targets)} 檔深度分析，耗時 {time.time()-_t0:.1f} 秒', flush=True)
 
     _apply_official_quarter_patches(existing)
     _apply_common_quarter_metadata(existing)

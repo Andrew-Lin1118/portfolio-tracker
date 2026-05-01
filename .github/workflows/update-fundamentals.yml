@@ -2,7 +2,11 @@ name: Update Fundamentals Data
 
 on:
   schedule:
-    - cron: '0 0,6,12,18 * * *'   # UTC 0/6/12/18 點 = 台灣 8/14/20/02 點
+    # 改為每 2 小時（UTC 偶數點）一次。原本 6 小時會讓剛公布的財報最久要等 6 小時才更新。
+    # 美股盤後 16:00 ET (20:00 UTC) 公布的財報，最遲在 22:00 UTC 那輪會被抓到。
+    # update_fund.py 內部 ThreadPoolExecutor (max_workers=6) 把 42 標的處理時間壓到 ~40 秒。
+    # 12 runs/day × ~2 min ≈ 720 min/month，遠低於 GitHub Actions 公開 repo 的 2000 min 配額。
+    - cron: '0 */2 * * *'
   workflow_dispatch:               # 允許手動觸發
 
 concurrency:

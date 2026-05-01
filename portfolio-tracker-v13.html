@@ -6465,18 +6465,26 @@
                 if (allQs[sym]._error) continue;
                 const fj = window._fundJsonCache?.data?.[sym];
                 if (!fj) continue;
-                // 補充季度 EPS 歷史（API 空結果時從 fundamentals.json 讀取）
+                // 補充季度 EPS 歷史
+                // ★ 改成「fundamentals 有更新一季就覆蓋」（原本只在 API 空才補，但 API 常回傳 4 筆舊資料、
+                //    fundamentals 有 5 筆含最新一季的情況下會被跳過 → 「近4季 EPS」永遠少一季）
                 const eh = allQs[sym].earningsHistory?.history ?? [];
-                if (eh.length === 0 && fj.earnings_history?.length > 0) {
-                    allQs[sym].earningsHistory = {
-                        history: fj.earnings_history.map(e => ({
-                            epsActual:       { raw: e.eps_actual },
-                            epsEstimate:     { raw: e.eps_estimate },
-                            surprisePercent: { raw: e.surprise_pct },
-                            quarter:         { fmt: e.quarter },
-                            reportDate:      e.report_date || null
-                        }))
-                    };
+                const fundEh = fj.earnings_history || [];
+                if (fundEh.length > 0) {
+                    const apiLatestRd  = eh.length     ? (eh[eh.length - 1]?.reportDate || '')          : '';
+                    const fundLatestRd = fundEh[fundEh.length - 1]?.report_date || '';
+                    // fundamentals 有更新財報 OR API 完全空 → 用 fundamentals 取代
+                    if (eh.length === 0 || fundLatestRd > apiLatestRd) {
+                        allQs[sym].earningsHistory = {
+                            history: fundEh.map(e => ({
+                                epsActual:       { raw: e.eps_actual },
+                                epsEstimate:     { raw: e.eps_estimate },
+                                surprisePercent: { raw: e.surprise_pct },
+                                quarter:         { fmt: e.quarter },
+                                reportDate:      e.report_date || null
+                            }))
+                        };
+                    }
                 }
                 // 補充財務指標
                 const fd = allQs[sym].financialData || {};

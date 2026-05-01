@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v39';  // ← 2026-05-02：chip「本次」日期同時參考 fundamentals.earnings_history，避免 Yahoo income statement 延遲時 SNXX/WDCX 等顯示舊日期
+const CACHE_NAME = 'portfolio-tracker-v40';  // ← 2026-05-02：Tab 4 券商目標卡片的近4季 EPS 改成「fundamentals 有更新就覆蓋」（不再只在 API 空時補），避免少一季
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

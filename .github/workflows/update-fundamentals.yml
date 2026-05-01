@@ -29,7 +29,8 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install yfinance>=0.2.40 pandas lxml pytz
+        # beautifulsoup4 → fetch_stockanalysis.py 的 stockanalysis.com fallback 用
+        run: pip install yfinance>=0.2.40 pandas lxml pytz beautifulsoup4
 
       - name: Fetch fundamentals
         run: python data/update_fund.py

@@ -101,50 +101,6 @@ OFFICIAL_QUARTER_PATCHES = {
         'source': 'Meta Q1 2026 earnings release',
         'published_date': '2026-04-29',
     },
-    # Sandisk fiscal Q3 2026 official earnings release (published 2026-04-30).
-    # Sources: businesswire.com (Sandisk Reports Fiscal Third Quarter 2026 Financial Results)
-    #          stocktitan.net (full GAAP / non-GAAP breakdown)
-    # yfinance.quarterly_income_stmt does NOT yet include the 2026-04-03 fiscal quarter
-    # (latest = 2025-12-31), keep this patch until upstream catches up.
-    'SNDK': {
-        'period': '2026-04-03',
-        'revenue': 5950000000.0,
-        'gross_profit': 4662000000.0,
-        'operating_income': 4111000000.0,
-        'net_income': 3615000000.0,
-        'eps_actual': 23.03,
-        'eps_adjusted': 23.41,
-        'eps_basis': 'non-GAAP diluted EPS',
-        'gross_margin': 4662000000.0 / 5950000000.0 * 100,    # 78.4 (matches non-GAAP)
-        'gross_margin_adjusted': 78.4,
-        'operating_margin': 4111000000.0 / 5950000000.0 * 100,  # 69.1 GAAP
-        'operating_margin_adjusted': 70.9,
-        'operating_cash_flow': 3038000000.0,
-        'free_cash_flow': 2993000000.0,
-        'source': 'Sandisk fiscal Q3 2026 earnings release',
-        'published_date': '2026-04-30',
-    },
-    # Western Digital fiscal Q3 2026 official earnings release (published 2026-04-30).
-    # Sources: investor.wdc.com Q3FY26 Financial Results PDF
-    #          tradingview.com (revenue $3.34B, GAAP EPS $8.20)
-    # yfinance has the 2026-03-31 column but all values are NaN (not yet populated).
-    'WDC': {
-        'period': '2026-04-03',
-        'revenue': 3337000000.0,
-        'gross_profit': 1676000000.0,
-        'operating_income': 1190000000.0,
-        'net_income': 3172000000.0,                # GAAP includes one-time tax benefit / gain
-        'eps_actual': 8.20,                        # GAAP diluted
-        'eps_adjusted': 2.72,                      # non-GAAP excludes one-time items
-        'eps_basis': 'non-GAAP diluted EPS (GAAP includes Q1 one-time gain)',
-        'gross_margin': 50.2,
-        'gross_margin_adjusted': 50.5,
-        'operating_margin': 1190000000.0 / 3337000000.0 * 100,  # 35.7 GAAP
-        'operating_cash_flow': 1123000000.0,
-        'free_cash_flow': 978000000.0,
-        'source': 'Western Digital fiscal Q3 2026 earnings release',
-        'published_date': '2026-04-30',
-    },
     # SK hynix 1Q26 official earnings release (published 2026-04-23).
     # yfinance may lag for Korean quarterly statements, so keep this patch
     # until the upstream statement includes the 2026-03 quarter.
@@ -488,6 +444,77 @@ def fetch_one(symbol, fund):
         qtrs = [q for q in qtrs if q.get('revenue') is not None and q.get('net_income') is not None]
         if not qtrs:
             return None
+
+        # ─── Auto-fallback：當 earnings_history 已有更新一季已公布，但 yfinance.quarterly_income_stmt
+        #     還沒同步時(常見：剛公布財報的 1-3 天內)，從 stockanalysis.com 撈來補上 ───
+        try:
+            published_eh = [e for e in eh if e.get('eps_actual') is not None and e.get('report_date')]
+            if published_eh:
+                latest_eh_announce = published_eh[-1]['report_date']
+                latest_qtr_announce = qtrs[0].get('published_date') or ''
+                if latest_eh_announce > latest_qtr_announce:
+                    from fetch_stockanalysis import fetch_quarterly_combined
+                    sa_data = fetch_quarterly_combined(symbol) or {}
+                    if sa_data:
+                        existing_periods = set(q['period'] for q in qtrs)
+                        # 任何 SA 有但本地沒的 period 都補進來（通常只 1 季，但保險全掃）
+                        added = 0
+                        for sa_period in sorted(sa_data.keys(), reverse=True):
+                            if sa_period in existing_periods:
+                                break
+                            sa = sa_data[sa_period]
+                            # stockanalysis 數字單位 = 百萬美元 → ×1e6
+                            def _scaleM(v):
+                                return v * 1e6 if v is not None else None
+                            rev = _scaleM(sa.get('revenue'))
+                            gp  = _scaleM(sa.get('gross_profit'))
+                            op  = _scaleM(sa.get('operating_income'))
+                            ni  = _scaleM(sa.get('net_income'))
+                            ocf = _scaleM(sa.get('operating_cash_flow'))
+                            fcf = _scaleM(sa.get('free_cash_flow'))
+                            eps = sa.get('eps_diluted')
+
+                            # 至少要有 revenue + net_income 才視為一個有效季度
+                            if rev is None or ni is None:
+                                continue
+
+                            gm = (gp / rev * 100) if (gp is not None and rev) else None
+                            om = (op / rev * 100) if (op is not None and rev) else None
+
+                            # 從 earnings_history 對應 published_date / eps_estimate / surprise_pct
+                            pub_date = None; eps_est = None; surp_pct = None
+                            for e in eh:
+                                if e.get('report_date') and sa_period <= e['report_date']:
+                                    pub_date = e.get('report_date')
+                                    eps_est  = _safe_float(e.get('eps_estimate'))
+                                    surp_pct = _safe_float(e.get('surprise_pct'))
+                                    if eps is None:
+                                        eps = _safe_float(e.get('eps_actual'))
+                                    break
+
+                            qtrs.insert(0, {
+                                'period':              sa_period,
+                                'revenue':             rev,
+                                'gross_profit':        gp,
+                                'operating_income':    op,
+                                'net_income':          ni,
+                                'eps_actual':          eps,
+                                'eps_estimate':        eps_est,
+                                'surprise_pct':        surp_pct,
+                                'gross_margin':        gm,
+                                'operating_margin':    om,
+                                'operating_cash_flow': ocf,
+                                'free_cash_flow':      fcf,
+                                'published_date':      pub_date,
+                                'source':              'stockanalysis.com (yfinance lag fallback)',
+                            })
+                            added += 1
+                            print(f'  [{symbol}] +1 季 from stockanalysis.com: {sa_period} '
+                                  f'rev=${rev/1e9:.2f}B eps={eps}', flush=True)
+                        if added:
+                            qtrs.sort(key=lambda q: q['period'], reverse=True)
+        except Exception as _e:
+            print(f'  [{symbol}] stockanalysis fallback skipped: {type(_e).__name__}: {str(_e)[:100]}', flush=True)
 
         latest = qtrs[0]
         # 計算 YoY、QoQ

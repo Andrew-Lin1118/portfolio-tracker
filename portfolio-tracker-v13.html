@@ -2475,6 +2475,8 @@
             const cashTWD   = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
             const futTWD    = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
             const cryptoTWD = (typeof getCryptoTotalTWD   === 'function') ? getCryptoTotalTWD()   : 0;
+            const futLev    = (typeof getFuturesLeverage   === 'function') ? getFuturesLeverage()   : 1;
+            const cryptoLev = (typeof getCryptoLeverage    === 'function') ? getCryptoLeverage()    : 1;
             const grandTotal = stats.totalValueTWD + cashTWD + futTWD + cryptoTWD;
             const now = Date.now();
             if (!_pieSnapshot) return true;
@@ -2483,6 +2485,9 @@
             if (Math.abs(_pieSnapshot.cashTWD - cashTWD) > 1) return true;
             if (Math.abs((_pieSnapshot.futTWD || 0) - futTWD) > 1) return true;
             if (Math.abs((_pieSnapshot.cryptoTWD || 0) - cryptoTWD) > 1) return true;
+            // ★ 槓桿倍率變化也要重繪（badge 才會更新、切片才會反映新曝險）
+            if (Math.abs((_pieSnapshot.futLev    || 1) - futLev)    > 0.001) return true;
+            if (Math.abs((_pieSnapshot.cryptoLev || 1) - cryptoLev) > 0.001) return true;
             if (now - _pieSnapshot.lastForcedAt > 30 * 60 * 1000) return true;
             for (const h of stats.holdingsWithStats) {
                 const share = grandTotal > 0 ? (h.valueTWD ?? h.valueTotalTWD) / grandTotal * 100 : 0;
@@ -2743,12 +2748,14 @@
             const cashTWD2   = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
             const futTWD2    = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
             const cryptoTWD2 = (typeof getCryptoTotalTWD   === 'function') ? getCryptoTotalTWD()   : 0;
+            const futLev2    = (typeof getFuturesLeverage   === 'function') ? getFuturesLeverage()   : 1;
+            const cryptoLev2 = (typeof getCryptoLeverage    === 'function') ? getCryptoLeverage()    : 1;
             const grand2     = stats.totalValueTWD + cashTWD2 + futTWD2 + cryptoTWD2;
             const shares2    = {};
             stats.holdingsWithStats.forEach(h => {
                 shares2[h.symbol] = grand2 > 0 ? (h.valueTWD ?? h.valueTotalTWD) / grand2 * 100 : 0;
             });
-            _pieSnapshot = { holdingsCount: holdings.length, currency, cashTWD: cashTWD2, futTWD: futTWD2, cryptoTWD: cryptoTWD2, shares: shares2, lastForcedAt: Date.now() };
+            _pieSnapshot = { holdingsCount: holdings.length, currency, cashTWD: cashTWD2, futTWD: futTWD2, cryptoTWD: cryptoTWD2, futLev: futLev2, cryptoLev: cryptoLev2, shares: shares2, lastForcedAt: Date.now() };
         }
 
         function renderAll() {

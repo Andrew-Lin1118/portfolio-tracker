@@ -5469,6 +5469,49 @@
             //   fetch 完成後最後一次 render 會覆蓋成新資料
             const _hasAnyCachedData = Object.keys(allResults).length > 0;
 
+            // ── ★ Hydrate from fundamentals.json：快取裡 tech 欄位若為 null（過去 Yahoo CORS proxy 失敗時寫入空值），
+            //   用 fundamentals.json 後端產出的 daily_k/macd/rsi 補上，避免使用者看到全 "-" 直到下次 1hr 重抓
+            try {
+                // 確保 fundamentals.json 已載入；快取若 fresh 不會走到 fetchSymbolDataFromYahoo，需主動拉一次
+                if (!window._fundJsonCache) {
+                    try {
+                        const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                        if (r.ok) {
+                            const txt = await r.text();
+                            const cleaned = txt.replace(/:\s*NaN/g, ': null')
+                                               .replace(/:\s*Infinity/g, ': null')
+                                               .replace(/:\s*-Infinity/g, ': null');
+                            window._fundJsonCache = JSON.parse(cleaned);
+                        }
+                    } catch(_) {}
+                }
+                const fjData = window._fundJsonCache?.data;
+                if (fjData) {
+                    for (const sym of uniqueQueries) {
+                        const f = fjData[sym];
+                        if (!f) continue;
+                        const cur = allResults[sym] || {};
+                        if (cur.daily_k  == null && f.daily_k  != null) {
+                            cur.daily_k = f.daily_k; cur.daily_d = f.daily_d; cur.daily_cross = f.daily_cross;
+                            cur.daily_macd = f.daily_macd; cur.daily_rsi = f.daily_rsi;
+                        }
+                        if (cur.weekly_k == null && f.weekly_k != null) {
+                            cur.weekly_k = f.weekly_k; cur.weekly_d = f.weekly_d; cur.weekly_cross = f.weekly_cross;
+                            cur.weekly_macd = f.weekly_macd; cur.weekly_rsi = f.weekly_rsi;
+                        }
+                        if (cur.hourly_k == null && f.hourly_k != null) {
+                            cur.hourly_k = f.hourly_k; cur.hourly_d = f.hourly_d; cur.hourly_cross = f.hourly_cross;
+                            cur.hourly_macd = f.hourly_macd; cur.hourly_rsi = f.hourly_rsi;
+                        }
+                        // 同時補基本面（避免快取沒抓到 PE/FPE/EPS 時整列空白）
+                        if (cur.pe == null && f.pe != null) cur.pe = f.pe;
+                        if (cur.fpe == null && f.fpe != null) cur.fpe = f.fpe;
+                        if (cur.next_earnings_date == null && f.next_earnings_date != null) cur.next_earnings_date = f.next_earnings_date;
+                        allResults[sym] = cur;
+                    }
+                }
+            } catch(_) {}
+
             // ── 渲染函式（抽出來方便：1) 重新整理頁面後立即用快取填表 2) fetch 完最終再渲染一次）──
             const _renderAnalysisTables = () => {
                 const fmt  = v => (v != null && !isNaN(v)) ? parseFloat(v).toFixed(2) : '-';

@@ -362,7 +362,7 @@
             ｜ 下次更新：<span id="auto-refresh-countdown" style="color:#fbbf24; font-weight:600;">60</span>s
         </div>
 
-        <!-- 手動輸入卡片：現金（TWD） + 派網總資產（TWD）──
+        <!-- 手動輸入卡片：現金（TWD） + 派網總資產（TWD） + 期貨/加密槓桿倍率
              獨立成卡片，手機 / 桌面都一定看得到，不依賴 pie-section 的 display 狀態 -->
         <div id="manual-inputs-card" class="glass-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
             <div style="display:flex; flex-wrap:wrap; gap:1rem 2rem; align-items:center;">
@@ -376,14 +376,30 @@
                     <input type="number" inputmode="decimal" id="pionex-twd-input" min="0" placeholder="0" onchange="savePionexTwd(); renderAll();"
                         style="flex:1 1 auto; min-width:0; padding:0.45rem 0.7rem; background:rgba(15,23,42,0.5); border:1px solid rgba(245,158,11,0.35); border-radius:8px; color:#f1f5f9; font-size:0.95rem;">
                 </div>
+                <div style="display:flex; align-items:center; gap:0.6rem; flex:1 1 200px; min-width:0;" title="期貨倉位的槓桿倍數（保證金交易的部位 / 帳戶權益）。例如以 200 萬權益持有 600 萬名目部位 = 3 倍">
+                    <span style="color:#a855f7; font-size:0.9rem; white-space:nowrap;">⚙️ 期貨槓桿倍率</span>
+                    <input type="number" inputmode="decimal" id="futures-leverage-input" min="0" step="0.1" placeholder="1" onchange="saveLeverages(); renderAll();"
+                        style="flex:1 1 auto; min-width:0; padding:0.45rem 0.7rem; background:rgba(15,23,42,0.5); border:1px solid rgba(168,85,247,0.35); border-radius:8px; color:#f1f5f9; font-size:0.95rem;">
+                </div>
+                <div style="display:flex; align-items:center; gap:0.6rem; flex:1 1 200px; min-width:0;" title="加密貨幣倉位的槓桿倍數（含合約 / 永續槓桿等）。現貨持倉填 1">
+                    <span style="color:#22c55e; font-size:0.9rem; white-space:nowrap;">⚙️ 加密槓桿倍率</span>
+                    <input type="number" inputmode="decimal" id="crypto-leverage-input" min="0" step="0.1" placeholder="1" onchange="saveLeverages(); renderAll();"
+                        style="flex:1 1 auto; min-width:0; padding:0.45rem 0.7rem; background:rgba(15,23,42,0.5); border:1px solid rgba(34,197,94,0.35); border-radius:8px; color:#f1f5f9; font-size:0.95rem;">
+                </div>
             </div>
-            <div style="color:#64748b; font-size:0.75rem; margin-top:0.5rem;">派網公開 API 不含網格/DCA/Earn 鎖倉，請從派網 App「總資產估值」頁填入 TWD 金額。</div>
+            <div style="color:#64748b; font-size:0.75rem; margin-top:0.5rem;">派網公開 API 不含網格/DCA/Earn 鎖倉，請從派網 App「總資產估值」頁填入 TWD 金額。槓桿倍率會用在「持倉分布圖」上方的整體槓桿率計算。</div>
         </div>
 
         <!-- Pie Chart -->
         <div id="pie-section" class="glass-card" style="padding:2rem; margin-bottom:2rem; display:none;">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.5rem;">
                 <h2 style="color:#f1f5f9; font-size:1.25rem; font-weight:600; margin:0;">持倉分布圖</h2>
+                <div id="overall-leverage-badge" style="display:none; padding:0.4rem 0.85rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.35); border-radius:10px; color:#c084fc; font-size:0.82rem;"
+                     title="市場曝險 / 淨資產（NAV）。曝險 = 股票/ETF 部位 × 槓桿因子 + 期貨權益 × 期貨倍率 + 加密 × 加密倍率，現金以 0x 計。">
+                    <span style="opacity:0.85;">⚖️ 整體槓桿率</span>
+                    <strong id="overall-leverage-value" style="font-size:1.05rem; font-weight:800; margin-left:0.35rem;">-</strong>
+                    <span id="overall-leverage-detail" style="display:block; color:#94a3b8; font-size:0.7rem; margin-top:0.15rem; opacity:0.85;">-</span>
+                </div>
             </div>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:2rem; align-items:start;">
                 <div><canvas id="pieCanvas" width="400" height="400"></canvas></div>
@@ -2484,6 +2500,30 @@
             pieSection.style.display = (holdings.length > 0 || cashTWD > 0 || futTWD > 0 || cryptoTWD > 0) ? 'block' : 'none';
             if (holdings.length === 0 && cashTWD <= 0 && futTWD <= 0 && cryptoTWD <= 0) return;
 
+            // ── 整體槓桿率徽章 ────────────────────────────────────────────
+            try {
+                const lev = computeOverallLeverage(stats, cashTWD, futTWD, cryptoTWD);
+                const badge = document.getElementById('overall-leverage-badge');
+                const valEl = document.getElementById('overall-leverage-value');
+                const detEl = document.getElementById('overall-leverage-detail');
+                if (badge && valEl && detEl && lev.nav > 0) {
+                    badge.style.display = 'inline-block';
+                    const r = lev.ratio;
+                    // 顏色：≤1.0 灰、≤1.5 黃、≤2.0 橘、>2.0 紅
+                    const color = r <= 1.0 ? '#94a3b8' : r <= 1.5 ? '#fbbf24' : r <= 2.0 ? '#fb923c' : '#ef4444';
+                    valEl.textContent  = r.toFixed(2) + 'x';
+                    valEl.style.color  = color;
+                    badge.style.borderColor = color + '88';
+                    badge.style.background  = color + '14';
+                    badge.style.color       = color;
+                    const fmtT = v => v >= 1e8 ? (v/1e8).toFixed(2) + '億' : v >= 1e4 ? (v/1e4).toFixed(0) + '萬' : v.toFixed(0);
+                    detEl.textContent =
+                        `曝險 NT$${fmtT(lev.exposure)} / 淨資產 NT$${fmtT(lev.nav)}`;
+                } else if (badge) {
+                    badge.style.display = 'none';
+                }
+            } catch(_) {}
+
             const grandTotal = stats.totalValueTWD + cashTWD + futTWD + cryptoTWD;
             // 將股票佔比縮放至含現金+期貨+加密的總量
             const stockScale = (grandTotal > 0 && stats.totalValueTWD > 0) ? stats.totalValueTWD / grandTotal : 1;
@@ -3068,8 +3108,10 @@
                 sheetUrl: document.getElementById('sheet-url')?.value || '',
                 currency,
                 exchangeRates,
-                cashTWD:   parseFloat(document.getElementById('cash-twd-input')?.value)    || 0,
-                pionexTWD: parseFloat(document.getElementById('pionex-twd-input')?.value) || 0,
+                cashTWD:        parseFloat(document.getElementById('cash-twd-input')?.value)        || 0,
+                pionexTWD:      parseFloat(document.getElementById('pionex-twd-input')?.value)     || 0,
+                futuresLeverage: parseFloat(document.getElementById('futures-leverage-input')?.value) || 1,
+                cryptoLeverage:  parseFloat(document.getElementById('crypto-leverage-input')?.value)  || 1,
                 savedAt: new Date().toISOString()
             }, null, 2);
         }
@@ -3143,6 +3185,16 @@
                     const pe = document.getElementById('pionex-twd-input');
                     if (pe) { pe.value = state.pionexTWD || ''; await savePionexTwd(); }
                 }
+                // 期貨/加密 槓桿倍率
+                if (typeof state.futuresLeverage === 'number' && state.futuresLeverage > 0) {
+                    const fe = document.getElementById('futures-leverage-input');
+                    if (fe) fe.value = state.futuresLeverage;
+                }
+                if (typeof state.cryptoLeverage === 'number' && state.cryptoLeverage > 0) {
+                    const ce = document.getElementById('crypto-leverage-input');
+                    if (ce) ce.value = state.cryptoLeverage;
+                }
+                saveLeverages();
                 saveToStorage(); renderAll();
                 const t = new Date().toLocaleTimeString('zh-TW');
                 statusEl.textContent = `✓ 已拉取 ${t}`; statusEl.style.color = '#10b981';
@@ -3164,6 +3216,51 @@
             const v = parseFloat(localStorage.getItem(PT_CASH_KEY)) || 0;
             const el = document.getElementById('cash-twd-input');
             if (el && v > 0) el.value = v;
+        }
+
+        // ==================== 期貨 / 加密 槓桿倍率（手動）=========================
+        // 用於「持倉分布圖」上方整體槓桿率(gross exposure / NAV)的計算。
+        // 預設 1.0(無槓桿)；保證金交易/合約/永續才需要調整。
+        const PT_FUT_LEV_KEY    = 'pt_v13_fut_leverage';
+        const PT_CRYPTO_LEV_KEY = 'pt_v13_crypto_leverage';
+        function saveLeverages() {
+            const fv = parseFloat(document.getElementById('futures-leverage-input')?.value);
+            const cv = parseFloat(document.getElementById('crypto-leverage-input')?.value);
+            if (isFinite(fv) && fv > 0) localStorage.setItem(PT_FUT_LEV_KEY, fv);
+            else localStorage.removeItem(PT_FUT_LEV_KEY);
+            if (isFinite(cv) && cv > 0) localStorage.setItem(PT_CRYPTO_LEV_KEY, cv);
+            else localStorage.removeItem(PT_CRYPTO_LEV_KEY);
+        }
+        function loadLeverages() {
+            const fv = parseFloat(localStorage.getItem(PT_FUT_LEV_KEY)) || 0;
+            const cv = parseFloat(localStorage.getItem(PT_CRYPTO_LEV_KEY)) || 0;
+            const fe = document.getElementById('futures-leverage-input');
+            const ce = document.getElementById('crypto-leverage-input');
+            if (fe && fv > 0) fe.value = fv;
+            if (ce && cv > 0) ce.value = cv;
+        }
+        function getFuturesLeverage() {
+            const v = parseFloat(document.getElementById('futures-leverage-input')?.value);
+            return (isFinite(v) && v > 0) ? v : 1;
+        }
+        function getCryptoLeverage() {
+            const v = parseFloat(document.getElementById('crypto-leverage-input')?.value);
+            return (isFinite(v) && v > 0) ? v : 1;
+        }
+        // 整體槓桿 = 市場曝險 / 淨資產（NAV）
+        // 曝險定義：現金 0x；股票/ETF: 部位市值 × 槓桿因子；期貨/加密: 帳戶權益 × 使用者倍率
+        function computeOverallLeverage(stats, cashTWD, futTWD, cryptoTWD) {
+            const _v = h => (h.valueTWD ?? h.valueTotalTWD ?? 0);
+            const stockExposure = (stats.holdingsWithStats || []).reduce(
+                (s, h) => s + _v(h) * getLeverageFactor(h.symbol), 0);
+            const futExposure    = futTWD    * getFuturesLeverage();
+            const cryptoExposure = cryptoTWD * getCryptoLeverage();
+            const exposure = stockExposure + futExposure + cryptoExposure;
+            const nav = (stats.totalValueTWD || 0) + cashTWD + futTWD + cryptoTWD;
+            return {
+                exposure, nav, ratio: nav > 0 ? exposure / nav : 0,
+                stockExposure, futExposure, cryptoExposure,
+            };
         }
 
         // ==================== 派網總資產（手動 TWD；含 bot 鎖倉）=======
@@ -4789,8 +4886,20 @@
             'AAOX':'AAOI',
             'USD':'SOXX',  '7709.HK':'000660.KS', '9747.HK':'005930.KS'
         };
+        // 各槓桿 ETF 對應的「實質曝險倍數」(用於整體槓桿率計算；未列出視為 1.0x)
+        // GraniteShares 2x daily long → 2.0；Direxion Bull 3X → 3.0；港股槓桿 ETF 以 2x 計
+        const LEVERAGE_FACTOR = {
+            'NVDL':2,'AMDL':2,'ASTX':2,'AVGX':2,'COHX':2,'FBL':2,'GGLL':2,'LITX':2,
+            'MUU':2, 'NBIG':2,'ORCU':2,'PLTU':2,'SNXX':2,'TSLL':2,'TSMX':2,'WDCX':2,
+            'AAOX':2,
+            'USD':3,
+            '7709.HK':2,'9747.HK':2,
+        };
         function getQuerySymbol(symbol) {
             return LEVERAGED_MAP[symbol] || symbol;
+        }
+        function getLeverageFactor(symbol) {
+            return LEVERAGE_FACTOR[symbol] || 1;
         }
 
         function _holdingForAnalysisSymbol(symbol) {
@@ -6134,6 +6243,7 @@
             loadSyncSettings();
             loadCash();
             loadPionexTwd();
+            loadLeverages();
             setCurrency(currency); // 同步按鈕高亮（預設 TWD，或從 localStorage 還原的值）
             _refreshUndoRedo();    // 初始化 Undo/Redo 按鈕狀態
             renderAll();

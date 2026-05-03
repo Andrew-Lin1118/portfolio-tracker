@@ -4978,7 +4978,7 @@
         // 第一個元素 = 搜尋查詢字（用公司英文名比 ticker 找到的新聞更相關）
         // 後面元素 = 接受的關鍵字（標題或摘要含其中一個就保留）
         const NEWS_KEYWORDS = {
-            // 槓桿 ETF（用原型股）
+            // ── 槓桿 ETF（用原型股的公司名搜尋）──
             'NVDL':    ['NVIDIA',     'NVDA', 'Nvidia'],
             'AMDL':    ['AMD',        'Advanced Micro'],
             'ASTX':    ['AST SpaceMobile', 'ASTS'],
@@ -4996,9 +4996,35 @@
             'TSMX':    ['Taiwan Semiconductor', 'TSMC', 'TSM'],
             'WDCX':    ['Western Digital', 'WDC'],
             'AAOX':    ['Applied Optoelectronics', 'AAOI'],
+            'AXTX':    ['AXT Inc',    'AXTI', 'AXT'],
             'USD':     ['Semiconductor ETF', 'SOXX', 'PHLX'],   // 半導體 ETF
             '7709.HK': ['SK Hynix',   'Hynix',  '000660'],
             '9747.HK': ['Samsung Electronics', 'Samsung', '005930'],
+
+            // ── 原型股 / 一般股（搜尋用公司英文名，避免 fallback 只用 ticker 過濾掉多數新聞）──
+            'NVDA':    ['NVIDIA',     'Nvidia',           'NVDA'],
+            'AMD':     ['AMD',        'Advanced Micro'],
+            'ASTS':    ['AST SpaceMobile', 'AST SpaceMobile', 'ASTS'],
+            'AVGO':    ['Broadcom',   'AVGO'],
+            'COHR':    ['Coherent',   'COHR'],
+            'META':    ['Meta Platforms', 'Meta',         'Facebook', 'META'],
+            'GOOGL':   ['Alphabet',   'Google',           'GOOGL'],
+            'LITE':    ['Lumentum',   'LITE'],
+            'MU':      ['Micron',     'MU'],
+            'NBIS':    ['Nebius',     'NBIS'],
+            'ORCL':    ['Oracle',     'ORCL'],
+            'PLTR':    ['Palantir',   'PLTR'],
+            'SNDK':    ['SanDisk',    'SNDK'],
+            'TSLA':    ['Tesla',      'TSLA'],
+            'TSM':     ['Taiwan Semiconductor', 'TSMC',   'TSM'],
+            'WDC':     ['Western Digital', 'WDC'],
+            'AAOI':    ['Applied Optoelectronics', 'AAOI'],
+            'AXTI':    ['AXT Inc',    'AXTI', 'AXT'],
+            'SOXX':    ['Semiconductor ETF', 'SOXX',      'PHLX'],
+            'STX':     ['Seagate',    'STX'],
+            'BTC-USD': ['Bitcoin',    'BTC',  'crypto'],
+            '000660.KS': ['SK Hynix', 'Hynix',  '000660'],
+            '005930.KS': ['Samsung Electronics', 'Samsung', '005930'],
         };
 
         // 取得用於新聞搜尋與過濾的關鍵字陣列；非槓桿 ETF 直接用 symbol
@@ -7278,6 +7304,7 @@
                 // ── FRED 經濟指標：失業率(level)、CPI/PCE/PPI(YoY) ──
                 if (m.special === 'fred') {
                     let curVal = null, prevVal = null, dateLabel = '';
+                    let historyArr = []; // 近 N 月歷史（{date, value}）
                     // ① 優先用後端產生的 economic_data.json（GitHub Actions 自動更新，最穩定）
                     if (window._econData && window._econData.indicators) {
                         const ind = window._econData.indicators[m.fred];
@@ -7285,6 +7312,7 @@
                             curVal    = ind.value;
                             prevVal   = ind.prev != null ? ind.prev : null;
                             dateLabel = ind.date || '';
+                            historyArr = Array.isArray(ind.history) ? ind.history : [];
                         }
                     }
                     // ② 後端沒值才走前端 CORS proxy fallback
@@ -7304,10 +7332,22 @@
                                             const prevYearAgo = series[series.length - 14].value;
                                             if (prevYearAgo !== 0) prevVal = (prev - prevYearAgo) / prevYearAgo * 100;
                                         }
+                                        // 建 4 個月 YoY 歷史
+                                        const histStartIdx = Math.max(13, series.length - 4);
+                                        for (let hi = histStartIdx; hi < series.length; hi++) {
+                                            const yIdx = hi - 12;
+                                            if (yIdx < 0 || series[yIdx].value === 0) continue;
+                                            historyArr.push({
+                                                date: series[hi].date,
+                                                value: (series[hi].value - series[yIdx].value) / series[yIdx].value * 100,
+                                            });
+                                        }
                                     }
                                 } else {
                                     curVal = last.value;
                                     if (series.length > 1) prevVal = series[series.length - 2].value;
+                                    // 建近 4 個月 level 歷史
+                                    historyArr = series.slice(-4).map(p => ({ date: p.date, value: p.value }));
                                 }
                             }
                         } catch(_) {}
@@ -7321,6 +7361,7 @@
                         _dateLabel: dateLabel,
                         _prevValue: prevVal,
                         _momChange: mom,
+                        _history: historyArr,
                         chg1d: null, chg7d: null,
                     });
                     if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 100));
@@ -7423,7 +7464,36 @@
                                     const dateTag = dateShort
                                         ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.12);color:#818cf8;font-size:0.72rem;">${dateShort}</span>`
                                         : '';
-                                    bottomRow = `${dateTag}${ptCell(item._momChange)}`;
+                                    // ── 近 3 個月走勢 + 估下個月（線性外推）──
+                                    const hist = Array.isArray(item._history) ? item._history.filter(h => h && h.value != null) : [];
+                                    const recent3 = hist.slice(-3);
+                                    let trendBlk = '', forecastBlk = '';
+                                    const isYoY = item.kind === 'yoy';
+                                    const fmtV = v => isYoY ? v.toFixed(2) + '%' : v.toFixed(2);
+                                    if (recent3.length >= 2) {
+                                        const parts = recent3.map((p, i) => {
+                                            const mm = (p.date || '').slice(5, 7);
+                                            const lbl = mm ? `${parseInt(mm,10)}月` : '';
+                                            let arrow = '';
+                                            if (i > 0) {
+                                                const diff = p.value - recent3[i-1].value;
+                                                arrow = diff > 0.005 ? '<span style="color:#ef4444;">↑</span>'
+                                                      : diff < -0.005 ? '<span style="color:#10b981;">↓</span>'
+                                                      : '<span style="color:#94a3b8;">→</span>';
+                                            }
+                                            return `${arrow}${lbl} <strong style="color:#cbd5e1;">${fmtV(p.value)}</strong>`;
+                                        });
+                                        trendBlk = `<div style="color:#64748b;font-size:0.7rem;margin-top:0.3rem;line-height:1.4;">近3月: ${parts.join(' ')}</div>`;
+                                    }
+                                    if (recent3.length >= 3) {
+                                        // 線性趨勢外推：以近 3 個月平均月變動估下個月
+                                        const slope = (recent3[2].value - recent3[0].value) / 2;
+                                        const next  = recent3[2].value + slope;
+                                        const dir   = slope > 0.005 ? '↑' : slope < -0.005 ? '↓' : '→';
+                                        const col   = slope > 0.005 ? '#ef4444' : slope < -0.005 ? '#10b981' : '#94a3b8';
+                                        forecastBlk = `<div style="color:${col};font-size:0.7rem;margin-top:0.15rem;" title="以近3月平均月變動線性外推；非權威預測，僅作走勢參考">估下月: ${dir} <strong>${fmtV(next)}</strong> <span style="color:#475569;">(估)</span></div>`;
+                                    }
+                                    bottomRow = `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;">${dateTag}${ptCell(item._momChange)}</div>${trendBlk}${forecastBlk}`;
                                 }
                             } else {
                                 bottomRow = `${pctCell(item.chg1d,'今日')}${pctCell(item.chg7d,'7天')}`;
@@ -7432,7 +7502,7 @@
                             <div class="macro-card">
                                 <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.2rem;">${item.name}</div>
                                 <div style="color:${isFG ? col : '#f1f5f9'};font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">${priceStr}</div>
-                                <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">${bottomRow}</div>
+                                ${isFred ? `<div>${bottomRow}</div>` : `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;">${bottomRow}</div>`}
                             </div>`;
                         }).join('')}
                         </div>

@@ -518,6 +518,14 @@ try:
 except Exception as _e:
     print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
+# ── 順便更新 FedWatch（CME Fed Funds 期貨隱含的 FOMC 利率機率分布）──
+try:
+    print('\n更新 FedWatch (fedwatch.json) ...', flush=True)
+    import subprocess as _sp_fw, sys as _sy_fw
+    _sp_fw.run([_sy_fw.executable, os.path.join(ROOT, 'fetch_fedwatch.py')], check=False, timeout=120)
+except Exception as _e:
+    print(f'  [fedwatch] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+
 # ── 順便更新財報深度分析（針對近 90 天有發財報的標的）──
 try:
     print('\n更新財報深度分析 (earnings_analysis.json) ...', flush=True)

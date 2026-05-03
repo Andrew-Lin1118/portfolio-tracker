@@ -7133,6 +7133,9 @@
             { symbol:'_CRYPT_FG', name:'加密貨幣恐慌指數',  cat:'情緒', special:'crypto_fg' },
             { symbol:'^TNX',      name:'10年期美債殖利率',  cat:'利率' },
             { symbol:'^IRX',      name:'1年期美債殖利率',   cat:'利率' },
+            // ── FED Watch（CME Fed Funds 期貨隱含機率，從 data/fedwatch.json 載入）──
+            { symbol:'_FED_CURRENT', name:'Fed 目標利率',  cat:'利率', special:'fedwatch_current' },
+            { symbol:'_FED_NEXT',    name:'下次 FOMC 預期', cat:'利率', special:'fedwatch_next'    },
             // ── 經濟指標（FRED 月資料：失業率為 level、CPI/PCE/PPI 為 YoY 年增率）──
             { symbol:'_FRED_UNRATE', name:'失業率 (U-3)',  cat:'經濟指標', special:'fred', fred:'UNRATE',   kind:'level' },
             { symbol:'_FRED_CPI',    name:'CPI 年增率',    cat:'經濟指標', special:'fred', fred:'CPIAUCSL', kind:'yoy'   },
@@ -7267,6 +7270,11 @@
                 const r = await fetch('./data/economic_data.json', { cache: 'no-store' });
                 if (r.ok) window._econData = await r.json();
             } catch(_) { window._econData = null; }
+            // 預先載入 FedWatch JSON（CME Fed Funds 期貨隱含機率分布）
+            try {
+                const r = await fetch('./data/fedwatch.json', { cache: 'no-store' });
+                if (r.ok) window._fedWatchData = await r.json();
+            } catch(_) { window._fedWatchData = null; }
 
             const _fgLabel = { zh: {'Extreme Fear':'極度恐懼','Fear':'恐懼','Neutral':'中性','Greed':'貪婪','Extreme Greed':'極度貪婪'} };
             const results = [];
@@ -7298,6 +7306,45 @@
                         results.push({ ...m, price: !isNaN(score) ? score : null, label, chg1d:null, chg7d:null });
                     } catch(_) { results.push({ ...m, price:null, label:null, chg1d:null, chg7d:null }); }
                     if (i < MACRO_SYMBOLS.length-1) await new Promise(r => setTimeout(r, 350));
+                    continue;
+                }
+
+                // ── FED Watch：當前 Fed 目標利率（從 fedwatch.json 載入）──
+                if (m.special === 'fedwatch_current') {
+                    const fw = window._fedWatchData;
+                    const cur = fw?.current_ffr;
+                    if (cur && cur.upper != null && cur.lower != null) {
+                        results.push({
+                            ...m, _isFedWatch: true, _fwKind: 'current',
+                            price: (cur.lower + cur.upper) / 2,
+                            _fwLow: cur.lower, _fwHigh: cur.upper,
+                            _fwInferred: !!cur.inferred,
+                            _fwDate: cur.date,
+                            chg1d: null, chg7d: null,
+                        });
+                    } else {
+                        results.push({ ...m, _isFedWatch: true, _fwKind: 'current', price: null, chg1d: null, chg7d: null });
+                    }
+                    continue;
+                }
+                // ── FED Watch：下次 FOMC 預期 ──
+                if (m.special === 'fedwatch_next') {
+                    const fw = window._fedWatchData;
+                    const nm = fw?.next_meeting;
+                    if (nm && nm.most_likely_low != null) {
+                        results.push({
+                            ...m, _isFedWatch: true, _fwKind: 'next',
+                            price: (nm.most_likely_low + nm.most_likely_high) / 2,
+                            _fwLow: nm.most_likely_low, _fwHigh: nm.most_likely_high,
+                            _fwProb: nm.most_likely_prob,
+                            _fwDate: nm.date,
+                            _fwImplied: nm.implied_rate,
+                            _fwChange: fw.inferred_change,
+                            chg1d: null, chg7d: null,
+                        });
+                    } else {
+                        results.push({ ...m, _isFedWatch: true, _fwKind: 'next', price: null, chg1d: null, chg7d: null });
+                    }
                     continue;
                 }
 
@@ -7447,15 +7494,43 @@
                         <div style="color:#fbbf24;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">${cat}</div>
                         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.5rem;">
                         ${items.map(item => {
-                            const isFG  = !!item.label;
-                            const isFred = !!item._isFred;
+                            const isFG       = !!item.label;
+                            const isFred     = !!item._isFred;
+                            const isFedWatch = !!item._isFedWatch;
                             const col   = isFG ? fgColor(item.price) : null;
                             const priceStr = item.price != null
-                                ? (isFG ? item.price : (isFred ? item.price.toFixed(2) + '%' : item.price.toFixed(2)))
+                                ? (isFG ? item.price
+                                    : isFedWatch ? `${item._fwLow.toFixed(2)} - ${item._fwHigh.toFixed(2)}%`
+                                    : isFred ? item.price.toFixed(2) + '%'
+                                    : item.price.toFixed(2))
                                 : '-';
                             let bottomRow;
                             if (isFG) {
                                 bottomRow = `<span style="padding:0.1rem 0.45rem;border-radius:4px;background:${col}22;color:${col};font-size:0.76rem;font-weight:600;">${item.label || '-'}</span>`;
+                            } else if (isFedWatch) {
+                                if (item.price == null) {
+                                    bottomRow = `<span style="color:#64748b;font-size:0.74rem;">等待後端更新 FedWatch 資料</span>`;
+                                } else if (item._fwKind === 'current') {
+                                    const inf = item._fwInferred ? '<span style="color:#94a3b8;font-size:0.7rem;">(從 FedWatch 反推)</span>' : '';
+                                    bottomRow = `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.12);color:#818cf8;font-size:0.72rem;">當前 FFR 目標範圍</span>${inf}`;
+                                } else {
+                                    // next FOMC
+                                    const dStr = item._fwDate || '';
+                                    const probStr = item._fwProb != null ? item._fwProb.toFixed(1) + '%' : '';
+                                    const impStr  = item._fwImplied != null ? `隱含利率 ${item._fwImplied.toFixed(2)}%` : '';
+                                    const chg = item._fwChange || '';
+                                    const chgCol = chg.includes('降') ? '#10b981'
+                                                 : chg.includes('升') ? '#ef4444'
+                                                 : '#94a3b8';
+                                    bottomRow = `
+                                        <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
+                                            <span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(99,102,241,0.12);color:#818cf8;font-size:0.72rem;">${dStr}</span>
+                                            ${probStr ? `<span style="padding:0.1rem 0.4rem;border-radius:4px;background:rgba(34,197,94,0.12);color:#22c55e;font-size:0.72rem;">機率 ${probStr}</span>` : ''}
+                                        </div>
+                                        ${impStr ? `<div style="color:#94a3b8;font-size:0.7rem;margin-top:0.25rem;">${impStr}</div>` : ''}
+                                        ${chg ? `<div style="color:${chgCol};font-size:0.7rem;margin-top:0.15rem;font-weight:600;">${chg}</div>` : ''}
+                                    `;
+                                }
                             } else if (isFred) {
                                 if (item.price == null) {
                                     bottomRow = `<span style="color:#64748b;font-size:0.74rem;">等待後端更新（GitHub Actions 自動產生）</span>`;
@@ -7502,7 +7577,7 @@
                             <div class="macro-card">
                                 <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:0.2rem;">${item.name}</div>
                                 <div style="color:${isFG ? col : '#f1f5f9'};font-size:1.1rem;font-weight:700;margin-bottom:0.3rem;">${priceStr}</div>
-                                ${isFred ? `<div>${bottomRow}</div>` : `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;">${bottomRow}</div>`}
+                                ${(isFred || isFedWatch) ? `<div>${bottomRow}</div>` : `<div style="display:flex;gap:0.35rem;flex-wrap:wrap;">${bottomRow}</div>`}
                             </div>`;
                         }).join('')}
                         </div>

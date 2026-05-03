@@ -6673,7 +6673,22 @@
                         financialData: { recommendationKey: '', numberOfAnalystOpinions: { raw: 0 } }
                     };
                 }
-                if (allQs[sym]._error) continue;
+                // ★ Yahoo CORS proxy 失敗時，若 fundamentals.json 有資料 → 重建空殼用 fund 補上
+                //   而不是把 _error 直接傳給 renderEarningsTab 顯示「無法取得數據」
+                //   （fundamentals.json 後端直連 yfinance，比前端 CORS proxy 穩很多）
+                if (allQs[sym]._error) {
+                    const fjFallback = window._fundJsonCache?.data?.[sym];
+                    if (fjFallback) {
+                        allQs[sym] = {
+                            earningsHistory: { history: [] },
+                            upgradeDowngradeHistory: { history: [] },
+                            financialData: { recommendationKey: '', numberOfAnalystOpinions: { raw: 0 } },
+                            _ydoYahooFailed: true,   // 內部旗標，方便日後辨識
+                        };
+                    } else {
+                        continue;   // fundamentals.json 也沒這檔 → 維持 _error
+                    }
+                }
                 const fj = window._fundJsonCache?.data?.[sym];
                 if (!fj) continue;
                 // 補充季度 EPS 歷史

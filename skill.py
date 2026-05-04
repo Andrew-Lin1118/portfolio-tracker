@@ -1426,14 +1426,178 @@ SDK 欄位對照（Fubon futopt_accounting.query_margin_equity）
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  15. 報價/資料來源總覽 (DATA SOURCES)
+# ═══════════════════════════════════════════════════════════════════════════
+DATA_SOURCES_OVERVIEW = """
+完整盤點：股價 / 匯率 / 財報 / 經濟指標 / Fed Watch / 加密貨幣 各來源。
+給其他使用者參考用，2026-05 起的設計。
+
+═══════════════════════════════════════════════════════════════════════════
+一、股價（個股 / ETF / 加密貨幣）
+═══════════════════════════════════════════════════════════════════════════
+
+A. 後端定時抓（GitHub Actions）─────────────────────────────────────
+  data/update_prices.py
+    上游: yfinance (Yahoo Finance)
+    頻率: 每 5 分鐘（美股交易時段，by .github/workflows/update-prices.yml）
+    輸出: data/prices.json  { prices, prev_closes, prev_prev_closes,
+                              rates: {USD_TWD, HKD_TWD}, generated }
+
+  data/update_fund.py
+    上游: yfinance（基本面 + 技術面 KD/MACD/RSI）
+    頻率: 每 6 小時（by update-fundamentals.yml）
+    輸出: data/fundamentals.json
+    特殊: 對 .KS 標的呼叫 fetch_naver_earnings 補強 EPS（yfinance 韓股
+          earnings_dates 偶有滯後，例 005930.KS 漏 Q1 2026 actual）
+
+  data/fetch_naver_earnings.py
+    上游: Naver mobile API（免 key）
+      https://m.stock.naver.com/api/stock/{code}/finance/quarter
+      https://m.stock.naver.com/api/stock/{code}/disclosure
+    Header 必加: Referer: https://m.stock.naver.com/  否則 409
+    用途: yfinance .KS 漏季時補 EPS + 校正 next_earnings_date
+
+
+B. 前端動態讀取（portfolio-tracker-v13.html）──────────────────────
+  silentRefreshPrices()  @ v13:8567
+    來源依序: data/prices.json (主) → Futu/Moomoo → yfFetch (Yahoo)
+    觸發:    每 10 秒自動輪詢
+
+  refreshAllData()  @ v13:3624
+    來源:    同上（強制 yfFetch 不節流）
+    觸發:    手動「一鍵更新報價」按鈕
+
+  yfFetch(url)  @ v13:5123
+    上游:    Yahoo Finance Chart API (query1.finance.yahoo.com)
+    多層 CORS proxy fallback，依序：
+      1. 直連 Yahoo（少數情況通）
+      2. 本機後端 /proxy?url= (localhost) / Render backend
+      3. corsproxy.io
+      4. api.allorigins.win/raw
+      5. api.codetabs.com/v1/proxy
+    用途: 即時補強、技術面 K 線、新聞
+    記得: _yfProxyIdx 緩存上次成功的 proxy index，避免每次從第一個重試
+
+  _fetchFutuQuotes(symbols)  @ v13:7761
+    上游: server.py /futu/quotes → Moomoo OpenAPI
+    用途: 港股 / 美股優先（無 15 分鐘延遲，比 Yahoo 即時）
+
+
+C. 期貨即時報價（獨立來源）────────────────────────────────────────
+  fubon_bot/fmx_quote_daemon.py
+    上游: 富邦 SDK（Fugle 後端，需證券帳號 + 憑證）
+    頻率: 每 5 秒（每筆查詢間隔 0.35s 避免 429）
+    輸出: fmx_live_quotes.json
+    支援: MXFR1, TXFR1, MTXR1, GDF, BRF, ZEF, ZFF, TF, TE
+    HTTP 出口: server.py /fmx/quote
+
+
+═══════════════════════════════════════════════════════════════════════════
+二、匯率（USD_TWD / HKD_TWD）
+═══════════════════════════════════════════════════════════════════════════
+  open.er-api.com/v6/latest/USD（主來源，免 key）
+    前端: silentRefreshPrices / refreshAllData 內呼叫，4 小時快取於 prices.json
+    後端: update_prices.py 每 5 分鐘抓一次寫入 prices.json.rates
+
+  歷史包袱: Google Sheet 手動覆蓋已於 commit ba5cde0 移除。
+
+
+═══════════════════════════════════════════════════════════════════════════
+三、財報 / EPS
+═══════════════════════════════════════════════════════════════════════════
+  美股 / 港股 / 大部分:  yfinance.Ticker.earnings_dates
+  韓股 .KS:           yfinance + Naver finance/quarter 補強
+  港股 proxy ETF:      PROXY_EARNINGS_MAP @ update_fund.py:22
+                      （9747.HK → 005930.KS, 7709.HK → 000660.KS）
+  深度 EPS:           data/fetch_earnings_deep.py + fetch_stockanalysis.py
+                      上游 stockanalysis.com 爬蟲（anti-bot 中等）
+
+
+═══════════════════════════════════════════════════════════════════════════
+四、總體經濟指標（FRED）
+═══════════════════════════════════════════════════════════════════════════
+  data/fetch_economic.py → data/economic_data.json
+  覆蓋: UNRATE / CPIAUCSL / CPILFESL / PCEPI / PCEPILFE / PPIFIS
+
+  來源優先順序（2026-05 改造）:
+    ① api.allorigins.win/raw + FRED CSV   ✅ 主通路（4-6/6 通）
+    ② api.codetabs.com/v1/proxy + FRED CSV ✅ 部分通
+    ③ corsproxy.io/?url= + FRED CSV       ⚠️ 部分通
+    ④ DBnomics                              ❌ 已停止索引 FRED
+    ⑤ FRED 直連 fredgraph.csv              ⚠️ 家用 IP timeout，
+                                              GH Actions 部分 region OK
+
+  Merge mode: 本次失敗的 series 沿用上次 success（14 天內），多次跑
+              自然累積到全綠。詳見 PITFALLS K1。
+
+
+═══════════════════════════════════════════════════════════════════════════
+五、Fed Watch（FOMC 利率機率）
+═══════════════════════════════════════════════════════════════════════════
+  data/fetch_fedwatch.py → data/fedwatch.json
+
+  來源優先順序:
+    ① 直連 investing.com/central-banks/fed-rate-monitor   本機 OK
+    ② allorigins.win/raw + 上面 URL                       GH Actions 用
+    ③ codetabs.com/v1/proxy + 上面 URL                    第三層備援
+
+  內容驗證: 必須含 'fedRateInnerTabOpen' 或 'Fed Rate Monitor' 才採用。
+            詳見 PITFALLS K2 + K4。
+
+
+═══════════════════════════════════════════════════════════════════════════
+六、加密貨幣
+═══════════════════════════════════════════════════════════════════════════
+  Pionex 帳戶餘額:    data/fetch_crypto_balance.py（API key + secret）
+  Binance Futures:   server.py 內整合（API key + secret）
+  公開報價（BTC-USD）: yfinance（同股票流，update_prices.py）
+
+
+═══════════════════════════════════════════════════════════════════════════
+七、Token / API Key 需求
+═══════════════════════════════════════════════════════════════════════════
+  免 key:
+    Yahoo Finance（yfinance / Chart API）
+    Naver Finance（必加 Referer header）
+    open.er-api.com
+    FRED 直連 / 經 CORS proxy
+    investing.com
+    所有 CORS proxy 服務（allorigins / codetabs / corsproxy.io）
+
+  需 key:
+    Pionex / Binance       — 環境變數 / config（key + secret）
+    富邦 SDK              — 證券帳號 + 憑證 + cert_pass
+    Finnhub（個股新聞）    — 可選，存 localStorage finnhub_token_v1
+    GitHub Gist（同步）    — 使用者 PAT，scope=gist
+
+
+═══════════════════════════════════════════════════════════════════════════
+八、相關 PITFALLS（見本檔第 7 段）
+═══════════════════════════════════════════════════════════════════════════
+  K1: DBnomics 停止索引 FRED → 改 CORS proxy
+  K2: GH Actions IP 被 investing.com Cloudflare 擋 → 同上
+  K3: CORS proxy 通用排序（2026-05 實測：allorigins > codetabs > corsproxy.io）
+  K4: proxy 200 但回首頁 → 內容驗證樣板（檢查 marker 字串）
+  K5: Naver Finance 韓股財報免 key 來源（必加 Referer header）
+"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  CLI 入口
 # ═══════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-    import argparse
+    import argparse, sys as _sys
+    # 確保 stdout 為 UTF-8（Windows cmd 預設 cp950 會卡 emoji / 部分 unicode）
+    try:
+        _sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        _sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
     p = argparse.ArgumentParser(description="Trading platform skill / template generator")
     p.add_argument("--show",
                    choices=["pitfalls", "checklist", "python", "pipeline",
-                            "strategy", "levmath", "futures"],
+                            "strategy", "levmath", "futures", "datasrc"],
                    help="顯示內容")
     p.add_argument("--dump", metavar="DIR", help="把最小範本寫到指定資料夾")
     p.add_argument("--diagnose", action="store_true",
@@ -1456,6 +1620,8 @@ if __name__ == "__main__":
         print(LEVERAGE_MATH_NOTES)
     elif args.show == "futures":
         print(PORTFOLIO_FUTURES_NOTES)
+    elif args.show == "datasrc":
+        print(DATA_SOURCES_OVERVIEW)
     elif args.dump:
         dump_templates(args.dump)
     elif args.diagnose:
@@ -1478,3 +1644,4 @@ if __name__ == "__main__":
         print("  python skill.py --show pipeline   # GitHub Actions 資料管線架構")
         print("  python skill.py --show strategy   # 策略窗口最佳化方法論 + 踩過的坑")
         print("  python skill.py --show levmath    # 槓桿觸發價反推公式 (dashboard)")
+        print("  python skill.py --show datasrc    # 報價/資料來源總覽（給其他使用者參考）")

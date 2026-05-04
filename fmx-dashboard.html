@@ -886,6 +886,11 @@
     </div>
 
     <div class="panel-section log-title-section" style="border-top:1px solid var(--border)">
+      <div class="section-title">最近 10 筆交易（含成交點數）</div>
+    </div>
+    <div class="log-panel" id="tradesPanel" style="max-height:200px"></div>
+
+    <div class="panel-section log-title-section" style="border-top:1px solid var(--border)">
       <div class="section-title">最近日誌</div>
     </div>
     <div class="log-panel" id="logPanel"></div>
@@ -3902,6 +3907,41 @@ function updateStats(state, chartData) {
 }
 
 // ════════════════════════════════════════════════════════
+//  TRADES PANEL（最近 10 筆實際成交，含成交點數）
+// ════════════════════════════════════════════════════════
+function updateTradesLog(state) {
+  const panel = document.getElementById('tradesPanel');
+  if (!panel) return;
+  const trades = Array.isArray(state?.recent_trades) ? state.recent_trades : [];
+  if (trades.length === 0) {
+    panel.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px 0">（暫無交易紀錄）</div>';
+    return;
+  }
+  panel.innerHTML = '';
+  trades.forEach(t => {
+    const div = document.createElement('div');
+    const isBuy = (t.buy_sell || '').toLowerCase() === 'buy';
+    div.className = 'log-item ' + (isBuy ? 'buy' : 'sell');
+    // 時間：date 形如 '2026/05/04'，取末段 MM/DD；time 若有 HH:MM:SS 一併顯示
+    const dShort = String(t.date || '').replace(/^\d{4}\//, '');
+    const timeStr = t.time ? `${dShort} ${String(t.time).slice(0,5)}` : dShort;
+    const action  = isBuy ? 'BUY' : 'SELL';
+    const orderTag = t.order_type === 'New' ? '開倉'
+                   : t.order_type === 'Close' ? '平倉'
+                   : (t.order_type || '');
+    const lots  = Number(t.lots || 0).toFixed(0);
+    const price = Number(t.price || 0).toLocaleString('en-US');
+    const tsEl  = document.createElement('span'); tsEl.className = 'ts';  tsEl.textContent = timeStr;
+    const msgEl = document.createElement('span'); msgEl.className = 'msg';
+    msgEl.textContent = `${action} ${t.symbol} × ${lots}口 @ ${price}` + (orderTag ? `（${orderTag}）` : '');
+    div.appendChild(tsEl);
+    div.appendChild(document.createTextNode(' '));
+    div.appendChild(msgEl);
+    panel.appendChild(div);
+  });
+}
+
+// ════════════════════════════════════════════════════════
 //  LOG PANEL
 // ════════════════════════════════════════════════════════
 function updateLog(state) {
@@ -4046,6 +4086,7 @@ async function refresh() {
   // 每個 render 函式獨立保護，單一失敗不影響其他區塊，也不會卡在「更新中…」
   try { updateStats(state, lastChartData); }       catch(e) { console.error('[updateStats]', e);   _refreshError = e; }
   try { updateLog(state); }                        catch(e) { console.error('[updateLog]', e);     _refreshError = _refreshError || e; }
+  try { updateTradesLog(state); }                  catch(e) { console.error('[updateTradesLog]', e); _refreshError = _refreshError || e; }
   try { updateLivePrice(market, _misCache); }      catch(e) { console.error('[updateLivePrice]', e); _refreshError = _refreshError || e; }
   try { renderInventory(market, state, _misCache); } catch(e) { console.error('[renderInventory]', e); _refreshError = _refreshError || e; }
 

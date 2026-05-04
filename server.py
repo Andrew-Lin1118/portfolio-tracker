@@ -101,6 +101,7 @@ _fut_snap_interval  = int(os.environ.get('FUT_SNAPSHOT_INTERVAL_MIN', '15')) * 6
 # 每 10 分鐘更新一次 data/crypto_balance.json；前端 /crypto/balance 直接吃檔。
 CRYPTO_FETCH_SCRIPT = os.path.join(DIR, 'data', 'fetch_crypto_balance.py')
 CRYPTO_BALANCE_FILE = os.path.join(DIR, 'data', 'crypto_balance.json')
+FUT_TRADES_FILE     = os.path.join(DIR, 'data', 'fut_trades.json')
 CRYPTO_REFRESH_SEC  = 600        # 10 分鐘重新 fetch 一次
 _crypto_last_fetch  = 0          # 上次 fetch 的 unix ts
 # 環境變數 CRYPTO_AUTOPUSH=1 時自動 git commit & push（預設關閉，避免餘額頻繁刷 commit）
@@ -856,6 +857,42 @@ def _read_recent_logs(n: int = 20) -> list:
             break
     return list(reversed(out))
 
+
+def _read_recent_trades(n: int = 10) -> list:
+    """讀 data/fut_trades.json 取最近 n 筆實際成交（含 price = 成交點數）。
+    回傳依時間新→舊：[{date, time, buy_sell, symbol, lots, price, order_type, order_no}, ...]
+    若檔案不存在或損壞，回傳空 list。"""
+    if not os.path.exists(FUT_TRADES_FILE):
+        return []
+    try:
+        with open(FUT_TRADES_FILE, 'r', encoding='utf-8') as f:
+            doc = json.load(f)
+    except Exception:
+        return []
+    trades = doc.get('trades') if isinstance(doc, dict) else None
+    if not isinstance(trades, list):
+        return []
+    # fut_trades.json 是依時間舊→新；取尾端 n 筆，再 reverse 成新→舊
+    last_n = trades[-n:] if len(trades) > n else trades[:]
+    out = []
+    for t in reversed(last_n):
+        try:
+            out.append({
+                'date':       t.get('date', ''),                # '2026/05/04'
+                'time':       t.get('time', ''),                # 部分來源不一定有；可空
+                'buy_sell':   t.get('buy_sell', ''),            # 'Buy' / 'Sell'
+                'symbol':     t.get('symbol', ''),              # 'FITM' / 'TMFK6' 等
+                'lots':       float(t.get('orig_lots', 0) or 0),
+                'price':      float(t.get('price', 0) or 0),    # 成交點數
+                'order_type': t.get('order_type', ''),          # 'New' / 'Close'
+                'order_no':   t.get('order_no', ''),
+                'expiry':     t.get('expiry', ''),
+            })
+        except Exception:
+            continue
+    return out
+
+
 def _write_state(updates: dict):
     """Merge updates into fmx_state.json atomically."""
     with _state_lock:
@@ -1352,6 +1389,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         try:
             if isinstance(st, dict):
                 st['recent_logs'] = _read_recent_logs(20)
+        except Exception:
+            pass
+        # 附加最近 10 筆實際成交（含成交點數），供前端「最近交易」面板使用
+        try:
+            if isinstance(st, dict):
+                st['recent_trades'] = _read_recent_trades(10)
         except Exception:
             pass
         self._send_json(st)

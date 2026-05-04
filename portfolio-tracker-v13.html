@@ -124,6 +124,7 @@
             #wl-layout > div { flex: 0 0 auto !important; width: 100% !important; }
             #wl-tv-container { min-height: 480px !important; }
             #wl-table-wrap { max-height: 360px !important; }
+            #wl-vsplit { display: none !important; }
         }
         /* Watchlist row 拖曳樣式 */
         #wl-tbody tr.dragging { opacity: 0.45; }
@@ -131,6 +132,25 @@
         #wl-tbody tr.drop-below { box-shadow: inset 0 -2px 0 #fbbf24; }
         #wl-tbody td.wl-handle { color:#64748b; cursor: grab; user-select: none; text-align:center; font-size:1rem; }
         #wl-tbody td.wl-handle:active { cursor: grabbing; }
+        /* Watchlist 左右寬度調整 splitter（垂直）*/
+        #wl-vsplit {
+            flex: 0 0 6px;
+            cursor: col-resize;
+            background: rgba(59,130,246,0.18);
+            border-radius: 3px;
+            transition: background 0.15s;
+            position: relative;
+        }
+        #wl-vsplit:hover, #wl-vsplit.dragging { background: #fbbf24; }
+        #wl-vsplit::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px; height: 32px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
         /* indicator badges */
         .kd-up   { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(16,185,129,0.2); color:#10b981; font-weight:700; font-size:0.8rem; }
         .kd-down { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(239,68,68,0.15); color:#ef4444; font-weight:700; font-size:0.8rem; }
@@ -828,10 +848,10 @@
                     <span id="wl-status" style="margin-left:auto; align-self:center; font-size:0.75rem; color:#64748b;"></span>
                 </div>
 
-                <!-- 左右排版：左 watchlist / 右 K 線 -->
-                <div id="wl-layout" style="display:flex; gap:1rem; align-items:stretch;">
+                <!-- 左右排版：左 watchlist / 中 splitter / 右 K 線 -->
+                <div id="wl-layout" style="display:flex; gap:0; align-items:stretch;">
                   <!-- 左：Watchlist Table -->
-                  <div style="flex:0 0 38%; min-width:0;">
+                  <div id="wl-left" style="flex:0 0 30%; min-width:240px; padding-right:0.5rem;">
                     <div id="wl-table-wrap" style="overflow-x:auto; border:1px solid rgba(59,130,246,0.15); border-radius:10px; max-height:680px; overflow-y:auto;">
                         <table id="wl-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                             <thead style="background:rgba(15,30,60,0.95); position:sticky; top:0; z-index:5;">
@@ -848,8 +868,10 @@
                         </table>
                     </div>
                   </div>
+                  <!-- 中：垂直 splitter（拖曳調整左右寬度） -->
+                  <div id="wl-vsplit" title="拖曳調整左右寬度（雙擊重置）"></div>
                   <!-- 右：TradingView -->
-                  <div style="flex:1 1 0; min-width:0; display:flex; flex-direction:column;">
+                  <div id="wl-right" style="flex:1 1 0; min-width:0; padding-left:0.5rem; display:flex; flex-direction:column;">
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.4rem;">
                         <div style="color:#cbd5e1; font-size:0.85rem; font-weight:600;">
                             📊 <span id="wl-tv-symbol-label" style="color:#fbbf24;">請點選左側標的</span>
@@ -3997,13 +4019,13 @@
                 { sym: 'SLV',     tv: 'AMEX:SLV',           yf: 'SLV' },
                 { sym: 'ORCLUSDT.P',  tv: 'BINANCE:ORCLUSDT.P', yf: '', okx: 'ORCL-USDT-SWAP' },
                 { sym: 'METAUSDT.P',  tv: 'BINANCE:METAUSDT.P', yf: '', okx: 'META-USDT-SWAP' },
-                { sym: 'LITEUSDT.P',  tv: 'BINANCE:LITEUSDT.P', yf: '' },
-                { sym: 'AAOIUSDT.P',  tv: 'BINANCE:AAOIUSDT.P', yf: '' },
-                { sym: 'SKHXUSDT.P',  tv: 'BINANCE:SKHXUSDT.P', yf: '' },
-                { sym: 'SMSNUSDT.P',  tv: 'BINANCE:SMSNUSDT.P', yf: '' },
+                { sym: 'LITEUSDT.P',  tv: 'BINANCE:LITEUSDT.P', yf: 'LITE' },        // Lumentum
+                { sym: 'AAOIUSDT.P',  tv: 'BINANCE:AAOIUSDT.P', yf: 'AAOI' },        // Applied Optoelectronics
+                { sym: 'SKHXUSDT.P',  tv: 'BINANCE:SKHXUSDT.P', yf: '000660.KS' },   // SK Hynix
+                { sym: 'SMSNUSDT.P',  tv: 'BINANCE:SMSNUSDT.P', yf: '005930.KS' },   // Samsung
                 { sym: 'ETHUSDT.P',   tv: 'BINANCE:ETHUSDT.P',  yf: '', okx: 'ETH-USDT-SWAP' },
                 { sym: 'PLTRXUSDT.P', tv: 'BINANCE:PLTRXUSDT.P', yf: '', okx: 'PLTR-USDT-SWAP' },
-                { sym: 'ONDSXUSDT.P', tv: 'BINANCE:ONDSXUSDT.P', yf: '' },
+                { sym: 'ONDSXUSDT.P', tv: 'BINANCE:ONDSXUSDT.P', yf: 'ONDS' },        // Ondas
                 { sym: 'SNDKXUSDT.P', tv: 'BINANCE:SNDKXUSDT.P', yf: '', okx: 'SNDK-USDT-SWAP' },
                 { sym: 'TSMXUSDT.P',  tv: 'BINANCE:TSMXUSDT.P',  yf: '', okx: 'TSM-USDT-SWAP' },
                 { sym: 'AMDXUSDT.P',  tv: 'BINANCE:AMDXUSDT.P',  yf: '', okx: 'AMD-USDT-SWAP' },
@@ -4011,7 +4033,7 @@
                 { sym: 'MUXUSDT.P',   tv: 'BINANCE:MUXUSDT.P',   yf: '', okx: 'MU-USDT-SWAP' },
                 { sym: 'QQQXUSDT.P',  tv: 'BINANCE:QQQXUSDT.P',  yf: '', okx: 'QQQ-USDT-SWAP' },
                 { sym: 'NVDAXUSDT.P', tv: 'BINANCE:NVDAXUSDT.P', yf: '', okx: 'NVDA-USDT-SWAP' },
-                { sym: 'SLVXUSDT.P',  tv: 'BINANCE:SLVXUSDT.P',  yf: '' },
+                { sym: 'SLVXUSDT.P',  tv: 'BINANCE:SLVXUSDT.P',  yf: 'SLVX' },        // Defiance 1.5x SLV
                 { sym: 'XAUTUSDT.P',  tv: 'BINANCE:XAUTUSDT.P',  yf: '', binance: 'XAUTUSDT' },
             ],
         };
@@ -4237,8 +4259,20 @@
                          ts: Date.now(), src: 'BNB' };
             } catch(_) { return null; }
         }
+        // 從 TradingView symbol 自動推 Yahoo 候選清單（給未配 yf 的加密 .P 標的用）
+        // 規則：BINANCE:LITEUSDT.P → ['LITE'] / NVDAXUSDT.P → ['NVDAX', 'NVDA']
+        function _wlAutoYahooCandidates(item) {
+            const tv = String(item.tv || '');
+            const m = tv.match(/(?:BINANCE:|^)([A-Z0-9]+)USDT\.P$/i);
+            if (!m) return [];
+            const base = m[1].toUpperCase();
+            const cands = [base];
+            // 末尾 X 是 TradingView 命名習慣（避免衝突），常見對應就是去 X
+            if (base.length > 2 && base.endsWith('X')) cands.push(base.slice(0, -1));
+            return cands;
+        }
         async function _wlFetchPriceForItem(it) {
-            // 依優先順序：yf → okx → binance
+            // 依優先順序：yf → okx → binance → 自動推 Yahoo (USDT.P 拔掉 + 去 X)
             if (it.yf) {
                 const r = await _wlFetchYahoo(it.yf);
                 if (r) return r;
@@ -4249,6 +4283,11 @@
             }
             if (it.binance) {
                 const r = await _wlFetchBinance(it.binance);
+                if (r) return r;
+            }
+            // 最後手段：依 tv 推 Yahoo 候選（findings: LITE/AAOI/ONDS/SLVX 都通）
+            for (const cand of _wlAutoYahooCandidates(it)) {
+                const r = await _wlFetchYahoo(cand);
                 if (r) return r;
             }
             return null;
@@ -4438,9 +4477,65 @@
             wlRefreshPrices();
         }
 
+        // ── 左右寬度 splitter（垂直拖曳）──
+        const WL_LEFT_WIDTH_KEY = 'pt_watchlist_left_width_pct_v1';
+        function _wlSetupVerticalSplitter() {
+            const split = document.getElementById('wl-vsplit');
+            const left  = document.getElementById('wl-left');
+            const layout = document.getElementById('wl-layout');
+            if (!split || !left || !layout || split.dataset.bound === '1') return;
+            split.dataset.bound = '1';
+            // 還原上次寬度
+            const saved = parseFloat(localStorage.getItem(WL_LEFT_WIDTH_KEY) || '');
+            if (saved && saved >= 18 && saved <= 70) left.style.flexBasis = saved + '%';
+            let dragging = false;
+            const onMove = (e) => {
+                if (!dragging) return;
+                const x = (e.touches ? e.touches[0].clientX : e.clientX);
+                const rect = layout.getBoundingClientRect();
+                const pct = Math.min(70, Math.max(18, (x - rect.left) / rect.width * 100));
+                left.style.flexBasis = pct + '%';
+                e.preventDefault?.();
+            };
+            const onUp = () => {
+                if (!dragging) return;
+                dragging = false;
+                split.classList.remove('dragging');
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                try {
+                    const cur = parseFloat(left.style.flexBasis);
+                    if (cur > 0) localStorage.setItem(WL_LEFT_WIDTH_KEY, cur.toFixed(1));
+                } catch(_) {}
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup',   onUp);
+                window.removeEventListener('touchmove', onMove);
+                window.removeEventListener('touchend',  onUp);
+            };
+            const onDown = (e) => {
+                dragging = true;
+                split.classList.add('dragging');
+                document.body.style.userSelect = 'none';
+                document.body.style.cursor = 'col-resize';
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup',   onUp);
+                window.addEventListener('touchmove', onMove, { passive: false });
+                window.addEventListener('touchend',  onUp);
+                e.preventDefault?.();
+            };
+            split.addEventListener('mousedown',  onDown);
+            split.addEventListener('touchstart', onDown, { passive: false });
+            // 雙擊重置 30%
+            split.addEventListener('dblclick', () => {
+                left.style.flexBasis = '30%';
+                try { localStorage.removeItem(WL_LEFT_WIDTH_KEY); } catch(_) {}
+            });
+        }
+
         // ── Tab 進出 hook ──
         function wlOnEnter() {
             if (!_wlData) _wlInit();
+            _wlSetupVerticalSplitter();
             wlSwitchCat(_wlCat);   // 內部會 render + refresh prices
             // 啟動 30 秒輪詢
             if (_wlPriceTimer) clearInterval(_wlPriceTimer);

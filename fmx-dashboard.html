@@ -888,7 +888,7 @@
     <div class="panel-section log-title-section" style="border-top:1px solid var(--border)">
       <div class="section-title">最近 10 筆交易（含成交點數）</div>
     </div>
-    <div class="log-panel" id="tradesPanel" style="max-height:200px"></div>
+    <div class="log-panel" id="tradesPanel" style="max-height:200px; white-space:nowrap; overflow-x:auto"></div>
 
     <div class="panel-section log-title-section" style="border-top:1px solid var(--border)">
       <div class="section-title">最近日誌</div>
@@ -3926,14 +3926,14 @@ function updateTradesLog(state) {
     const dShort = String(t.date || '').replace(/^\d{4}\//, '');
     const timeStr = t.time ? `${dShort} ${String(t.time).slice(0,5)}` : dShort;
     const action  = isBuy ? 'BUY' : 'SELL';
-    const orderTag = t.order_type === 'New' ? '開倉'
-                   : t.order_type === 'Close' ? '平倉'
-                   : (t.order_type || '');
+    const orderTag = t.order_type === 'New' ? '開'
+                   : t.order_type === 'Close' ? '平'
+                   : '';
     const lots  = Number(t.lots || 0).toFixed(0);
     const price = Number(t.price || 0).toLocaleString('en-US');
     const tsEl  = document.createElement('span'); tsEl.className = 'ts';  tsEl.textContent = timeStr;
     const msgEl = document.createElement('span'); msgEl.className = 'msg';
-    msgEl.textContent = `${action} ${t.symbol} × ${lots}口 @ ${price}` + (orderTag ? `（${orderTag}）` : '');
+    msgEl.textContent = `${action} ${t.symbol} ${lots}口 @${price}` + (orderTag ? ` ${orderTag}` : '');
     div.appendChild(tsEl);
     div.appendChild(document.createTextNode(' '));
     div.appendChild(msgEl);

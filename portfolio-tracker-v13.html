@@ -4200,20 +4200,20 @@
                 const color    = !cache || cache.change == null ? '#94a3b8' : (cache.change > 0 ? '#10b981' : (cache.change < 0 ? '#ef4444' : '#94a3b8'));
                 const rowSel   = (_wlSelectedSym === it.tv) ? 'background:rgba(251,191,36,0.08);' : '';
                 const srcTag   = cache && cache.src ? `<span style="color:#475569; font-size:0.65rem; margin-left:0.3rem;">[${cache.src}]</span>` : '';
-                // 時段標籤：永遠顯示，依來源/時段
-                //   美股盤前盤後（YF + ext）→ 「盤前/盤後 198.20 (+0.5%)」彩色
-                //   美股 regular / 港台韓 / 期指 (YF)             → 「今日」
-                //   加密 (OKX/BNB)                                  → 「24H」
-                //   CoinGecko (CG)                                  → 「24H 占比」
+                // 時段標籤（比照持倉一覽）：
+                //   美股盤前盤後（YF + ext）→ 「盤前 +0.09 (+0.12%)」白色（含 change+pct，不顯示價格）
+                //   美股 regular / 港台韓 / 期指 (YF)→ 「今日」灰色
+                //   加密 (OKX/BNB)                  → 「24H」灰色
+                //   CoinGecko (CG)                  → 「24H 占比」灰色
                 let extLine = '';
                 if (cache) {
-                    if (cache.ext && (cache.ext.changePct != null || cache.ext.price != null)) {
+                    if (cache.ext && (cache.ext.changePct != null || cache.ext.changePoints != null)) {
                         const ePct = Number(cache.ext.changePct);
-                        const eClr = !isFinite(ePct) || ePct === 0 ? '#94a3b8' : (ePct > 0 ? '#10b981' : '#ef4444');
-                        const ePctStr = isFinite(ePct) ? ((ePct > 0 ? '+' : '') + ePct.toFixed(2) + '%') : '';
-                        const ePxStr = isFinite(cache.ext.price) && cache.ext.price > 0
-                            ? cache.ext.price.toLocaleString('en-US', {maximumFractionDigits: cache.ext.price >= 100 ? 2 : 4}) : '';
-                        extLine = `<div style="color:${eClr}; font-size:0.66rem; font-weight:600; margin-top:0.12rem; white-space:nowrap;">${cache.ext.label || '盤後'}${ePxStr ? ' ' + ePxStr : ''}${ePctStr ? ' (' + ePctStr + ')' : ''}</div>`;
+                        const ePts = Number(cache.ext.changePoints);
+                        const ptsStr = isFinite(ePts) ? ((ePts > 0 ? '+' : '') + ePts.toFixed(2)) : '';
+                        const pctStr = isFinite(ePct) ? ((ePct > 0 ? '+' : '') + ePct.toFixed(2) + '%') : '';
+                        const body = ptsStr && pctStr ? `${ptsStr} (${pctStr})` : (ptsStr || pctStr);
+                        extLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${cache.ext.label || '盤後'} ${body}</div>`;
                     } else {
                         let tag = '';
                         if (cache.src === 'OKX' || cache.src === 'BNB') tag = '24H';
@@ -4540,6 +4540,8 @@
         }
 
         // ── 多源報價：Yahoo → OKX → Binance Spot → CoinGecko ──
+        // 盤前/盤後採用與持倉一致的 _extendedQuoteFromYahooMeta：
+        //   只在 NY 非 regular hours 才出（盤中顯示「今日」一般標籤）
         async function _wlFetchYahoo(yf) {
             try {
                 const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1d&range=2d`;
@@ -4552,7 +4554,7 @@
                 if (!isFinite(cur)) return null;
                 const change = isFinite(prev) ? cur - prev : null;
                 const changePct = (isFinite(prev) && prev !== 0) ? (change / prev * 100) : null;
-                // 盤前/盤後（複用持倉用的 _extendedQuoteFromYahooMeta；只對美股有效）
+                // 盤前/盤後 ext（與持倉一致；regular hours 不出）
                 let ext = null;
                 try {
                     if (typeof _extendedQuoteFromYahooMeta === 'function' && _isUsStockSymbol(yf)) {

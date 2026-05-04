@@ -456,7 +456,7 @@
             <div id="holdings-list"></div>
         </div>
 
-        <!-- ⚙️ 資料管理（整合：Google Sheet CSV + 跨裝置同步 + 匯入/匯出）-->
+        <!-- ⚙️ 資料管理（跨裝置同步 + 匯入/匯出）-->
         <div class="glass-card" style="padding:1.25rem 1.5rem; margin-top:1rem;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:0.4rem;">
                 <h3 style="color:#fbbf24; font-size:0.95rem; font-weight:700; margin:0; letter-spacing:0.5px;">⚙️ 資料管理</h3>
@@ -486,19 +486,7 @@
                     </div>
                 </div>
 
-                <!-- ① Google Sheet CSV -->
-                <div style="margin-bottom:0.9rem;">
-                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
-                        <label style="color:#cbd5e1; font-size:0.82rem; font-weight:600; white-space:nowrap;">📊 Google Sheet CSV</label>
-                        <input id="sheet-url" type="text" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vQnBPPnq7jgMZ3oZ8UVaxe77InNipxW-ItNAoqxQrAgnKfLNqX1P4xxOLMqKGjKWTRIN-VZ4SkgKFBt/pub?gid=0&single=true&output=csv" onchange="saveToStorage()" style="flex:1; min-width:200px; padding:0.5rem 0.7rem; background:rgba(10,25,45,0.8); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.82rem;">
-                        <span style="color:#10b981; font-size:0.78rem; white-space:nowrap;">✓ 已設定</span>
-                    </div>
-                </div>
-
-                <!-- 分隔線 -->
-                <div style="height:1px; background:rgba(148,163,184,0.12); margin:0.9rem 0;"></div>
-
-                <!-- ② 跨裝置同步（GitHub Gist）-->
+                <!-- 跨裝置同步（GitHub Gist）-->
                 <div style="margin-bottom:0.9rem;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.55rem; flex-wrap:wrap; gap:0.4rem;">
                         <label style="color:#cbd5e1; font-size:0.82rem; font-weight:600;">☁️ 跨裝置同步（GitHub Gist）</label>
@@ -3120,7 +3108,6 @@
         function _buildSyncPayload() {
             return JSON.stringify({
                 holdings,
-                sheetUrl: document.getElementById('sheet-url')?.value || '',
                 currency,
                 exchangeRates,
                 cashTWD:        parseFloat(document.getElementById('cash-twd-input')?.value)        || 0,
@@ -3189,7 +3176,6 @@
                 if (!content) throw new Error('找不到同步檔案');
                 const state = JSON.parse(content);
                 if (state.holdings?.length > 0) holdings = state.holdings;
-                if (state.sheetUrl) { const e = document.getElementById('sheet-url'); if (e) e.value = state.sheetUrl; }
                 if (state.currency) { currency = state.currency; setCurrency(currency); }
                 if (state.cashTWD > 0) {
                     const e = document.getElementById('cash-twd-input');
@@ -3337,7 +3323,6 @@
                 try {
                     const state = {
                         holdings,
-                        sheetUrl: document.getElementById('sheet-url')?.value || '',
                         currency,
                         exchangeRates,
                         savedAt: new Date().toISOString()
@@ -3361,10 +3346,6 @@
 
             // ② 還原其他設定（失敗不影響持倉顯示）
             try {
-                if (state.sheetUrl) {
-                    const el = document.getElementById('sheet-url');
-                    if (el) el.value = state.sheetUrl;
-                }
                 if (state.currency) currency = state.currency;
                 if (state.exchangeRates?.USD_TWD) {
                     exchangeRates.USD_TWD = state.exchangeRates.USD_TWD;
@@ -3618,11 +3599,8 @@
         }
 
         async function autoRefreshAfterImport() {
-            // ① 更新報價（有設定 Google Sheet 時才執行）
-            const sheetUrl = (document.getElementById('sheet-url')?.value || '').trim();
-            if (sheetUrl && sheetUrl.includes('docs.google.com')) {
-                await refreshAllData();
-            }
+            // ① 更新報價（prices.json + yfFetch + 匯率）
+            await refreshAllData();
             // ② 更新分析數據（基本面 + 技術面），強制重新抓取
             await loadAnalysis(true);
             showImportToast('✅ 報價與分析數據已全部更新完成', 2500);
@@ -3646,85 +3624,26 @@
             const icon = document.getElementById('refresh-icon');
             btn.disabled = true; text.textContent = '更新中...'; icon.style.animation = 'spin 1s linear infinite';
             try {
-                const sheetUrl = document.getElementById('sheet-url').value.trim();
-                if (!sheetUrl) { showWarnToast('⚠️ 請先填入 Google Sheet CSV 連結'); return; }
-                if (!sheetUrl.includes('docs.google.com')) { showWarnToast('⚠️ URL 格式不符，請使用 Google Sheets 已發布的 CSV 連結'); return; }
-
-                // 同時發出：① 股價 CSV ② 即時匯率，不互相等待
-                const ratePromise = fetch('https://open.er-api.com/v6/latest/USD').then(r => r.json()).catch(() => null);
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                let res;
-                try {
-                    res = await fetch(sheetUrl, { signal: controller.signal });
-                } catch(fetchErr) {
-                    clearTimeout(timeoutId);
-                    if (fetchErr.name === 'AbortError') {
-                        showWarnToast('⏱ 請求逾時（10秒）\n請確認 Google Sheet 連結是否正確');
-                    } else {
-                        showWarnToast(`❌ 網路請求失敗：${fetchErr.message}`);
-                    }
-                    return;
+                const before = Object.fromEntries(holdings.map(h => [h.symbol, h.currentPrice]));
+                saveHistory();
+                // 強制走完整路徑（含 yfFetch 即時報價、不節流）；prices.json + 即時 + 匯率全包
+                await silentRefreshPrices(/*skipProxyFetch=*/false);
+                const updatedCount = holdings.filter(h => {
+                    const prev = before[h.symbol];
+                    return h.currentPrice != null && h.currentPrice > 0
+                        && (prev == null || Math.abs(h.currentPrice - prev) > 1e-6);
+                }).length;
+                renderAll();
+                const ts = new Date().toLocaleTimeString('zh-TW');
+                const rateEl = document.getElementById('rate-source');
+                if (rateEl) rateEl.textContent = `✓ 即時匯率（${ts}）`;
+                if (updatedCount > 0) {
+                    showImportToast(`✅ 已更新 ${updatedCount} 檔股價 + 匯率`, 2000);
+                } else {
+                    showImportToast(`✓ 報價已是最新（${ts}）`, 1500);
                 }
-                clearTimeout(timeoutId);
-                if (!res.ok) throw new Error(`伺服器回傳 HTTP ${res.status}`);
-                const csvText = await res.text();
-
-                if (csvText.trim().startsWith('<')) {
-                    showWarnToast('❌ Google Sheet 尚未以 CSV 格式發布\n請至 檔案→共用→發布到網路→選逗號分隔值(.csv)');
-                    return;
-                }
-
-                const prices = {};
-                const sheetRates = {};
-                csvText.trim().split(/\r?\n/).forEach(line => {
-                    const cols = line.trim().split(',').map(c => c.replace(/"/g,'').trim());
-                    const val = parseFloat(cols[1]);
-                    if (cols.length < 2 || !cols[0] || isNaN(val) || val <= 0) return;
-                    // 特殊 key：匯率覆蓋
-                    if (cols[0] === 'USD_TWD') sheetRates.USD_TWD = val;
-                    else if (cols[0] === 'HKD_TWD') sheetRates.HKD_TWD = val;
-                    else prices[cols[0]] = val;
-                });
-
-                // 套用匯率：Sheet 指定 > 即時 API > 維持現值
-                const rateData = await ratePromise;
-                let rateUpdated = false;
-                if (sheetRates.USD_TWD) { exchangeRates.USD_TWD = sheetRates.USD_TWD; rateUpdated = true; }
-                if (sheetRates.HKD_TWD) { exchangeRates.HKD_TWD = sheetRates.HKD_TWD; rateUpdated = true; }
-                if (!rateUpdated && rateData && rateData.rates) {
-                    const twd = rateData.rates['TWD'], hkd = rateData.rates['HKD'];
-                    if (twd && hkd) {
-                        exchangeRates.USD_TWD = parseFloat(twd.toFixed(4));
-                        exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
-                        rateUpdated = true;
-                    }
-                }
-                if (rateUpdated) {
-                    syncRateInputs();
-                    const updated = new Date().toLocaleTimeString('zh-TW');
-                    document.getElementById('rate-source').textContent = `✓ ${sheetRates.USD_TWD ? 'Sheet 覆蓋' : '即時匯率'}（${updated}）`;
-                }
-
-                if (Object.keys(prices).length === 0) {
-                    showWarnToast('⚠️ CSV 無有效股價，請確認格式\n第一欄=代碼，第二欄=價格');
-                    manualPriceReview();
-                    return;
-                }
-
-                const matchCount = holdings.filter(h => prices[h.symbol] != null).length;
-                if (matchCount === 0) {
-                    const sheetSymbols = Object.keys(prices).slice(0, 3).join(', ');
-                    const holdingSymbols = holdings.slice(0, 3).map(h => h.symbol).join(', ');
-                    showWarnToast(`⚠️ 代碼不符\nSheet：${sheetSymbols}\n持倉：${holdingSymbols}`, 5000);
-                    return;
-                }
-
-                directApplyPrices(prices);
-
             } catch(e) {
-                alert(`❌ 更新失敗：${e.message}`);
+                showWarnToast(`❌ 更新失敗：${e.message || e}`);
             } finally {
                 btn.disabled = false; text.textContent = '一鍵更新報價 + 匯率'; icon.style.animation = 'none';
             }
@@ -6371,11 +6290,9 @@
             if (_autoRefreshTimer) clearInterval(_autoRefreshTimer);
             if (_countdownTimer)   clearInterval(_countdownTimer);
 
-            // 每 10 秒抓一次報價
-            // 無論是否設定 Google Sheet 都執行：
+            // 每 10 秒抓一次報價：
             //   - prices.json 由 GitHub Actions 每 5 分鐘更新（美股交易時段），
             //     若不定時重讀，頁面開啟後報價永遠凍結在初始載入那一刻
-            //   - Google Sheet 為補充來源（含使用者自訂標的），有設才讀
             //   - proxy ETF yfFetch 每 60 秒才執行一次（節流），避免 Yahoo 頻率限制
             _autoRefreshTimer = setInterval(async () => {
                 if (document.getElementById('refresh-btn')?.disabled) return; // 手動更新中，跳過
@@ -6390,13 +6307,10 @@
                 _secondsLeft = 10; // 重置倒數
             }, 10000);
 
-            // 每秒更新倒數顯示 & 顯示/隱藏狀態列
+            // 每秒更新倒數顯示（自動報價無條件運行，永遠顯示）
             _countdownTimer = setInterval(() => {
-                const url = (document.getElementById('sheet-url')?.value || '').trim();
-                const hasSheet = url && url.includes('docs.google.com');
                 const statusEl = document.getElementById('auto-refresh-status');
-                if (statusEl) statusEl.style.display = hasSheet ? 'block' : 'none';
-                if (!hasSheet) { _secondsLeft = 10; return; }
+                if (statusEl) statusEl.style.display = 'block';
                 _secondsLeft = Math.max(1, _secondsLeft - 1);
                 const cd = document.getElementById('auto-refresh-countdown');
                 if (cd) cd.textContent = _secondsLeft;
@@ -8632,7 +8546,6 @@
 
         async function silentRefreshPrices(skipProxyFetch = false) {
             const prices = {}, mergedRates = {};
-            const sheetPrices = {}; // Sheet 提供的標的（yfFetch 不得覆蓋）
             const futuPrices = {};  // Futu/Moomoo quotes are preferred over Yahoo fallback.
             const usExtendedSession = _usExtendedSessionNow();
             const usExtendedNow = usExtendedSession.active;
@@ -8659,35 +8572,6 @@
                 }
             } catch(_) {}
 
-            // ── 備援：Google Sheet CSV（可含使用者自訂標的 / 手動補價）──
-            const sheetUrl = (document.getElementById('sheet-url')?.value || '').trim();
-            if (sheetUrl && sheetUrl.includes('docs.google.com')) {
-                try {
-                    const controller = new AbortController();
-                    const tid = setTimeout(() => controller.abort(), 10000);
-                    let res;
-                    try { res = await fetch(sheetUrl, { signal: controller.signal, cache: 'no-store' }); }
-                    catch(_) { clearTimeout(tid); res = null; }
-                    clearTimeout(tid);
-                    if (res?.ok) {
-                        const csvText = await res.text();
-                        if (!csvText.trim().startsWith('<')) {
-                            csvText.trim().split(/\r?\n/).forEach(line => {
-                                const cols = line.trim().split(',').map(c => c.replace(/"/g,'').trim());
-                                const val  = parseFloat(cols[1]);
-                                if (!cols[0] || isNaN(val) || val <= 0) return;
-                                if      (cols[0] === 'USD_TWD') mergedRates.USD_TWD = val;
-                                else if (cols[0] === 'HKD_TWD') mergedRates.HKD_TWD = val;
-                                else {
-                                    prices[cols[0]] = val;       // Sheet 優先於 prices.json
-                                    sheetPrices[cols[0]] = val;  // 標記為 Sheet 提供，yfFetch 不得覆蓋
-                                }
-                            });
-                        }
-                    }
-                } catch(_) {}
-            }
-
             const futuData = await _fetchFutuQuotes(holdings.map(h => h.symbol));
             if (futuData?.ok) {
                 _applyFutuQuotes(futuData, prices, futuPrices);
@@ -8711,7 +8595,6 @@
             // 每 60s yfFetch 抓到的即時價存在 window._proxyIntradayCache；
             // 其餘 10s 輪詢若不重抓，直接沿用快取（< 5 分鐘視為新鮮），
             // 避免 prices.json 昨收快照把現價拉回 → 今日漲跌閃爍 0% / 正常值。
-            // ★ 但 Sheet 已提供者不覆蓋（Sheet 比 Yahoo 延遲價新）。
             try {
                 const _cache = window._proxyIntradayCache;
                 if (_cache) {
@@ -8720,7 +8603,6 @@
                     Object.keys(_cache).forEach(_s => {
                         const _e = _cache[_s];
                         if (_e && _e.price > 0 && (_now - _e.ts) < _freshMs
-                            && !_hasPriceKey(_s, sheetPrices)
                             && !_hasPriceKey(_s, futuPrices)) {
                             prices[_s] = _e.price;
                             if (_e.extended && usExtendedNow) {
@@ -8764,11 +8646,9 @@
                             ? (exchangeRates.HKD_TWD / exchangeRates.USD_TWD) : 1;
                         const _daily = _deriveYahooDailyCloses(_ch, _ph.symbol, _pScale);
                         // 即時報價（覆蓋 prices.json 定時快照）
-                        // ★ 但 Sheet 已提供者不覆蓋：Sheet 內通常是使用者手動維護 / GOOGLEFINANCE
-                        //   即時價，而 Yahoo 對台股/港股有 15–20 分鐘延遲，會把 Sheet 的新值拉回舊值。
                         if (_pm.regularMarketPrice != null && _pm.regularMarketPrice > 0) {
                             const _livePx = _pm.regularMarketPrice * _pScale;
-                            if (!_hasPriceKey(_ph.symbol, sheetPrices) && !_hasPriceKey(_ph.symbol, futuPrices)) {
+                            if (!_hasPriceKey(_ph.symbol, futuPrices)) {
                                 prices[_ph.symbol] = _livePx;
                             }
                             // ★ 關鍵：持久化到全域快取，讓 skipProxyFetch=true 的刷新
@@ -8782,7 +8662,7 @@
                             ? _extendedQuoteFromYahooMeta(_pm, _pScale)
                             : null;
                         if (_metaExtendedQuote) {
-                            const _hasPreferredPrice = _hasPriceKey(_ph.symbol, sheetPrices) || _hasPriceKey(_ph.symbol, futuPrices);
+                            const _hasPreferredPrice = _hasPriceKey(_ph.symbol, futuPrices);
                             const _extendedDisplayPrice = _hasPreferredPrice
                                 ? Number(prices[_ph.symbol] ?? _metaExtendedQuote.price)
                                 : _metaExtendedQuote.price;
@@ -8819,7 +8699,7 @@
                                 const _ich = _id?.chart?.result?.[0];
                                 const _iq = _deriveYahooIntradayQuote(_ich, _ph.symbol, _pScale);
                                 if (_iq?.price > 0) {
-                                    const _hasPreferredPrice = _hasPriceKey(_ph.symbol, sheetPrices) || _hasPriceKey(_ph.symbol, futuPrices);
+                                    const _hasPreferredPrice = _hasPriceKey(_ph.symbol, futuPrices);
                                     const _extendedDisplayPrice = _hasPreferredPrice
                                         ? Number(prices[_ph.symbol] ?? _iq.price)
                                         : _iq.price;

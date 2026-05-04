@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v61';  // ← 2026-05-04：watchlist 盤前漲跌移到「漲跌/漲跌%」欄位 + 期貨加密卡片防斷行
+const CACHE_NAME = 'portfolio-tracker-v62';  // ← 2026-05-04：watchlist 盤前漲跌數值修正（用上一個完整交易日收盤當基準）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -182,6 +182,25 @@
   .signal-box.sell   .signal-value { color: var(--red); }
 
   .log-panel { flex: 1; overflow-y: auto; padding: 8px 12px; }
+  /* 兩個 log-panel 間的拖曳分隔線（讓使用者調整上下高度） */
+  .log-splitter {
+    height: 6px;
+    cursor: row-resize;
+    background: var(--border);
+    flex: 0 0 6px;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .log-splitter:hover, .log-splitter.dragging { background: var(--accent, #5af); }
+  .log-splitter::before {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 30px; height: 2px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 2px;
+  }
   .log-item { font-size: 11px; color: var(--muted); padding: 3px 0; border-bottom: 1px solid #1f252d; line-height: 1.45; letter-spacing: 0.1px; }
   .log-item .ts { color: #555; margin-right: 4px; }
   .log-item.info  .msg { color: var(--text); }
@@ -888,7 +907,9 @@
     <div class="panel-section log-title-section" style="border-top:1px solid var(--border)">
       <div class="section-title">最近 10 筆交易（含成交點數）</div>
     </div>
-    <div class="log-panel" id="tradesPanel" style="max-height:200px; white-space:nowrap; overflow-x:auto"></div>
+    <div class="log-panel" id="tradesPanel" style="height:200px; flex:0 0 auto; white-space:nowrap; overflow:auto"></div>
+
+    <div class="log-splitter" id="logSplitter" title="拖曳調整上下高度"></div>
 
     <div class="panel-section log-title-section" style="border-top:1px solid var(--border)">
       <div class="section-title">最近日誌</div>
@@ -3905,6 +3926,77 @@ function updateStats(state, chartData) {
   // RSI chart (用主圖的歷史價格資料計算)
   renderLeverageChart(lev, lastChartData);
 }
+
+// ════════════════════════════════════════════════════════
+//  LOG SPLITTER（拖曳調整「最近交易」與「最近日誌」上下高度）
+// ════════════════════════════════════════════════════════
+(function setupLogSplitter() {
+  const STORAGE_KEY = 'fmx_trades_panel_height_v1';
+  const MIN_PX = 60;
+  const MAX_RATIO = 0.8;   // 不超過視窗高度 80%
+
+  function init() {
+    const splitter = document.getElementById('logSplitter');
+    const trades   = document.getElementById('tradesPanel');
+    if (!splitter || !trades) return;
+
+    // 還原使用者上次拖曳高度
+    const saved = parseInt(localStorage.getItem(STORAGE_KEY) || '', 10);
+    if (saved && saved >= MIN_PX) trades.style.height = saved + 'px';
+
+    let dragging = false, startY = 0, startH = 0;
+
+    const onMove = (e) => {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      const dy = y - startY;
+      const max = Math.floor(window.innerHeight * MAX_RATIO);
+      const h = Math.max(MIN_PX, Math.min(max, startH + dy));
+      trades.style.height = h + 'px';
+      e.preventDefault?.();
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      splitter.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      try {
+        localStorage.setItem(STORAGE_KEY, parseInt(trades.style.height, 10));
+      } catch(_) {}
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend',  onUp);
+    };
+    const onDown = (e) => {
+      dragging = true;
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      startH = trades.getBoundingClientRect().height;
+      splitter.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'row-resize';
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup',   onUp);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend',  onUp);
+      e.preventDefault?.();
+    };
+    splitter.addEventListener('mousedown',  onDown);
+    splitter.addEventListener('touchstart', onDown, { passive: false });
+
+    // 雙擊還原預設高度（200px）
+    splitter.addEventListener('dblclick', () => {
+      trades.style.height = '200px';
+      try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
 
 // ════════════════════════════════════════════════════════
 //  TRADES PANEL（最近 10 筆實際成交，含成交點數）

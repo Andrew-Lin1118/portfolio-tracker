@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v67';  // ← 2026-05-04：手機版 K 線隱藏左側工具列 + 預設 auto-fit
+const CACHE_NAME = 'portfolio-tracker-v68';  // ← 2026-05-04：桌機 K 線也隱藏左側工具列
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

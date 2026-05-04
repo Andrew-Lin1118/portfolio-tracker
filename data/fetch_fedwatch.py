@@ -17,7 +17,13 @@ investing.com 的 Fed Rate Monitor 也用相同方法計算機率，且免 token
 排程建議：每日 1-2 次（盤後機率才會大變動）
 """
 import os, sys, json, re, datetime, io
-import urllib.request, urllib.error
+import urllib.request, urllib.error, urllib.parse
+
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
 
 from bs4 import BeautifulSoup
 
@@ -39,6 +45,33 @@ _MONTHS = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,
 def _http_get(url, timeout=20):
     req = urllib.request.Request(url, headers=HEADERS)
     return urllib.request.urlopen(req, timeout=timeout).read().decode('utf-8', errors='ignore')
+
+
+def _fetch_investing_with_fallback():
+    """investing.com Fed Rate Monitor 多來源備援。
+    背景：直連在某些 IP 段（GH Actions ubuntu runner）會被 Cloudflare 擋，
+    本機家用 IP 通常 OK。透過 CORS proxy 包一層可繞過。
+    順序：直連 → allorigins.win → codetabs.com（任一成功就停）。"""
+    sources = [
+        ('direct',         INVESTING_URL),
+        ('allorigins.win', f'https://api.allorigins.win/raw?url={urllib.parse.quote(INVESTING_URL)}'),
+        ('codetabs.com',   f'https://api.codetabs.com/v1/proxy?quest={urllib.parse.quote(INVESTING_URL)}'),
+    ]
+    last_err = None
+    for name, url in sources:
+        try:
+            print(f'  [investing source:{name}] fetching ...', flush=True)
+            html = _http_get(url, timeout=25)
+            # 檢查確實是 Fed Rate Monitor 內容（不是 Cloudflare 擋頁或 proxy 自己的頁）
+            if 'fedRateInnerTabOpen' in html or 'Fed Rate Monitor' in html:
+                print(f'    ✓ via {name} ({len(html):,} bytes)', flush=True)
+                return html
+            last_err = RuntimeError(f'{name} 內容非 Fed Rate Monitor 頁面')
+            print(f'    ✗ {name} 內容檢查失敗 (前 60 字: {html[:60]!r})', flush=True)
+        except Exception as e:
+            last_err = e
+            print(f'    ✗ {name} {type(e).__name__}: {str(e)[:120]}', flush=True)
+    raise last_err if last_err else RuntimeError('all investing.com sources failed')
 
 
 def _parse_meeting_date(txt):
@@ -73,7 +106,7 @@ def _to_pct(s):
 def fetch_fedwatch_from_investing():
     """回傳 list of {date, future_price, implied_rate, probabilities, most_likely}"""
     print('  [investing.com] fetching Fed Rate Monitor...', flush=True)
-    html = _http_get(INVESTING_URL)
+    html = _fetch_investing_with_fallback()
     soup = BeautifulSoup(html, 'html.parser')
 
     meetings = []

@@ -878,6 +878,56 @@ PITFALLS = """
         - 但要注意新 bot 第一 tick 會讀最新 config，可能立刻觸發 PYRAMID/DELEV
         - 如果不想被自動拉起（例如要長時間停機），需要先把 server.py 的
           `bot_running` 旗標設 false，或直接停 server.py
+
+[K] 上游免費資料源失效 / GH Actions 被反爬擋
+  K1. **DBnomics 2026-05 起拿不到 FRED 系列 → economic_data.json 全 null**
+      症狀: 失業率 / CPI / PCE / PPI 卡片全部顯示「-」「等待後端更新」。
+            data/fetch_economic.py 跑完，DBnomics 對所有 FRED ID 回 404。
+      根因: DBnomics providers 列表已不含 FRED（被下架）；`/v22/series/FRED/UNRATE`
+            一律 404 NOT FOUND。FRED 直連 (fred.stlouisfed.org/graph/fredgraph.csv)
+            從家用 IP 與部份 GH Actions runner 會 read timeout。
+      解法: 改走 CORS proxy 包一層 → `https://api.allorigins.win/raw?url=`
+            + 原 FRED CSV URL。實測 4/6 系列穩定通；偶發 5xx 加 4 次重試 +
+            backoff 即可。第二備援 codetabs.com、第三備援 corsproxy.io（？url=）。
+      位置: data/fetch_economic.py 的 `_fetch_fred_via_proxy()`
+
+  K2. **GH Actions runner 被 investing.com Cloudflare 擋 → fedwatch.json 全 null**
+      症狀: 「Fed 目標利率」「下次 FOMC 預期」一直顯示「等待後端更新 FedWatch 資料」。
+            本機跑 fetch_fedwatch.py 抓得到 13 場會議；GH Actions 卻 next_meeting
+            null、meetings: []。
+      根因: investing.com 對 GitHub Actions 的 IP 段啟用反爬；本機家用 IP 不會被擋。
+      解法: 同 K1，多來源備援 — direct → allorigins.win/raw → codetabs.com，
+            任一通就停。前端會收到 fedwatch.json 含真實 meetings list。
+      位置: data/fetch_fedwatch.py 的 `_fetch_investing_with_fallback()`
+
+  K3. **CORS proxy 通用備援樣板（K1/K2 共用）**
+      免註冊穩定排序（2026-05 實測）：
+        ① api.allorigins.win/raw?url=ENC(target)        ← 5xx 偶發但會自癒
+        ② api.codetabs.com/v1/proxy?quest=ENC(target)   ← 對 HTML 頁好用
+        ③ corsproxy.io/?url=ENC(target)                  ← FRED 不通；Yahoo OK
+      失效（2026-05）：cors-anywhere.herokuapp.com、thingproxy.freeboard.io、
+        cors.eu.org、yacdn.org、crossorigin.me。
+      重試策略：每個 proxy 最多 4 次，backoff 3s / 6s / 9s。
+
+  K4. **CORS proxy 雖能跑，但回應內容要驗 — 否則拿到 proxy 自己的首頁也算「200」**
+      症狀: corsproxy.io/?url=... 對某些 origin 回 200 但 body 是 corsproxy.io
+            的 React 首頁 HTML，不是目標內容。
+      解法: 拿到 200 後檢查內容特徵
+        - FRED CSV: 第一行 'observation_date' 或 'DATE'
+        - investing.com: 含 'fedRateInnerTabOpen' 或 'Fed Rate Monitor'
+        若不符就視為失敗，換下一個 proxy。
+
+  K5. **Naver Finance 是韓股財報的可靠免 key 來源**
+      yfinance 對韓股 earnings_dates 會延遲 / 漏季（005930.KS Q1 2026 4/30 公告
+      但 yfinance 一週後仍未收錄）。Naver mobile API 一律免 key、結構化 JSON：
+        - https://m.stock.naver.com/api/stock/{code}/finance/quarter
+            → financeInfo.rowList[].title='EPS' + columns[fiscal_yyyymm].value
+        - https://m.stock.naver.com/api/stock/{code}/disclosure
+            → 過濾 title 含 '실적'/'잠정실적'/'분기보고서' 取最新
+      實作: data/fetch_naver_earnings.py，update_fund.py 對 .KS 標的自動 merge。
+      headers 必加 `Referer: https://m.stock.naver.com/`，否則 409 Conflict。
+      Windows console 噴 cp950 解碼錯誤是輸出問題，**回傳資料本身正確**；
+      cmd 跑時於檔頭加 `sys.stdout.reconfigure(encoding='utf-8', errors='replace')`。
 """
 
 

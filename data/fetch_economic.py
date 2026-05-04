@@ -22,7 +22,14 @@ fetch_economic.py
 排程建議：每日一次即可（FRED 為月資料，月底/月初更新）。
 """
 import os, sys, json, datetime, csv, io
-import urllib.request, urllib.error
+import urllib.request, urllib.error, urllib.parse
+
+# 確保 stdout 為 UTF-8（Windows cmd 預設 cp950，會卡 ✓✗ 等 unicode 字元）
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
 
 OUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'economic_data.json')
 # 用真實瀏覽器 UA，避免被 FRED 拒絕
@@ -138,6 +145,43 @@ def _fetch_fred_csv(series_id):
     raise last_err if last_err else RuntimeError('FRED CSV all URLs failed')
 
 
+def _fetch_fred_via_proxy(series_id):
+    """透過免註冊 CORS proxy 拉 FRED CSV。
+    背景：DBnomics 已停止索引 FRED 系列（providers 列表沒 FRED），
+    且 FRED 直連對部份 IP 段（家用 / 部份 GH Actions region）會 timeout。
+    主備援：allorigins.win → codetabs.com → corsproxy.io。
+    每個 proxy 試 4 次（allorigins 對 FRED 偶有 520/522 transient）。"""
+    import time as _t
+    target = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
+    proxies = [
+        ('allorigins.win', f'https://api.allorigins.win/raw?url={urllib.parse.quote(target)}'),
+        ('codetabs.com',   f'https://api.codetabs.com/v1/proxy?quest={urllib.parse.quote(target)}'),
+        ('corsproxy.io',   f'https://corsproxy.io/?url={urllib.parse.quote(target)}'),
+    ]
+    last_err = None
+    for name, proxy_url in proxies:
+        for attempt in range(1, 5):  # 每個 proxy 最多 4 次
+            try:
+                print(f'    [proxy:{name} {attempt}/4] {target}', flush=True)
+                text = http_get(proxy_url, timeout=25)
+                head = text[:200].lstrip().lower()
+                if not (head.startswith('observation_date') or head.startswith('date')):
+                    last_err = RuntimeError(f'{name} 回應非 CSV')
+                    print(f'      ✗ {name} 回應非 CSV head={head[:60]!r}', flush=True)
+                    break  # 換 proxy（這個 proxy 結構不對，重試也沒用）
+                data = _parse_fred_csv(text)
+                if data:
+                    return data
+                last_err = RuntimeError(f'{name} CSV 解析後為空')
+                break
+            except Exception as e:
+                last_err = e
+                print(f'      ✗ {type(e).__name__}: {str(e)[:120]}', flush=True)
+                if attempt < 4:
+                    _t.sleep(3 * attempt)  # 3s, 6s, 9s 漸增 backoff
+    raise last_err if last_err else RuntimeError('all FRED proxies failed')
+
+
 def _fetch_stooq(series_id):
     """Stooq 鏡像 FRED 月資料：https://stooq.com/q/d/l/?s={id}.fr&i=m"""
     url = f'https://stooq.com/q/d/l/?s={series_id.lower()}.fr&i=m'
@@ -160,11 +204,19 @@ def _fetch_stooq(series_id):
 
 
 def fetch_fred_csv(series_id):
-    """多重來源備援：DBnomics → FRED CSV → Stooq"""
+    """多重來源備援：FRED via proxy → DBnomics → FRED 直連 → Stooq
+
+    順序設計：
+      ① CORS proxy + FRED CSV：目前唯一穩定通道（2026-05 起 DBnomics 拋棄 FRED）
+      ② DBnomics：保留以防服務恢復
+      ③ FRED 直連：GH Actions / 部份 IP 可能可通
+      ④ Stooq：FRED 月資料鏡像（2024+ 後限 API key）
+    """
     sources = [
-        ('DBnomics',   lambda: _fetch_dbnomics(series_id)),
-        ('FRED CSV',   lambda: _fetch_fred_csv(series_id)),
-        ('Stooq',      lambda: _fetch_stooq(series_id)),
+        ('FRED via Proxy',  lambda: _fetch_fred_via_proxy(series_id)),
+        ('DBnomics',        lambda: _fetch_dbnomics(series_id)),
+        ('FRED CSV direct', lambda: _fetch_fred_csv(series_id)),
+        ('Stooq',           lambda: _fetch_stooq(series_id)),
     ]
     for name, fn in sources:
         try:

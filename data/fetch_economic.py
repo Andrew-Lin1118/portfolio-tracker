@@ -277,10 +277,34 @@ def build_indicator(series_id, name, kind):
         return None
 
 
+def _load_existing_indicators():
+    """讀現有 economic_data.json 的 indicators（merge 用，避免本次失敗把上次 success 蓋成 null）。
+    14 天內的舊資料才採用，避免上游服務長期失效時前端顯示過時資料。"""
+    try:
+        with open(OUT_FILE, encoding='utf-8') as f:
+            d = json.load(f)
+        gen = d.get('generated', '')
+        if gen:
+            try:
+                gen_dt = datetime.datetime.fromisoformat(gen.replace('Z', '+00:00'))
+                age_days = (datetime.datetime.now(datetime.timezone.utc) - gen_dt).days
+                if age_days > 14:
+                    print(f'  [merge] 上次資料 {age_days} 天前，太舊不沿用', flush=True)
+                    return {}
+            except Exception:
+                pass
+        return d.get('indicators', {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
 def main():
     print('抓取 FRED 經濟指標（並行）...', flush=True)
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    indicators = {sid: None for sid, _, _ in SERIES}
+
+    # ★ 先讀現有 JSON 當底圖（merge 模式）：本次失敗的 series 沿用上次 success
+    existing = _load_existing_indicators()
+    indicators = {sid: existing.get(sid) for sid, _, _ in SERIES}
 
     # 6 個 series 並行抓（耗時從 6×~5s = 30s 縮到 ~5s）
     with ThreadPoolExecutor(max_workers=6) as pool:
@@ -295,11 +319,12 @@ def main():
                           + (f' (上期 {ind["prev"]}, 月變 {ind["mom"]:+.2f}pt)' if ind['prev'] is not None else ''),
                           flush=True)
                 else:
-                    print(f'  ✗ {sid:10s} 無資料', flush=True)
+                    kept = '（沿用上次）' if indicators[sid] else ''
+                    print(f'  ✗ {sid:10s} 本次無資料{kept}', flush=True)
             except Exception as e:
                 print(f'  ✗ {sid:10s} 例外：{e}', flush=True)
 
-    # 即使全部失敗，也要寫出 JSON（含 generated + 全 null indicators）
+    # 即使全部失敗，也要寫出 JSON
     payload = {
         'generated': datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z',
         'indicators': indicators,

@@ -8513,23 +8513,29 @@
             return isFinite(v) ? v : 0;
         }
         // 取「今日（台北日期）之前」的最近 N 筆 snapshot；最新者在最前
+        // ★ 過濾掉 equity 為 null/NaN/0 的無效 snapshot（休市日 snapshot_futures.py
+        //   抓不到資料但仍會寫一筆空殼進歷史，必須跳過）
         function _futPrevSnaps(n) {
             const snaps = _futuresHistory?.snapshots;
             if (!Array.isArray(snaps) || snaps.length === 0) return [];
             const todayTPE = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' }); // YYYY-MM-DD
             const out = [];
             for (let i = snaps.length - 1; i >= 0 && out.length < n; i--) {
-                const d = snaps[i]?.date;
+                const s = snaps[i];
+                const d = s?.date;
                 if (!d || d >= todayTPE) continue;
-                out.push(snaps[i]);
+                // 跳過 equity 無效的空殼 snapshot
+                const eq = Number(s.equity ?? NaN);
+                if (!isFinite(eq) || eq <= 0) continue;
+                out.push(s);
             }
             return out;
         }
 
         // 今日期貨盤中損益（TWD）
-        //   = 當前 equity − 最近一筆「今日之前」snapshot 的 equity
+        //   = 當前 equity − 最近一筆「今日之前」有效 snapshot 的 equity
         //   舊公式 (equity − today_balance) 等於整個 unrealized_pnl，
-        //   會把累積未實現誤算為今日損益。
+        //   會把累積未實現誤算為今日損益，已棄用。
         //   依賴 data/futures_history.json（server.py 每日 14:05 執行 snapshot_futures.py 寫入）。
         function getFuturesTodayPnLTWD() {
             if (!_futuresData?.margin) return 0;
@@ -8543,11 +8549,9 @@
                     return isFinite(diff) ? diff : 0;
                 }
             }
-            // Fallback：尚無歷史 snapshot 時，退回舊公式（首日使用，會包含全部未實現）
-            const tb = Number(_futuresData.margin.today_balance ?? NaN);
-            if (!isFinite(tb) || tb <= 0) return 0;
-            const diff = eq - tb;
-            return isFinite(diff) ? diff : 0;
+            // 沒有任何有效歷史 snapshot → 無法可靠計算「今日 P&L」，回 0 比顯示
+            // 全部累積未實現（誤導性高）好。等下一次 snapshot 寫入後就會正確。
+            return 0;
         }
 
         // 昨日期貨損益（TWD）

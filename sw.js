@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v56';  // ← 2026-05-04：觀察清單刪除鈕永遠顯示（提高對比）
+const CACHE_NAME = 'portfolio-tracker-v57';  // ← 2026-05-04：watchlist 混合 K 線 + storage migration
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

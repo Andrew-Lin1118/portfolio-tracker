@@ -3966,10 +3966,18 @@
         //   TV widget 真的不支援的，就改 native chart：用 Yahoo / OKX 抓 OHLC + 自繪
         //   每筆要指定資料源：'yahoo:^VIX' / 'okx:NVDA-USDT-SWAP' / 'yahoo:^TWII' 等
         const WL_NATIVE_CHART = {
+            // 指數 / VIX（TV widget 通常付費限定）
             'CBOE:VIX':           { source: 'yahoo', sym: '^VIX' },
             'TWSE:IX0001':        { source: 'yahoo', sym: '^TWII' },
             'KRX:KOSPI':          { source: 'yahoo', sym: '^KS11' },
+            'INDEX:DJUSSC':       { source: 'yahoo', sym: '^DJUSSC' },
+            'DJ:DJUSSC':          { source: 'yahoo', sym: '^DJUSSC' },  // 舊鍵相容
             'CRYPTOCAP:BTC.D':    { source: 'coingecko', sym: 'btc-dominance' },
+            // 韓股 KRX、港股 HKEX：TV widget 不一定支援，全部 fallback Yahoo
+            'KRX:005930':         { source: 'yahoo', sym: '005930.KS' },
+            'KRX:000660':         { source: 'yahoo', sym: '000660.KS' },
+            'HKEX:9747':          { source: 'yahoo', sym: '9747.HK' },
+            'HKEX:7709':          { source: 'yahoo', sym: '7709.HK' },
             // BINANCE stock-themed perpetual：TV widget 偶爾通偶爾不通，強制走 OKX
             'BINANCE:NVDAXUSDT.P':{ source: 'okx', sym: 'NVDA-USDT-SWAP' },
             'BINANCE:METAUSDT.P': { source: 'okx', sym: 'META-USDT-SWAP' },
@@ -3982,6 +3990,13 @@
             'BINANCE:SNDKXUSDT.P':{ source: 'okx', sym: 'SNDK-USDT-SWAP' },
             'BINANCE:ORCLUSDT.P': { source: 'okx', sym: 'ORCL-USDT-SWAP' },
             'BINANCE:ETHUSDT.P':  { source: 'okx', sym: 'ETH-USDT-SWAP' },
+            // OKX 沒有對應、改走 Yahoo 底層：Tradr/合成衍生品的真正股票
+            'BINANCE:LITEUSDT.P': { source: 'yahoo', sym: 'LITE' },
+            'BINANCE:AAOIUSDT.P': { source: 'yahoo', sym: 'AAOI' },
+            'BINANCE:SKHXUSDT.P': { source: 'yahoo', sym: '000660.KS' },  // SK Hynix
+            'BINANCE:SMSNUSDT.P': { source: 'yahoo', sym: '005930.KS' },  // Samsung
+            'BINANCE:ONDSXUSDT.P':{ source: 'yahoo', sym: 'ONDS' },
+            'BINANCE:SLVXUSDT.P': { source: 'yahoo', sym: 'SLVX' },
         };
         let _wlLwcLoadPromise = null;
         function _wlLoadLwc() {
@@ -4003,11 +4018,11 @@
         const WL_DEFAULTS = {
             proto: [
                 { sym: 'VIX',     tv: 'CBOE:VIX',           yf: '^VIX' },
-                { sym: 'DJUSSC',  tv: 'DJ:DJUSSC',          yf: '^DJUSSC' },
+                { sym: 'DJUSSC',  tv: 'INDEX:DJUSSC',       yf: '^DJUSSC' },
                 { sym: 'NQ1!',    tv: 'CME_MINI:NQ1!',      yf: 'NQ=F' },
                 { sym: 'IX0001',  tv: 'TWSE:IX0001',        yf: '^TWII' },
                 { sym: 'KOSPI',   tv: 'KRX:KOSPI',          yf: '^KS11' },
-                { sym: 'EWY',     tv: 'NYSE:EWY',           yf: 'EWY' },
+                { sym: 'EWY',     tv: 'AMEX:EWY',           yf: 'EWY' },     // NYSEARCA
                 { sym: 'NVDA',    tv: 'NASDAQ:NVDA',        yf: 'NVDA' },
                 { sym: 'AMD',     tv: 'NASDAQ:AMD',         yf: 'AMD' },
                 { sym: 'AVGO',    tv: 'NASDAQ:AVGO',        yf: 'AVGO' },
@@ -4028,7 +4043,7 @@
                 { sym: 'TSLA',    tv: 'NASDAQ:TSLA',        yf: 'TSLA' },
             ],
             lev: [
-                { sym: 'USD',     tv: 'NYSE:USD',           yf: 'USD' },
+                { sym: 'USD',     tv: 'AMEX:USD',           yf: 'USD' },     // NYSEARCA
                 { sym: 'NVDL',    tv: 'NASDAQ:NVDL',        yf: 'NVDL' },
                 { sym: 'AMDL',    tv: 'NASDAQ:AMDL',        yf: 'AMDL' },
                 { sym: 'AVGX',    tv: 'NASDAQ:AVGX',        yf: 'AVGX' },
@@ -4104,10 +4119,37 @@
         function _wlSaveStorage() {
             try { localStorage.setItem(WL_STORAGE_KEY, JSON.stringify(_wlData)); } catch(_) {}
         }
+        // 把 WL_DEFAULTS 內缺欄位（yf/okx/binance/cg）合併進使用者 localStorage 裡同 tv 的條目
+        // 解決：使用者舊清單儲存於 storage，後續程式新增的欄位（例如 BTC.D 的 cg、stock-themed 的 yf）
+        // 永遠不會套到使用者實際資料 → 加密還是「—」
+        function _wlMigrateFromDefaults() {
+            if (!_wlData) return;
+            let touched = 0;
+            for (const cat of ['proto','lev','crypto']) {
+                const userList = _wlData[cat] || [];
+                const defList  = WL_DEFAULTS[cat] || [];
+                const defByTv  = {}; defList.forEach(d => { if (d.tv) defByTv[d.tv] = d; });
+                for (const u of userList) {
+                    const d = defByTv[u.tv];
+                    if (!d) continue;
+                    for (const key of ['yf','okx','binance','cg']) {
+                        if ((u[key] === undefined || u[key] === '') && d[key]) {
+                            u[key] = d[key];
+                            touched++;
+                        }
+                    }
+                }
+            }
+            if (touched > 0) {
+                _wlSaveStorage();
+                console.log(`[watchlist] migrated ${touched} fields from defaults`);
+            }
+        }
         function _wlInit() {
             const saved = _wlLoadStorage();
             if (saved && saved.proto && saved.lev && saved.crypto) {
                 _wlData = saved;
+                _wlMigrateFromDefaults();   // ★ 把預設新增的 yf/okx/cg 合併進來
             } else {
                 // 第一次：複製預設值
                 _wlData = JSON.parse(JSON.stringify(WL_DEFAULTS));

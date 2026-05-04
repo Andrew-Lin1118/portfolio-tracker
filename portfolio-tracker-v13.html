@@ -321,6 +321,7 @@
             <button class="tab-btn" id="tab-btn-3" onclick="switchTab(3)">🔬 技術面</button>
             <button class="tab-btn" id="tab-btn-4" onclick="switchTab(4)">🎯 券商目標</button>
             <button class="tab-btn" id="tab-btn-9" onclick="switchTab(9)">📊 財報分析</button>
+            <button class="tab-btn" id="tab-btn-10" onclick="switchTab(10)">📋 觀察清單</button>
             <button class="tab-btn" id="tab-btn-5" onclick="switchTab(5)">🌐 總體經濟</button>
             <button class="tab-btn" id="tab-btn-6" onclick="switchTab(6)">📉 資產變化</button>
             <button class="tab-btn" id="tab-btn-7" onclick="switchTab(7)">📰 個股新聞</button>
@@ -794,6 +795,55 @@
                 </div>
             </div>
         </div><!-- /tab-pane-9 -->
+
+        <!-- Tab 10: 觀察清單（個股原型 / 個股槓桿 / 加密 + TradingView K 線）-->
+        <div id="tab-pane-10" class="tab-pane" style="padding-top:1rem;">
+            <div class="glass-card" style="padding:1.5rem 2rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">📋 觀察清單</h2>
+                    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                        <button id="wl-edit-btn" onclick="wlToggleEditMode()" style="padding:0.5rem 1rem; background:rgba(99,102,241,0.15); color:#a5b4fc; font-weight:600; border:1px solid rgba(99,102,241,0.4); border-radius:8px; font-size:0.85rem; cursor:pointer;">✏️ 編輯模式</button>
+                        <button id="wl-add-btn" onclick="wlShowAddModal()" style="padding:0.5rem 1rem; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#fff; font-weight:700; border:none; border-radius:8px; font-size:0.85rem; cursor:pointer; display:none;">+ 新增標的</button>
+                    </div>
+                </div>
+                <!-- 子分頁 -->
+                <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
+                    <button class="wl-subtab active" data-cat="proto"  onclick="wlSwitchCat('proto')"  style="padding:0.45rem 1rem; background:rgba(251,191,36,0.18); color:#fbbf24; border:1px solid rgba(251,191,36,0.5); border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">個股原型</button>
+                    <button class="wl-subtab" data-cat="lev"    onclick="wlSwitchCat('lev')"    style="padding:0.45rem 1rem; background:rgba(15,30,60,0.7); color:#94a3b8; border:1px solid rgba(59,130,246,0.2); border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">個股槓桿</button>
+                    <button class="wl-subtab" data-cat="crypto" onclick="wlSwitchCat('crypto')" style="padding:0.45rem 1rem; background:rgba(15,30,60,0.7); color:#94a3b8; border:1px solid rgba(59,130,246,0.2); border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">加密</button>
+                    <span id="wl-status" style="margin-left:auto; align-self:center; font-size:0.75rem; color:#64748b;"></span>
+                </div>
+
+                <!-- Watchlist Table -->
+                <div style="overflow-x:auto; border:1px solid rgba(59,130,246,0.15); border-radius:10px; max-height:480px; overflow-y:auto;">
+                    <table id="wl-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                        <thead style="background:rgba(15,30,60,0.95); position:sticky; top:0; z-index:5;">
+                            <tr style="color:#94a3b8; text-align:left;">
+                                <th style="padding:0.6rem 0.8rem; font-weight:600; width:42%;">商品</th>
+                                <th style="padding:0.6rem 0.8rem; font-weight:600; text-align:right;">最新價</th>
+                                <th style="padding:0.6rem 0.8rem; font-weight:600; text-align:right;">漲跌</th>
+                                <th style="padding:0.6rem 0.8rem; font-weight:600; text-align:right;">漲跌%</th>
+                                <th id="wl-th-actions" style="padding:0.6rem 0.5rem; font-weight:600; text-align:center; width:90px; display:none;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="wl-tbody"><tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">載入中…</td></tr></tbody>
+                    </table>
+                </div>
+
+                <!-- TradingView Chart -->
+                <div style="margin-top:1.25rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.5rem;">
+                        <div style="color:#cbd5e1; font-size:0.9rem; font-weight:600;">
+                            📊 K 線圖（TradingView）：<span id="wl-tv-symbol-label" style="color:#fbbf24;">— 請點選上方標的 —</span>
+                        </div>
+                        <div style="font-size:0.72rem; color:#64748b;">點選上方任一列即可載入；含 MA / Stoch / MACD / RSI 指標</div>
+                    </div>
+                    <div id="wl-tv-container" style="width:100%; min-height:560px; background:rgba(10,25,45,0.6); border:1px solid rgba(59,130,246,0.15); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#475569; font-size:0.85rem;">
+                        點選一個標的查看 K 線
+                    </div>
+                </div>
+            </div>
+        </div><!-- /tab-pane-10 -->
 
 
         <!-- ▼▼▼ 版本標記（暫時用來驗證快取是否更新；確認後可移除） ▼▼▼ -->
@@ -3812,6 +3862,357 @@
             if (n === 9 && !_earningsDeepLoaded) {
                 loadEarningsDeep(false);
             }
+            // 切換到觀察清單 Tab：首次初始化、render + 啟動報價輪詢
+            if (n === 10) {
+                wlOnEnter();
+            } else {
+                wlOnLeave();
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        //  Tab 10: 觀察清單（Watchlist + TradingView）
+        // ════════════════════════════════════════════════════════════════════
+        const WL_STORAGE_KEY = 'pt_watchlist_v1';
+        const WL_TV_SCRIPT_URL = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+
+        // 預設清單（依使用者截圖；可在編輯模式改）
+        // 每筆 { sym: 顯示用, tv: TradingView symbol（含 exchange 前綴）, yf: yfinance/Yahoo Chart symbol（沒值代表 Yahoo 不支援）}
+        const WL_DEFAULTS = {
+            proto: [
+                { sym: 'VIX',     tv: 'CBOE:VIX',           yf: '^VIX' },
+                { sym: 'DJUSSC',  tv: 'DJ:DJUSSC',          yf: '^DJUSSC' },
+                { sym: 'NQ1!',    tv: 'CME_MINI:NQ1!',      yf: 'NQ=F' },
+                { sym: 'IX0001',  tv: 'TWSE:IX0001',        yf: '^TWII' },
+                { sym: 'KOSPI',   tv: 'KRX:KOSPI',          yf: '^KS11' },
+                { sym: 'EWY',     tv: 'NYSE:EWY',           yf: 'EWY' },
+                { sym: 'NVDA',    tv: 'NASDAQ:NVDA',        yf: 'NVDA' },
+                { sym: 'AMD',     tv: 'NASDAQ:AMD',         yf: 'AMD' },
+                { sym: 'AVGO',    tv: 'NASDAQ:AVGO',        yf: 'AVGO' },
+                { sym: 'TSM',     tv: 'NYSE:TSM',           yf: 'TSM' },
+                { sym: 'MU',      tv: 'NASDAQ:MU',          yf: 'MU' },
+                { sym: 'SNDK',    tv: 'NASDAQ:SNDK',        yf: 'SNDK' },
+                { sym: '005930',  tv: 'KRX:005930',         yf: '005930.KS' },
+                { sym: '000660',  tv: 'KRX:000660',         yf: '000660.KS' },
+                { sym: 'WDC',     tv: 'NASDAQ:WDC',         yf: 'WDC' },
+                { sym: 'COHR',    tv: 'NYSE:COHR',          yf: 'COHR' },
+                { sym: 'LITE',    tv: 'NASDAQ:LITE',        yf: 'LITE' },
+                { sym: 'AXTI',    tv: 'NASDAQ:AXTI',        yf: 'AXTI' },
+                { sym: 'AAOI',    tv: 'NASDAQ:AAOI',        yf: 'AAOI' },
+                { sym: 'PLTR',    tv: 'NASDAQ:PLTR',        yf: 'PLTR' },
+                { sym: 'NBIS',    tv: 'NASDAQ:NBIS',        yf: 'NBIS' },
+                { sym: 'GOOG',    tv: 'NASDAQ:GOOG',        yf: 'GOOG' },
+                { sym: 'META',    tv: 'NASDAQ:META',        yf: 'META' },
+                { sym: 'TSLA',    tv: 'NASDAQ:TSLA',        yf: 'TSLA' },
+            ],
+            lev: [
+                { sym: 'USD',     tv: 'NYSE:USD',           yf: 'USD' },
+                { sym: 'NVDL',    tv: 'NASDAQ:NVDL',        yf: 'NVDL' },
+                { sym: 'AMDL',    tv: 'NASDAQ:AMDL',        yf: 'AMDL' },
+                { sym: 'AVGX',    tv: 'NASDAQ:AVGX',        yf: 'AVGX' },
+                { sym: 'TSMX',    tv: 'NASDAQ:TSMX',        yf: 'TSMX' },
+                { sym: 'MUU',     tv: 'NASDAQ:MUU',         yf: 'MUU' },
+                { sym: 'SNXX',    tv: 'NASDAQ:SNXX',        yf: 'SNXX' },
+                { sym: '9747',    tv: 'HKEX:9747',          yf: '9747.HK' },
+                { sym: '7709',    tv: 'HKEX:7709',          yf: '7709.HK' },
+                { sym: 'STX',     tv: 'NASDAQ:STX',         yf: 'STX' },
+                { sym: 'WDCX',    tv: 'NASDAQ:WDCX',        yf: 'WDCX' },
+                { sym: 'PLTU',    tv: 'NASDAQ:PLTU',        yf: 'PLTU' },
+                { sym: 'NBIG',    tv: 'NASDAQ:NBIG',        yf: 'NBIG' },
+                { sym: 'COHX',    tv: 'NASDAQ:COHX',        yf: 'COHX' },
+                { sym: 'LITX',    tv: 'NASDAQ:LITX',        yf: 'LITX' },
+                { sym: 'AXTX',    tv: 'NASDAQ:AXTX',        yf: 'AXTX' },
+                { sym: 'AAOX',    tv: 'NASDAQ:AAOX',        yf: 'AAOX' },
+                { sym: 'FBL',     tv: 'NASDAQ:FBL',         yf: 'FBL' },
+                { sym: 'GGLL',    tv: 'NASDAQ:GGLL',        yf: 'GGLL' },
+                { sym: 'TSLL',    tv: 'NASDAQ:TSLL',        yf: 'TSLL' },
+                { sym: 'ORCU',    tv: 'NASDAQ:ORCU',        yf: 'ORCU' },
+                { sym: 'ASTX',    tv: 'NASDAQ:ASTX',        yf: 'ASTX' },
+                { sym: 'KTOS',    tv: 'NASDAQ:KTOS',        yf: 'KTOS' },
+                { sym: 'ONDS',    tv: 'NASDAQ:ONDS',        yf: 'ONDS' },
+            ],
+            crypto: [
+                { sym: 'BTCUSDT', tv: 'BINANCE:BTCUSDT',    yf: 'BTC-USD' },
+                { sym: 'ETHUSDT', tv: 'BINANCE:ETHUSDT',    yf: 'ETH-USD' },
+                { sym: 'BTC.D',   tv: 'CRYPTOCAP:BTC.D',    yf: '' },
+                { sym: 'MSTR',    tv: 'NASDAQ:MSTR',        yf: 'MSTR' },
+                { sym: 'BMNR',    tv: 'AMEX:BMNR',          yf: 'BMNR' },
+                { sym: 'CRCL',    tv: 'NYSE:CRCL',          yf: 'CRCL' },
+                { sym: 'COIN',    tv: 'NASDAQ:COIN',        yf: 'COIN' },
+                { sym: 'SILVER',  tv: 'TVC:SILVER',         yf: 'SI=F' },
+                { sym: 'GOLD',    tv: 'TVC:GOLD',           yf: 'GC=F' },
+                { sym: 'SLV',     tv: 'AMEX:SLV',           yf: 'SLV' },
+                { sym: 'ORCLUSDT.P',  tv: 'BINANCE:ORCLUSDT.P', yf: '' },
+                { sym: 'METAUSDT.P',  tv: 'BINANCE:METAUSDT.P', yf: '' },
+                { sym: 'LITEUSDT.P',  tv: 'BINANCE:LITEUSDT.P', yf: '' },
+                { sym: 'AAOIUSDT.P',  tv: 'BINANCE:AAOIUSDT.P', yf: '' },
+                { sym: 'SKHXUSDT.P',  tv: 'BINANCE:SKHXUSDT.P', yf: '' },
+                { sym: 'SMSNUSDT.P',  tv: 'BINANCE:SMSNUSDT.P', yf: '' },
+                { sym: 'ETHUSDT.P',   tv: 'BINANCE:ETHUSDT.P',  yf: '' },
+                { sym: 'PLTRXUSDT.P', tv: 'BINANCE:PLTRXUSDT.P', yf: '' },
+                { sym: 'ONDSXUSDT.P', tv: 'BINANCE:ONDSXUSDT.P', yf: '' },
+                { sym: 'SNDKXUSDT.P', tv: 'BINANCE:SNDKXUSDT.P', yf: '' },
+                { sym: 'TSMXUSDT.P',  tv: 'BINANCE:TSMXUSDT.P',  yf: '' },
+                { sym: 'AMDXUSDT.P',  tv: 'BINANCE:AMDXUSDT.P',  yf: '' },
+                { sym: 'TSLAXUSDT.P', tv: 'BINANCE:TSLAXUSDT.P', yf: '' },
+                { sym: 'MUXUSDT.P',   tv: 'BINANCE:MUXUSDT.P',   yf: '' },
+                { sym: 'QQQXUSDT.P',  tv: 'BINANCE:QQQXUSDT.P',  yf: '' },
+                { sym: 'NVDAXUSDT.P', tv: 'BINANCE:NVDAXUSDT.P', yf: '' },
+                { sym: 'SLVXUSDT.P',  tv: 'BINANCE:SLVXUSDT.P',  yf: '' },
+                { sym: 'XAUTUSDT.P',  tv: 'BINANCE:XAUTUSDT.P',  yf: '' },
+            ],
+        };
+
+        let _wlData     = null;          // {proto, lev, crypto}
+        let _wlCat      = 'proto';        // 當前子分頁
+        let _wlEditMode = false;
+        let _wlSelectedSym = null;        // 當前 TradingView 顯示的 symbol（避免重複載入）
+        let _wlPriceTimer  = null;        // 報價輪詢 setInterval
+        let _wlTvLoaded    = false;       // TradingView script loaded?
+        const _wlPriceCache = {};         // {yfsymbol: {price, change, changePct, ts}}
+
+        function _wlLoadStorage() {
+            try {
+                const raw = localStorage.getItem(WL_STORAGE_KEY);
+                if (raw) return JSON.parse(raw);
+            } catch(_) {}
+            return null;
+        }
+        function _wlSaveStorage() {
+            try { localStorage.setItem(WL_STORAGE_KEY, JSON.stringify(_wlData)); } catch(_) {}
+        }
+        function _wlInit() {
+            const saved = _wlLoadStorage();
+            if (saved && saved.proto && saved.lev && saved.crypto) {
+                _wlData = saved;
+            } else {
+                // 第一次：複製預設值
+                _wlData = JSON.parse(JSON.stringify(WL_DEFAULTS));
+                _wlSaveStorage();
+            }
+        }
+
+        function wlSwitchCat(cat) {
+            if (!['proto','lev','crypto'].includes(cat)) return;
+            _wlCat = cat;
+            document.querySelectorAll('.wl-subtab').forEach(b => {
+                const isActive = b.dataset.cat === cat;
+                if (isActive) {
+                    b.classList.add('active');
+                    b.style.background = 'rgba(251,191,36,0.18)';
+                    b.style.color = '#fbbf24';
+                    b.style.borderColor = 'rgba(251,191,36,0.5)';
+                } else {
+                    b.classList.remove('active');
+                    b.style.background = 'rgba(15,30,60,0.7)';
+                    b.style.color = '#94a3b8';
+                    b.style.borderColor = 'rgba(59,130,246,0.2)';
+                }
+            });
+            wlRender();
+            wlRefreshPrices();
+        }
+
+        function wlRender() {
+            const tbody = document.getElementById('wl-tbody');
+            if (!tbody || !_wlData) return;
+            const list = _wlData[_wlCat] || [];
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">（清單為空）按右上「+ 新增標的」加入</td></tr>';
+                return;
+            }
+            tbody.innerHTML = list.map((it, idx) => {
+                const cache = it.yf ? _wlPriceCache[it.yf] : null;
+                const fmtPrice = cache && cache.price != null ? cache.price.toLocaleString('en-US', {maximumFractionDigits: cache.price >= 100 ? 2 : 4}) : '—';
+                const fmtChg   = cache && cache.change != null ? (cache.change > 0 ? '+' : '') + cache.change.toFixed(2) : '—';
+                const fmtPct   = cache && cache.changePct != null ? (cache.changePct > 0 ? '+' : '') + cache.changePct.toFixed(2) + '%' : '—';
+                const color    = !cache || cache.change == null ? '#94a3b8' : (cache.change > 0 ? '#10b981' : (cache.change < 0 ? '#ef4444' : '#94a3b8'));
+                const rowSel   = (_wlSelectedSym === it.tv) ? 'background:rgba(251,191,36,0.08);' : '';
+                const actions = _wlEditMode ? `
+                    <td style="padding:0.4rem 0.4rem; text-align:center; white-space:nowrap;">
+                        <button onclick="event.stopPropagation();wlMoveItem(${idx},-1)" title="上移" style="padding:0.18rem 0.4rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.78rem;">↑</button>
+                        <button onclick="event.stopPropagation();wlMoveItem(${idx},1)" title="下移"  style="padding:0.18rem 0.4rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.78rem; margin-left:2px;">↓</button>
+                        <button onclick="event.stopPropagation();wlRemoveItem(${idx})" title="刪除" style="padding:0.18rem 0.45rem; background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.4); border-radius:5px; cursor:pointer; font-size:0.78rem; margin-left:4px;">✕</button>
+                    </td>` : '';
+                return `<tr data-idx="${idx}" onclick="wlOnRowClick(${idx})" style="cursor:pointer; border-bottom:1px solid rgba(59,130,246,0.08); ${rowSel}">
+                    <td style="padding:0.5rem 0.8rem;">
+                        <span style="color:#e2e8f0; font-weight:600;">${_wlEsc(it.sym)}</span>
+                        <span style="color:#475569; font-size:0.72rem; margin-left:0.4rem;">${_wlEsc(it.tv || '')}</span>
+                    </td>
+                    <td style="padding:0.5rem 0.8rem; text-align:right; color:#e2e8f0; font-variant-numeric:tabular-nums;">${fmtPrice}</td>
+                    <td style="padding:0.5rem 0.8rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtChg}</td>
+                    <td style="padding:0.5rem 0.8rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtPct}</td>
+                    ${actions}
+                </tr>`;
+            }).join('');
+        }
+
+        function _wlEsc(s) { return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+        function wlOnRowClick(idx) {
+            const list = _wlData[_wlCat] || [];
+            const it = list[idx];
+            if (!it) return;
+            wlLoadTvChart(it.tv, it.sym);
+            wlRender(); // 重 render 來標示 selected row
+        }
+
+        // ── TradingView Advanced Chart Widget ──
+        function wlLoadTvChart(tvSymbol, displaySym) {
+            if (!tvSymbol) return;
+            if (_wlSelectedSym === tvSymbol) return; // 已是同一個
+            _wlSelectedSym = tvSymbol;
+            const labelEl = document.getElementById('wl-tv-symbol-label');
+            if (labelEl) labelEl.textContent = `${displaySym}（${tvSymbol}）`;
+            const container = document.getElementById('wl-tv-container');
+            if (!container) return;
+            // 重建 widget container（TradingView script 每次 inject 會接管最後一個 .tradingview-widget-container__widget）
+            container.innerHTML = '';
+            container.style.display = 'block';
+            container.style.padding = '0';
+            container.style.minHeight = '600px';
+            const wrap = document.createElement('div');
+            wrap.className = 'tradingview-widget-container';
+            wrap.style.height = '100%';
+            wrap.style.width = '100%';
+            const widgetDiv = document.createElement('div');
+            widgetDiv.className = 'tradingview-widget-container__widget';
+            widgetDiv.style.height = '600px';
+            widgetDiv.style.width = '100%';
+            wrap.appendChild(widgetDiv);
+            container.appendChild(wrap);
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.async = true;
+            script.src = WL_TV_SCRIPT_URL;
+            script.innerHTML = JSON.stringify({
+                allow_symbol_change: true,
+                calendar: false,
+                details: false,
+                hide_side_toolbar: false,
+                hide_top_toolbar: false,
+                hide_legend: false,
+                hide_volume: false,
+                hotlist: false,
+                interval: 'D',
+                locale: 'zh_TW',
+                save_image: true,
+                style: '1',
+                symbol: tvSymbol,
+                theme: 'dark',
+                timezone: 'Asia/Taipei',
+                backgroundColor: '#0a1628',
+                gridColor: 'rgba(59,130,246,0.06)',
+                watchlist: [],
+                withdateranges: true,
+                compareSymbols: [],
+                studies: [
+                    'STD;Stochastic',
+                    'STD;MACD',
+                    'STD;RSI',
+                    'MASimple@tv-basicstudies',
+                ],
+                autosize: true,
+            });
+            wrap.appendChild(script);
+        }
+
+        // ── Yahoo Chart 報價（重用 yfFetch） ──
+        async function _wlFetchOnePrice(yf) {
+            try {
+                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1d&range=2d`;
+                const data = await yfFetch(url);
+                const r = data?.chart?.result?.[0];
+                if (!r) return null;
+                const meta = r.meta || {};
+                const cur  = Number(meta.regularMarketPrice ?? NaN);
+                const prev = Number(meta.chartPreviousClose ?? meta.previousClose ?? NaN);
+                if (!isFinite(cur)) return null;
+                const change = isFinite(prev) ? cur - prev : null;
+                const changePct = (isFinite(prev) && prev !== 0) ? (change / prev * 100) : null;
+                return { price: cur, change, changePct, ts: Date.now() };
+            } catch(_) { return null; }
+        }
+        async function wlRefreshPrices() {
+            if (!_wlData) return;
+            const list = _wlData[_wlCat] || [];
+            const targets = list.filter(it => it.yf);
+            if (targets.length === 0) { wlRender(); return; }
+            const statusEl = document.getElementById('wl-status');
+            if (statusEl) statusEl.textContent = `更新中 0/${targets.length}…`;
+            // 並行抓（並發上限 5）
+            const queue = targets.slice();
+            const CONCURRENCY = 5;
+            let done = 0;
+            const workers = Array.from({length: CONCURRENCY}, async () => {
+                while (queue.length) {
+                    const it = queue.shift();
+                    const r  = await _wlFetchOnePrice(it.yf);
+                    if (r) _wlPriceCache[it.yf] = r;
+                    done++;
+                    if (statusEl) statusEl.textContent = `更新中 ${done}/${targets.length}…`;
+                }
+            });
+            await Promise.all(workers);
+            wlRender();
+            if (statusEl) statusEl.textContent = `✓ ${new Date().toLocaleTimeString('zh-TW')} 更新`;
+        }
+
+        // ── Edit Mode CRUD（CRUD + 拖曳留 Phase 2/3）──
+        function wlToggleEditMode() {
+            _wlEditMode = !_wlEditMode;
+            const btn = document.getElementById('wl-edit-btn');
+            const addBtn = document.getElementById('wl-add-btn');
+            const thAct  = document.getElementById('wl-th-actions');
+            if (btn) btn.textContent = _wlEditMode ? '✓ 完成編輯' : '✏️ 編輯模式';
+            if (addBtn) addBtn.style.display = _wlEditMode ? 'inline-block' : 'none';
+            if (thAct) thAct.style.display   = _wlEditMode ? 'table-cell' : 'none';
+            wlRender();
+        }
+        function wlMoveItem(idx, delta) {
+            const list = _wlData[_wlCat] || [];
+            const ni = idx + delta;
+            if (ni < 0 || ni >= list.length) return;
+            [list[idx], list[ni]] = [list[ni], list[idx]];
+            _wlSaveStorage();
+            wlRender();
+        }
+        function wlRemoveItem(idx) {
+            const list = _wlData[_wlCat] || [];
+            const it = list[idx];
+            if (!it) return;
+            if (!confirm(`刪除 ${it.sym}？`)) return;
+            list.splice(idx, 1);
+            _wlSaveStorage();
+            wlRender();
+        }
+        function wlShowAddModal() {
+            // Phase 2 才實作；先用簡易 prompt 占位
+            const sym = prompt('輸入 symbol（例：NVDA、BTCUSDT、9747.HK）：');
+            if (!sym) return;
+            const tv  = prompt('輸入 TradingView 完整代碼（例：NASDAQ:NVDA、BINANCE:BTCUSDT、HKEX:9747）：', sym);
+            if (!tv) return;
+            const yf  = prompt('輸入 Yahoo Finance symbol（沒有就留空，例：NVDA、BTC-USD、9747.HK）：', '');
+            _wlData[_wlCat].push({ sym: sym.trim(), tv: tv.trim(), yf: (yf || '').trim() });
+            _wlSaveStorage();
+            wlRender();
+            wlRefreshPrices();
+        }
+
+        // ── Tab 進出 hook ──
+        function wlOnEnter() {
+            if (!_wlData) _wlInit();
+            wlSwitchCat(_wlCat);   // 內部會 render + refresh prices
+            // 啟動 30 秒輪詢
+            if (_wlPriceTimer) clearInterval(_wlPriceTimer);
+            _wlPriceTimer = setInterval(() => {
+                if (document.getElementById('tab-pane-10')?.classList.contains('active')) {
+                    wlRefreshPrices();
+                }
+            }, 30000);
+        }
+        function wlOnLeave() {
+            if (_wlPriceTimer) { clearInterval(_wlPriceTimer); _wlPriceTimer = null; }
         }
 
         // ==================== Tab 9：財報深度分析 ====================

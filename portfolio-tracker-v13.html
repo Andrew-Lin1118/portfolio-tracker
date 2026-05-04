@@ -861,7 +861,7 @@
                                     <th style="padding:0.6rem 0.5rem; font-weight:600; text-align:right;">最新價</th>
                                     <th style="padding:0.6rem 0.5rem; font-weight:600; text-align:right;">漲跌</th>
                                     <th style="padding:0.6rem 0.5rem; font-weight:600; text-align:right;">漲跌%</th>
-                                    <th id="wl-th-actions" style="padding:0.6rem 0.4rem; font-weight:600; text-align:center; width:54px; position:sticky; right:0; background:rgba(15,30,60,0.95); border-left:1px solid rgba(59,130,246,0.12);">操作</th>
+                                    <th id="wl-th-actions" style="padding:0.6rem 0.4rem; font-weight:600; text-align:center; width:84px; display:none; position:sticky; right:0; background:rgba(15,30,60,0.95); border-left:1px solid rgba(59,130,246,0.12);">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="wl-tbody"><tr><td colspan="6" style="text-align:center; padding:2rem; color:#64748b;">載入中…</td></tr></tbody>
@@ -4104,12 +4104,11 @@
             const tbody = document.getElementById('wl-tbody');
             if (!tbody || !_wlData) return;
             const list = _wlData[_wlCat] || [];
-            // header columns 顯示
-            // 拖曳把手只在編輯模式顯示；操作欄永遠顯示（至少有刪除鈕）
+            // header columns 顯示（刪除鈕只在編輯模式才出現，所以操作欄也只在編輯模式顯示）
             const thHandle = document.getElementById('wl-th-handle');
             const thAct    = document.getElementById('wl-th-actions');
             if (thHandle) thHandle.style.display = _wlEditMode ? 'table-cell' : 'none';
-            if (thAct)    thAct.style.display    = 'table-cell';
+            if (thAct)    thAct.style.display    = _wlEditMode ? 'table-cell' : 'none';
 
             if (list.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:#64748b;">（清單為空）${_wlEditMode ? '按右上「+ 新增標的」加入' : '進入編輯模式新增標的'}</td></tr>`;
@@ -4126,16 +4125,13 @@
                 const handleTd = _wlEditMode
                     ? `<td class="wl-handle" draggable="true" ondragstart="wlOnDragStart(event,${idx})" ondragend="wlOnDragEnd(event)" title="拖曳重排">≡</td>`
                     : '';
-                // 操作欄：編輯模式時顯示 ↑↓✕，平時只顯示 ✕（小且淡，hover 才明顯）
-                const actions = _wlEditMode
-                    ? `<td class="wl-actions" style="padding:0.4rem 0.3rem; text-align:center; white-space:nowrap; position:sticky; right:0; background:rgba(10,25,45,0.97); border-left:1px solid rgba(59,130,246,0.12);">
+                // 操作欄：只在編輯模式才顯示 ↑↓✕；非編輯模式整欄不出現
+                const actions = _wlEditMode ? `
+                    <td style="padding:0.4rem 0.3rem; text-align:center; white-space:nowrap; position:sticky; right:0; background:rgba(10,25,45,0.97); border-left:1px solid rgba(59,130,246,0.12);">
                         <button onclick="event.stopPropagation();wlMoveItem(${idx},-1)" title="上移" style="padding:0.16rem 0.32rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.72rem;">↑</button>
                         <button onclick="event.stopPropagation();wlMoveItem(${idx},1)" title="下移"  style="padding:0.16rem 0.32rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.72rem; margin-left:2px;">↓</button>
                         <button onclick="event.stopPropagation();wlRemoveItem(${idx})" title="刪除" style="padding:0.16rem 0.4rem; background:rgba(239,68,68,0.18); color:#fca5a5; border:1px solid rgba(239,68,68,0.4); border-radius:5px; cursor:pointer; font-size:0.72rem; margin-left:3px;">✕</button>
-                       </td>`
-                    : `<td class="wl-actions" style="padding:0.4rem 0.4rem; text-align:center; white-space:nowrap; position:sticky; right:0; background:rgba(10,25,45,0.97); border-left:1px solid rgba(59,130,246,0.06);">
-                        <button onclick="event.stopPropagation();wlRemoveItem(${idx})" title="刪除標的" style="padding:0.16rem 0.4rem; background:transparent; color:#475569; border:1px solid rgba(100,116,139,0.3); border-radius:5px; cursor:pointer; font-size:0.72rem;" onmouseover="this.style.color='#fca5a5';this.style.borderColor='rgba(239,68,68,0.6)';this.style.background='rgba(239,68,68,0.12)';" onmouseout="this.style.color='#475569';this.style.borderColor='rgba(100,116,139,0.3)';this.style.background='transparent';">✕</button>
-                       </td>`;
+                    </td>` : '';
                 return `<tr data-idx="${idx}" onclick="wlOnRowClick(${idx})" ondragover="wlOnDragOver(event,${idx})" ondragleave="wlOnDragLeave(event)" ondrop="wlOnDrop(event,${idx})" style="cursor:pointer; border-bottom:1px solid rgba(59,130,246,0.08); ${rowSel}">
                     ${handleTd}
                     <td style="padding:0.45rem 0.6rem;">

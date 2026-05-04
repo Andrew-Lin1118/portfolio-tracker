@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v57';  // ← 2026-05-04：watchlist 混合 K 線 + storage migration
+const CACHE_NAME = 'portfolio-tracker-v58';  // ← 2026-05-04：watchlist 時段標籤永遠顯示（今日/盤前/盤後/24H）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

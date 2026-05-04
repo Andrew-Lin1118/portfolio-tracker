@@ -6535,7 +6535,7 @@
         }
 
         // ── 總體經濟快取（1小時）──
-        const _MACRO_CACHE_KEY = 'pf_macro_v4';   // v4: ETF→指數 PE 軌跡 (^NDX, ^TWII)
+        const _MACRO_CACHE_KEY = 'pf_macro_v5';   // v5: 加 FED Watch 兩張卡 + FRED indicator 含 _history（近3月+估下月）
         const _MACRO_CACHE_TTL = 60 * 60 * 1000; // 1 小時
         function _loadMacroCache() {
             try { const r = JSON.parse(localStorage.getItem(_MACRO_CACHE_KEY)||'{}'); return (Date.now()-(r.ts||0) < _MACRO_CACHE_TTL) ? r : null; } catch { return null; }

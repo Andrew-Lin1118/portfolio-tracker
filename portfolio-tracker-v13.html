@@ -7458,14 +7458,19 @@
             let marketPE = null;
             try {
                 if (statusEl) statusEl.textContent = '抓取大盤本益比...';
-                const r = await fetch('./data/market_pe.json', { cache: 'no-store' });
+                const _peCtrl = new AbortController();
+                const _peTid  = setTimeout(() => _peCtrl.abort(), 8000);
+                const r = await fetch('./data/market_pe.json', { cache: 'no-store', signal: _peCtrl.signal });
+                clearTimeout(_peTid);
                 if (r.ok) marketPE = await r.json();
             } catch(_) {}
 
             // 存入快取（1小時 TTL）
-            _saveMacroCache(results, macroNews, marketPE);
+            // 注：macroNews 已隨「移除總體經濟頁籤的個股新聞區塊」一併刪除，這邊用空陣列佔位
+            const _emptyNews = [];
+            _saveMacroCache(results, _emptyNews, marketPE);
 
-            renderMacroTab(results, macroNews, marketPE);
+            renderMacroTab(results, _emptyNews, marketPE);
             _macroLoaded = true;
             _macroBgFetching = false;
             if (btn) { btn.textContent = '🔄 強制刷新'; btn.disabled = false; }

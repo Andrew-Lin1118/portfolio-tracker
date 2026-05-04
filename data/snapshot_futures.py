@@ -164,6 +164,14 @@ def snapshot(commit=False):
         'realized_pnl':      _num(margin.get('realized_pnl')),
     }
 
+    # ★ 休市 / 假日 / 未開盤時 SDK 仍會回傳 margin（含 today_balance 等舊值），
+    #   但 equity 為 None。若寫進歷史，前端「今日 P&L」計算會拿到無效 prev snapshot
+    #   而誤算（或落入錯誤 fallback）。
+    #   策略：equity 無效就視為無效快照，直接跳過寫入；不影響當日已有的有效快照。
+    if entry['equity'] is None or entry['equity'] <= 0:
+        _log(f'equity 無效（{entry["equity"]}），可能休市 / SDK 未提供市價，跳過寫入')
+        return False
+
     history = _load_history()
     snaps = history['snapshots']
     idx = next((i for i, s in enumerate(snaps) if s.get('date') == date_str), None)

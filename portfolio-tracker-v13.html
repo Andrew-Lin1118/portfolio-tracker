@@ -2287,6 +2287,7 @@
                 };
 
                 // ── 期貨明細 ──
+                // 卡片容器較窄時可能放不下三段；用 cqw font-size 動態縮放，並允許 wrap
                 const futLines = [];
                 if (futTWD > 0) {
                     const unreal = (typeof getFuturesUnrealizedTWD === 'function') ? getFuturesUnrealizedTWD() : 0;
@@ -2294,10 +2295,10 @@
                     const ucol   = pos ? '#10b981' : '#ef4444';
                     const ustr   = (pos?'+':'')+unreal.toLocaleString('zh-TW',{maximumFractionDigits:0});
                     futLines.push(
-                        '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.35rem;margin-top:0.4rem;font-size:0.78rem;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;">'
-                        + '<span style="color:#a855f7;font-weight:700;flex-shrink:0;">📈 期貨</span>'
-                        + '<span class="mono" style="color:#cbd5e1;flex-shrink:0;">NT$' + _t(futTWD) + '</span>'
-                        + '<span class="mono" style="color:'+ucol+';flex-shrink:0;">'+ustr+'</span>'
+                        '<div style="display:flex;align-items:baseline;justify-content:space-between;column-gap:0.35rem;row-gap:0.1rem;margin-top:0.4rem;font-size:clamp(0.66rem,3.2cqw,0.82rem);flex-wrap:wrap;">'
+                        + '<span style="color:#a855f7;font-weight:700;white-space:nowrap;">📈 期貨</span>'
+                        + '<span class="mono" style="color:#cbd5e1;white-space:nowrap;">NT$' + _t(futTWD) + '</span>'
+                        + '<span class="mono" style="color:'+ucol+';white-space:nowrap;">'+ustr+'</span>'
                         + '</div>'
                     );
                 }
@@ -2314,15 +2315,15 @@
                     if (pioTWD > 0) bdParts.push('派網 NT$' + _t(pioTWD));
                     const age = Number(_cryptoData?._age_seconds ?? -1);
                     const ageStr = age >= 0
-                        ? '<span class="mono" style="color:#64748b;font-size:0.7rem;margin-left:0.4rem;white-space:nowrap;">('
+                        ? '<span class="mono" style="color:#64748b;font-size:0.88em;margin-left:0.35rem;white-space:nowrap;">('
                           + (age < 60 ? age + 's' : Math.floor(age/60) + 'm') + '前)</span>'
                         : '';
                     futLines.push(
-                        '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.35rem;margin-top:0.4rem;font-size:0.78rem;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;">'
-                        + '<span style="color:#f59e0b;font-weight:700;flex-shrink:0;white-space:nowrap;">🪙 加密' + ageStr + '</span>'
-                        + '<span class="mono" style="color:#cbd5e1;flex-shrink:0;">NT$' + _t(cryptoTWD) + '</span>'
+                        '<div style="display:flex;align-items:baseline;justify-content:space-between;column-gap:0.35rem;row-gap:0.1rem;margin-top:0.4rem;font-size:clamp(0.66rem,3.2cqw,0.82rem);flex-wrap:wrap;">'
+                        + '<span style="color:#f59e0b;font-weight:700;white-space:nowrap;">🪙 加密' + ageStr + '</span>'
+                        + '<span class="mono" style="color:#cbd5e1;white-space:nowrap;">NT$' + _t(cryptoTWD) + '</span>'
                         + '</div>'
-                        + (bdParts.length ? '<div class="mono" style="color:#64748b;font-size:0.7rem;margin-top:0.15rem;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + bdParts.join(' · ') + '</div>' : '')
+                        + (bdParts.length ? '<div class="mono" style="color:#64748b;font-size:clamp(0.6rem,2.6cqw,0.72rem);margin-top:0.15rem;text-align:right;line-height:1.35;">' + bdParts.join(' · ') + '</div>' : '')
                     );
                 }
 
@@ -4200,26 +4201,25 @@
                 const color    = !cache || cache.change == null ? '#94a3b8' : (cache.change > 0 ? '#10b981' : (cache.change < 0 ? '#ef4444' : '#94a3b8'));
                 const rowSel   = (_wlSelectedSym === it.tv) ? 'background:rgba(251,191,36,0.08);' : '';
                 const srcTag   = cache && cache.src ? `<span style="color:#475569; font-size:0.65rem; margin-left:0.3rem;">[${cache.src}]</span>` : '';
-                // 時段標籤（比照持倉一覽）：
-                //   美股盤前盤後（YF + ext）→ 「盤前 +0.09 (+0.12%)」白色（含 change+pct，不顯示價格）
-                //   美股 regular / 港台韓 / 期指 (YF)→ 「今日」灰色
-                //   加密 (OKX/BNB)                  → 「24H」灰色
-                //   CoinGecko (CG)                  → 「24H 占比」灰色
-                let extLine = '';
+                // 漲跌 / 漲跌% 欄底下的延伸標籤（比照持倉一覽，但拆成兩格對齊各自欄位）：
+                //   美股盤前盤後 → 漲跌欄「盤前 -10.72」、漲跌%欄「(-5.12%)」
+                //   一般時段 / 加密 → 漲跌欄底下小字 tag「今日 / 24H / 24H 占比」
+                let extChgLine = '', extPctLine = '';
                 if (cache) {
                     if (cache.ext && (cache.ext.changePct != null || cache.ext.changePoints != null)) {
                         const ePct = Number(cache.ext.changePct);
                         const ePts = Number(cache.ext.changePoints);
                         const ptsStr = isFinite(ePts) ? ((ePts > 0 ? '+' : '') + ePts.toFixed(2)) : '';
                         const pctStr = isFinite(ePct) ? ((ePct > 0 ? '+' : '') + ePct.toFixed(2) + '%') : '';
-                        const body = ptsStr && pctStr ? `${ptsStr} (${pctStr})` : (ptsStr || pctStr);
-                        extLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${cache.ext.label || '盤後'} ${body}</div>`;
+                        const lab = cache.ext.label || '盤後';
+                        if (ptsStr) extChgLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${lab} ${ptsStr}</div>`;
+                        if (pctStr) extPctLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${pctStr}</div>`;
                     } else {
                         let tag = '';
                         if (cache.src === 'OKX' || cache.src === 'BNB') tag = '24H';
                         else if (cache.src === 'CG')                    tag = '24H 占比';
                         else if (cache.src === 'YF')                    tag = '今日';
-                        if (tag) extLine = `<div style="color:#64748b; font-size:0.62rem; font-weight:500; margin-top:0.1rem; white-space:nowrap; letter-spacing:0.5px;">${tag}</div>`;
+                        if (tag) extChgLine = `<div style="color:#64748b; font-size:0.62rem; font-weight:500; margin-top:0.1rem; white-space:nowrap; letter-spacing:0.5px;">${tag}</div>`;
                     }
                 }
                 const handleTd = _wlEditMode
@@ -4238,9 +4238,9 @@
                         <span style="color:#e2e8f0; font-weight:600;">${_wlEsc(it.sym)}</span>${srcTag}
                         <div style="color:#475569; font-size:0.66rem; margin-top:0.1rem;">${_wlEsc(it.tv || '')}</div>
                     </td>
-                    <td style="padding:0.45rem 0.5rem; text-align:right; color:#e2e8f0; font-variant-numeric:tabular-nums;">${fmtPrice}${extLine}</td>
-                    <td style="padding:0.45rem 0.5rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtChg}</td>
-                    <td style="padding:0.45rem 0.5rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtPct}</td>
+                    <td style="padding:0.45rem 0.5rem; text-align:right; color:#e2e8f0; font-variant-numeric:tabular-nums;">${fmtPrice}</td>
+                    <td style="padding:0.45rem 0.5rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtChg}${extChgLine}</td>
+                    <td style="padding:0.45rem 0.5rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtPct}${extPctLine}</td>
                     ${actions}
                 </tr>`;
             }).join('');

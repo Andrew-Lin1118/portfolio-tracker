@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v68';  // ← 2026-05-04：桌機 K 線也隱藏左側工具列
+const CACHE_NAME = 'portfolio-tracker-v69';  // ← 2026-05-04：持倉一覽成本價移到持有股數與現價之間
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

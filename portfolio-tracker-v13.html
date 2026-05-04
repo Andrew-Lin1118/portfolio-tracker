@@ -2455,6 +2455,7 @@
                 return `<tr data-symbol="${h.symbol}" style="background:${bg};">
                     <td style="padding:0.55rem 0.75rem;font-weight:600;">${h.market==='TW'?'🇹🇼':h.market==='HK'?'🇭🇰':'🇺🇸'} ${h.symbol}<br><small style="color:#64748b;">${h.name||''}</small></td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;">${h.quantity.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
+                    <td style="padding:0.55rem 0.75rem;text-align:right;color:#94a3b8;">${priceCcy}${h.costPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;color:#60a5fa;">${priceCcy}${h.currentPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
                     ${prevDayChgCell}
                     ${dayChgCell}
@@ -2462,7 +2463,6 @@
                     <td style="padding:0.55rem 0.75rem;text-align:right;">${displayValue}</td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;color:${isProfit?'#10b981':'#ef4444'};">${displayPnl}</td>
                     <td style="padding:0.55rem 0.75rem;text-align:right;color:${isProfit?'#10b981':'#ef4444'};"><span style="padding:0.2rem 0.5rem;border-radius:6px;background:${isProfit?'rgba(16,185,129,0.15)':'rgba(239,68,68,0.15)'};">${isProfit?'+':''}${pnlPct}%</span></td>
-                    <td style="padding:0.55rem 0.75rem;text-align:right;color:#94a3b8;">${priceCcy}${h.costPrice.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
                 </tr>`;
             }).join('');
 
@@ -2479,6 +2479,7 @@
                 <thead><tr>
                     <th onclick="sortHoldings('symbol')" style="${_thStyle}text-align:left;">代碼 ${_si('symbol')}</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">持有股數</th>
+                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#94a3b8;">成本價</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">現價</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#94a3b8;">昨日漲跌</th>
                     <th style="padding:0.6rem 0.75rem;text-align:right;color:#fbbf24;">今日漲跌</th>
@@ -2486,17 +2487,15 @@
                     <th onclick="sortHoldings('value')"  style="${_thStyle}">市值 (${currency}) ${_si('value')}</th>
                     <th onclick="sortHoldings('pnl')"    style="${_thStyle}">總損益 (${currency}) ${_si('pnl')}</th>
                     <th onclick="sortHoldings('pnlPct')" style="${_thStyle}">總損益% ${_si('pnlPct')}</th>
-                    <th style="padding:0.6rem 0.75rem;text-align:right;color:#94a3b8;">成本價</th>
                 </tr></thead>
                 <tbody>${tbodyHTML}</tbody>
                 <tfoot><tr style="background:rgba(251,191,36,0.08);">
                     <td style="padding:0.65rem 0.75rem;color:#fbbf24;font-weight:700;">合計</td>
-                    <td></td><td></td>
+                    <td></td><td></td><td></td>
                     ${dayPnlFooter}
                     <td style="padding:0.65rem 0.75rem;text-align:right;color:#fbbf24;font-weight:700;">${currency==='USD'?fmtAmt(stats.totalValue,'USD'):fmtAmt(stats.totalValueTWD,'TWD')}</td>
                     <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${currency==='USD'?fmtPnl(stats.totalPnL,'USD'):fmtPnl(stats.totalPnLTWD,'TWD')}</td>
                     <td style="padding:0.65rem 0.75rem;text-align:right;color:${stats.totalPnL>=0?'#10b981':'#ef4444'};font-weight:700;">${stats.totalPnL>=0?'+':''}${stats.totalPnLPercent.toFixed(2)}%</td>
-                    <td></td>
                 </tr></tfoot>`;
             _applyHoldingRowSelection();
         }

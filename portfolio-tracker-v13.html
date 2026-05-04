@@ -4540,8 +4540,12 @@
         }
 
         // ── 多源報價：Yahoo → OKX → Binance Spot → CoinGecko ──
-        // 盤前/盤後採用與持倉一致的 _extendedQuoteFromYahooMeta：
-        //   只在 NY 非 regular hours 才出（盤中顯示「今日」一般標籤）
+        // 盤前/盤後比照持倉做法：
+        //   ① regular meta 取現價 + 計算「今日漲跌 = 現價 vs 前一日收盤」
+        //   ② NY 非 regular hours 對美股額外抓 interval=1m&range=1d&includePrePost=true，
+        //      用最新延長盤分鐘 K 對 prevClose 算 changePoints/Pct → ext
+        //      （Yahoo chart meta 在台灣本地不一定回 preMarketPrice 等欄位；
+        //       holdings 的「盤前 +X (+X%)」是這樣來的）
         async function _wlFetchYahoo(yf) {
             try {
                 const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1d&range=2d`;
@@ -4554,11 +4558,33 @@
                 if (!isFinite(cur)) return null;
                 const change = isFinite(prev) ? cur - prev : null;
                 const changePct = (isFinite(prev) && prev !== 0) ? (change / prev * 100) : null;
-                // 盤前/盤後 ext（與持倉一致；regular hours 不出）
+                // 盤前/盤後 ext
                 let ext = null;
                 try {
                     if (typeof _extendedQuoteFromYahooMeta === 'function' && _isUsStockSymbol(yf)) {
+                        // 先試 meta 直接給的 pre/post（少數情況可用）
                         ext = _extendedQuoteFromYahooMeta(meta, 1);
+                        // 比照持倉：在 NY 非 regular hours，補抓 1m intraday includePrePost
+                        const session = (typeof _usExtendedSessionNow === 'function') ? _usExtendedSessionNow() : { active: false };
+                        if (!ext && session.active) {
+                            const url2 = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1m&range=1d&includePrePost=true`;
+                            const d2 = await yfFetch(url2).catch(() => null);
+                            const ch = d2?.chart?.result?.[0];
+                            const iq = (typeof _deriveYahooIntradayQuote === 'function') ? _deriveYahooIntradayQuote(ch, yf, 1) : null;
+                            if (iq && iq.price > 0 && isFinite(prev) && prev > 0) {
+                                const base = (session.phase === 'post' && isFinite(cur) && cur > 0) ? cur : prev;
+                                const pts = iq.price - base;
+                                const pct = (base > 0) ? pts / base * 100 : null;
+                                ext = {
+                                    label: session.label,
+                                    phase: session.phase,
+                                    price: iq.price,
+                                    changePoints: pts,
+                                    changePct: pct,
+                                    ts: (iq.time ? iq.time * 1000 : Date.now())
+                                };
+                            }
+                        }
                     }
                 } catch(_) {}
                 return { price: cur, change, changePct, ts: Date.now(), src: 'YF', ext };

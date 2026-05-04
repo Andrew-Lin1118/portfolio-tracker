@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v59';  // ← 2026-05-04：watchlist 美股盤中也帶出盤前/盤後 ext
+const CACHE_NAME = 'portfolio-tracker-v60';  // ← 2026-05-04：watchlist 美股盤前盤後改抓 1m intraday includePrePost（同持倉）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

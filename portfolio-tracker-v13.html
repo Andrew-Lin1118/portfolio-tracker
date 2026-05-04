@@ -2294,9 +2294,9 @@
                     const ucol   = pos ? '#10b981' : '#ef4444';
                     const ustr   = (pos?'+':'')+unreal.toLocaleString('zh-TW',{maximumFractionDigits:0});
                     futLines.push(
-                        '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;margin-top:0.4rem;font-size:0.78rem;">'
-                        + '<span style="color:#a855f7;font-weight:700;">📈 期貨</span>'
-                        + '<span class="mono" style="color:#cbd5e1;">NT$' + _t(futTWD) + '</span>'
+                        '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.35rem;margin-top:0.4rem;font-size:0.78rem;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;">'
+                        + '<span style="color:#a855f7;font-weight:700;flex-shrink:0;">📈 期貨</span>'
+                        + '<span class="mono" style="color:#cbd5e1;flex-shrink:0;">NT$' + _t(futTWD) + '</span>'
                         + '<span class="mono" style="color:'+ucol+';flex-shrink:0;">'+ustr+'</span>'
                         + '</div>'
                     );
@@ -2314,15 +2314,15 @@
                     if (pioTWD > 0) bdParts.push('派網 NT$' + _t(pioTWD));
                     const age = Number(_cryptoData?._age_seconds ?? -1);
                     const ageStr = age >= 0
-                        ? '<span class="mono" style="color:#64748b;font-size:0.7rem;margin-left:0.4rem;">('
-                          + (age < 60 ? age + 's' : Math.floor(age/60) + 'm') + ' 前)</span>'
+                        ? '<span class="mono" style="color:#64748b;font-size:0.7rem;margin-left:0.4rem;white-space:nowrap;">('
+                          + (age < 60 ? age + 's' : Math.floor(age/60) + 'm') + '前)</span>'
                         : '';
                     futLines.push(
-                        '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;margin-top:0.4rem;font-size:0.78rem;">'
-                        + '<span style="color:#f59e0b;font-weight:700;">🪙 加密' + ageStr + '</span>'
-                        + '<span class="mono" style="color:#cbd5e1;">NT$' + _t(cryptoTWD) + '</span>'
+                        '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.35rem;margin-top:0.4rem;font-size:0.78rem;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;">'
+                        + '<span style="color:#f59e0b;font-weight:700;flex-shrink:0;white-space:nowrap;">🪙 加密' + ageStr + '</span>'
+                        + '<span class="mono" style="color:#cbd5e1;flex-shrink:0;">NT$' + _t(cryptoTWD) + '</span>'
                         + '</div>'
-                        + (bdParts.length ? '<div class="mono" style="color:#64748b;font-size:0.7rem;margin-top:0.15rem;text-align:right;">' + bdParts.join(' · ') + '</div>' : '')
+                        + (bdParts.length ? '<div class="mono" style="color:#64748b;font-size:0.7rem;margin-top:0.15rem;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + bdParts.join(' · ') + '</div>' : '')
                     );
                 }
 
@@ -2331,7 +2331,7 @@
                     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.6rem;flex-wrap:nowrap;">'
                     +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
                     +     '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#a855f7 0%,#f59e0b 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(168,85,247,0.3);font-size:1.05rem;">🎯</div>'
-                    +     '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">期貨 + 加密</span>'
+                    +     '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">期貨 + 加密</span>'
                     +   '</div>'
                     + '</div>'
                     + '<div class="mono stat-amount" style="background:linear-gradient(135deg,#a855f7 0%,#f59e0b 100%);-webkit-background-clip:text;background-clip:text;color:transparent;">'+mainStr+'</div>'

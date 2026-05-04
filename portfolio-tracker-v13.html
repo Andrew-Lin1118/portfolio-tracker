@@ -118,6 +118,19 @@
         .tab-btn.active { background:linear-gradient(135deg,rgba(251,191,36,0.18) 0%,rgba(245,158,11,0.12) 100%); color:#fbbf24; border-color:rgba(251,191,36,0.5); border-bottom-color:transparent; }
         .tab-pane { display:none; }
         .tab-pane.active { display:block; }
+        /* Watchlist Tab：窄螢幕時左右排版改回上下堆疊 */
+        @media (max-width: 900px) {
+            #wl-layout { flex-direction: column !important; }
+            #wl-layout > div { flex: 0 0 auto !important; width: 100% !important; }
+            #wl-tv-container { min-height: 480px !important; }
+            #wl-table-wrap { max-height: 360px !important; }
+        }
+        /* Watchlist row 拖曳樣式 */
+        #wl-tbody tr.dragging { opacity: 0.45; }
+        #wl-tbody tr.drop-above { box-shadow: inset 0 2px 0 #fbbf24; }
+        #wl-tbody tr.drop-below { box-shadow: inset 0 -2px 0 #fbbf24; }
+        #wl-tbody td.wl-handle { color:#64748b; cursor: grab; user-select: none; text-align:center; font-size:1rem; }
+        #wl-tbody td.wl-handle:active { cursor: grabbing; }
         /* indicator badges */
         .kd-up   { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(16,185,129,0.2); color:#10b981; font-weight:700; font-size:0.8rem; }
         .kd-down { display:inline-block; padding:0.15rem 0.5rem; border-radius:5px; background:rgba(239,68,68,0.15); color:#ef4444; font-weight:700; font-size:0.8rem; }
@@ -804,6 +817,7 @@
                     <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
                         <button id="wl-edit-btn" onclick="wlToggleEditMode()" style="padding:0.5rem 1rem; background:rgba(99,102,241,0.15); color:#a5b4fc; font-weight:600; border:1px solid rgba(99,102,241,0.4); border-radius:8px; font-size:0.85rem; cursor:pointer;">✏️ 編輯模式</button>
                         <button id="wl-add-btn" onclick="wlShowAddModal()" style="padding:0.5rem 1rem; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#fff; font-weight:700; border:none; border-radius:8px; font-size:0.85rem; cursor:pointer; display:none;">+ 新增標的</button>
+                        <button id="wl-reset-btn" onclick="wlResetDefaults()" style="padding:0.5rem 0.9rem; background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.4); border-radius:8px; font-size:0.82rem; font-weight:600; cursor:pointer; display:none;" title="把當前子分頁清單還原成預設">↺ 重置預設</button>
                     </div>
                 </div>
                 <!-- 子分頁 -->
@@ -814,33 +828,38 @@
                     <span id="wl-status" style="margin-left:auto; align-self:center; font-size:0.75rem; color:#64748b;"></span>
                 </div>
 
-                <!-- Watchlist Table -->
-                <div style="overflow-x:auto; border:1px solid rgba(59,130,246,0.15); border-radius:10px; max-height:480px; overflow-y:auto;">
-                    <table id="wl-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
-                        <thead style="background:rgba(15,30,60,0.95); position:sticky; top:0; z-index:5;">
-                            <tr style="color:#94a3b8; text-align:left;">
-                                <th style="padding:0.6rem 0.8rem; font-weight:600; width:42%;">商品</th>
-                                <th style="padding:0.6rem 0.8rem; font-weight:600; text-align:right;">最新價</th>
-                                <th style="padding:0.6rem 0.8rem; font-weight:600; text-align:right;">漲跌</th>
-                                <th style="padding:0.6rem 0.8rem; font-weight:600; text-align:right;">漲跌%</th>
-                                <th id="wl-th-actions" style="padding:0.6rem 0.5rem; font-weight:600; text-align:center; width:90px; display:none;">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="wl-tbody"><tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">載入中…</td></tr></tbody>
-                    </table>
-                </div>
-
-                <!-- TradingView Chart -->
-                <div style="margin-top:1.25rem;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.5rem;">
-                        <div style="color:#cbd5e1; font-size:0.9rem; font-weight:600;">
-                            📊 K 線圖（TradingView）：<span id="wl-tv-symbol-label" style="color:#fbbf24;">— 請點選上方標的 —</span>
+                <!-- 左右排版：左 watchlist / 右 K 線 -->
+                <div id="wl-layout" style="display:flex; gap:1rem; align-items:stretch;">
+                  <!-- 左：Watchlist Table -->
+                  <div style="flex:0 0 38%; min-width:0;">
+                    <div id="wl-table-wrap" style="overflow-x:auto; border:1px solid rgba(59,130,246,0.15); border-radius:10px; max-height:680px; overflow-y:auto;">
+                        <table id="wl-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                            <thead style="background:rgba(15,30,60,0.95); position:sticky; top:0; z-index:5;">
+                                <tr style="color:#94a3b8; text-align:left;">
+                                    <th id="wl-th-handle" style="padding:0.6rem 0.3rem; font-weight:600; width:24px; display:none;"></th>
+                                    <th style="padding:0.6rem 0.6rem; font-weight:600;">商品</th>
+                                    <th style="padding:0.6rem 0.5rem; font-weight:600; text-align:right;">最新價</th>
+                                    <th style="padding:0.6rem 0.5rem; font-weight:600; text-align:right;">漲跌</th>
+                                    <th style="padding:0.6rem 0.5rem; font-weight:600; text-align:right;">漲跌%</th>
+                                    <th id="wl-th-actions" style="padding:0.6rem 0.4rem; font-weight:600; text-align:center; width:84px; display:none;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wl-tbody"><tr><td colspan="6" style="text-align:center; padding:2rem; color:#64748b;">載入中…</td></tr></tbody>
+                        </table>
+                    </div>
+                  </div>
+                  <!-- 右：TradingView -->
+                  <div style="flex:1 1 0; min-width:0; display:flex; flex-direction:column;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.4rem;">
+                        <div style="color:#cbd5e1; font-size:0.85rem; font-weight:600;">
+                            📊 <span id="wl-tv-symbol-label" style="color:#fbbf24;">請點選左側標的</span>
                         </div>
-                        <div style="font-size:0.72rem; color:#64748b;">點選上方任一列即可載入；含 MA / Stoch / MACD / RSI 指標</div>
+                        <div style="font-size:0.7rem; color:#64748b;">含 MA / Stoch / MACD / RSI</div>
                     </div>
-                    <div id="wl-tv-container" style="width:100%; min-height:560px; background:rgba(10,25,45,0.6); border:1px solid rgba(59,130,246,0.15); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#475569; font-size:0.85rem;">
-                        點選一個標的查看 K 線
+                    <div id="wl-tv-container" style="flex:1 1 auto; min-height:680px; background:rgba(10,25,45,0.6); border:1px solid rgba(59,130,246,0.15); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#475569; font-size:0.85rem;">
+                        ← 點選左側標的查看 K 線
                     </div>
+                  </div>
                 </div>
             </div>
         </div><!-- /tab-pane-10 -->
@@ -853,6 +872,40 @@
         <!-- ▲▲▲ 版本標記 ▲▲▲ -->
 
     <!-- Modals -->
+    <!-- 觀察清單：新增標的 Modal -->
+    <div id="wl-add-modal" onclick="if(event.target===this)wlHideAddModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.78); display:none; align-items:center; justify-content:center; z-index:2200; padding:1rem;">
+        <div class="glass-card" style="padding:1.5rem 1.75rem; max-width:520px; width:100%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 style="color:#fbbf24; font-size:1.05rem; margin:0; font-weight:700;">＋ 新增觀察標的</h3>
+                <button onclick="wlHideAddModal()" style="background:none; border:none; color:#94a3b8; font-size:1.5rem; padding:0; line-height:1; cursor:pointer;">✕</button>
+            </div>
+            <div style="font-size:0.78rem; color:#64748b; margin-bottom:0.9rem;">類別：<span id="wl-add-cat-label" style="color:#fbbf24; font-weight:600;">—</span></div>
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div>
+                    <label style="display:block; font-size:0.8rem; color:#cbd5e1; margin-bottom:0.3rem;">顯示名稱（必填）</label>
+                    <input id="wl-add-sym" type="text" placeholder="例：NVDA / 9747 / BTCUSDT.P" oninput="wlOnAddSymInput()" style="width:100%; padding:0.55rem 0.7rem; background:rgba(10,25,45,0.85); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.9rem;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.8rem; color:#cbd5e1; margin-bottom:0.3rem;">TradingView 完整代碼（含交易所前綴）</label>
+                    <input id="wl-add-tv" type="text" placeholder="例：NASDAQ:NVDA / HKEX:9747 / BINANCE:BTCUSDT.P" style="width:100%; padding:0.55rem 0.7rem; background:rgba(10,25,45,0.85); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.9rem;">
+                    <div id="wl-add-tv-hint" style="font-size:0.7rem; color:#64748b; margin-top:0.2rem;">未填會依顯示名稱猜測</div>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.8rem; color:#cbd5e1; margin-bottom:0.3rem;">Yahoo Finance 代碼（選填，給最新價用）</label>
+                    <input id="wl-add-yf" type="text" placeholder="例：NVDA / 9747.HK / BTC-USD（沒有可留空）" style="width:100%; padding:0.55rem 0.7rem; background:rgba(10,25,45,0.85); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.9rem;">
+                </div>
+                <div id="wl-add-okx-row" style="display:none;">
+                    <label style="display:block; font-size:0.8rem; color:#cbd5e1; margin-bottom:0.3rem;">OKX SWAP 代碼（選填，加密類用）</label>
+                    <input id="wl-add-okx" type="text" placeholder="例：NVDA-USDT-SWAP / META-USDT-SWAP（沒有可留空）" style="width:100%; padding:0.55rem 0.7rem; background:rgba(10,25,45,0.85); border:1px solid rgba(59,130,246,0.3); border-radius:8px; color:#e2e8f0; font-size:0.9rem;">
+                </div>
+            </div>
+            <div style="display:flex; gap:0.6rem; justify-content:flex-end; margin-top:1.2rem;">
+                <button onclick="wlHideAddModal()" style="padding:0.55rem 1.2rem; background:rgba(100,116,139,0.2); color:#94a3b8; border:1px solid rgba(100,116,139,0.35); border-radius:8px; font-weight:600; cursor:pointer;">取消</button>
+                <button onclick="wlConfirmAddItem()" style="padding:0.55rem 1.4rem; background:linear-gradient(135deg,#10b981 0%,#059669 100%); color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">＋ 加入清單</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 已實現損益編輯 Modal -->
     <div id="realized-edit-modal" onclick="if(event.target===this)hideRealizedEditModal()" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.78); display:none; align-items:center; justify-content:center; z-index:2150; padding:1rem;">
         <div class="glass-card" style="padding:1.5rem 1.75rem; max-width:560px; width:100%;">
@@ -3942,24 +3995,24 @@
                 { sym: 'SILVER',  tv: 'TVC:SILVER',         yf: 'SI=F' },
                 { sym: 'GOLD',    tv: 'TVC:GOLD',           yf: 'GC=F' },
                 { sym: 'SLV',     tv: 'AMEX:SLV',           yf: 'SLV' },
-                { sym: 'ORCLUSDT.P',  tv: 'BINANCE:ORCLUSDT.P', yf: '' },
-                { sym: 'METAUSDT.P',  tv: 'BINANCE:METAUSDT.P', yf: '' },
+                { sym: 'ORCLUSDT.P',  tv: 'BINANCE:ORCLUSDT.P', yf: '', okx: 'ORCL-USDT-SWAP' },
+                { sym: 'METAUSDT.P',  tv: 'BINANCE:METAUSDT.P', yf: '', okx: 'META-USDT-SWAP' },
                 { sym: 'LITEUSDT.P',  tv: 'BINANCE:LITEUSDT.P', yf: '' },
                 { sym: 'AAOIUSDT.P',  tv: 'BINANCE:AAOIUSDT.P', yf: '' },
                 { sym: 'SKHXUSDT.P',  tv: 'BINANCE:SKHXUSDT.P', yf: '' },
                 { sym: 'SMSNUSDT.P',  tv: 'BINANCE:SMSNUSDT.P', yf: '' },
-                { sym: 'ETHUSDT.P',   tv: 'BINANCE:ETHUSDT.P',  yf: '' },
-                { sym: 'PLTRXUSDT.P', tv: 'BINANCE:PLTRXUSDT.P', yf: '' },
+                { sym: 'ETHUSDT.P',   tv: 'BINANCE:ETHUSDT.P',  yf: '', okx: 'ETH-USDT-SWAP' },
+                { sym: 'PLTRXUSDT.P', tv: 'BINANCE:PLTRXUSDT.P', yf: '', okx: 'PLTR-USDT-SWAP' },
                 { sym: 'ONDSXUSDT.P', tv: 'BINANCE:ONDSXUSDT.P', yf: '' },
-                { sym: 'SNDKXUSDT.P', tv: 'BINANCE:SNDKXUSDT.P', yf: '' },
-                { sym: 'TSMXUSDT.P',  tv: 'BINANCE:TSMXUSDT.P',  yf: '' },
-                { sym: 'AMDXUSDT.P',  tv: 'BINANCE:AMDXUSDT.P',  yf: '' },
-                { sym: 'TSLAXUSDT.P', tv: 'BINANCE:TSLAXUSDT.P', yf: '' },
-                { sym: 'MUXUSDT.P',   tv: 'BINANCE:MUXUSDT.P',   yf: '' },
-                { sym: 'QQQXUSDT.P',  tv: 'BINANCE:QQQXUSDT.P',  yf: '' },
-                { sym: 'NVDAXUSDT.P', tv: 'BINANCE:NVDAXUSDT.P', yf: '' },
+                { sym: 'SNDKXUSDT.P', tv: 'BINANCE:SNDKXUSDT.P', yf: '', okx: 'SNDK-USDT-SWAP' },
+                { sym: 'TSMXUSDT.P',  tv: 'BINANCE:TSMXUSDT.P',  yf: '', okx: 'TSM-USDT-SWAP' },
+                { sym: 'AMDXUSDT.P',  tv: 'BINANCE:AMDXUSDT.P',  yf: '', okx: 'AMD-USDT-SWAP' },
+                { sym: 'TSLAXUSDT.P', tv: 'BINANCE:TSLAXUSDT.P', yf: '', okx: 'TSLA-USDT-SWAP' },
+                { sym: 'MUXUSDT.P',   tv: 'BINANCE:MUXUSDT.P',   yf: '', okx: 'MU-USDT-SWAP' },
+                { sym: 'QQQXUSDT.P',  tv: 'BINANCE:QQQXUSDT.P',  yf: '', okx: 'QQQ-USDT-SWAP' },
+                { sym: 'NVDAXUSDT.P', tv: 'BINANCE:NVDAXUSDT.P', yf: '', okx: 'NVDA-USDT-SWAP' },
                 { sym: 'SLVXUSDT.P',  tv: 'BINANCE:SLVXUSDT.P',  yf: '' },
-                { sym: 'XAUTUSDT.P',  tv: 'BINANCE:XAUTUSDT.P',  yf: '' },
+                { sym: 'XAUTUSDT.P',  tv: 'BINANCE:XAUTUSDT.P',  yf: '', binance: 'XAUTUSDT' },
             ],
         };
 
@@ -3969,7 +4022,8 @@
         let _wlSelectedSym = null;        // 當前 TradingView 顯示的 symbol（避免重複載入）
         let _wlPriceTimer  = null;        // 報價輪詢 setInterval
         let _wlTvLoaded    = false;       // TradingView script loaded?
-        const _wlPriceCache = {};         // {yfsymbol: {price, change, changePct, ts}}
+        const _wlPriceCache = {};         // key = tv symbol（一個 item 只有唯一 tv）→ {price, change, changePct, ts}
+        let _wlDragSrcIdx = null;         // 拖曳中來源 index
 
         function _wlLoadStorage() {
             try {
@@ -4017,31 +4071,42 @@
             const tbody = document.getElementById('wl-tbody');
             if (!tbody || !_wlData) return;
             const list = _wlData[_wlCat] || [];
+            // header columns 顯示
+            const thHandle = document.getElementById('wl-th-handle');
+            const thAct    = document.getElementById('wl-th-actions');
+            if (thHandle) thHandle.style.display = _wlEditMode ? 'table-cell' : 'none';
+            if (thAct)    thAct.style.display    = _wlEditMode ? 'table-cell' : 'none';
+
             if (list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">（清單為空）按右上「+ 新增標的」加入</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:#64748b;">（清單為空）${_wlEditMode ? '按右上「+ 新增標的」加入' : '進入編輯模式新增標的'}</td></tr>`;
                 return;
             }
             tbody.innerHTML = list.map((it, idx) => {
-                const cache = it.yf ? _wlPriceCache[it.yf] : null;
+                const cache = _wlPriceCache[it.tv];
                 const fmtPrice = cache && cache.price != null ? cache.price.toLocaleString('en-US', {maximumFractionDigits: cache.price >= 100 ? 2 : 4}) : '—';
                 const fmtChg   = cache && cache.change != null ? (cache.change > 0 ? '+' : '') + cache.change.toFixed(2) : '—';
                 const fmtPct   = cache && cache.changePct != null ? (cache.changePct > 0 ? '+' : '') + cache.changePct.toFixed(2) + '%' : '—';
                 const color    = !cache || cache.change == null ? '#94a3b8' : (cache.change > 0 ? '#10b981' : (cache.change < 0 ? '#ef4444' : '#94a3b8'));
                 const rowSel   = (_wlSelectedSym === it.tv) ? 'background:rgba(251,191,36,0.08);' : '';
+                const srcTag   = cache && cache.src ? `<span style="color:#475569; font-size:0.65rem; margin-left:0.3rem;">[${cache.src}]</span>` : '';
+                const handleTd = _wlEditMode
+                    ? `<td class="wl-handle" draggable="true" ondragstart="wlOnDragStart(event,${idx})" ondragend="wlOnDragEnd(event)" title="拖曳重排">≡</td>`
+                    : '';
                 const actions = _wlEditMode ? `
-                    <td style="padding:0.4rem 0.4rem; text-align:center; white-space:nowrap;">
-                        <button onclick="event.stopPropagation();wlMoveItem(${idx},-1)" title="上移" style="padding:0.18rem 0.4rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.78rem;">↑</button>
-                        <button onclick="event.stopPropagation();wlMoveItem(${idx},1)" title="下移"  style="padding:0.18rem 0.4rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.78rem; margin-left:2px;">↓</button>
-                        <button onclick="event.stopPropagation();wlRemoveItem(${idx})" title="刪除" style="padding:0.18rem 0.45rem; background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.4); border-radius:5px; cursor:pointer; font-size:0.78rem; margin-left:4px;">✕</button>
+                    <td style="padding:0.4rem 0.3rem; text-align:center; white-space:nowrap;">
+                        <button onclick="event.stopPropagation();wlMoveItem(${idx},-1)" title="上移" style="padding:0.16rem 0.32rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.72rem;">↑</button>
+                        <button onclick="event.stopPropagation();wlMoveItem(${idx},1)" title="下移"  style="padding:0.16rem 0.32rem; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); border-radius:5px; cursor:pointer; font-size:0.72rem; margin-left:2px;">↓</button>
+                        <button onclick="event.stopPropagation();wlRemoveItem(${idx})" title="刪除" style="padding:0.16rem 0.4rem; background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.4); border-radius:5px; cursor:pointer; font-size:0.72rem; margin-left:3px;">✕</button>
                     </td>` : '';
-                return `<tr data-idx="${idx}" onclick="wlOnRowClick(${idx})" style="cursor:pointer; border-bottom:1px solid rgba(59,130,246,0.08); ${rowSel}">
-                    <td style="padding:0.5rem 0.8rem;">
-                        <span style="color:#e2e8f0; font-weight:600;">${_wlEsc(it.sym)}</span>
-                        <span style="color:#475569; font-size:0.72rem; margin-left:0.4rem;">${_wlEsc(it.tv || '')}</span>
+                return `<tr data-idx="${idx}" onclick="wlOnRowClick(${idx})" ondragover="wlOnDragOver(event,${idx})" ondragleave="wlOnDragLeave(event)" ondrop="wlOnDrop(event,${idx})" style="cursor:pointer; border-bottom:1px solid rgba(59,130,246,0.08); ${rowSel}">
+                    ${handleTd}
+                    <td style="padding:0.45rem 0.6rem;">
+                        <span style="color:#e2e8f0; font-weight:600;">${_wlEsc(it.sym)}</span>${srcTag}
+                        <div style="color:#475569; font-size:0.66rem; margin-top:0.1rem;">${_wlEsc(it.tv || '')}</div>
                     </td>
-                    <td style="padding:0.5rem 0.8rem; text-align:right; color:#e2e8f0; font-variant-numeric:tabular-nums;">${fmtPrice}</td>
-                    <td style="padding:0.5rem 0.8rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtChg}</td>
-                    <td style="padding:0.5rem 0.8rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtPct}</td>
+                    <td style="padding:0.45rem 0.5rem; text-align:right; color:#e2e8f0; font-variant-numeric:tabular-nums;">${fmtPrice}</td>
+                    <td style="padding:0.45rem 0.5rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtChg}</td>
+                    <td style="padding:0.45rem 0.5rem; text-align:right; color:${color}; font-variant-numeric:tabular-nums;">${fmtPct}</td>
                     ${actions}
                 </tr>`;
             }).join('');
@@ -4117,8 +4182,8 @@
             wrap.appendChild(script);
         }
 
-        // ── Yahoo Chart 報價（重用 yfFetch） ──
-        async function _wlFetchOnePrice(yf) {
+        // ── 多源報價：Yahoo → OKX → Binance Spot ──
+        async function _wlFetchYahoo(yf) {
             try {
                 const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1d&range=2d`;
                 const data = await yfFetch(url);
@@ -4130,25 +4195,79 @@
                 if (!isFinite(cur)) return null;
                 const change = isFinite(prev) ? cur - prev : null;
                 const changePct = (isFinite(prev) && prev !== 0) ? (change / prev * 100) : null;
-                return { price: cur, change, changePct, ts: Date.now() };
+                return { price: cur, change, changePct, ts: Date.now(), src: 'YF' };
             } catch(_) { return null; }
+        }
+        async function _wlFetchOkx(instId) {
+            // OKX 公開 ticker，免 key 免 CORS（已測 web 端可直連）
+            try {
+                const url = `https://www.okx.com/api/v5/market/ticker?instId=${encodeURIComponent(instId)}`;
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 6000);
+                const res = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(tid);
+                if (!res.ok) return null;
+                const j = await res.json();
+                if (j.code !== '0' || !j.data?.[0]) return null;
+                const t = j.data[0];
+                const cur  = parseFloat(t.last);
+                const prev = parseFloat(t.open24h);
+                if (!isFinite(cur)) return null;
+                const change = isFinite(prev) ? cur - prev : null;
+                const changePct = (isFinite(prev) && prev !== 0) ? (change / prev * 100) : null;
+                return { price: cur, change, changePct, ts: Date.now(), src: 'OKX' };
+            } catch(_) { return null; }
+        }
+        async function _wlFetchBinance(symbol) {
+            // Binance Spot 24hr ticker（免 key、免 CORS proxy）
+            try {
+                const url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`;
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 6000);
+                const res = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(tid);
+                if (!res.ok) return null;
+                const t = await res.json();
+                const cur  = parseFloat(t.lastPrice);
+                const change = parseFloat(t.priceChange);
+                const changePct = parseFloat(t.priceChangePercent);
+                if (!isFinite(cur)) return null;
+                return { price: cur, change: isFinite(change) ? change : null,
+                         changePct: isFinite(changePct) ? changePct : null,
+                         ts: Date.now(), src: 'BNB' };
+            } catch(_) { return null; }
+        }
+        async function _wlFetchPriceForItem(it) {
+            // 依優先順序：yf → okx → binance
+            if (it.yf) {
+                const r = await _wlFetchYahoo(it.yf);
+                if (r) return r;
+            }
+            if (it.okx) {
+                const r = await _wlFetchOkx(it.okx);
+                if (r) return r;
+            }
+            if (it.binance) {
+                const r = await _wlFetchBinance(it.binance);
+                if (r) return r;
+            }
+            return null;
         }
         async function wlRefreshPrices() {
             if (!_wlData) return;
             const list = _wlData[_wlCat] || [];
-            const targets = list.filter(it => it.yf);
+            const targets = list.filter(it => it.yf || it.okx || it.binance);
             if (targets.length === 0) { wlRender(); return; }
             const statusEl = document.getElementById('wl-status');
             if (statusEl) statusEl.textContent = `更新中 0/${targets.length}…`;
-            // 並行抓（並發上限 5）
             const queue = targets.slice();
             const CONCURRENCY = 5;
             let done = 0;
             const workers = Array.from({length: CONCURRENCY}, async () => {
                 while (queue.length) {
                     const it = queue.shift();
-                    const r  = await _wlFetchOnePrice(it.yf);
-                    if (r) _wlPriceCache[it.yf] = r;
+                    const r  = await _wlFetchPriceForItem(it);
+                    if (r) _wlPriceCache[it.tv] = r;
                     done++;
                     if (statusEl) statusEl.textContent = `更新中 ${done}/${targets.length}…`;
                 }
@@ -4163,10 +4282,10 @@
             _wlEditMode = !_wlEditMode;
             const btn = document.getElementById('wl-edit-btn');
             const addBtn = document.getElementById('wl-add-btn');
-            const thAct  = document.getElementById('wl-th-actions');
+            const resetBtn = document.getElementById('wl-reset-btn');
             if (btn) btn.textContent = _wlEditMode ? '✓ 完成編輯' : '✏️ 編輯模式';
-            if (addBtn) addBtn.style.display = _wlEditMode ? 'inline-block' : 'none';
-            if (thAct) thAct.style.display   = _wlEditMode ? 'table-cell' : 'none';
+            if (addBtn)   addBtn.style.display   = _wlEditMode ? 'inline-block' : 'none';
+            if (resetBtn) resetBtn.style.display = _wlEditMode ? 'inline-block' : 'none';
             wlRender();
         }
         function wlMoveItem(idx, delta) {
@@ -4186,14 +4305,134 @@
             _wlSaveStorage();
             wlRender();
         }
+        // ── Add Modal（Phase 2）──
         function wlShowAddModal() {
-            // Phase 2 才實作；先用簡易 prompt 占位
-            const sym = prompt('輸入 symbol（例：NVDA、BTCUSDT、9747.HK）：');
+            const labelEl = document.getElementById('wl-add-cat-label');
+            if (labelEl) labelEl.textContent = ({proto:'個股原型', lev:'個股槓桿', crypto:'加密'}[_wlCat] || '');
+            // 加密類別才顯示 OKX 欄位
+            const okxRow = document.getElementById('wl-add-okx-row');
+            if (okxRow) okxRow.style.display = (_wlCat === 'crypto') ? 'block' : 'none';
+            // 清空欄位
+            ['wl-add-sym','wl-add-tv','wl-add-yf','wl-add-okx'].forEach(id => {
+                const e = document.getElementById(id); if (e) e.value = '';
+            });
+            const modal = document.getElementById('wl-add-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                setTimeout(() => document.getElementById('wl-add-sym')?.focus(), 50);
+            }
+        }
+        function wlHideAddModal() {
+            const m = document.getElementById('wl-add-modal');
+            if (m) m.style.display = 'none';
+        }
+        function wlOnAddSymInput() {
+            // 依顯示名稱 + 當前類別自動猜測 TV symbol
+            const sym = (document.getElementById('wl-add-sym')?.value || '').trim();
+            const tvEl = document.getElementById('wl-add-tv');
+            if (!tvEl || tvEl.value.trim()) return;  // 使用者已自行輸入就不覆蓋
             if (!sym) return;
-            const tv  = prompt('輸入 TradingView 完整代碼（例：NASDAQ:NVDA、BINANCE:BTCUSDT、HKEX:9747）：', sym);
-            if (!tv) return;
-            const yf  = prompt('輸入 Yahoo Finance symbol（沒有就留空，例：NVDA、BTC-USD、9747.HK）：', '');
-            _wlData[_wlCat].push({ sym: sym.trim(), tv: tv.trim(), yf: (yf || '').trim() });
+            let guess = '';
+            if (_wlCat === 'crypto') {
+                if (sym.endsWith('.P')) guess = `BINANCE:${sym}`;
+                else if (sym.endsWith('USDT')) guess = `BINANCE:${sym}`;
+                else guess = `NASDAQ:${sym}`;  // 美股相關股票
+            } else if (sym.match(/\.HK$/i) || /^\d{4}$/.test(sym)) {
+                guess = `HKEX:${sym.replace(/\.HK$/i,'')}`;
+            } else if (/^\d{6}$/.test(sym)) {
+                guess = `KRX:${sym}`;
+            } else if (sym.match(/^\d{4,5}$/)) {
+                guess = `TWSE:${sym}`;
+            } else {
+                guess = `NASDAQ:${sym}`;
+            }
+            tvEl.placeholder = `自動猜：${guess}（按下「加入清單」即套用）`;
+        }
+        function wlConfirmAddItem() {
+            const sym = (document.getElementById('wl-add-sym')?.value || '').trim();
+            if (!sym) { alert('請輸入顯示名稱'); return; }
+            let tv = (document.getElementById('wl-add-tv')?.value || '').trim();
+            const yf = (document.getElementById('wl-add-yf')?.value || '').trim();
+            const okx = (document.getElementById('wl-add-okx')?.value || '').trim();
+            if (!tv) {
+                // 自動猜（同 oninput）
+                if (_wlCat === 'crypto') {
+                    tv = (sym.endsWith('.P') || sym.endsWith('USDT')) ? `BINANCE:${sym}` : `NASDAQ:${sym}`;
+                } else if (sym.match(/\.HK$/i) || /^\d{4}$/.test(sym)) {
+                    tv = `HKEX:${sym.replace(/\.HK$/i,'')}`;
+                } else if (/^\d{6}$/.test(sym)) {
+                    tv = `KRX:${sym}`;
+                } else if (sym.match(/^\d{4,5}$/)) {
+                    tv = `TWSE:${sym}`;
+                } else {
+                    tv = `NASDAQ:${sym}`;
+                }
+            }
+            if (!tv.includes(':')) {
+                if (!confirm(`TradingView 代碼「${tv}」沒有交易所前綴，可能載入失敗。仍要繼續？`)) return;
+            }
+            const item = { sym, tv, yf };
+            if (okx) item.okx = okx;
+            _wlData[_wlCat].push(item);
+            _wlSaveStorage();
+            wlHideAddModal();
+            wlRender();
+            wlRefreshPrices();
+        }
+
+        // ── HTML5 拖曳排序（Phase 3）──
+        function wlOnDragStart(e, idx) {
+            _wlDragSrcIdx = idx;
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', String(idx)); } catch(_) {}
+            const tr = e.currentTarget.closest('tr');
+            if (tr) tr.classList.add('dragging');
+        }
+        function wlOnDragOver(e, idx) {
+            if (_wlDragSrcIdx == null) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const tr = e.currentTarget;
+            tr.classList.remove('drop-above','drop-below');
+            const rect = tr.getBoundingClientRect();
+            const before = (e.clientY - rect.top) < rect.height / 2;
+            tr.classList.add(before ? 'drop-above' : 'drop-below');
+        }
+        function wlOnDragLeave(e) {
+            const tr = e.currentTarget;
+            tr.classList.remove('drop-above','drop-below');
+        }
+        function wlOnDrop(e, idx) {
+            e.preventDefault();
+            const src = _wlDragSrcIdx;
+            const tr  = e.currentTarget;
+            const rect = tr.getBoundingClientRect();
+            const before = (e.clientY - rect.top) < rect.height / 2;
+            tr.classList.remove('drop-above','drop-below');
+            if (src == null || src === idx) { _wlDragSrcIdx = null; return; }
+            const list = _wlData[_wlCat];
+            const [moved] = list.splice(src, 1);
+            // src 移除後 idx 可能 shift
+            let dest = idx;
+            if (src < idx) dest = idx - 1;
+            const insertAt = before ? dest : dest + 1;
+            list.splice(insertAt, 0, moved);
+            _wlDragSrcIdx = null;
+            _wlSaveStorage();
+            wlRender();
+        }
+        function wlOnDragEnd(e) {
+            _wlDragSrcIdx = null;
+            document.querySelectorAll('#wl-tbody tr').forEach(tr => {
+                tr.classList.remove('dragging','drop-above','drop-below');
+            });
+        }
+
+        // ── 重置預設清單（清空後可救回）──
+        function wlResetDefaults() {
+            const catLabel = ({proto:'個股原型', lev:'個股槓桿', crypto:'加密'}[_wlCat] || '');
+            if (!confirm(`重置「${catLabel}」為預設清單？目前的自訂順序與新增標的會消失。`)) return;
+            _wlData[_wlCat] = JSON.parse(JSON.stringify(WL_DEFAULTS[_wlCat] || []));
             _wlSaveStorage();
             wlRender();
             wlRefreshPrices();

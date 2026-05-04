@@ -13,6 +13,27 @@ import pandas as pd
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
+# Naver Finance 補資料模組（用於韓股 yfinance 滯後/漏季時補強）
+try:
+    from fetch_naver_earnings import (
+        fetch_naver_eps_history,
+        fetch_naver_latest_earnings_disclosure,
+        stock_code_from_yf_symbol,
+    )
+    NAVER_AVAILABLE = True
+except ImportError:
+    import sys as _sys
+    _sys.path.insert(0, ROOT)
+    try:
+        from fetch_naver_earnings import (
+            fetch_naver_eps_history,
+            fetch_naver_latest_earnings_disclosure,
+            stock_code_from_yf_symbol,
+        )
+        NAVER_AVAILABLE = True
+    except ImportError:
+        NAVER_AVAILABLE = False
+
 with open(os.path.join(ROOT, 'symbols.json'), encoding='utf-8') as f:
     symbols = json.load(f)
 
@@ -472,6 +493,92 @@ with ThreadPoolExecutor(max_workers=6) as _pool:
         except Exception as e:
             _safe_print(f'    [parallel] worker exception: {e}')
 print(f'[parallel] 完成 {_completed}/{len(symbols)} 標的，耗時 {time.time()-_t_start:.1f} 秒\n', flush=True)
+
+
+# ── Naver Finance 補資料：韓股 yfinance 滯後或缺季時補強 ─────────────────
+# 規則：
+#   1. yfinance 已有的季度（依 'quarter' 標籤匹配）→ 用 Naver 的 eps_actual 覆蓋
+#      （使用者選擇 Naver 為準）；保留 yfinance 的 eps_estimate / report_date。
+#   2. yfinance 沒有但 Naver 有 actual 的季度 → 新增到 earnings_history。
+#   3. 若所有 entries 都有 estimate + actual → 重算 surprise_pct。
+#   4. Naver disclosure 最近一筆「실적」公告日期 → 若 yfinance next_earnings_date
+#      仍 ≤ 此日期，視為 yfinance 滯後，依 Naver 加 90 天推估下次。
+def _merge_naver_for_korean_stock(yf_sym, sym_data):
+    code = stock_code_from_yf_symbol(yf_sym)
+    if not code:
+        return
+    try:
+        naver_rows = fetch_naver_eps_history(code, include_consensus=False)
+    except Exception as e:
+        print(f'  [{yf_sym}] Naver 抓 EPS 失敗（跳過）: {e}', flush=True)
+        return
+    if not naver_rows:
+        return
+
+    history = list(sym_data.get('earnings_history') or [])
+    by_quarter = {h.get('quarter'): h for h in history}
+
+    added = 0
+    overridden = 0
+    for nv in naver_rows:
+        q = nv['quarter']
+        if q in by_quarter:
+            existing = by_quarter[q]
+            old_actual = existing.get('eps_actual')
+            new_actual = nv['eps_actual']
+            if new_actual is not None and old_actual != new_actual:
+                existing['eps_actual'] = new_actual
+                est = existing.get('eps_estimate')
+                if est not in (None, 0):
+                    existing['surprise_pct'] = round((new_actual - est) / abs(est), 4)
+                overridden += 1
+        else:
+            est = nv.get('eps_estimate')
+            actual = nv.get('eps_actual')
+            surprise = None
+            if actual is not None and est not in (None, 0):
+                surprise = round((actual - est) / abs(est), 4)
+            history.append({
+                'quarter':      q,
+                'report_date':  nv['report_date'],
+                'eps_estimate': est,
+                'eps_actual':   actual,
+                'surprise_pct': surprise,
+            })
+            added += 1
+
+    history.sort(key=lambda h: h.get('report_date') or '')
+    sym_data['earnings_history'] = history
+    if added or overridden:
+        print(f'  [{yf_sym}] Naver merge: +{added} 季新增 / {overridden} 季覆蓋', flush=True)
+
+    # next_earnings_date 校正：Naver disclosure 顯示最近一次「實績」日期
+    try:
+        latest_disc, title = fetch_naver_latest_earnings_disclosure(code)
+    except Exception as e:
+        latest_disc = None
+        print(f'  [{yf_sym}] Naver disclosure 抓取失敗（跳過 next_earnings 校正）: {e}', flush=True)
+    if latest_disc:
+        cur_next = sym_data.get('next_earnings_date')
+        # 若 yfinance 的 next 已過去（≤ Naver 最近實績日），加 ~90 天推下一季
+        if cur_next and cur_next <= latest_disc:
+            try:
+                base = datetime.strptime(latest_disc, '%Y-%m-%d').date()
+                projected = (base + timedelta(days=90)).strftime('%Y-%m-%d')
+                sym_data['next_earnings_date'] = projected
+                print(f'  [{yf_sym}] next_earnings_date 校正: {cur_next} → {projected} '
+                      f'(Naver 最近實績 {latest_disc})', flush=True)
+            except ValueError:
+                pass
+
+if NAVER_AVAILABLE:
+    print('\n[Naver] 韓股補資料 ───────────────────────────', flush=True)
+    for _yf_sym in list(result.keys()):
+        if isinstance(result[_yf_sym], dict) and _yf_sym.upper().endswith('.KS'):
+            _merge_naver_for_korean_stock(_yf_sym, result[_yf_sym])
+            time.sleep(0.4)  # 對 Naver 客氣一點
+else:
+    print('\n[Naver] fetch_naver_earnings 模組未載入，跳過韓股補資料', flush=True)
 
 
 # ── 財報日期手動覆蓋：EARNINGS_DATE_OVERRIDES > yfinance ────────────────────

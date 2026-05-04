@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v63';  // ← 2026-05-04：券商目標 tab 上方加標的快捷跳轉 chips（同財報深度）
+const CACHE_NAME = 'portfolio-tracker-v64';  // ← 2026-05-04：基本面 cache key v11→v12 強制清舊快取補回 PEG/PS/歷史均PE
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

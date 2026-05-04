@@ -6600,7 +6600,7 @@
         })();
 
         // ==================== Analysis Cache (localStorage, 基本面4hr / 技術面1hr TTL) ====================
-        const _CACHE_KEY = 'pf_analysis_v11';  // v11：下次財報加註剩餘天數 badge，強制清快取以套用新 UI
+        const _CACHE_KEY = 'pf_analysis_v12';  // v12：強制清舊快取，補回缺欄位（PEG/PS/歷史均PE）
         const _FUND_TTL  = 4 * 60 * 60 * 1000; // 基本面：4 小時
         const _TECH_TTL  = 1 * 60 * 60 * 1000; // 技術面：1 小時
         function _loadCacheRaw() {

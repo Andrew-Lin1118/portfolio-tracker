@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v65';  // ← 2026-05-04：基本面 hydration 補齊全部欄位（PEG/PS/歷史均PE/eps_*/rev_*）
+const CACHE_NAME = 'portfolio-tracker-v66';  // ← 2026-05-04：手機版觀察清單 K 線改用 vh 單位，避免擠成一團
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

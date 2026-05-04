@@ -6739,10 +6739,20 @@
                             cur.hourly_k = f.hourly_k; cur.hourly_d = f.hourly_d; cur.hourly_cross = f.hourly_cross;
                             cur.hourly_macd = f.hourly_macd; cur.hourly_rsi = f.hourly_rsi;
                         }
-                        // 同時補基本面（避免快取沒抓到 PE/FPE/EPS 時整列空白）
-                        if (cur.pe == null && f.pe != null) cur.pe = f.pe;
-                        if (cur.fpe == null && f.fpe != null) cur.fpe = f.fpe;
-                        if (cur.next_earnings_date == null && f.next_earnings_date != null) cur.next_earnings_date = f.next_earnings_date;
+                        // 同時補基本面（避免快取沒抓到時整列空白）
+                        // 必須涵蓋所有顯示欄位，否則使用者會看到 PEG/PS/歷史均PE 等永遠是「-」
+                        const _backfillKeys = [
+                            'pe', 'fpe', 'peg', 'ps', 'pb', 'hist_avg_pe',
+                            'rev_yoy', 'rev_fwd',
+                            'gross_margin', 'operating_margin',
+                            'eps_ttm', 'eps_cur_q', 'eps_cur_y', 'eps_next_y',
+                            'next_earnings_date',
+                        ];
+                        for (const k of _backfillKeys) {
+                            if (cur[k] == null && f[k] != null) cur[k] = f[k];
+                        }
+                        // eps_next_q 在 fundamentals.json 命名為 eps_next_q2
+                        if (cur.eps_next_q == null && f.eps_next_q2 != null) cur.eps_next_q = f.eps_next_q2;
                         allResults[sym] = cur;
                     }
                 }

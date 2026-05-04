@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v64';  // ← 2026-05-04：基本面 cache key v11→v12 強制清舊快取補回 PEG/PS/歷史均PE
+const CACHE_NAME = 'portfolio-tracker-v65';  // ← 2026-05-04：基本面 hydration 補齊全部欄位（PEG/PS/歷史均PE/eps_*/rev_*）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

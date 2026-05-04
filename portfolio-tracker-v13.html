@@ -3950,6 +3950,7 @@
         // ════════════════════════════════════════════════════════════════════
         const WL_STORAGE_KEY = 'pt_watchlist_v1';
         const WL_TV_SCRIPT_URL = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+        const WL_LWC_SCRIPT_URL = 'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js';
 
         // 常見「TradingView 付費限定」symbol 的免費替代對應表
         // widget 抓不到資料時會跳「此商品僅在TradingView上可用」，這裡直接用替代版
@@ -3959,8 +3960,43 @@
             'TVC:DJI':          'TVC:DJI',
             'CME_MINI:NQ1!':    'NASDAQ:QQQ',          // 用 QQQ ETF 當 NQ 期貨替代
             'DJ:DJUSSC':        'AMEX:SOXX',           // 半導體 → 用 SOXX ETF
-            'CRYPTOCAP:BTC.D':  'CRYPTOCAP:BTC.D',     // 真的沒替代（保持原樣，會跳警告）
         };
+
+        // 「強制走原生 lightweight-charts 自繪」的 symbol 集合
+        //   TV widget 真的不支援的，就改 native chart：用 Yahoo / OKX 抓 OHLC + 自繪
+        //   每筆要指定資料源：'yahoo:^VIX' / 'okx:NVDA-USDT-SWAP' / 'yahoo:^TWII' 等
+        const WL_NATIVE_CHART = {
+            'CBOE:VIX':           { source: 'yahoo', sym: '^VIX' },
+            'TWSE:IX0001':        { source: 'yahoo', sym: '^TWII' },
+            'KRX:KOSPI':          { source: 'yahoo', sym: '^KS11' },
+            'CRYPTOCAP:BTC.D':    { source: 'coingecko', sym: 'btc-dominance' },
+            // BINANCE stock-themed perpetual：TV widget 偶爾通偶爾不通，強制走 OKX
+            'BINANCE:NVDAXUSDT.P':{ source: 'okx', sym: 'NVDA-USDT-SWAP' },
+            'BINANCE:METAUSDT.P': { source: 'okx', sym: 'META-USDT-SWAP' },
+            'BINANCE:PLTRXUSDT.P':{ source: 'okx', sym: 'PLTR-USDT-SWAP' },
+            'BINANCE:TSLAXUSDT.P':{ source: 'okx', sym: 'TSLA-USDT-SWAP' },
+            'BINANCE:MUXUSDT.P':  { source: 'okx', sym: 'MU-USDT-SWAP' },
+            'BINANCE:QQQXUSDT.P': { source: 'okx', sym: 'QQQ-USDT-SWAP' },
+            'BINANCE:AMDXUSDT.P': { source: 'okx', sym: 'AMD-USDT-SWAP' },
+            'BINANCE:TSMXUSDT.P': { source: 'okx', sym: 'TSM-USDT-SWAP' },
+            'BINANCE:SNDKXUSDT.P':{ source: 'okx', sym: 'SNDK-USDT-SWAP' },
+            'BINANCE:ORCLUSDT.P': { source: 'okx', sym: 'ORCL-USDT-SWAP' },
+            'BINANCE:ETHUSDT.P':  { source: 'okx', sym: 'ETH-USDT-SWAP' },
+        };
+        let _wlLwcLoadPromise = null;
+        function _wlLoadLwc() {
+            if (window.LightweightCharts) return Promise.resolve();
+            if (_wlLwcLoadPromise) return _wlLwcLoadPromise;
+            _wlLwcLoadPromise = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = WL_LWC_SCRIPT_URL;
+                s.async = true;
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('lightweight-charts 載入失敗'));
+                document.head.appendChild(s);
+            });
+            return _wlLwcLoadPromise;
+        }
 
         // 預設清單（依使用者截圖；可在編輯模式改）
         // 每筆 { sym: 顯示用, tv: TradingView symbol（含 exchange 前綴）, yf: yfinance/Yahoo Chart symbol（沒值代表 Yahoo 不支援）}
@@ -4171,10 +4207,225 @@
             wlRender(); // 重 render 來標示 selected row
         }
 
+        // ── OHLC fetchers（給 native chart 用） ──
+        async function _wlFetchYahooKlines(yfSym) {
+            // Yahoo Chart API：取近 1 年日 K
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSym)}?interval=1d&range=1y`;
+            try {
+                const data = await yfFetch(url);
+                const r = data?.chart?.result?.[0];
+                if (!r) return [];
+                const ts = r.timestamp || [];
+                const q  = r.indicators?.quote?.[0] || {};
+                const o = q.open || [], h = q.high || [], l = q.low || [], c = q.close || [];
+                const out = [];
+                for (let i = 0; i < ts.length; i++) {
+                    if (ts[i] && isFinite(o[i]) && isFinite(h[i]) && isFinite(l[i]) && isFinite(c[i])) {
+                        out.push({ time: ts[i], open: +o[i], high: +h[i], low: +l[i], close: +c[i] });
+                    }
+                }
+                return out;
+            } catch(_) { return []; }
+        }
+        async function _wlFetchOkxKlines(instId) {
+            // OKX 日 K，最多 300 根。回傳格式 [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+            try {
+                const url = `https://www.okx.com/api/v5/market/candles?instId=${encodeURIComponent(instId)}&bar=1D&limit=300`;
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 10000);
+                const res = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(tid);
+                if (!res.ok) return [];
+                const j = await res.json();
+                if (j.code !== '0' || !Array.isArray(j.data)) return [];
+                // OKX 回新→舊，倒過來成舊→新；ts 是毫秒
+                return j.data.map(row => ({
+                    time: Math.floor(parseInt(row[0], 10) / 1000),
+                    open:  parseFloat(row[1]),
+                    high:  parseFloat(row[2]),
+                    low:   parseFloat(row[3]),
+                    close: parseFloat(row[4]),
+                })).filter(c => isFinite(c.close)).reverse();
+            } catch(_) { return []; }
+        }
+        async function _wlFetchCgKlines(coinId) {
+            // CoinGecko 免費版只給 [ts, price]，沒有 OHLC；BTC.D 也沒有 historical dominance。
+            // 對 BTC dominance 我們改抓 BTC 與全市場 market_cap 各自歷史然後相除。
+            try {
+                if (coinId === 'btc-dominance') {
+                    // 用 BTC market cap / global total market cap 推 dominance
+                    // CoinGecko 沒有「全市場歷史 cap」公開端點，只有 /global current。
+                    // 退而求其次：用 BTC market cap 變化率近似（誤差不大，但不是真 dominance）
+                    const url = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=180';
+                    const ctrl = new AbortController();
+                    const tid = setTimeout(() => ctrl.abort(), 10000);
+                    const res = await fetch(url, { signal: ctrl.signal });
+                    clearTimeout(tid);
+                    if (!res.ok) return [];
+                    const j = await res.json();
+                    const caps = j.market_caps || [];
+                    if (caps.length === 0) return [];
+                    // 沒 OHLC，做 line series；用 close 同時當 o/h/l（lightweight-charts 退化成 line）
+                    return caps.map(p => {
+                        const v = p[1]; // market cap USD
+                        return { time: Math.floor(p[0]/1000), open: v, high: v, low: v, close: v };
+                    });
+                }
+            } catch(_) {}
+            return [];
+        }
+
+        // ── 簡單技術指標 ──
+        function _wlMA(data, period) {
+            const out = [];
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+                sum += data[i].close;
+                if (i >= period) sum -= data[i - period].close;
+                if (i >= period - 1) out.push({ time: data[i].time, value: sum / period });
+            }
+            return out;
+        }
+        function _wlRSI(data, period = 14) {
+            const out = [];
+            if (data.length < period + 1) return out;
+            let gain = 0, loss = 0;
+            for (let i = 1; i <= period; i++) {
+                const diff = data[i].close - data[i-1].close;
+                if (diff >= 0) gain += diff; else loss -= diff;
+            }
+            let avgG = gain / period, avgL = loss / period;
+            const rsiAt = (i) => {
+                const rs = avgL === 0 ? 100 : avgG / avgL;
+                return 100 - 100 / (1 + rs);
+            };
+            out.push({ time: data[period].time, value: rsiAt(period) });
+            for (let i = period + 1; i < data.length; i++) {
+                const diff = data[i].close - data[i-1].close;
+                const g = Math.max(diff, 0);
+                const l = Math.max(-diff, 0);
+                avgG = (avgG * (period - 1) + g) / period;
+                avgL = (avgL * (period - 1) + l) / period;
+                out.push({ time: data[i].time, value: rsiAt(i) });
+            }
+            return out;
+        }
+
+        // ── Native chart 渲染（lightweight-charts） ──
+        async function _wlRenderNativeChart(tvSymbol, displaySym, cfg) {
+            const container = document.getElementById('wl-tv-container');
+            if (!container) return;
+            container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:0.85rem;">載入 K 線中…</div>';
+            try {
+                await _wlLoadLwc();
+            } catch(e) {
+                container.innerHTML = `<div style="padding:1rem;color:#ef4444;">lightweight-charts 載入失敗：${e.message}</div>`;
+                return;
+            }
+            // 抓資料
+            let data = [];
+            if (cfg.source === 'yahoo')      data = await _wlFetchYahooKlines(cfg.sym);
+            else if (cfg.source === 'okx')   data = await _wlFetchOkxKlines(cfg.sym);
+            else if (cfg.source === 'coingecko') data = await _wlFetchCgKlines(cfg.sym);
+            if (!data.length) {
+                container.innerHTML = `<div style="padding:1rem;color:#ef4444;">無 K 線資料（${cfg.source}:${cfg.sym}）</div>`;
+                return;
+            }
+            container.innerHTML = '';
+            container.style.padding = '0';
+            container.style.position = 'relative';
+            // 雙 panel：主 K + RSI
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'display:flex; flex-direction:column; height:100%; min-height:600px;';
+            const mainDiv = document.createElement('div');
+            mainDiv.style.cssText = 'flex:1 1 70%; min-height:380px;';
+            const rsiDiv  = document.createElement('div');
+            rsiDiv.style.cssText  = 'flex:1 1 30%; min-height:120px; border-top:1px solid rgba(59,130,246,0.15);';
+            wrap.appendChild(mainDiv);
+            wrap.appendChild(rsiDiv);
+            container.appendChild(wrap);
+
+            const LWC = window.LightweightCharts;
+            const chartOpts = {
+                layout: { background: { color: '#0a1628' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: 'rgba(59,130,246,0.06)' }, horzLines: { color: 'rgba(59,130,246,0.06)' } },
+                crosshair: { mode: 0 },
+                rightPriceScale: { borderColor: 'rgba(59,130,246,0.15)' },
+                timeScale: { borderColor: 'rgba(59,130,246,0.15)', timeVisible: true },
+            };
+            const mainChart = LWC.createChart(mainDiv, chartOpts);
+            const rsiChart  = LWC.createChart(rsiDiv,  chartOpts);
+
+            // 主圖：candle 或 line（CoinGecko 無 OHLC 時）
+            const isLine = (cfg.source === 'coingecko');
+            let mainSeries;
+            if (isLine) {
+                mainSeries = mainChart.addLineSeries({ color: '#fbbf24', lineWidth: 2 });
+                mainSeries.setData(data.map(d => ({ time: d.time, value: d.close })));
+            } else {
+                mainSeries = mainChart.addCandlestickSeries({
+                    upColor: '#10b981', downColor: '#ef4444',
+                    borderUpColor: '#10b981', borderDownColor: '#ef4444',
+                    wickUpColor: '#10b981', wickDownColor: '#ef4444',
+                });
+                mainSeries.setData(data);
+            }
+            // 移動平均
+            const ma20 = _wlMA(data, 20);
+            const ma60 = _wlMA(data, 60);
+            if (ma20.length) {
+                const s = mainChart.addLineSeries({ color: '#60a5fa', lineWidth: 1, priceLineVisible: false });
+                s.setData(ma20);
+            }
+            if (ma60.length) {
+                const s = mainChart.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false });
+                s.setData(ma60);
+            }
+            // RSI subplot
+            const rsi = _wlRSI(data, 14);
+            if (rsi.length) {
+                const rsiSeries = rsiChart.addLineSeries({ color: '#a855f7', lineWidth: 1.5 });
+                rsiSeries.setData(rsi);
+                // 70/30 水平線
+                rsiSeries.createPriceLine({ price: 70, color: 'rgba(239,68,68,0.4)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '70' });
+                rsiSeries.createPriceLine({ price: 30, color: 'rgba(16,185,129,0.4)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
+            }
+
+            // 同步兩 chart 的 timeScale
+            mainChart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r) rsiChart.timeScale().setVisibleLogicalRange(r); });
+            rsiChart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r) mainChart.timeScale().setVisibleLogicalRange(r); });
+
+            mainChart.timeScale().fitContent();
+            rsiChart.timeScale().fitContent();
+
+            // 標題
+            const title = document.createElement('div');
+            title.style.cssText = 'position:absolute; top:0.4rem; left:0.6rem; color:#fbbf24; font-size:0.78rem; font-weight:700; pointer-events:none; z-index:5; background:rgba(10,25,45,0.85); padding:0.2rem 0.5rem; border-radius:4px;';
+            title.innerHTML = `${_wlEsc(displaySym)} <span style="color:#94a3b8; font-weight:400;">· ${cfg.source.toUpperCase()}:${_wlEsc(cfg.sym)}</span> <span style="color:#64748b; font-weight:400;">· lightweight-charts</span>`;
+            container.appendChild(title);
+
+            // resize observer
+            const ro = new ResizeObserver(() => {
+                mainChart.applyOptions({ width: mainDiv.clientWidth, height: mainDiv.clientHeight });
+                rsiChart.applyOptions({ width: rsiDiv.clientWidth,  height: rsiDiv.clientHeight });
+            });
+            ro.observe(mainDiv); ro.observe(rsiDiv);
+        }
+
         // ── TradingView Advanced Chart Widget ──
         function wlLoadTvChart(tvSymbol, displaySym) {
             if (!tvSymbol) return;
-            // 套替代表（TVC/CME/DJ 部分受限符號）
+            // 強制走 native（lightweight-charts）的 symbol 集合
+            const nativeCfg = WL_NATIVE_CHART[tvSymbol];
+            if (nativeCfg) {
+                if (_wlSelectedSym === tvSymbol) return;
+                _wlSelectedSym = tvSymbol;
+                const labelEl = document.getElementById('wl-tv-symbol-label');
+                if (labelEl) labelEl.innerHTML = `${_wlEsc(displaySym)}（${_wlEsc(tvSymbol)}）<span style="color:#10b981; font-size:0.75rem;"> 原生圖</span>`;
+                _wlRenderNativeChart(tvSymbol, displaySym, nativeCfg);
+                return;
+            }
+            // 套 TV 替代表（TVC/CME/DJ 部分受限符號）
             const realSym = WL_TV_SUBSTITUTES[tvSymbol] || tvSymbol;
             if (_wlSelectedSym === realSym) return;
             _wlSelectedSym = realSym;

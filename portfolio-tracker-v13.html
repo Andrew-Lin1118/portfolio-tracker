@@ -3175,7 +3175,10 @@
                 const content = data.files?.[SYNC_FILENAME]?.content;
                 if (!content) throw new Error('找不到同步檔案');
                 const state = JSON.parse(content);
-                if (state.holdings?.length > 0) holdings = state.holdings;
+                if (state.holdings?.length > 0) {
+                    holdings = state.holdings;
+                    if (typeof _backfillHoldingNames === 'function') _backfillHoldingNames();
+                }
                 if (state.currency) { currency = state.currency; setCurrency(currency); }
                 if (state.cashTWD > 0) {
                     const e = document.getElementById('cash-twd-input');
@@ -6194,11 +6197,28 @@
             }
         }
         // ==================== 初始化 ====================
+        // 預設備註名稱對照：localStorage 內 name 為空時自動補入
+        const _KNOWN_HOLDING_NAMES = {
+            'AXTX': 'Tradr 2X Long AXTI Daily ETF',
+            'AAOX': 'Tradr 2X Long AAOI Daily ETF',
+        };
+        function _backfillHoldingNames() {
+            let changed = 0;
+            holdings.forEach(h => {
+                if ((!h.name || !h.name.trim()) && _KNOWN_HOLDING_NAMES[h.symbol]) {
+                    h.name = _KNOWN_HOLDING_NAMES[h.symbol];
+                    changed++;
+                }
+            });
+            return changed;
+        }
+
         function init() {
             holdings = [];
             _storageReady = false; // 還原期間禁止寫入
             // v13：優先從 localStorage 還原上次持倉
             const hadSaved = loadFromStorage();
+            _backfillHoldingNames();
             _storageReady = true;  // 還原完成，開放寫入
             loadSyncSettings();
             loadCash();

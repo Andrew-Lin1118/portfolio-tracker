@@ -8180,9 +8180,9 @@
                     nextBadge = `<span style="padding:0.18rem 0.55rem;border-radius:6px;background:rgba(71,85,105,0.18);color:#475569;font-size:0.74rem;" title="尚無下次財報日期">📅 下次財報 待公布</span>`;
                 }
 
-                return `<div class="ed-broker-card" style="background:linear-gradient(135deg,rgba(15,30,60,0.65),rgba(10,20,40,0.85));
+                return `<div id="brokercard-${h.symbol}" class="ed-broker-card" style="background:linear-gradient(135deg,rgba(15,30,60,0.65),rgba(10,20,40,0.85));
                     border:1px solid rgba(59,130,246,0.2);border-left:3px solid rgba(251,191,36,0.5);
-                    border-radius:12px;padding:1rem 1.25rem;">
+                    border-radius:12px;padding:1rem 1.25rem;scroll-margin-top:80px;">
                     <!-- Header -->
                     <div class="ed-broker-header" style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap;margin-bottom:0.75rem;border-bottom:1px solid rgba(255,255,255,0.07);padding-bottom:0.6rem;">
                         <span style="font-weight:800;color:#f1f5f9;font-size:1rem;">${h.symbol}</span>${proxyLabel}
@@ -8212,9 +8212,56 @@
                 </div>`;
             }).filter(Boolean).join('');
 
+            // ── 上方快速跳轉 chips（按持倉中標的，含原型/下次財報日標示）──
+            const _today = new Date(); _today.setHours(0,0,0,0);
+            const chipsHtml = sortedHoldings.map(h => {
+                const sym = getQuerySymbol(h.symbol);
+                const qs = allQs[sym]; if (!qs) return '';
+                const fnd = qs._fund || {};
+                const lastRD = getLatestReportDate(h);
+                const nextRD = fnd.next_earnings_date || qs.calendarEvents?.earnings?.earningsDate?.[0]?.fmt || '';
+                const _nextValid = nextRD && (new Date(nextRD + 'T00:00:00') >= _today);
+                const isProxy = !!LEVERAGED_MAP[h.symbol];
+                const proxyTag = isProxy ? `<span style="color:#f59e0b;font-size:0.65rem;font-weight:500;margin-left:0.25rem;">(${sym})</span>` : '';
+                const lastBadge = lastRD ? `<span title="本次（已公布）${lastRD}" style="color:#64748b;font-size:0.66rem;font-weight:500;">本次 ${lastRD.slice(5)}</span>` : '';
+                let nextBadge = '';
+                if (_nextValid) {
+                    const ne = new Date(nextRD + 'T00:00:00');
+                    const diff = Math.round((ne - _today) / 86400000);
+                    let nc = '#fbbf24';
+                    if (diff === 0) nc = '#ef4444';
+                    else if (diff <= 7) nc = '#f59e0b';
+                    else if (diff > 30) nc = '#94a3b8';
+                    nextBadge = `<span title="下次 ${nextRD}（${diff===0?'今天':diff+' 天後'}）" style="color:${nc};font-size:0.66rem;font-weight:600;">下次 ${nextRD.slice(5)}</span>`;
+                }
+                const tipParts = [`跳到 ${h.symbol}`];
+                if (isProxy) tipParts.push(`查詢 ${sym}`);
+                if (lastRD) tipParts.push(`本次 ${lastRD}`);
+                if (_nextValid) tipParts.push(`下次 ${nextRD}`);
+                return `
+                    <button onclick="document.getElementById('brokercard-${h.symbol}')?.scrollIntoView({behavior:'smooth', block:'start'});"
+                        title="${tipParts.join(' · ')}"
+                        style="padding:0.3rem 0.6rem; background:rgba(99,102,241,0.14); border:1px solid rgba(99,102,241,0.32); border-radius:7px; color:#a5b4fc; cursor:pointer; font-size:0.78rem; font-weight:700; display:flex; align-items:center; gap:0.35rem; transition:all 0.15s;"
+                        onmouseover="this.style.background='rgba(99,102,241,0.28)';this.style.color='#c7d2fe';"
+                        onmouseout="this.style.background='rgba(99,102,241,0.14)';this.style.color='#a5b4fc';">
+                        <span>${h.symbol}${proxyTag}</span>
+                        ${lastBadge}
+                        ${nextBadge}
+                    </button>`;
+            }).filter(Boolean).join('');
+
+            const chipsBar = chipsHtml
+                ? `<div style="margin:0 0 0.85rem; padding:0.7rem 0.95rem; background:rgba(15,30,60,0.42); border:1px solid rgba(148,163,184,0.16); border-radius:10px;">
+                       <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.55rem;">
+                           <div style="color:#94a3b8; font-size:0.8rem;">⚡ 快速跳轉（依 <strong style="color:#fbbf24;">最近財報日</strong> 排序）</div>
+                           <div style="color:#64748b; font-size:0.78rem;">共 ${sortedHoldings.length} 檔</div>
+                       </div>
+                       <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">${chipsHtml}</div>
+                   </div>` : '';
+
             // 桌機 2 欄、平板 / 手機自動降為 1 欄（用 min(480px, 100%) 避免手機 viewport 小於 480px 時溢出）
             container.innerHTML = html
-                ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(480px,100%),1fr));gap:0.75rem;">${html}</div>`
+                ? `${chipsBar}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(480px,100%),1fr));gap:0.75rem;">${html}</div>`
                 : '<div style="text-align:center;padding:3rem;color:#64748b;">無法取得分析數據</div>';
         }
 

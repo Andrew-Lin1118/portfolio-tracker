@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v62';  // ← 2026-05-04：watchlist 盤前漲跌數值修正（用上一個完整交易日收盤當基準）
+const CACHE_NAME = 'portfolio-tracker-v63';  // ← 2026-05-04：券商目標 tab 上方加標的快捷跳轉 chips（同財報深度）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

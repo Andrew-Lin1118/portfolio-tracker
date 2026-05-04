@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v66';  // ← 2026-05-04：手機版觀察清單 K 線改用 vh 單位，避免擠成一團
+const CACHE_NAME = 'portfolio-tracker-v67';  // ← 2026-05-04：手機版 K 線隱藏左側工具列 + 預設 auto-fit
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

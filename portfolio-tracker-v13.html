@@ -4516,11 +4516,13 @@
             script.type = 'text/javascript';
             script.async = true;
             script.src = WL_TV_SCRIPT_URL;
+            // 手機板：隱藏左側畫線工具列、保留頂部時段切換
+            const _wlIsMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
             script.innerHTML = JSON.stringify({
                 allow_symbol_change: true,
                 calendar: false,
                 details: false,
-                hide_side_toolbar: false,
+                hide_side_toolbar: _wlIsMobile,        // 手機隱藏左側畫線工具列
                 hide_top_toolbar: false,
                 hide_legend: false,
                 hide_volume: false,
@@ -4543,7 +4545,18 @@
                     'STD;RSI',
                     'MASimple@tv-basicstudies',
                 ],
+                // 右側價格軸：保持 auto-fit（widget 預設行為，明確指定為 normal+autoScale 防止舊狀態殘留）
+                rightToolbar: false,
+                price_scale_mode: 0,           // 0 = Normal
                 autosize: true,
+                disabled_features: _wlIsMobile ? [
+                    'left_toolbar',                     // 左側畫線
+                    'header_screenshot',                // 標題列截圖
+                    'use_localstorage_for_settings',    // 不要記住捲動位置 → 每次重載確保 auto-fit
+                    'study_template'                    // 範本選單（手機沒空間）
+                ] : [
+                    'use_localstorage_for_settings',    // 桌機也清掉，確保「右側 K 線預設 Auto」
+                ],
             });
             wrap.appendChild(script);
         }

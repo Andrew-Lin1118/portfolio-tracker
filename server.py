@@ -110,6 +110,10 @@ _crypto_autopush    = os.environ.get('CRYPTO_AUTOPUSH', '0') != '0'
 # ── stock transaction ledger（股票買賣流水 / 已實現損益來源）────
 STOCK_TXNS_FILE = os.path.join(DIR, 'stocker_txns.json')
 
+# ── asset history snapshot（每日資產快照，前端 _saveAssetSnapshot POST 寫入）────
+# schema: { "YYYY-MM-DD": {v, vt, c, ct, p}, ... }（與 v13 localStorage 同 schema）
+ASSET_HISTORY_FILE = os.path.join(DIR, 'data', 'asset_history.json')
+
 # ── Futu/Moomoo quote bridge ──────────────────────────────────────────────
 # Optional dependency: moomoo-api (import name: moomoo) or futu-api (import name: futu).
 # The frontend treats this as best-effort and falls back to Yahoo/Sheet if unavailable.
@@ -1077,6 +1081,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._sub_cancel()
         elif p == '/sub/sync_profit_query':
             self._sub_sync_profit_query()
+        elif p == '/asset/snapshot/save':
+            self._asset_snapshot_save()
         else:
             self.send_error(404, f'Not found: {p}')
 
@@ -2224,6 +2230,50 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             _sub_bal_ts    = time.time()
             _sub_bal_src_mtime = src_mtime
         self._send_json(result)
+
+    # ── asset history snapshot ────────────────────────────
+    def _asset_snapshot_save(self):
+        """
+        前端 _saveAssetSnapshot 觸發：
+          POST /asset/snapshot/save  body: {"date":"YYYY-MM-DD", "v":..,"vt":..,"c":..,"ct":..,"p":..}
+        merge 寫入 data/asset_history.json（同 schema 同 key 直接覆寫當日）
+        """
+        body = self._read_body()
+        date = str(body.get('date') or '').strip()
+        if not date or len(date) != 10 or date[4] != '-' or date[7] != '-':
+            self._send_json({'status': 'fail', 'error': 'invalid date (need YYYY-MM-DD)'}, status=400)
+            return
+        try:
+            entry = {
+                'v':  float(body.get('v')  or 0),
+                'vt': float(body.get('vt') or 0),
+                'c':  float(body.get('c')  or 0),
+                'ct': float(body.get('ct') or 0),
+                'p':  float(body.get('p')  or 0),
+            }
+        except (TypeError, ValueError) as e:
+            self._send_json({'status': 'fail', 'error': f'invalid number: {e}'}, status=400)
+            return
+        if entry['v'] <= 0:
+            self._send_json({'status': 'fail', 'error': 'v must be > 0'}, status=400)
+            return
+
+        try:
+            hist = {}
+            if os.path.exists(ASSET_HISTORY_FILE):
+                with open(ASSET_HISTORY_FILE, encoding='utf-8') as f:
+                    raw = json.load(f)
+                if isinstance(raw, dict):
+                    hist = raw
+            hist[date] = entry
+            tmp = ASSET_HISTORY_FILE + '.tmp'
+            os.makedirs(os.path.dirname(ASSET_HISTORY_FILE), exist_ok=True)
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(hist, f, ensure_ascii=False, indent=2, sort_keys=True)
+            os.replace(tmp, ASSET_HISTORY_FILE)
+            self._send_json({'status': 'ok', 'date': date, 'count': len(hist)})
+        except Exception as e:
+            self._send_json({'status': 'fail', 'error': f'write failed: {e}'}, status=500)
 
     def _sub_orders(self, parsed):
         """今日委託（從本機 orders.jsonl 讀取，10s 快取）"""

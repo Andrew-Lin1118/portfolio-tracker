@@ -9989,15 +9989,30 @@
                                 ts: _metaExtendedQuote.ts
                             };
                         }
-                        // 美股盤前/盤後：Yahoo 日 K 不會把 extended session 放進 regularMarketPrice，
-                        // 需另抓 1m includePrePost，用最新延長盤分鐘價對昨收計算今日漲跌。
-                        if (usExtendedNow && _isUsStockSymbol(_ph.symbol)) {
+                        // 美股盤前/盤後 + NY 完全收盤過夜：Yahoo 日 K 不會把 extended session 放進 regularMarketPrice，
+                        // 需另抓 1m includePrePost。即使 NY 過夜（usExtendedNow=false）也跑 — 拿最近一根分鐘 K
+                        // 當「最新延長盤價」（通常是昨日 post-market 最後一筆，例 NY 19:59 ET），讓使用者看到夜盤後的最後價而非「—」。
+                        // 這個 fallback 在 Futu OpenD 未啟動時尤其重要。
+                        if (_isUsStockSymbol(_ph.symbol)) {
                             try {
                                 const _id = await yfFetch(
                                     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1m&range=1d&includePrePost=true`
                                 );
                                 const _ich = _id?.chart?.result?.[0];
-                                const _iq = _deriveYahooIntradayQuote(_ich, _ph.symbol, _pScale);
+                                let _iq = _deriveYahooIntradayQuote(_ich, _ph.symbol, _pScale);
+                                // Fallback：NY 過夜（usExtendedNow=false）時 _deriveYahooIntradayQuote 找不到「今日」bar，
+                                // 改取最新一根有效 1m K（通常是昨日 post-market 19:59 ET 的最後成交）
+                                if (!_iq && _ich) {
+                                    const _ts = _ich.timestamp || [];
+                                    const _cl = _ich.indicators?.quote?.[0]?.close || [];
+                                    for (let _bi = Math.min(_ts.length, _cl.length) - 1; _bi >= 0; _bi--) {
+                                        const _c = Number(_cl[_bi]);
+                                        if (_ts[_bi] && isFinite(_c) && _c > 0) {
+                                            _iq = { price: _c * _pScale, time: _ts[_bi] };
+                                            break;
+                                        }
+                                    }
+                                }
                                 if (_iq?.price > 0) {
                                     const _hasPreferredPrice = _hasPriceKey(_ph.symbol, futuPrices);
                                     const _extendedDisplayPrice = _hasPreferredPrice
@@ -10014,13 +10029,16 @@
                                         ? _extendedChangePoints / _extendedBase * 100
                                         : null;
                                     if (!_hasPreferredPrice) prices[_ph.symbol] = _iq.price;
+                                    // label：當前在 pre/post 用 session.label；NY 過夜（usExtendedNow=false）時用「夜盤」
+                                    const _phaseLabel = usExtendedSession.label || '夜盤';
+                                    const _phaseKey   = usExtendedSession.phase || 'overnight';
                                     if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
                                     window._proxyIntradayCache[_ph.symbol] = {
                                         price: _extendedDisplayPrice,
                                         ts: Date.now(),
                                         extended: true,
-                                        extendedLabel: usExtendedSession.label,
-                                        extendedPhase: usExtendedSession.phase,
+                                        extendedLabel: _phaseLabel,
+                                        extendedPhase: _phaseKey,
                                         extendedChangePoints: _extendedChangePoints,
                                         extendedChangePct: _extendedChangePct
                                     };
@@ -10028,8 +10046,8 @@
                                     if (!window._extendedQuoteMeta) window._extendedQuoteMeta = {};
                                     window._extendedQuoteActive[_ph.symbol] = true;
                                     window._extendedQuoteMeta[_ph.symbol] = {
-                                        label: usExtendedSession.label,
-                                        phase: usExtendedSession.phase,
+                                        label: _phaseLabel,
+                                        phase: _phaseKey,
                                         price: _extendedDisplayPrice,
                                         changePoints: _extendedChangePoints,
                                         changePct: _extendedChangePct,

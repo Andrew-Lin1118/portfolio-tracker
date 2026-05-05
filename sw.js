@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v79';  // ← 2026-05-05：新增 STXX 槓桿 ETF 對應 STX（含 LEVERAGED_MAP / LEVERAGE_FACTOR / 觀察清單預設 / symbol_mapping.json）
+const CACHE_NAME = 'portfolio-tracker-v80';  // ← 2026-05-05：strategy-btc.html「套用 bot 預設」改為 pionex_bot 規模對齊（lev 7.5x / maint 0.5% / fee 0.04% / SL 6%）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

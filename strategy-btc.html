@@ -610,7 +610,7 @@
       <input type="number" id="stopLossPct" value="30" step="1" min="1" max="80" style="width:80px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">
     </div>
   </div>
-  <button class="btn-run" id="presetBtn" onclick="applyConfigPreset()" style="background:linear-gradient(135deg,#5b8def,#00e676);padding:7px 14px;font-size:12px" title="套用 BTC 永續標準預設（target 2x / max 4x / DCA 8% / funding 11% / 停損 30%）">&#128279; 套用 BTC 預設</button>
+  <button class="btn-run" id="presetBtn" onclick="applyConfigPreset()" style="background:linear-gradient(135deg,#5b8def,#00e676);padding:7px 14px;font-size:12px" title="套用 pionex_bot 規模對齊預設（lev 7.5x / maint 0.5% / fee 0.04% / SL 6%；⚠ 引擎仍是 trend，不等同 MACD bot 真實回測）">&#128279; 套用 bot 預設</button>
   <button class="btn-run" id="runBtn" onclick="onRun()">&#9654; 執行模擬</button>
   <button class="btn-run" id="optBtn" onclick="onOptimize()" style="background:linear-gradient(135deg,#ffb300,#ff4f4f);padding:7px 14px;font-size:12px" title="掃描加/減槓桿區間，找出最佳窗口">&#128300; 窗口最佳化</button>
 </div>
@@ -1310,30 +1310,43 @@ function readConfig() {
   };
 }
 
-// BTC 永續預設組合（保守 / 標準 / 激進三檔）— 取代 FMX 的 live config 載入
+// 套用 pionex_bot 規模對齊預設（leverage 25 × pos 30% = 名目 7.5x、Binance USDM 主流費率）
+//
+// ⚠ 規模對齊 ≠ 策略對齊：本模擬器引擎是 EMA200/100MA + 動態加碼 + DCA，
+//    pionex_bot 真實邏輯是 MACD + ATR + 部分 TP + ATR trail；模擬結果僅供
+//    「假設此規模套到 trend 策略」參考，不等同 bot 真實回測。
+//    bot 真實回測請看 pionex_bot/backtest_macd_*.py。
 async function applyConfigPreset() {
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
   const chk = (id, v) => { const e = document.getElementById(id); if (e) e.checked = v; };
-  // 預設套「標準」模板（初始 10k、目標 2x、最大 4x、taker 0.04%、維持 1%、年化 funding 11%）
-  set('initialCapital',   10000);
-  set('targetLeverage',   2);
-  set('dcaThreshold',     8);     // BTC 波動大，門檻拉高
-  set('maxLeverage',      4);
-  set('pyramidTrigger',   2.5);
-  set('feeRate',          0.04);
-  set('maintMarginRate',  1);
-  set('fundingRateAnnual', 11);
-  set('highPeriod',       10);
-  set('lowPeriod',        100);
+
+  // ── 規模參數（對齊 pionex_bot/config.yaml）──
+  set('initialCapital',   10000);  // 起始資金（依個人實際調整）
+  set('targetLeverage',   7.5);    // = position_pct 0.30 × leverage 25
+  set('maxLeverage',      8);      // 與 target 接近，等同停用 pyramid
+  set('pyramidTrigger',   8);      // 同上 → pyramid 永遠不觸發
+  set('feeRate',          0.04);   // Binance USDM-Futures taker 0.04%
+  set('maintMarginRate',  0.5);    // Binance BTCUSDT tier 1 維持保證金 ~0.5%
+  set('fundingRateAnnual', 11);    // BTC 永續歷史平均 ~11% 年化
+  set('maxPositionPct',   30);     // = bot max_position_pct 0.30
+  set('dcaThreshold',     30);     // 設高 → 模擬 bot「不 DCA」單進單出
+
+  // ── 趨勢過濾（bot 有 1H EMA300 + Daily EMA100 過濾，這裡用 daily 模擬）──
   chk('trendFilterOn',    true);
+  set('highPeriod',       12);     // 1H EMA300 ≈ 12 天
+  set('lowPeriod',        100);    // Daily EMA100
   set('buyLots',          1);
-  set('maxPositionPct',   50);    // BTC 單次加碼上限收緊
+
+  // ── 停損（用 bot 的 emergency stop_loss_pct 0.06）──
+  chk('stopLossOn',       true);
+  set('stopLossPct',      6);      // bot stop_loss_pct 0.06
+
+  // ── bot 沒有 RSI / 雙模式 → 全關 ──
   chk('rsiFilterOn',      false);
   chk('rsiDynLevOn',      false);
   chk('dualModeOn',       false);
-  chk('stopLossOn',       true);
-  set('stopLossPct',      30);    // 加密更兇，停損 30% 比期指 3% 合理
-  setStatus('已套用 BTC 永續標準預設（target 2x / max 4x / DCA 8% / funding 11% / 停損 30%）', false);
+
+  setStatus('已套用 pionex_bot 規模對齊預設（lev 7.5x / maint 0.5% / fee 0.04% / SL 6%）— ⚠ 引擎仍是 trend，不等同 MACD bot 真實回測', false);
 }
 
 function setStatus(msg, loading) {

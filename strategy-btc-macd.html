@@ -475,12 +475,24 @@ async function fetchBTCDaily(rangeDays) {
   const ts = r.timestamp || [];
   const closes = r.indicators.quote[0].close;
   const map = {};
+  // ★ 跳過最後一根 forming daily bar（避免今天還在動的 close 被當作真收盤）
+  const lastIdx = ts.length - 1;
+  const todayStr = new Date().toISOString().slice(0, 10);
   for (let i = 0; i < ts.length; i++) {
     if (closes[i] == null) continue;
     const date = new Date(ts[i] * 1000).toISOString().slice(0, 10);
+    // 排除今天（forming）— 只用已收盤的歷史日線
+    if (i === lastIdx && date === todayStr) continue;
     map[date] = closes[i];
   }
   return map;
+}
+
+// 取「前一交易日」的日期字串（給 daily EMA 趨勢過濾用，避免 look-ahead bias）
+function prevDateStr(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -527,9 +539,10 @@ function simulateMACD(bars, dailyClose, cfg) {
       equity -= position.contracts * price * fundingHourly;
     }
 
-    // ── 趨勢過濾 ──
-    const dEma = dailyEmaMap[bar.date];
-    const dClose = dailyClose[bar.date];
+    // ── 趨勢過濾（用「前一交易日」收盤 + EMA 避免 look-ahead）──
+    const prevDate = prevDateStr(bar.date);
+    const dEma = dailyEmaMap[prevDate];
+    const dClose = dailyClose[prevDate];
     const trendOK = (dClose != null && dEma != null && dClose > dEma) &&
                     (ema1h[i] != null && price > ema1h[i]);
 
@@ -638,18 +651,14 @@ function simulateMACD(bars, dailyClose, cfg) {
       equity = 0; position = null;
     }
 
-    // 記錄權益
-    if (equity > peakEquity) peakEquity = equity;
-    const dd = peakEquity > 0 ? (peakEquity - equity) / peakEquity : 0;
+    // 記錄權益（mark-to-market：含未實現損益，回撤/曲線才符合實際）
+    const mtmEquity = position
+      ? equity + position.contracts * (price - position.entryPrice)
+      : equity;
+    if (mtmEquity > peakEquity) peakEquity = mtmEquity;
+    const dd = peakEquity > 0 ? (peakEquity - mtmEquity) / peakEquity : 0;
     if (dd > maxDrawdown) maxDrawdown = dd;
-    equityCurve.push({ ts: bar.iso, date: bar.date, price, equity });
-  }
-
-  // 收盤時若仍有倉位，按最後價 mark-to-market
-  if (position) {
-    const last = bars[bars.length - 1];
-    const finalEquity = equity + position.contracts * (last.c - position.entryPrice);
-    equityCurve[equityCurve.length - 1].equity = finalEquity;
+    equityCurve.push({ ts: bar.iso, date: bar.date, price, equity: mtmEquity });
   }
 
   return { trades, equityCurve, peakEquity, maxDrawdown };

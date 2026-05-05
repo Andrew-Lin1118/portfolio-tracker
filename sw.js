@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v81';  // ← 2026-05-05：新增 strategy-btc-macd.html（pionex_bot 邏輯移植：MACD + ATR + 部分 TP + ATR trail + 2D 窗口最佳化）
+const CACHE_NAME = 'portfolio-tracker-v82';  // ← 2026-05-05：strategy-btc-macd.html 修 3 個 bug（daily EMA look-ahead、forming bar、equity mark-to-market）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

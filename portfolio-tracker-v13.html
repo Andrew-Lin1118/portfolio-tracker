@@ -4131,6 +4131,7 @@
                 { sym: '9747',    tv: 'HKEX:9747',          yf: '9747.HK' },
                 { sym: '7709',    tv: 'HKEX:7709',          yf: '7709.HK' },
                 { sym: 'STX',     tv: 'NASDAQ:STX',         yf: 'STX' },
+                { sym: 'STXX',    tv: 'NASDAQ:STXX',        yf: 'STXX' },
                 { sym: 'WDCX',    tv: 'NASDAQ:WDCX',        yf: 'WDCX' },
                 { sym: 'PLTU',    tv: 'NASDAQ:PLTU',        yf: 'PLTU' },
                 { sym: 'NBIG',    tv: 'NASDAQ:NBIG',        yf: 'NBIG' },
@@ -6133,7 +6134,7 @@
             'COHX':'COHR', 'FBL':'META',  'GGLL':'GOOGL', 'LITX':'LITE',
             'MUU':'MU',    'NBIG':'NBIS', 'ORCU':'ORCL',  'PLTU':'PLTR',
             'SNXX':'SNDK', 'TSLL':'TSLA', 'TSMX':'TSM',   'WDCX':'WDC',
-            'AAOX':'AAOI', 'AXTX':'AXTI',
+            'AAOX':'AAOI', 'AXTX':'AXTI', 'STXX':'STX',
             'USD':'SOXX',  '7709.HK':'000660.KS', '9747.HK':'005930.KS'
         };
         // 各槓桿 ETF 對應的「實質曝險倍數」(用於整體槓桿率計算；未列出視為 1.0x)
@@ -6141,7 +6142,7 @@
         const LEVERAGE_FACTOR = {
             'NVDL':2,'AMDL':2,'ASTX':2,'AVGX':2,'COHX':2,'FBL':2,'GGLL':2,'LITX':2,
             'MUU':2, 'NBIG':2,'ORCU':2,'PLTU':2,'SNXX':2,'TSLL':2,'TSMX':2,'WDCX':2,
-            'AAOX':2,'AXTX':2,
+            'AAOX':2,'AXTX':2,'STXX':2,
             'USD':3,
             '7709.HK':2,'9747.HK':2,
         };

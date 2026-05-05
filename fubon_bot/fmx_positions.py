@@ -260,7 +260,31 @@ def main():
 
     close_rows_dbg  = []
     new_trades_count = 0
+    today_added_count = 0
     total_ledger     = 0
+
+    # ── 載入現有 ledger（不論兩個 API 成不成功都會用到） ─────────
+    ledger = {"trades": [], "updated_at": ""}
+    try:
+        if os.path.exists(trade_ledger_path):
+            with open(trade_ledger_path, encoding="utf-8") as f:
+                ledger = json.load(f) or ledger
+    except Exception:
+        ledger = {"trades": [], "updated_at": ""}
+
+    # 兩個 API 的 order_no 格式不同：
+    #   close_position_record → 'a03f8-0000'（含後綴）
+    #   get_order_results     → 'a03f8'    （無後綴）
+    # 統一補 '-0000' 做 dedup key（確保隔天結算後的 record 不會跟即時 record 重複）
+    def _norm_no(no):
+        s = str(no or "")
+        return s if (not s or s.endswith("-0000")) else (s + "-0000")
+
+    # 把現有 ledger 的 order_no 也 normalize 後做 seen set
+    seen = {(_norm_no(t.get("order_no")), t.get("date"), t.get("price"),
+             t.get("buy_sell"), t.get("orig_lots")) for t in ledger.get("trades", [])}
+
+    # ─── API #1: close_position_record（已結算成交，含 fee/tax，T+1 延遲）───
     try:
         try:
             r = sdk.futopt_accounting.close_position_record(
@@ -272,20 +296,8 @@ def main():
         if hasattr(r, "is_success") and r.is_success:
             rows = r.data or []
             diag.append(f"close_position_record [{start_iso} ~ {end_iso}]: OK → {len(rows)} rows")
-            # ── 載入現有 ledger ─────────────────────────────────
-            ledger = {"trades": [], "updated_at": ""}
-            try:
-                if os.path.exists(trade_ledger_path):
-                    with open(trade_ledger_path, encoding="utf-8") as f:
-                        ledger = json.load(f) or ledger
-            except Exception:
-                ledger = {"trades": [], "updated_at": ""}
-            # 現有 ledger 的唯一鍵（dedupe key）
-            seen = {(t.get("order_no"), t.get("date"), t.get("price"),
-                     t.get("buy_sell"), t.get("orig_lots")) for t in ledger.get("trades", [])}
-
-            # ── 逐筆解析 & 加入 ledger ─────────────────────────
             for inv in rows:
+                no_norm = _norm_no(getattr(inv, "order_no", "") or "")
                 rec = {
                     "date":          str(getattr(inv, "date", "") or ""),
                     "symbol":        str(getattr(inv, "symbol", "") or ""),
@@ -296,32 +308,77 @@ def main():
                     "price":         float(getattr(inv, "price", 0) or 0),
                     "tax":           float(getattr(inv, "tax", 0) or 0),
                     "fee":           float(getattr(inv, "transaction_fee", 0) or 0),
-                    "order_no":      str(getattr(inv, "order_no", "") or ""),
+                    "order_no":      no_norm,  # normalized 寫回 ledger
                     "expiry":        str(getattr(inv, "expiry_date", "") or ""),
                 }
-                key = (rec["order_no"], rec["date"], rec["price"], rec["buy_sell"], rec["orig_lots"])
+                key = (no_norm, rec["date"], rec["price"], rec["buy_sell"], rec["orig_lots"])
                 if key not in seen:
                     ledger.setdefault("trades", []).append(rec)
                     seen.add(key)
                     new_trades_count += 1
                 if len(close_rows_dbg) < 5:
                     close_rows_dbg.append(rec)
-
-            # ── 排序 + 寫回 ─────────────────────────────────
-            ledger["trades"].sort(key=lambda t: (t.get("date", ""), t.get("order_no", "")))
-            ledger["updated_at"] = datetime.datetime.now().isoformat(timespec="seconds")
-            ledger["query_range"] = {"start": start_iso, "end": end_iso}
-            total_ledger = len(ledger["trades"])
-            try:
-                with open(trade_ledger_path, "w", encoding="utf-8") as f:
-                    json.dump(ledger, f, ensure_ascii=False, indent=2)
-                diag.append(f"trade ledger 寫入 {trade_ledger_path}：新增 {new_trades_count} 筆 / 總 {total_ledger} 筆")
-            except Exception as e:
-                diag.append(f"trade ledger 寫入失敗: {e}")
         else:
             diag.append(f"close_position_record: {getattr(r, 'message', 'failed')}")
     except Exception as e:
         diag.append(f"close_position_record error: {type(e).__name__}: {e}")
+
+    # ─── API #2: get_order_results（當日即時成交，無 fee/tax，含夜盤未結算）───
+    # 補強：解 close_position_record T+1 延遲導致夜盤成交當日看不到的問題
+    try:
+        r2 = sdk.futopt.get_order_results(fut_account)
+        if r2 and getattr(r2, "is_success", False):
+            today_rows = r2.data or []
+            for inv in today_rows:
+                # 只取 已成交（filled_lot > 0）
+                filled_lot = float(getattr(inv, "filled_lot", 0) or 0)
+                if filled_lot <= 0:
+                    continue
+                no_norm = _norm_no(getattr(inv, "order_no", "") or "")
+                # 成交價：filled_money 不一定有，fallback 到 price
+                price = float(getattr(inv, "filled_money", 0) or 0)
+                if price <= 0:
+                    price = float(getattr(inv, "price", 0) or 0)
+                rec = {
+                    "date":          str(getattr(inv, "date", "") or ""),
+                    "time":          str(getattr(inv, "last_time", "") or "")[:8],  # '20:23:33'
+                    "symbol":        str(getattr(inv, "symbol", "") or ""),
+                    "buy_sell":      str(getattr(inv, "buy_sell", "")).replace("BSAction.", ""),
+                    "position_kind": "1",
+                    "order_type":    str(getattr(inv, "order_type", "")).replace("FutOptOrderType.", ""),
+                    "orig_lots":     filled_lot,
+                    "price":         price,
+                    "tax":           0.0,   # 即時 API 不回傳 tax；隔天 close_position_record 會 dedup 補上
+                    "fee":           0.0,
+                    "order_no":      no_norm,
+                    "expiry":        str(getattr(inv, "expiry_date", "") or ""),
+                    "source":        "get_order_results",   # 標記來源（debug 用）
+                }
+                key = (no_norm, rec["date"], rec["price"], rec["buy_sell"], rec["orig_lots"])
+                if key not in seen:
+                    ledger.setdefault("trades", []).append(rec)
+                    seen.add(key)
+                    today_added_count += 1
+            diag.append(f"get_order_results: OK → {len(today_rows)} rows, +{today_added_count} 筆當日新增")
+        elif r2 is not None:
+            diag.append(f"get_order_results: {getattr(r2, 'message', 'failed')}")
+    except Exception as e:
+        diag.append(f"get_order_results error: {type(e).__name__}: {e}")
+
+    # ─── 排序 + 寫回（兩個 API 都跑完）───
+    try:
+        ledger["trades"].sort(key=lambda t: (t.get("date", ""), t.get("order_no", "")))
+        ledger["updated_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+        ledger["query_range"] = {"start": start_iso, "end": end_iso}
+        total_ledger = len(ledger["trades"])
+        with open(trade_ledger_path, "w", encoding="utf-8") as f:
+            json.dump(ledger, f, ensure_ascii=False, indent=2)
+        diag.append(
+            f"trade ledger 寫入 {trade_ledger_path}："
+            f"+{new_trades_count}（結算）+{today_added_count}（當日即時）/ 總 {total_ledger} 筆"
+        )
+    except Exception as e:
+        diag.append(f"trade ledger 寫入失敗: {e}")
 
     # ── 已實現損益：錨點 + 未來 FIFO 累加 ────────────────────────────────
     # 設計：

@@ -763,22 +763,37 @@ function renderMetrics(equityCurve, trades, cfg, peakEquity, maxDrawdown) {
   const days = equityCurve.length / 24;
   const years = days / 365;
   const cagr = years > 0 ? Math.pow(Math.max(finalEq, 1) / cfg.initialCapital, 1 / years) - 1 : 0;
-  const wins = trades.filter(t => (t.action === 'PARTIAL_TP' || t.action === 'FULL_TP' || t.action === 'TRAIL_HIT') && t.pnl > 0);
-  const losses = trades.filter(t => t.action === 'SL_HIT' && t.pnl < 0);
+  // 以「完整交易週期」算勝率：ENTRY → ... → 終點（SL_HIT / TRAIL_HIT / FULL_TP / LIQD）
+  // 累加期間所有 PARTIAL_TP + 終點的 pnl，正數=贏、負數=輸
+  let wins = 0, losses = 0, breakeven = 0, cyclePnl = 0, inCycle = false;
+  for (const t of trades) {
+    if (t.action === 'ENTRY') {
+      if (inCycle) { if (cyclePnl > 0) wins++; else if (cyclePnl < 0) losses++; else breakeven++; }
+      inCycle = true; cyclePnl = 0;
+    } else if (inCycle && t.pnl != null) {
+      cyclePnl += t.pnl;
+      if (t.action === 'SL_HIT' || t.action === 'TRAIL_HIT' || t.action === 'FULL_TP' || t.action === 'LIQD') {
+        if (cyclePnl > 0) wins++; else if (cyclePnl < 0) losses++; else breakeven++;
+        inCycle = false; cyclePnl = 0;
+      }
+    }
+  }
   const entries = trades.filter(t => t.action === 'ENTRY').length;
-  const winRate = entries > 0 ? (wins.length / entries) * 100 : 0;
+  const cycles = wins + losses + breakeven;
+  const winRate = cycles > 0 ? (wins / cycles) * 100 : 0;
 
   const mk = (lab, val, sub, cls) =>
     `<div class="m"><div class="m-label">${lab}</div><div class="m-val ${cls||''}">${val}</div>${sub?`<div class="m-sub">${sub}</div>`:''}</div>`;
   const fmt = n => '$' + Math.round(n).toLocaleString();
+  const openTxt = inCycle ? `（${entries - cycles} 筆持倉中未結算）` : '';
   document.getElementById('metricsGrid').innerHTML = [
     mk('終值',         fmt(finalEq),                                '初始 ' + fmt(cfg.initialCapital), totalRet >= 0 ? 'pos' : 'neg'),
     mk('總報酬',       (totalRet * 100).toFixed(1) + '%',           years.toFixed(2) + ' 年',           totalRet >= 0 ? 'pos' : 'neg'),
     mk('CAGR',         (cagr * 100).toFixed(1) + '%',               '年化',                              cagr >= 0 ? 'pos' : 'neg'),
     mk('最大回撤',     (maxDrawdown * 100).toFixed(1) + '%',        '峰值 ' + fmt(peakEquity),          'neg'),
     mk('CAGR/MDD',     maxDrawdown > 0 ? (cagr / maxDrawdown).toFixed(2) : (cagr > 0 ? '∞' : '0'),     '風報比',                            cagr >= 0 ? 'pos' : 'neg'),
-    mk('交易次數',     entries.toLocaleString(),                    '進場',                              ''),
-    mk('勝率',         winRate.toFixed(1) + '%',                    `贏 ${wins.length} / 輸 ${losses.length}`, winRate >= 50 ? 'pos' : 'neg'),
+    mk('交易次數',     entries.toLocaleString(),                    `完整週期 ${cycles}${openTxt}`,    ''),
+    mk('勝率',         winRate.toFixed(1) + '%',                    `贏 ${wins} / 輸 ${losses}` + (breakeven ? ` / 平 ${breakeven}` : ''), winRate >= 50 ? 'pos' : 'neg'),
   ].join('');
   document.getElementById('metricsPanel').style.display = '';
 }
@@ -1003,9 +1018,23 @@ async function runOptSweep() {
         const years = r.equityCurve.length / 24 / 365;
         const cagr = years > 0 ? Math.pow(Math.max(finalEquity, 1) / cfg.initialCapital, 1 / years) - 1 : 0;
         const mdd = r.maxDrawdown;
+        // 以「完整交易週期」算勝率（同 renderMetrics 邏輯）
+        let _w = 0, _l = 0, _cyc = 0, _ic = false;
+        for (const t of r.trades) {
+          if (t.action === 'ENTRY') {
+            if (_ic) { if (_cyc > 0) _w++; else if (_cyc < 0) _l++; }
+            _ic = true; _cyc = 0;
+          } else if (_ic && t.pnl != null) {
+            _cyc += t.pnl;
+            if (t.action === 'SL_HIT' || t.action === 'TRAIL_HIT' || t.action === 'FULL_TP' || t.action === 'LIQD') {
+              if (_cyc > 0) _w++; else if (_cyc < 0) _l++;
+              _ic = false; _cyc = 0;
+            }
+          }
+        }
         const entries = r.trades.filter(t => t.action === 'ENTRY').length;
-        const wins = r.trades.filter(t => (t.action === 'PARTIAL_TP' || t.action === 'FULL_TP' || t.action === 'TRAIL_HIT') && t.pnl > 0).length;
-        const winRate = entries > 0 ? wins / entries : 0;
+        const cycles = _w + _l;
+        const winRate = cycles > 0 ? _w / cycles : 0;
         const sharpe = mdd > 0 ? cagr / mdd : (cagr > 0 ? 999 : 0);
         results.push({ xv, yv, finalEquity, cagr, mdd, sharpe, winRate, entries });
       } catch (e) {

@@ -4231,8 +4231,8 @@
                         const pctStr = fmtPctSigned(Number(cache.changePct));
                         if (ptsStr) extChgLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${lab}${ptsStr ? ' ' + ptsStr : ''}</div>`;
                         if (pctStr) extPctLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${pctStr}</div>`;
-                    } else if (cache.src === 'YF') {
-                        // 一般股票：小字「今日」標示
+                    } else if (cache.src === 'YF' || cache.src === 'FUTU') {
+                        // 一般股票（Yahoo 或 Futu）：小字「今日」標示
                         extChgLine = `<div style="color:#64748b; font-size:0.62rem; font-weight:500; margin-top:0.1rem; white-space:nowrap; letter-spacing:0.5px;">今日</div>`;
                     }
                 }
@@ -4747,13 +4747,58 @@
         async function wlRefreshPrices() {
             if (!_wlData) return;
             const list = _wlData[_wlCat] || [];
-            const targets = list.filter(it => it.yf || it.okx || it.binance);
+            const targets = list.filter(it => it.yf || it.okx || it.binance || it.cg);
             if (targets.length === 0) { wlRender(); return; }
             const statusEl = document.getElementById('wl-status');
             if (statusEl) statusEl.textContent = `更新中 0/${targets.length}…`;
-            const queue = targets.slice();
+
+            // ── ① Futu 一次抓全清單（24H 夜盤資料；非加密分頁才用）──
+            //    Futu 接受 'NVDA' / '9747.HK' / '005930.KS' 這類格式 → 用 yf 當 key（含 suffix）
+            //    fallback 用 sym。命中後 prefill _wlPriceCache，後續 chain 會自動 skip。
+            const futuPrefilled = new Set();
+            if (_wlCat !== 'crypto' && typeof _fetchFutuQuotes === 'function') {
+                try {
+                    const symMap = new Map();   // futu_sym → tv
+                    targets.forEach(it => {
+                        const fs = (it.yf && it.yf.length) ? it.yf : it.sym;
+                        if (fs) symMap.set(fs, it.tv);
+                    });
+                    const fdata = await _fetchFutuQuotes([...symMap.keys()]);
+                    if (fdata?.ok && fdata.quotes) {
+                        for (const [fs, q] of Object.entries(fdata.quotes)) {
+                            if (!q) continue;
+                            const last = Number(q.last_price);
+                            const prev = Number(q.prev_close_price);
+                            if (!isFinite(last) || last <= 0) continue;
+                            const tv = symMap.get(fs);
+                            if (!tv) continue;
+                            const change = isFinite(prev) && prev > 0 ? last - prev : null;
+                            const changePct = isFinite(prev) && prev > 0 ? change / prev * 100 : null;
+                            const ext = (q.extended && Number(q.extended.price) > 0) ? {
+                                label: q.extended.label || '夜盤',
+                                phase: q.extended.phase || 'extended',
+                                price: Number(q.extended.price),
+                                changePoints: q.extended.changePoints != null ? Number(q.extended.changePoints) : null,
+                                changePct: q.extended.changePct != null ? Number(q.extended.changePct) : null,
+                                ts: fdata.ts || Date.now(),
+                            } : null;
+                            _wlPriceCache[tv] = {
+                                price: last, change, changePct,
+                                ts: Date.now(), src: 'FUTU', ext
+                            };
+                            futuPrefilled.add(tv);
+                        }
+                    }
+                } catch(_) {}
+            }
+
+            // ── ② 剩下的走 yf/okx/binance/cg chain ──
+            const queue = targets.filter(it => !futuPrefilled.has(it.tv));
             const CONCURRENCY = 5;
-            let done = 0;
+            let done = futuPrefilled.size;
+            if (statusEl && futuPrefilled.size > 0) {
+                statusEl.textContent = `更新中 ${done}/${targets.length}…（Futu ${futuPrefilled.size}）`;
+            }
             const workers = Array.from({length: CONCURRENCY}, async () => {
                 while (queue.length) {
                     const it = queue.shift();
@@ -4765,7 +4810,7 @@
             });
             await Promise.all(workers);
             wlRender();
-            if (statusEl) statusEl.textContent = `✓ ${new Date().toLocaleTimeString('zh-TW')} 更新`;
+            if (statusEl) statusEl.textContent = `✓ ${new Date().toLocaleTimeString('zh-TW')} 更新（Futu ${futuPrefilled.size} / 其他 ${targets.length - futuPrefilled.size}）`;
         }
 
         // ── Edit Mode CRUD（CRUD + 拖曳留 Phase 2/3）──

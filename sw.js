@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v73';  // ← 2026-05-05：持倉 NY 過夜也抓 Yahoo 1m intraday 補延長盤資料（Futu OpenD 沒跑時的 fallback）
+const CACHE_NAME = 'portfolio-tracker-v74';  // ← 2026-05-05：watchlist 也接 Futu 一次抓全清單（24H 夜盤）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

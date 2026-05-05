@@ -268,6 +268,45 @@
             /* 表格字體縮小 */
             #fund-tbody td, #tech-tbody td { font-size: 0.74rem !important; padding: 0.35rem 0.35rem !important; }
 
+            /* ───────────────────────────────────────────────────────────
+               ★ 持倉一覽 / 基本面 / 技術面：sticky 代碼欄貼齊螢幕邊 + 完全不透明
+                  使其在橫向滾動時不會與其他欄重疊干擾
+               ─────────────────────────────────────────────────────────── */
+            /* 1) 卡片左右 padding 改 0，讓表格延伸到螢幕邊 */
+            #table-section,
+            #tab-pane-2 > .glass-card,
+            #tab-pane-3 > .glass-card {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            /* 2) 卡片裡的標題列 / 控制列維持原有間距（避開 table 才壓邊） */
+            #table-section > div:not(:last-child),
+            #tab-pane-2 > .glass-card > h2,
+            #tab-pane-2 > .glass-card > #fund-backend-note,
+            #tab-pane-3 > .glass-card > h2 {
+                padding-left: 0.65rem !important;
+                padding-right: 0.65rem !important;
+                box-sizing: border-box !important;
+            }
+            /* 3) sticky 代碼欄：完全不透明、貼近左邊（內 padding 縮到 4px）、底色 = body 起始色 */
+            #holdings-table thead th:first-child,
+            #holdings-table tbody td:first-child,
+            #holdings-table tfoot td:first-child,
+            #tab-pane-2 table thead th:first-child,
+            #tab-pane-2 table tbody td:first-child,
+            #tab-pane-3 table thead th:first-child,
+            #tab-pane-3 table tbody td:first-child {
+                background: #0a1628 !important;
+                padding-left: 4px !important;
+            }
+            /* 4) 選中 / hover row 的第一欄保持 opaque，不被 amber 透出 */
+            #holdings-table tbody tr.hrow-selected td:first-child,
+            #holdings-table tbody tr:hover td:first-child,
+            #tab-pane-2 table tbody tr:hover td:first-child,
+            #tab-pane-3 table tbody tr:hover td:first-child {
+                background: #0a1628 !important;
+            }
+
             /* Modal */
             #import-modal > div,
             #confirm-modal > div,

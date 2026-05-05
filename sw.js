@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v82';  // ← 2026-05-05：strategy-btc-macd.html 修 3 個 bug（daily EMA look-ahead、forming bar、equity mark-to-market）
+const CACHE_NAME = 'portfolio-tracker-v83';  // ← 2026-05-05：strategy-btc-macd.html 改用 server.py /proxy 優先（解 Failed to fetch）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

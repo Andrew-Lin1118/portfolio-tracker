@@ -424,24 +424,47 @@ function calcSwingLow(lows, period) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 //   資料抓取（yfinance BTC-USD 1H）
+//   優先順序：本機 server.py /proxy（無 CORS）→ corsproxy.io → allorigins
 // ═══════════════════════════════════════════════════════════════════════════
-const PROXIES = [
-  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  url => url,  // direct（多數時間 CORS 會擋）
-];
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, rej) =>
+    setTimeout(() => rej(new Error('timeout ' + ms + 'ms')), ms))]);
+}
 
 async function fetchYF(yfUrl) {
-  let lastErr = null;
-  for (const p of PROXIES) {
+  // 1) 本機 server 模式：優先走 /proxy（無 CORS、最快）
+  if (location.protocol !== 'file:') {
     try {
-      const r = await fetch(p(yfUrl));
-      if (!r.ok) { lastErr = new Error('HTTP ' + r.status); continue; }
-      const j = await r.json();
-      if (j && j.chart && j.chart.result) return j;
-    } catch (e) { lastErr = e; }
+      const res = await withTimeout(fetch(`/proxy?url=${encodeURIComponent(yfUrl)}`), 30000);
+      if (res.ok) {
+        const j = await res.json();
+        if (j && j.chart && j.chart.result) return j;
+      }
+    } catch (e) { /* fall through */ }
   }
-  throw lastErr || new Error('all proxies failed');
+
+  // 2) corsproxy.io
+  setStatus('（公用 corsproxy.io 中…）', true);
+  try {
+    const res = await withTimeout(fetch(`https://corsproxy.io/?${encodeURIComponent(yfUrl)}`), 30000);
+    if (res.ok) {
+      const j = await res.json();
+      if (j && j.chart && j.chart.result) return j;
+    }
+  } catch (e) { /* fall through */ }
+
+  // 3) allorigins（用 /get 取 wrapper、再 JSON.parse contents）
+  setStatus('（公用 allorigins 中…）', true);
+  try {
+    const res = await withTimeout(fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yfUrl)}`), 30000);
+    if (res.ok) {
+      const wrap = await res.json();
+      const j = JSON.parse(wrap.contents);
+      if (j && j.chart && j.chart.result) return j;
+    }
+  } catch (e) { /* fall through */ }
+
+  throw new Error('全部 proxy 失敗（server.py 沒開、且 corsproxy.io / allorigins 都連不到 yfinance）');
 }
 
 async function fetchBTC1H(rangeDays) {

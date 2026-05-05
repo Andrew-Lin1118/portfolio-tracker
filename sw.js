@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v75';  // ← 2026-05-05：watchlist Futu 過濾 Yahoo-only 代碼避免整批失敗
+const CACHE_NAME = 'portfolio-tracker-v76';  // ← 2026-05-05：新增 Tab 11「🌅 每日簡報」（讀 daily_brief.json + symbol_mapping.json）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

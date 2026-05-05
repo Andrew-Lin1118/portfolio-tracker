@@ -1,0 +1,54 @@
+name: Daily Brief
+
+on:
+  schedule:
+    # 每天 TW 7:00 = UTC 23:00（前一天）
+    - cron: '0 23 * * *'
+  workflow_dispatch:   # 允許手動觸發
+
+concurrency:
+  group: daily-brief
+  cancel-in-progress: false
+
+jobs:
+  build-brief:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install "yfinance>=0.2.40" "anthropic>=0.40.0"
+
+      - name: Fetch news (Stage 1)
+        run: python data/fetch_news.py
+
+      - name: Build daily brief (Stage 2)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python data/build_daily_brief.py
+
+      - name: Commit & push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/news_raw.json data/daily_brief.json
+          if git diff --cached --quiet; then
+            echo "No changes; skipping commit."
+            exit 0
+          fi
+          git commit -m "chore: daily brief $(date -u '+%Y-%m-%d %H:%M UTC')"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            echo "Push attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "All push attempts failed" && exit 1

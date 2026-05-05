@@ -367,6 +367,7 @@
             <button class="tab-btn" id="tab-btn-5" onclick="switchTab(5)">🌐 總體經濟</button>
             <button class="tab-btn" id="tab-btn-6" onclick="switchTab(6)">📉 資產變化</button>
             <button class="tab-btn" id="tab-btn-7" onclick="switchTab(7)">📰 個股新聞</button>
+            <button class="tab-btn" id="tab-btn-11" onclick="switchTab(11)">🌅 每日簡報</button>
         </div>
 
         <!-- Tab 1: Holdings -->
@@ -894,6 +895,22 @@
                 </div>
             </div>
         </div><!-- /tab-pane-10 -->
+
+        <!-- Tab 11: 每日簡報（盤後 NY + 盤前亞股，由 Claude API 產出）-->
+        <div id="tab-pane-11" class="tab-pane" style="padding-top:1rem;">
+            <div class="glass-card" style="padding:1.5rem 2rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0; white-space:nowrap;">🌅 每日簡報</h2>
+                    <div id="db-meta" style="color:#94a3b8; font-size:0.82rem; white-space:nowrap;"></div>
+                </div>
+                <div id="db-loading" style="color:#94a3b8; padding:2rem; text-align:center;">載入中...</div>
+                <div id="db-content" style="display:none;">
+                    <div id="db-themes" style="margin-bottom:1.5rem;"></div>
+                    <div id="db-signals" style="margin-bottom:1.5rem;"></div>
+                    <div id="db-symbols"></div>
+                </div>
+            </div>
+        </div><!-- /tab-pane-11 -->
 
 
         <!-- ▼▼▼ 版本標記（暫時用來驗證快取是否更新；確認後可移除） ▼▼▼ -->
@@ -3951,6 +3968,147 @@
                 wlOnEnter();
             } else {
                 wlOnLeave();
+            }
+            // 切換到每日簡報 Tab：永遠呼叫（內部會 fetch JSON 並 render）
+            if (n === 11) {
+                loadDailyBrief();
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        //  Tab 11: 每日簡報（讀 data/daily_brief.json + symbol_mapping.json）
+        // ════════════════════════════════════════════════════════════════════
+        let _dbCache = null;          // {data, fetchedAt}
+        const DB_CACHE_TTL_MS = 60_000;  // 1 分鐘內重切 tab 不重抓
+
+        async function loadDailyBrief() {
+            const wrap     = document.getElementById('db-content');
+            const loading  = document.getElementById('db-loading');
+            const meta     = document.getElementById('db-meta');
+            const themesEl = document.getElementById('db-themes');
+            const sigsEl   = document.getElementById('db-signals');
+            const symsEl   = document.getElementById('db-symbols');
+
+            // 用 cache 避免每次切換 tab 都打 fetch
+            const useCache = _dbCache && (Date.now() - _dbCache.fetchedAt < DB_CACHE_TTL_MS);
+
+            if (!useCache) {
+                loading.style.display = 'block';
+                loading.innerHTML = '載入中...';
+                wrap.style.display = 'none';
+            }
+
+            try {
+                let data, mapping;
+                if (useCache) {
+                    ({ data, mapping } = _dbCache);
+                } else {
+                    const ts = Date.now();
+                    const [briefRes, mapRes] = await Promise.all([
+                        fetch('data/daily_brief.json?_=' + ts),
+                        fetch('data/symbol_mapping.json?_=' + ts).catch(() => null),
+                    ]);
+                    if (!briefRes.ok) throw new Error('daily_brief.json HTTP ' + briefRes.status);
+                    data = await briefRes.json();
+                    mapping = mapRes && mapRes.ok ? await mapRes.json() : { leveraged_etf:{}, hk_proxy:{} };
+                    _dbCache = { data, mapping, fetchedAt: Date.now() };
+                }
+
+                // ── Meta ──
+                const gen = new Date(data.generated);
+                const fmt = isNaN(gen.getTime()) ? '?' : gen.toLocaleString('zh-TW', {
+                    month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'
+                });
+                meta.innerHTML = `<span style="color:#cbd5e1; font-weight:600;">${_esc(data.session_label || '')}</span> · ${fmt}`;
+
+                // ── Global themes ──
+                const themesHtml = (data.global_themes || []).map(t => `
+                    <div style="display:flex; gap:0.6rem; padding:0.7rem 1rem; background:rgba(15,30,60,0.5); border-left:3px solid #fbbf24; border-radius:6px; margin-bottom:0.5rem;">
+                      <span style="color:#fbbf24; font-weight:700; flex-shrink:0;">▸</span>
+                      <span style="color:#e2e8f0; line-height:1.55; font-size:0.92rem;">${_esc(t)}</span>
+                    </div>`).join('');
+                themesEl.innerHTML = `
+                    <h3 style="color:#fbbf24; font-size:0.95rem; font-weight:700; margin:0 0 0.6rem;">🌐 全球主題</h3>
+                    ${themesHtml || '<div style="color:#64748b;">（無）</div>'}`;
+
+                // ── Cross-holdings signals ──
+                const SEV_COLOR = { high:'#ef4444', medium:'#f59e0b', low:'#94a3b8' };
+                const DIR_BG    = { '+':'rgba(34,197,94,0.10)', '-':'rgba(239,68,68,0.10)', '0':'rgba(100,116,139,0.10)' };
+                const DIR_BR    = { '+':'#22c55e', '-':'#ef4444', '0':'#94a3b8' };
+                const DIR_ICON  = { '+':'↑', '-':'↓', '0':'○' };
+                const sigsHtml = (data.cross_holdings_signals || []).map(s => {
+                    const tickers = (s.tickers || []).map(t =>
+                        `<span style="background:rgba(99,102,241,0.18); color:#a5b4fc; padding:0.18rem 0.55rem; border-radius:6px; font-size:0.78rem; font-weight:700; white-space:nowrap;">${_esc(t)}</span>`
+                    ).join(' ');
+                    const dir = s.direction || '0';
+                    return `
+                    <div style="background:${DIR_BG[dir]}; border-left:3px solid ${DIR_BR[dir]}; padding:0.85rem 1rem; border-radius:8px; margin-bottom:0.6rem;">
+                      <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.45rem; flex-wrap:wrap;">
+                        <span style="color:${SEV_COLOR[s.severity] || '#94a3b8'}; font-weight:800; font-size:0.74rem; text-transform:uppercase; letter-spacing:0.05em;">${_esc(s.severity || '')}</span>
+                        <span style="color:#e2e8f0; font-weight:700; font-size:0.95rem;">${_esc(s.theme || '')}</span>
+                        <span style="color:${DIR_BR[dir]}; font-weight:900; font-size:1.1rem;">${DIR_ICON[dir]}</span>
+                      </div>
+                      <div style="display:flex; gap:0.35rem; flex-wrap:wrap; margin-bottom:0.5rem;">${tickers}</div>
+                      <div style="color:#cbd5e1; font-size:0.88rem; line-height:1.55;">${_esc(s.note || '')}</div>
+                    </div>`;
+                }).join('');
+                sigsEl.innerHTML = `
+                    <h3 style="color:#fbbf24; font-size:0.95rem; font-weight:700; margin:0 0 0.6rem;">⚡ 跨持倉訊號</h3>
+                    ${sigsHtml || '<div style="color:#64748b;">（無）</div>'}`;
+
+                // ── By-symbol cards ──
+                const SCORE_BG = { '-2':'rgba(220,38,38,0.22)','-1':'rgba(239,68,68,0.15)','0':'rgba(100,116,139,0.15)','1':'rgba(34,197,94,0.15)','2':'rgba(22,163,74,0.22)' };
+                const SCORE_FG = { '-2':'#fca5a5','-1':'#fda4af','0':'#cbd5e1','1':'#86efac','2':'#4ade80' };
+                const SENT = { '+':'<span style="color:#4ade80;">▲</span>', '-':'<span style="color:#f87171;">▼</span>', '0':'<span style="color:#94a3b8;">●</span>' };
+
+                // 原型 → 槓桿/proxy ETF 反向 mapping
+                const protoToLev = {};
+                Object.entries((mapping && mapping.leveraged_etf) || {}).forEach(([sym, info]) => {
+                    (protoToLev[info.proto] = protoToLev[info.proto] || []).push(sym);
+                });
+                Object.entries((mapping && mapping.hk_proxy) || {}).forEach(([sym, info]) => {
+                    (protoToLev[info.proto] = protoToLev[info.proto] || []).push(sym);
+                });
+
+                const symbolsArr = Object.entries(data.by_symbol || {}).map(([sym, info]) => ({ sym, ...info }));
+                symbolsArr.sort((a, b) => Math.abs(Number(b.score) || 0) - Math.abs(Number(a.score) || 0));
+
+                const symHtml = symbolsArr.map(s => {
+                    const sc = Number(s.score) || 0;
+                    const scKey = String(sc);
+                    const scStr = (sc > 0 ? '+' : '') + sc;
+                    const linked = (protoToLev[s.sym] || []).map(l =>
+                        `<span style="background:rgba(168,85,247,0.18); color:#d8b4fe; padding:0.16rem 0.5rem; border-radius:6px; font-size:0.74rem; font-weight:700; white-space:nowrap;">→ ${_esc(l)}</span>`
+                    ).join(' ');
+                    const headlinesHtml = (s.headlines || []).map(h => `
+                        <div style="padding:0.5rem 0.65rem; border-left:2px solid rgba(148,163,184,0.25); margin-bottom:0.4rem;">
+                          <div style="display:flex; gap:0.5rem; align-items:flex-start; margin-bottom:0.2rem;">
+                            ${SENT[h.sentiment] || SENT['0']}
+                            <span style="color:#e2e8f0; font-size:0.88rem; font-weight:600; line-height:1.5; flex:1;">${_esc(h.summary || '')}</span>
+                          </div>
+                          <a href="${_esc(h.url || '#')}" target="_blank" rel="noopener" style="color:#94a3b8; font-size:0.76rem; text-decoration:none; line-height:1.4; display:block; margin-left:1.2rem;">[${_esc(h.publisher || '')}] ${_esc((h.title || '').slice(0, 110))}${(h.title || '').length > 110 ? '…' : ''}</a>
+                        </div>`).join('');
+                    return `
+                    <div style="background:rgba(15,30,60,0.45); border:1px solid rgba(59,130,246,0.18); border-radius:10px; padding:1rem 1.2rem; margin-bottom:0.8rem;">
+                      <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                        <span style="color:#f1f5f9; font-weight:800; font-size:1rem; white-space:nowrap;">${_esc(s.sym)}</span>
+                        <span style="background:${SCORE_BG[scKey] || SCORE_BG['0']}; color:${SCORE_FG[scKey] || SCORE_FG['0']}; padding:0.18rem 0.6rem; border-radius:6px; font-weight:800; font-size:0.84rem; white-space:nowrap;">${scStr}</span>
+                        ${linked}
+                      </div>
+                      <div style="color:#cbd5e1; font-size:0.88rem; line-height:1.65; margin-bottom:0.6rem;">${_esc(s.theme_summary || '')}</div>
+                      ${headlinesHtml ? `<details><summary style="cursor:pointer; color:#94a3b8; font-size:0.8rem; user-select:none; padding:0.3rem 0;">▸ ${(s.headlines || []).length} 條新聞</summary><div style="margin-top:0.4rem;">${headlinesHtml}</div></details>` : ''}
+                    </div>`;
+                }).join('');
+                symsEl.innerHTML = `
+                    <h3 style="color:#fbbf24; font-size:0.95rem; font-weight:700; margin:0 0 0.6rem;">📊 各標的（按評分絕對值排序）</h3>
+                    ${symHtml || '<div style="color:#64748b;">（無）</div>'}`;
+
+                loading.style.display = 'none';
+                wrap.style.display = 'block';
+            } catch (e) {
+                loading.innerHTML =
+                    `<div style="color:#ef4444; font-weight:700; margin-bottom:0.5rem;">載入失敗：${_esc(String(e && e.message || e))}</div>` +
+                    `<div style="color:#64748b; font-size:0.85rem;">data/daily_brief.json 可能尚未產生（GH Actions 第一次跑前不存在）。</div>`;
             }
         }
 

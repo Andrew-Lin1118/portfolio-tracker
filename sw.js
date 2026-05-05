@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v87';  // ← 2026-05-05：手機版 持倉一覽/基本面/技術面 sticky 代碼欄貼齊螢幕邊 + 底色改 opaque #0a1628 不透明（解橫向滾動時與其他欄重疊干擾）
+const CACHE_NAME = 'portfolio-tracker-v88';  // ← 2026-05-06：sticky 代碼欄底色從 #0a1628 改 #142846（match glass-card 表面色，避免太暗）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

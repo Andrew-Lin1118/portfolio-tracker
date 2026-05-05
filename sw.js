@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v86';  // ← 2026-05-05：fmx-dashboard.html 加 RSI 高度可拖曳調整 handle（手機+桌機，含 touch event 支援）
+const CACHE_NAME = 'portfolio-tracker-v87';  // ← 2026-05-05：手機版 持倉一覽/基本面/技術面 sticky 代碼欄貼齊螢幕邊 + 底色改 opaque #0a1628 不透明（解橫向滾動時與其他欄重疊干擾）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v76';  // ← 2026-05-05：新增 Tab 11「🌅 每日簡報」（讀 daily_brief.json + symbol_mapping.json）
+const CACHE_NAME = 'portfolio-tracker-v77';  // ← 2026-05-05：Tab 6 改用每日真實快照（移除回推、加 server-side asset_history.json 持久化）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -731,13 +731,11 @@
                             <option value="1825">近 5 年</option>
                             <option value="99999">全部</option>
                         </select>
-                        <button id="backfill-btn" onclick="backfillAssetHistory()"
-                                style="padding:0.4rem 0.85rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.4); border-radius:8px; color:#a5b4fc; font-size:0.82rem; cursor:pointer; white-space:nowrap;">📊 回推歷史</button>
                         <button onclick="clearAssetHistory()"
                                 style="padding:0.4rem 0.85rem; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; color:#f87171; font-size:0.82rem; cursor:pointer;">🗑 清除</button>
                     </div>
                 </div>
-                <div id="backfill-status" style="font-size:0.78rem; color:#64748b; margin-bottom:0.5rem; min-height:1.1rem;"></div>
+                <div id="asset-history-status" style="font-size:0.78rem; color:#64748b; margin-bottom:0.5rem; min-height:1.1rem;"></div>
                 <div id="asset-history-chart" style="width:100%; min-height:220px; display:flex; align-items:center; justify-content:center; color:#475569; font-size:0.9rem;"></div>
             </div>
             <!-- 資料表 -->
@@ -2939,140 +2937,25 @@
             try {
                 const d = new Date();
                 const todayKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                const raw  = localStorage.getItem(PT_ASSET_HISTORY_KEY);
-                const hist = raw ? JSON.parse(raw) : {};
-                hist[todayKey] = {
+                const entry = {
                     v:  Math.round(stats.totalValue     * 100) / 100,  // USD 市值
                     vt: Math.round(stats.totalValueTWD),               // TWD 市值
                     c:  Math.round(stats.totalCost      * 100) / 100,  // USD 成本
                     ct: Math.round(stats.totalCostTWD),                // TWD 成本
                     p:  Math.round(stats.totalPnLPercent * 100) / 100  // 損益 %
                 };
+                // 1) localStorage（永遠寫；server 沒開時也保住資料）
+                const raw  = localStorage.getItem(PT_ASSET_HISTORY_KEY);
+                const hist = raw ? JSON.parse(raw) : {};
+                hist[todayKey] = entry;
                 localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(hist));
+                // 2) server 持久化（fail silently — server 沒開不影響 localStorage）
+                fetch('/asset/snapshot/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: todayKey, ...entry }),
+                }).catch(() => {});
             } catch(_) {}
-        }
-
-        // 從 Yahoo Finance 抓 5 年日線並轉換成 { 'YYYY-MM-DD': price } 物件
-        async function _fetchYfHistory(sym) {
-            const enc  = encodeURIComponent(sym);
-            const data = await yfFetch(
-                `https://query1.finance.yahoo.com/v8/finance/chart/${enc}?interval=1d&range=5y`
-            );
-            const res = data?.chart?.result?.[0];
-            if (!res) return {};
-            const ts  = res.timestamp || [];
-            const adj = res.indicators?.adjclose?.[0]?.adjclose || [];
-            const raw = res.indicators?.quote?.[0]?.close        || [];
-            const px  = adj.length ? adj : raw;
-            const map = {};
-            ts.forEach((t, idx) => {
-                if (px[idx] != null && px[idx] > 0) {
-                    const d   = new Date(t * 1000);
-                    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-                    map[key]  = px[idx];
-                }
-            });
-            return map;
-        }
-
-        async function backfillAssetHistory() {
-            if (holdings.length === 0) { alert('請先匯入持倉數據'); return; }
-            const btn      = document.getElementById('backfill-btn');
-            const statusEl = document.getElementById('backfill-status');
-            btn.disabled    = true;
-            btn.textContent = '⏳ 回推中...';
-
-            try {
-                const n = holdings.length;
-
-                // ── Step 1：抓各持倉標的 5 年日線 ──
-                const priceMaps = {};    // sym → { date: price }
-                for (let i = 0; i < n; i++) {
-                    const sym = holdings[i].symbol;
-                    statusEl.textContent = `⏳ 抓取 ${i+1}/${n}：${sym}`;
-                    try { priceMaps[sym] = await _fetchYfHistory(sym); }
-                    catch(e) { priceMaps[sym] = {}; console.warn(`backfill skip ${sym}:`, e); }
-                    if (i < n - 1) await new Promise(r => setTimeout(r, 300));
-                }
-
-                // ── Step 2：建立完整時間軸（所有標的日期的聯集）──
-                const allDates = new Set();
-                Object.values(priceMaps).forEach(m => Object.keys(m).forEach(d => allDates.add(d)));
-                const sortedDates = [...allDates].sort();
-
-                // ── Step 3：預計算固定成本 ──
-                let fixedCostUSD = 0;
-                holdings.forEach(h => {
-                    const isHK_HKD = (h.market === 'HK' || h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol);
-                    const isTW     = h.market === 'TW';
-                    const cost     = h.costPrice * h.quantity;
-                    if (isHK_HKD)  fixedCostUSD += cost * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
-                    else if (isTW) fixedCostUSD += cost / exchangeRates.USD_TWD;
-                    else           fixedCostUSD += cost;
-                });
-                const fixedCostTWD = Math.round(fixedCostUSD * exchangeRates.USD_TWD);
-                fixedCostUSD = Math.round(fixedCostUSD * 100) / 100;
-
-                // ── Step 4：逐日計算市值（無報價視為持有現金，以成本計算）──
-                statusEl.textContent = `⏳ 計算 ${sortedDates.length} 個交易日市值...`;
-                const ffPrice = {};   // sym → 最近已知收盤（forward-fill）
-                const hist    = {};
-
-                for (const date of sortedDates) {
-                    // 更新 forward-fill 快取（只有實際有資料的日期才更新）
-                    for (const h of holdings) {
-                        if (priceMaps[h.symbol]?.[date] != null)
-                            ffPrice[h.symbol] = priceMaps[h.symbol][date];
-                    }
-
-                    let totalValueUSD = 0;
-                    let anyData       = false;
-
-                    for (const h of holdings) {
-                        // 有歷史報價 → 用市價；無報價（商品尚未發行）→ 視為現金，以成本計
-                        const price    = ffPrice[h.symbol] ?? h.costPrice;
-                        const isHK_HKD = (h.market === 'HK' || h.symbol.endsWith('.HK')) && !HK_USD_PRICED.has(h.symbol);
-                        const isTW     = h.market === 'TW';
-                        const native   = h.quantity * price;
-                        if (isHK_HKD)      totalValueUSD += native * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
-                        else if (isTW)     totalValueUSD += native / exchangeRates.USD_TWD;
-                        else               totalValueUSD += native;
-                        if (ffPrice[h.symbol]) anyData = true;
-                    }
-
-                    // 所有標的都還沒有任何報價 → 日期太早，跳過
-                    if (!anyData) continue;
-
-                    const totalValueTWD = Math.round(totalValueUSD * exchangeRates.USD_TWD);
-                    const pnlPct        = fixedCostUSD > 0 ? (totalValueUSD - fixedCostUSD) / fixedCostUSD * 100 : 0;
-
-                    hist[date] = {
-                        v:  Math.round(totalValueUSD * 100) / 100,
-                        vt: totalValueTWD,
-                        c:  fixedCostUSD,
-                        ct: fixedCostTWD,
-                        p:  Math.round(pnlPct * 100) / 100
-                    };
-                }
-
-                // ── Step 5：合併並儲存（已有快照優先，不被回推資料覆蓋）──
-                const existing = {};
-                try { Object.assign(existing, JSON.parse(localStorage.getItem(PT_ASSET_HISTORY_KEY) || '{}')); } catch(_) {}
-                const merged = { ...hist, ...existing };
-                localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(merged));
-
-                const days    = Object.keys(hist).length;
-                const dateMin = sortedDates.find(d => hist[d]);
-                const dateMax = [...sortedDates].reverse().find(d => hist[d]);
-                statusEl.textContent = `✅ 已回推 ${days} 個交易日（${dateMin} ～ ${dateMax}）`;
-                renderAssetHistory();
-            } catch(e) {
-                statusEl.textContent = '❌ 回推失敗，請檢查網路後重試';
-                console.error('backfill error:', e);
-            } finally {
-                btn.disabled    = false;
-                btn.textContent = '📊 回推歷史';
-            }
         }
 
         function clearAssetHistory() {
@@ -3081,9 +2964,37 @@
             renderAssetHistory();
         }
 
+        // 從雲端 (server) 拉一次 asset_history.json，與 localStorage union 後寫回 localStorage
+        // server 端優先（它持久化 + 跨裝置可見）；fail silently
+        let _assetHistoryServerSynced = false;
+        async function _syncAssetHistoryFromServer() {
+            try {
+                const res = await fetch('data/asset_history.json?_=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) return false;
+                const remote = await res.json();
+                if (!remote || typeof remote !== 'object') return false;
+                const raw  = localStorage.getItem(PT_ASSET_HISTORY_KEY);
+                const local = raw ? JSON.parse(raw) : {};
+                // server 端覆蓋 local（server 是 source of truth；local 多出的 key 也保留）
+                const merged = { ...local, ...remote };
+                localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(merged));
+                return true;
+            } catch (_) { return false; }
+        }
+
         function renderAssetHistory() {
             const pane = document.getElementById('tab-pane-6');
             if (!pane?.classList.contains('active')) return;
+
+            // 第一次進 tab：背景拉雲端版本，回來後再 render 一次
+            if (!_assetHistoryServerSynced) {
+                _assetHistoryServerSynced = true;  // 防重入
+                _syncAssetHistoryFromServer().then(ok => {
+                    if (ok && document.getElementById('tab-pane-6')?.classList.contains('active')) {
+                        renderAssetHistory();
+                    }
+                });
+            }
 
             const raw  = localStorage.getItem(PT_ASSET_HISTORY_KEY);
             const hist = raw ? JSON.parse(raw) : {};

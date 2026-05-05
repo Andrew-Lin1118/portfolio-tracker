@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v83';  // ← 2026-05-05：strategy-btc-macd.html 改用 server.py /proxy 優先（解 Failed to fetch）
+const CACHE_NAME = 'portfolio-tracker-v84';  // ← 2026-05-05：strategy-btc-macd.html 修進出場點堆右側（用 label-index 稀疏陣列代替 scatter+category x）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

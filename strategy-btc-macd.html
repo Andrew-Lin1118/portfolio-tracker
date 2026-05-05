@@ -786,26 +786,42 @@ function renderMetrics(equityCurve, trades, cfg, peakEquity, maxDrawdown) {
 function renderPriceChart(bars, trades) {
   const ctx = document.getElementById('priceChart').getContext('2d');
   if (_priceChart) _priceChart.destroy();
-  // 只取等距取樣 800 點避免太擠
+  // 等距取樣 ~800 點避免太擠
   const step = Math.max(1, Math.floor(bars.length / 800));
-  const labels = [], data = [];
+  const labels = [], priceData = [];
   for (let i = 0; i < bars.length; i += step) {
-    labels.push(bars[i].iso); data.push(bars[i].c);
+    labels.push(bars[i].iso); priceData.push(bars[i].c);
   }
-  // 進出場點散佈圖
-  const entries = [], exits = [];
+  // ★ 把進出場 trades 用「對齊 label index 的稀疏陣列」呈現
+  //   （之前用 scatter+category 軸 x 字串對不到 labels 會堆到尾端）
+  const entryData = new Array(labels.length).fill(null);
+  const partialData = new Array(labels.length).fill(null);
+  const exitData = new Array(labels.length).fill(null);
+  const liqData = new Array(labels.length).fill(null);
   for (const t of trades) {
-    if (t.action === 'ENTRY') entries.push({ x: t.ts, y: t.price });
-    else exits.push({ x: t.ts, y: t.price });
+    const labelIdx = Math.round(t.idx / step);
+    if (labelIdx < 0 || labelIdx >= labels.length) continue;
+    if (t.action === 'ENTRY')                       entryData[labelIdx]   = t.price;
+    else if (t.action === 'PARTIAL_TP')             partialData[labelIdx] = t.price;
+    else if (t.action === 'LIQD')                   liqData[labelIdx]     = t.price;
+    else /* SL_HIT / TRAIL_HIT / FULL_TP */         exitData[labelIdx]    = t.price;
   }
+  const mkPoints = (data, color, radius) => ({
+    label: '', data, type: 'line', showLine: false,
+    pointRadius: radius, pointHoverRadius: radius + 2,
+    backgroundColor: color, borderColor: color,
+    spanGaps: false,
+  });
   _priceChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [
-        { label: 'BTC 1H', data, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 1, pointRadius: 0, fill: false, tension: 0 },
-        { label: '進場', data: entries, type: 'scatter', backgroundColor: '#22c55e', pointRadius: 4 },
-        { label: '出場', data: exits,   type: 'scatter', backgroundColor: '#ef4444', pointRadius: 3 },
+        { label: 'BTC 1H', data: priceData, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 1, pointRadius: 0, fill: false, tension: 0 },
+        { ...mkPoints(entryData,   '#22c55e', 5), label: '進場 ENTRY' },
+        { ...mkPoints(partialData, '#3b82f6', 4), label: '部分 TP' },
+        { ...mkPoints(exitData,    '#ef4444', 4), label: '出場（SL/Trail/TP）' },
+        { ...mkPoints(liqData,     '#dc2626', 6), label: '⚠ 爆倉' },
       ],
     },
     options: {
@@ -814,7 +830,7 @@ function renderPriceChart(bars, trades) {
         x: { ticks: { color: '#94a3b8', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { color: 'rgba(42,42,62,0.3)' } },
         y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(42,42,62,0.3)' } },
       },
-      plugins: { legend: { labels: { color: '#e2e8f0' } } },
+      plugins: { legend: { labels: { color: '#e2e8f0', boxWidth: 12, padding: 8 } } },
     },
   });
   document.getElementById('chartsPanel').style.display = '';

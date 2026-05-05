@@ -4209,25 +4209,31 @@
                 const color    = !cache || cache.change == null ? '#94a3b8' : (cache.change > 0 ? '#10b981' : (cache.change < 0 ? '#ef4444' : '#94a3b8'));
                 const rowSel   = (_wlSelectedSym === it.tv) ? 'background:rgba(251,191,36,0.08);' : '';
                 const srcTag   = cache && cache.src ? `<span style="color:#475569; font-size:0.65rem; margin-left:0.3rem;">[${cache.src}]</span>` : '';
-                // 漲跌 / 漲跌% 欄底下的延伸標籤（比照持倉一覽，但拆成兩格對齊各自欄位）：
-                //   美股盤前盤後 → 漲跌欄「盤前 -10.72」、漲跌%欄「(-5.12%)」
-                //   一般時段 / 加密 → 漲跌欄底下小字 tag「今日 / 24H / 24H 占比」
+                // 漲跌 / 漲跌% 欄底下的延伸標籤（比照持倉一覽 _extendedChangeNoteHtml 的白色粗體樣式）：
+                //   美股盤前盤後（ext）→ 漲跌欄「盤前 -10.72」、漲跌%欄「(-5.12%)」
+                //   加密分頁標的 → 漲跌欄「24H +992.88」、漲跌%欄「(+1.24%)」
+                //   其他股票 → 漲跌欄小字「今日」(灰)
                 let extChgLine = '', extPctLine = '';
                 if (cache) {
+                    const fmtSigned = (n) => (isFinite(n) ? ((n > 0 ? '+' : '') + n.toFixed(2)) : '');
+                    const fmtPctSigned = (n) => (isFinite(n) ? ((n > 0 ? '+' : '') + n.toFixed(2) + '%') : '');
                     if (cache.ext && (cache.ext.changePct != null || cache.ext.changePoints != null)) {
-                        const ePct = Number(cache.ext.changePct);
-                        const ePts = Number(cache.ext.changePoints);
-                        const ptsStr = isFinite(ePts) ? ((ePts > 0 ? '+' : '') + ePts.toFixed(2)) : '';
-                        const pctStr = isFinite(ePct) ? ((ePct > 0 ? '+' : '') + ePct.toFixed(2) + '%') : '';
+                        // 美股盤前/盤後
+                        const ptsStr = fmtSigned(Number(cache.ext.changePoints));
+                        const pctStr = fmtPctSigned(Number(cache.ext.changePct));
                         const lab = cache.ext.label || '盤後';
                         if (ptsStr) extChgLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${lab} ${ptsStr}</div>`;
                         if (pctStr) extPctLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${pctStr}</div>`;
-                    } else {
-                        let tag = '';
-                        if (cache.src === 'OKX' || cache.src === 'BNB') tag = '24H';
-                        else if (cache.src === 'CG')                    tag = '24H 占比';
-                        else if (cache.src === 'YF')                    tag = '今日';
-                        if (tag) extChgLine = `<div style="color:#64748b; font-size:0.62rem; font-weight:500; margin-top:0.1rem; white-space:nowrap; letter-spacing:0.5px;">${tag}</div>`;
+                    } else if (_wlCat === 'crypto' && (cache.change != null || cache.changePct != null)) {
+                        // 加密：永遠用 24H 標示（無論 YF / OKX / BNB / CG），與持倉「盤前」同款式但 label 改 24H
+                        const lab = (cache.src === 'CG') ? '24H 占比' : '24H';
+                        const ptsStr = fmtSigned(Number(cache.change));
+                        const pctStr = fmtPctSigned(Number(cache.changePct));
+                        if (ptsStr) extChgLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${lab}${ptsStr ? ' ' + ptsStr : ''}</div>`;
+                        if (pctStr) extPctLine = `<div style="color:#e2e8f0; font-size:0.7rem; font-weight:700; margin-top:0.18rem; white-space:nowrap;">${pctStr}</div>`;
+                    } else if (cache.src === 'YF') {
+                        // 一般股票：小字「今日」標示
+                        extChgLine = `<div style="color:#64748b; font-size:0.62rem; font-weight:500; margin-top:0.1rem; white-space:nowrap; letter-spacing:0.5px;">今日</div>`;
                     }
                 }
                 const handleTd = _wlEditMode

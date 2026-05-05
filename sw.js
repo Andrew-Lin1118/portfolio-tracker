@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v70';  // ← 2026-05-05：手機背景/鎖屏回來立即重抓報價（visibilitychange）
+const CACHE_NAME = 'portfolio-tracker-v71';  // ← 2026-05-05：watchlist 加密分頁明確顯示「24H +X (+X%)」白色粗體
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

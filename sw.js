@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v84';  // ← 2026-05-05：strategy-btc-macd.html 修進出場點堆右側（用 label-index 稀疏陣列代替 scatter+category x）
+const CACHE_NAME = 'portfolio-tracker-v85';  // ← 2026-05-05：strategy-btc-macd.html 勝率改用「完整交易週期」（避免 partial+trail 雙重計入 wins）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

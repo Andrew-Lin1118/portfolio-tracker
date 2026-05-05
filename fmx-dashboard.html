@@ -326,6 +326,13 @@
     /* ── 主佈局 ── */
     .layout { flex-direction: column; height: calc(100vh - 46px - 58px); overflow: hidden; }
     .drag-handle, .row-drag-handle { display: none !important; }
+    /* RSI 圖表的高度調整 handle 在手機也要保留（拖把抓得到、視覺加大） */
+    .row-drag-handle.row-drag-rsi {
+      display: block !important;
+      height: 14px !important;          /* 手機加粗、好抓 */
+      touch-action: none;               /* 阻止瀏覽器 scroll 介入觸控拖曳 */
+    }
+    .row-drag-handle.row-drag-rsi::after { width: 60px; height: 3px; }
     .left-panel, .center-panel, .right-panel {
       width: 100% !important; min-width: unset !important; max-width: unset !important;
       height: 100% !important; border: none !important; display: none; overflow-y: auto;
@@ -688,9 +695,11 @@
            background:#1c2230;border:1px solid #30363d;border-radius:6px;padding:7px 10px;
            font-size:10px;line-height:1.6;color:#8b949e;pointer-events:none;min-width:110px;
            white-space:pre"></div>
-      <div class="chart-wrapper" style="flex:1;min-height:80px">
+      <div class="chart-wrapper" id="priceChartWrap" style="flex:1;min-height:80px">
         <canvas id="priceChart"></canvas>
       </div>
+      <!-- ▒▒ K 線 ↕ RSI 高度分隔（桌機 + 手機都可拖） -->
+      <div class="row-drag-handle row-drag-rsi" id="rowDragRsi" title="拖曳調整 K 線 / RSI 高度比例"></div>
       <div class="chart-label" style="display:flex;align-items:center;gap:8px">
         RSI 技術指標
         <span id="rsiValue" style="font-size:11px;font-weight:700;color:var(--orange)"></span>
@@ -4418,28 +4427,31 @@ function initDragHandles() {
     if (!handle || !topEl) return;
     let startY, startTopH, startBotH;
 
-    handle.addEventListener('mousedown', e => {
-      e.preventDefault();
-      startY     = e.clientY;
+    // ── 取出滑鼠 / 觸控的 clientY（兩者統一）──
+    const _yOf = ev => (ev.touches && ev.touches[0]) ? ev.touches[0].clientY : ev.clientY;
+
+    function startDrag(ev) {
+      // touchstart 用 passive:false 才能 preventDefault；mousedown 一律可 preventDefault
+      if (ev.cancelable) ev.preventDefault();
+      startY     = _yOf(ev);
       startTopH  = topEl.offsetHeight;
       startBotH  = botEl ? botEl.offsetHeight : 0;
       handle.classList.add('dragging');
       document.body.style.cursor = 'row-resize';
       document.body.style.userSelect = 'none';
 
-      const onMove = ev => {
-        const delta  = ev.clientY - startY;
+      const onMove = e2 => {
+        if (e2.cancelable) e2.preventDefault();
+        const delta  = _yOf(e2) - startY;
         const newTop = Math.max(minTop, startTopH + delta);
         topEl.style.height  = newTop + 'px';
         topEl.style.flex    = 'none';
-        // If bottom element exists, shrink it (but respect minimum)
         if (botEl) {
           const newBot = Math.max(minBot, startBotH - delta);
           botEl.style.height  = newBot + 'px';
           botEl.style.flex    = 'none';
         }
-        // Trigger Chart.js resize
-        if (priceChartObj)   priceChartObj.resize();
+        if (priceChartObj)    priceChartObj.resize();
         if (leverageChartObj) leverageChartObj.resize();
       };
       const onUp = () => {
@@ -4447,16 +4459,27 @@ function initDragHandles() {
         document.body.style.cursor = ''; document.body.style.userSelect = '';
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+        document.removeEventListener('touchcancel', onUp);
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
-    });
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onUp);
+      document.addEventListener('touchcancel', onUp);
+    }
+
+    handle.addEventListener('mousedown',  startDrag);
+    handle.addEventListener('touchstart', startDrag, { passive: false });
   }
 
   makeColDraggable('dragL', 'leftPanel',  'left');
   makeColDraggable('dragR', 'rightPanel', 'right');
   makeRowDraggable('rowDrag1', 'chartArea',   'invSection1', 120, 60);
   makeRowDraggable('rowDrag2', 'invSection1', 'invSection2', 60,  60);
+  // K 線 ↕ RSI 高度比例（桌機 + 手機都可拖；最小 K 線 100px / RSI 40px）
+  makeRowDraggable('rowDragRsi', 'priceChartWrap', 'leverageChartWrap', 100, 40);
 }
 
 // ════════════════════════════════════════════════════════

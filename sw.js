@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v85';  // ← 2026-05-05：strategy-btc-macd.html 勝率改用「完整交易週期」（避免 partial+trail 雙重計入 wins）
+const CACHE_NAME = 'portfolio-tracker-v86';  // ← 2026-05-05：fmx-dashboard.html 加 RSI 高度可拖曳調整 handle（手機+桌機，含 touch event 支援）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

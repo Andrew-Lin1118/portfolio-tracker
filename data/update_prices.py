@@ -81,47 +81,77 @@ def fetch_prev_close(sym):
         pass
     return None
 
-def fetch_prev_two_closes(sym, current_price=None):
-    """一次抓最近兩個「過去交易日」收盤價，供前端「昨日漲跌/昨日損益」計算。
-    關鍵：用市場當地時區判斷「今日」並排除今日的 bar；同時要對齊 current_price
-      所代表的日期 — 否則收盤後 / 週末跑時，price=Friday close 而
-      past_closes[-1]=Friday close → 兩者相同 → 前端今日漲跌 = 0%。
-    解法：若 current_price 與 past_closes[-1] 幾乎相等（差 <0.05%），
-      代表 price 反映的就是 past_closes[-1] 那天的收盤（因為今日尚未開盤
-      或市場已收盤但 price 仍取最後 regular 收盤），把 prev 與 prev_prev 都
-      往前移一格。
-    回傳 (prev_close, prev_prev_close)。"""
+def _daily_closes_from_hourly(sym, days=15):
+    """用 hourly K 自己 reduce 出每天的「最後一根 close」當該天收盤。
+    避開 Yahoo daily K 偶爾漏掉某一天 bar 的 bug（實測 9747.HK 5/4 漏 bar，
+    但 hourly K 完整 → daily K reduce 後就對得起來）。
+    回傳 dict {date(in market tz): close}，依日期排序。"""
     try:
-        df = yf.Ticker(sym).history(period='15d', auto_adjust=True)
+        df = yf.Ticker(sym).history(period=f'{days}d', interval='1h', auto_adjust=True)
         if df is None or df.empty:
-            return None, None
+            return {}
         tz_name = _market_tz(sym)
-        today_mkt = datetime.now(ZoneInfo(tz_name)).date()
-        past_closes = []
+        tz = ZoneInfo(tz_name)
+        by_date = {}
         for ts, v in df['Close'].dropna().items():
             try:
-                d = ts.to_pydatetime().date() if hasattr(ts, 'to_pydatetime') else ts.date()
+                dt = ts.to_pydatetime() if hasattr(ts, 'to_pydatetime') else ts
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+                local_d = dt.astimezone(tz).date()
+                by_date[local_d] = float(v)   # 同一天後續 bar 覆蓋前面 = 取最後一根 close
             except Exception:
                 continue
-            if d < today_mkt:
-                past_closes.append(float(v))
-        if not past_closes:
+        return by_date
+    except Exception:
+        return {}
+
+
+def fetch_prev_two_closes(sym, current_price=None):
+    """抓最近兩個「過去交易日」收盤價，供前端「昨日漲跌/今日漲跌」計算。
+
+    步驟：
+      1. 先試 Yahoo daily K (period='15d', interval='1d')
+      2. 比對 hourly K reduce 出的 daily closes — 若 daily K 缺天，用 hourly
+         的補上（解決 Yahoo daily K 漏 bar bug，例：9747.HK 5/4 daily 沒 bar
+         但 hourly 顯示 5/4 收盤 13.00）
+      3. 排除「今日」的 bar (d < today_mkt)，回傳最近兩天的 close。
+
+    回傳 (prev_close, prev_prev_close)。"""
+    try:
+        tz_name = _market_tz(sym)
+        today_mkt = datetime.now(ZoneInfo(tz_name)).date()
+
+        # ① daily K
+        daily_by_date = {}
+        try:
+            df = yf.Ticker(sym).history(period='15d', auto_adjust=True)
+            if df is not None and not df.empty:
+                for ts, v in df['Close'].dropna().items():
+                    try:
+                        d = ts.to_pydatetime().date() if hasattr(ts, 'to_pydatetime') else ts.date()
+                    except Exception:
+                        continue
+                    daily_by_date[d] = float(v)
+        except Exception:
+            pass
+
+        # ② hourly K（補洞用）
+        hourly_by_date = _daily_closes_from_hourly(sym, days=15)
+
+        # ③ 合併：daily 為主，hourly 補 daily 沒有的日期
+        merged = dict(daily_by_date)
+        for d, v in hourly_by_date.items():
+            if d not in merged:
+                merged[d] = v
+
+        # ④ 排除今日，依日期排序，取最近兩天
+        past = [(d, c) for d, c in merged.items() if d < today_mkt]
+        past.sort(key=lambda x: x[0])
+        if not past:
             return None, None
-
-        # 若 price 與 past_closes[-1] 幾乎相等 → price 對應的就是該天 → shift 1
-        shift = 0
-        if current_price is not None and current_price > 0:
-            try:
-                last_close = past_closes[-1]
-                if last_close > 0 and abs(current_price - last_close) / last_close < 0.0005:
-                    shift = 1
-            except Exception:
-                pass
-
-        prev_idx = len(past_closes) - 1 - shift
-        prev_prev_idx = prev_idx - 1
-        prev = past_closes[prev_idx] if prev_idx >= 0 else None
-        prev_prev = past_closes[prev_prev_idx] if prev_prev_idx >= 0 else None
+        prev = past[-1][1] if len(past) >= 1 else None
+        prev_prev = past[-2][1] if len(past) >= 2 else None
         return (round(prev, 4) if prev is not None else None,
                 round(prev_prev, 4) if prev_prev is not None else None)
     except Exception:

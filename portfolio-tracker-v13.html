@@ -4755,15 +4755,27 @@
             // ── ① Futu 一次抓全清單（24H 夜盤資料；非加密分頁才用）──
             //    Futu 接受 'NVDA' / '9747.HK' / '005930.KS' 這類格式 → 用 yf 當 key（含 suffix）
             //    fallback 用 sym。命中後 prefill _wlPriceCache，後續 chain 會自動 skip。
+            //    ★ 必須過濾 Yahoo-only 代碼（^VIX / ^TWII / NQ=F / BTC-USD 等），
+            //      否則 server.py 收到不認得的 symbol 會把整批 ok 變成 false → 全部 fallback YF。
+            const _wlIsFutuLikely = (s) => {
+                if (!s) return false;
+                if (s.startsWith('^')) return false;       // Yahoo 指數
+                if (s.includes('=F') || s.includes('=X')) return false; // Yahoo 期貨/外匯
+                if (s.endsWith('-USD') || s.endsWith('-USDT')) return false; // Yahoo 加密
+                if (s.startsWith('BINANCE:') || s.startsWith('CRYPTOCAP:')) return false;
+                return true;
+            };
             const futuPrefilled = new Set();
             if (_wlCat !== 'crypto' && typeof _fetchFutuQuotes === 'function') {
                 try {
                     const symMap = new Map();   // futu_sym → tv
                     targets.forEach(it => {
                         const fs = (it.yf && it.yf.length) ? it.yf : it.sym;
-                        if (fs) symMap.set(fs, it.tv);
+                        if (fs && _wlIsFutuLikely(fs)) symMap.set(fs, it.tv);
                     });
-                    const fdata = await _fetchFutuQuotes([...symMap.keys()]);
+                    const fdata = symMap.size > 0
+                        ? await _fetchFutuQuotes([...symMap.keys()])
+                        : null;
                     if (fdata?.ok && fdata.quotes) {
                         for (const [fs, q] of Object.entries(fdata.quotes)) {
                             if (!q) continue;

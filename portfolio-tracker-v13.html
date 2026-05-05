@@ -7515,6 +7515,42 @@
             }, 1000);
         }
 
+        // ==================== 頁面可見性：手機背景/鎖屏回來立即重抓 ====================
+        // 行動瀏覽器（iOS Safari / Chrome Android）會在 tab 不可見時 throttle setInterval
+        // 甚至完全暫停。切回時若不主動重抓，使用者會看到「報價凍結在切走前」。
+        // 解法：visibilitychange + pageshow 事件 → 立即跑一次 silent refresh + 重啟 timer。
+        let _lastForegroundTs = Date.now();
+        function _wlOnPageBecameVisible() {
+            const idleMs = Date.now() - _lastForegroundTs;
+            _lastForegroundTs = Date.now();
+            // 背景超過 5 秒才視為「真的回來」，避免短暫切換頻繁觸發
+            if (idleMs < 5000) return;
+            // 立即重抓一次報價（強制走 yfFetch 路徑）
+            try {
+                if (typeof silentRefreshPrices === 'function') {
+                    silentRefreshPrices(false);
+                }
+            } catch(_) {}
+            // 重啟 setInterval，把可能被瀏覽器卡住的舊 timer 換掉
+            try {
+                if (typeof startAutoRefresh === 'function') {
+                    startAutoRefresh();
+                }
+            } catch(_) {}
+            _secondsLeft = 10;
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                _wlOnPageBecameVisible();
+            } else {
+                _lastForegroundTs = Date.now();
+            }
+        });
+        // pageshow event 處理 iOS Safari BFCache（從歷史返回時可能不觸發 visibilitychange）
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) _wlOnPageBecameVisible();
+        });
+
         // ── 偵測新標的並提示更新 symbols.json ──
         async function _showMissingFundNotice(missingSymbols) {
             // 取得目前 symbols.json

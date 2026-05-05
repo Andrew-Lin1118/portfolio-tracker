@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v69';  // ← 2026-05-04：持倉一覽成本價移到持有股數與現價之間
+const CACHE_NAME = 'portfolio-tracker-v70';  // ← 2026-05-05：手機背景/鎖屏回來立即重抓報價（visibilitychange）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

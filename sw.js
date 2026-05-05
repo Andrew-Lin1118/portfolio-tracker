@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v80';  // ← 2026-05-05：strategy-btc.html「套用 bot 預設」改為 pionex_bot 規模對齊（lev 7.5x / maint 0.5% / fee 0.04% / SL 6%）
+const CACHE_NAME = 'portfolio-tracker-v81';  // ← 2026-05-05：新增 strategy-btc-macd.html（pionex_bot 邏輯移植：MACD + ATR + 部分 TP + ATR trail + 2D 窗口最佳化）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

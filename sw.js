@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v77';  // ← 2026-05-05：Tab 6 改用每日真實快照（移除回推、加 server-side asset_history.json 持久化）
+const CACHE_NAME = 'portfolio-tracker-v78';  // ← 2026-05-05：新增 strategy-btc.html（BTC 永續動態槓桿模擬器，從 strategy-fmx 衍生）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

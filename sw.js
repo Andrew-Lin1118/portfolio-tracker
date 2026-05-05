@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v71';  // ← 2026-05-05：watchlist 加密分頁明確顯示「24H +X (+X%)」白色粗體
+const CACHE_NAME = 'portfolio-tracker-v72';  // ← 2026-05-05：watchlist NY 過夜時段不再顯示 0%（shift 到「最近交易日當日漲跌」）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

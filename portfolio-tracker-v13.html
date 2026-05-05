@@ -4577,7 +4577,7 @@
         //        - 盤後 ext：post - todayRegularClose（盤後 session 內的 delta）
         async function _wlFetchYahoo(yf) {
             try {
-                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1d&range=5d`;
+                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yf)}?interval=1d&range=10d`;
                 const data = await yfFetch(url);
                 const r = data?.chart?.result?.[0];
                 if (!r) return null;
@@ -4585,15 +4585,19 @@
                 const regularPx = Number(meta.regularMarketPrice ?? NaN);
                 if (!isFinite(regularPx)) return null;
 
-                // 上一個完整交易日收盤（持倉做法）
-                let dailyPrev = null;
+                // 上一個完整交易日收盤（持倉做法）+ 前前一天收盤
+                let dailyPrev = null, dailyPrevPrev = null, marketOpenedToday = null;
                 try {
                     if (typeof _deriveYahooDailyCloses === 'function') {
                         const d = _deriveYahooDailyCloses(r, yf, 1);
-                        if (d && isFinite(d.prevClose) && d.prevClose > 0) dailyPrev = d.prevClose;
+                        if (d) {
+                            if (isFinite(d.prevClose) && d.prevClose > 0) dailyPrev = d.prevClose;
+                            if (isFinite(d.prevPrevClose) && d.prevPrevClose > 0) dailyPrevPrev = d.prevPrevClose;
+                            marketOpenedToday = d.marketOpenedToday;
+                        }
                     }
                 } catch(_) {}
-                const prev = (dailyPrev != null) ? dailyPrev : Number(meta.chartPreviousClose ?? meta.previousClose ?? NaN);
+                let prev = (dailyPrev != null) ? dailyPrev : Number(meta.chartPreviousClose ?? meta.previousClose ?? NaN);
 
                 let cur = regularPx;
                 let ext = null;
@@ -4624,6 +4628,15 @@
                             }
                         }
                     }
+                }
+
+                // ★ NY 完全收盤（overnight）+ 港台韓 等已收盤的市場：
+                //   cur=regularMarketPrice=最近一個完整交易日收盤；prev (from daily K) 也=同一天 → diff=0
+                //   shift 一格 → 顯示「最近交易日的當日漲跌」（Mon vs Fri）而非 0%
+                if (isFinite(cur) && isFinite(prev) && prev > 0
+                    && Math.abs(cur - prev) / prev < 0.0005
+                    && isFinite(dailyPrevPrev) && dailyPrevPrev > 0) {
+                    prev = dailyPrevPrev;
                 }
 
                 const change = isFinite(prev) ? cur - prev : null;

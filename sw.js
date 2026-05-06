@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v105';  // ← 2026-05-06：加「🙈 隱藏資產」toggle（CSS blur 對 .mono / .stat-amount，hover 暫顯，localStorage 持久化）
+const CACHE_NAME = 'portfolio-tracker-v106';  // ← 2026-05-06：privacy mode 擴大覆蓋（持倉一覽全行 / 已實現損益 / 現金 / 派網 / 期貨持倉卡片）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

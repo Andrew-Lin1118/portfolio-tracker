@@ -68,7 +68,14 @@
         body.privacy-on .stat-amount,
         body.privacy-on .stat-amount-sub,
         body.privacy-on .value,
-        body.privacy-on .value-num {
+        body.privacy-on .value-num,
+        body.privacy-on .fut-value,                                   /* 期貨持倉卡片：餘額 / 維持保證金 等 */
+        body.privacy-on .fut-sub,                                     /* 期貨持倉卡片：副資訊 */
+        body.privacy-on #cash-twd-input,                              /* 現金 TWD input */
+        body.privacy-on #pionex-twd-input,                            /* 派網總資產 input */
+        body.privacy-on #stock-realized-section,                      /* 已實現損益整卡（含標題下方數字）*/
+        body.privacy-on #holdings-table tbody td:not(:first-child),   /* 持倉一覽：除代碼欄外所有數值欄位 */
+        body.privacy-on #holdings-table tfoot td:not(:first-child) {  /* 持倉一覽合計列 */
             filter: blur(7px);
             transition: filter 0.18s;
             user-select: none;
@@ -78,7 +85,16 @@
         body.privacy-on .stat-amount:hover,
         body.privacy-on .stat-amount-sub:hover,
         body.privacy-on .value:hover,
-        body.privacy-on .value-num:hover { filter: none; }
+        body.privacy-on .value-num:hover,
+        body.privacy-on .fut-value:hover,
+        body.privacy-on .fut-sub:hover,
+        body.privacy-on #cash-twd-input:hover,
+        body.privacy-on #cash-twd-input:focus,
+        body.privacy-on #pionex-twd-input:hover,
+        body.privacy-on #pionex-twd-input:focus,
+        body.privacy-on #stock-realized-section:hover,
+        body.privacy-on #holdings-table tbody td:hover,
+        body.privacy-on #holdings-table tfoot td:hover { filter: none; }
         /* privacy 模式時 toggle 按鈕視覺強化 */
         body.privacy-on #privacy-toggle {
             background: linear-gradient(135deg, rgba(168,85,247,0.25), rgba(99,102,241,0.18)) !important;

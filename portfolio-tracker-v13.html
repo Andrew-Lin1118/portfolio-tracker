@@ -455,27 +455,21 @@
         <!-- Stats -->
         <div id="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1.5rem; margin-bottom:2rem;"></div>
 
-        <!-- Stock Realized P/L -->
-        <div id="stock-realized-section" class="glass-card" style="padding:1.15rem 1.35rem; margin-bottom:1.25rem; border:1px solid rgba(251,191,36,0.18);"></div>
-
-        <!-- (匯率設定 USD/TWD + HKD/TWD + 抓即時匯率) 已搬到 #manual-inputs-card 整合 -->
-
-        <!-- Action Buttons -->
-        <div style="display:flex; gap:1rem; margin-bottom:0.5rem; flex-wrap:wrap;">
-            <button onclick="refreshAllData()" id="refresh-btn" style="flex:1; min-width:180px; padding:0.75rem 1.5rem; background:rgba(16,185,129,0.1); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:8px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem;"><span id="refresh-icon" style="display:inline-block;">🔄</span><span id="refresh-text">一鍵更新報價 + 匯率</span></button>
-            <button onclick="undoLastAction()" id="undo-btn" style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:8px; font-weight:600;">↩ 上一步 (0)</button>
-            <button onclick="redoLastAction()" id="redo-btn" disabled style="flex:1; min-width:140px; padding:0.75rem 1.5rem; background:rgba(100,116,139,0.1); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:8px; font-weight:600; opacity:0.4;">↪ 下一步 (0)</button>
-        </div>
-        <!-- 自動更新狀態列 -->
-        <div id="auto-refresh-status" style="display:none; text-align:right; font-size:0.75rem; color:#64748b; margin-bottom:1.5rem; padding-right:0.25rem;">
+        <!-- (Stock Realized P/L 已整合進 #manual-inputs-card 上方) -->
+        <!-- (一鍵更新報價按鈕已移除；上一步/下一步整合進 #manual-inputs-card) -->
+        <!-- 自動更新狀態列（保留，顯示自動 refresh 倒數） -->
+        <div id="auto-refresh-status" style="display:none; text-align:right; font-size:0.75rem; color:#64748b; margin-bottom:0.5rem; padding-right:0.25rem;">
             🔄 每分鐘自動更新 ｜ 最後更新：<span id="auto-refresh-time" style="color:#10b981; font-weight:600;">--:--:--</span>
             ｜ 下次更新：<span id="auto-refresh-countdown" style="color:#fbbf24; font-weight:600;">60</span>s
         </div>
 
-        <!-- 手動輸入卡片：(整合) 顯示幣別 + 隱藏資產 + 匯率 + 現金 + 派網 + 槓桿倍率 -->
+        <!-- 手動輸入卡片：(整合) 已實現損益 + 顯示幣別 + 隱藏資產 + 匯率 + 上一步/下一步 + 現金 + 派網 + 槓桿倍率 -->
         <div id="manual-inputs-card" class="glass-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
 
-            <!-- ── 第一列：顯示幣別 / 隱藏資產 / 匯率設定 ── -->
+            <!-- ── 第一列：股票已實現損益（整合進此卡片）── -->
+            <div id="stock-realized-section" style="margin-bottom:0.85rem; padding-bottom:0.85rem; border-bottom:1px solid rgba(251,191,36,0.18);"></div>
+
+            <!-- ── 第二列：顯示幣別 / 隱藏資產 / 匯率設定 / 上一步 / 下一步 ── -->
             <div style="display:flex; flex-wrap:wrap; gap:0.75rem 1.25rem; align-items:center; padding-bottom:0.85rem; margin-bottom:0.85rem; border-bottom:1px solid rgba(59,130,246,0.18);">
                 <!-- 顯示資產 + 幣別 -->
                 <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
@@ -490,7 +484,7 @@
                     </div>
                 </div>
                 <!-- 匯率設定 -->
-                <div style="display:flex; gap:0.55rem; align-items:center; flex-wrap:wrap; flex:1 1 auto; min-width:0;">
+                <div style="display:flex; gap:0.55rem; align-items:center; flex-wrap:wrap;">
                     <label style="color:#fbbf24; font-size:0.82rem; font-weight:600; white-space:nowrap;">💱 匯率</label>
                     <div style="display:flex; align-items:center; gap:0.35rem;">
                         <span style="color:#94a3b8; font-size:0.78rem; white-space:nowrap;">USD/TWD</span>
@@ -502,6 +496,13 @@
                     </div>
                     <button onclick="fetchLiveRates(this)" style="padding:0.32rem 0.7rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.35); border-radius:7px; font-weight:600; font-size:0.78rem; text-transform:none; letter-spacing:0; cursor:pointer; white-space:nowrap;">🌐 抓即時匯率</button>
                     <span id="rate-source" style="color:#64748b; font-size:0.74rem;"></span>
+                </div>
+                <!-- 上一步 / 下一步（從原 Action Buttons 區塊整合進來） -->
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-left:auto;">
+                    <button onclick="undoLastAction()" id="undo-btn"
+                        style="padding:0.4rem 0.85rem; background:rgba(251,191,36,0.1); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:7px; font-weight:600; font-size:0.82rem; cursor:pointer; white-space:nowrap;">↩ 上一步 (0)</button>
+                    <button onclick="redoLastAction()" id="redo-btn" disabled
+                        style="padding:0.4rem 0.85rem; background:rgba(100,116,139,0.1); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); border-radius:7px; font-weight:600; font-size:0.82rem; cursor:pointer; opacity:0.4; white-space:nowrap;">↪ 下一步 (0)</button>
                 </div>
             </div>
 

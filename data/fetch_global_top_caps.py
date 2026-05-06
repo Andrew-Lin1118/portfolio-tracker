@@ -19,6 +19,43 @@ ROOT = Path(__file__).resolve().parent
 OUT_PATH = ROOT / "global_top_caps.json"
 TARGET_TOP_N = 30
 
+# 中文名稱對照（手動維護）— 給前端顯示用
+NAME_ZH = {
+    # ── US Mega Tech ──
+    "AAPL": "蘋果", "MSFT": "微軟", "NVDA": "輝達", "GOOGL": "Google", "AMZN": "亞馬遜",
+    "META": "Meta", "TSLA": "特斯拉", "AVGO": "博通", "ORCL": "甲骨文", "NFLX": "Netflix",
+    "ADBE": "Adobe", "CRM": "Salesforce", "AMD": "超微", "INTC": "英特爾", "IBM": "IBM",
+    "CSCO": "思科", "QCOM": "高通", "MU": "美光", "AMAT": "應用材料", "LRCX": "林研",
+    "TXN": "德州儀器", "PANW": "Palo Alto", "NOW": "ServiceNow", "SHOP": "Shopify",
+    # ── US 金融 ──
+    "BRK-B": "波克夏 B", "JPM": "摩根大通", "V": "Visa", "MA": "萬事達",
+    "BAC": "美國銀行", "WFC": "富國銀行", "GS": "高盛", "MS": "摩根士丹利",
+    "AXP": "美國運通", "BLK": "貝萊德", "C": "花旗",
+    # ── US 醫療 ──
+    "LLY": "禮來", "UNH": "聯合健康", "JNJ": "嬌生", "MRK": "默克", "ABBV": "艾伯維",
+    "PFE": "輝瑞", "TMO": "賽默飛", "ABT": "雅培", "DHR": "丹納赫", "BMY": "必治妥施貴寶",
+    # ── US 消費 / 零售 ──
+    "WMT": "沃爾瑪", "COST": "好市多", "HD": "家得寶", "PG": "寶潔", "KO": "可口可樂",
+    "PEP": "百事", "MCD": "麥當勞", "NKE": "耐吉", "DIS": "迪士尼", "SBUX": "星巴克",
+    "MCK": "麥克森",
+    # ── US 能源 / 工業 ──
+    "XOM": "埃克森美孚", "CVX": "雪佛龍", "CAT": "開拓重工", "BA": "波音",
+    "GE": "GE 航太", "RTX": "雷神技術", "HON": "霍尼威爾",
+    # ── US 通訊 ──
+    "T": "AT&T", "VZ": "威訊", "TMUS": "T-Mobile", "NEE": "新世紀能源",
+    # ── 亞洲 ──
+    "TSM": "台積電", "005930.KS": "三星電子", "0700.HK": "騰訊",
+    "9988.HK": "阿里巴巴", "BABA": "阿里巴巴 ADR", "0941.HK": "中國移動",
+    "1299.HK": "友邦保險 AIA", "TM": "豐田", "BHP": "必和必拓",
+    "BYDDF": "比亞迪", "1810.HK": "小米",
+    # ── 歐洲 ──
+    "ASML": "艾司摩爾", "NVO": "諾和諾德", "NVS": "諾華", "RHHBY": "羅氏",
+    "SAP": "SAP", "MC.PA": "LVMH", "SHEL": "殼牌", "BP": "BP", "AZN": "阿斯利康",
+    # ── 中東 ──
+    "2222.SR": "沙烏地阿美",
+}
+
+
 # 候選池：涵蓋全球可能進前 30 的標的（撒寬一點避免漏網）
 CANDIDATES = [
     # ── US 大型科技 / 半導體 ──
@@ -123,6 +160,7 @@ def fetch_one(symbol):
         return {
             "symbol":      symbol,
             "name":        name,
+            "name_zh":     NAME_ZH.get(symbol, ""),    # 中文名稱（前端 UI 顯示）
             "market_cap":  float(cap),                 # 報價幣別
             "price":       float(price) if price else 0.0,
             "currency":    currency or "USD",

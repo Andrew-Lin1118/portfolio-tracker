@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v99';  // ← 2026-05-06：技術面表格「綜合評價」欄從第 11 欄移到第 2 欄（緊接代碼後面）
+const CACHE_NAME = 'portfolio-tracker-v100';  // ← 2026-05-06：sticky 代碼欄底色 #1d3050 → #0f2238（更貼近卡片底色，減少視覺差）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -820,14 +820,28 @@
         <!-- Tab 8: 美股漲跌熱力圖 + 全球市值排行 -->
         <div id="tab-pane-8" class="tab-pane" style="padding-top:1rem;">
 
-            <!-- ▼▼▼ 全球前 20 大企業（市值）— 每日 7am 由 GH Actions 更新 ▼▼▼ -->
+            <!-- ▼▼▼ 全球前 30 大企業（市值）— 每日 7am 由 GH Actions 更新 ▼▼▼ -->
             <div class="glass-card" style="padding:1.5rem 2rem; margin-bottom:1rem;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
                     <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">🌍 全球前 30 大企業（市值）</h2>
-                    <div id="topcaps-meta" style="color:#94a3b8; font-size:0.78rem;"></div>
+                    <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+                        <a href="https://tw.tradingview.com/markets/world-stocks/worlds-largest-companies/"
+                           target="_blank" rel="noopener noreferrer"
+                           style="padding:0.4rem 0.8rem; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.4); border-radius:8px; font-size:0.8rem; font-weight:600; text-decoration:none; white-space:nowrap;"
+                           title="開啟 TradingView 全球市值完整排行（新分頁）">↗ TradingView 完整排行</a>
+                        <button onclick="_toggleTopCapsScreener()" id="topcaps-screener-btn"
+                           style="padding:0.4rem 0.8rem; background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.4); border-radius:8px; font-size:0.8rem; font-weight:600; cursor:pointer; white-space:nowrap;"
+                           title="顯示 / 隱藏 TradingView 嵌入排行 (互動式)">▽ TV 即時排行</button>
+                        <div id="topcaps-meta" style="color:#94a3b8; font-size:0.78rem;"></div>
+                    </div>
                 </div>
                 <div id="topcaps-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:0.6rem;">
                     <div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:#64748b;">載入中...</div>
+                </div>
+                <!-- TV Screener widget（折疊預設、按鈕展開）-->
+                <div id="topcaps-screener-wrap" style="display:none; margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(59,130,246,0.18);">
+                    <div style="margin-bottom:0.5rem; color:#94a3b8; font-size:0.78rem;">▼ TradingView 嵌入排行（即時、互動可篩選排序）</div>
+                    <div id="topcaps-tv-screener" class="tradingview-widget-container" style="min-height:550px;"></div>
                 </div>
             </div>
 
@@ -6297,6 +6311,49 @@
             } catch (e) {
                 grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:#ef4444;">載入失敗：${_esc(String(e && e.message || e))}</div>` +
                                  `<div style="grid-column:1/-1; text-align:center; color:#64748b; font-size:0.8rem;">data/global_top_caps.json 可能尚未產生（GH Actions 第一次跑前不存在）</div>`;
+            }
+        }
+
+        // ─── TradingView 嵌入排行 widget（按鈕展開時才載入）───
+        let _tvScreenerLoaded = false;
+        function _toggleTopCapsScreener() {
+            const wrap = document.getElementById('topcaps-screener-wrap');
+            const btn  = document.getElementById('topcaps-screener-btn');
+            if (!wrap || !btn) return;
+            const isHidden = wrap.style.display === 'none' || !wrap.style.display;
+            if (isHidden) {
+                wrap.style.display = 'block';
+                btn.textContent = '△ 收起 TV 排行';
+                if (!_tvScreenerLoaded) {
+                    _tvScreenerLoaded = true;
+                    const container = document.getElementById('topcaps-tv-screener');
+                    if (container) {
+                        // TradingView Stock Screener widget
+                        // defaultScreen "most_capitalized" + market "us" 是 TV 預設「美國」
+                        // (TV widget 不支援 'world'/'global'；附 A 連結補全球版)
+                        const sc = document.createElement('script');
+                        sc.type = 'text/javascript';
+                        sc.async = true;
+                        sc.src = 'https://s3.tradingview.com/external-embedding/embed-widget-screener.js';
+                        sc.innerHTML = JSON.stringify({
+                            "width": "100%",
+                            "height": 550,
+                            "defaultColumn": "overview",
+                            "defaultScreen": "most_capitalized",
+                            "market": "america",
+                            "showToolbar": true,
+                            "colorTheme": "dark",
+                            "locale": "zh_TW",
+                            "isTransparent": true
+                        });
+                        // TradingView widget container 預期結構
+                        container.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
+                        container.appendChild(sc);
+                    }
+                }
+            } else {
+                wrap.style.display = 'none';
+                btn.textContent = '▽ TV 即時排行';
             }
         }
 

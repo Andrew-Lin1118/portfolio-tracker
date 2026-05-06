@@ -1,8 +1,8 @@
 """
-全球市值前 20 大企業抓取（每日更新）
+全球市值前 30 大企業抓取（每日更新）
 
 來源：yfinance Ticker.info / fast_info
-候選池：~30 檔涵蓋全球候選；依 marketCap 排序取前 20
+候選池：~70 檔涵蓋全球候選；依 USD marketCap 排序取前 30
 輸出：data/global_top_caps.json
 
 排程：併入 daily-brief.yml workflow（每天 TW 7am 跑）
@@ -17,18 +17,24 @@ import yfinance as yf
 
 ROOT = Path(__file__).resolve().parent
 OUT_PATH = ROOT / "global_top_caps.json"
-TARGET_TOP_N = 20
+TARGET_TOP_N = 30
 
-# 候選池（涵蓋全球）— 多撒一點以確保最終 top 20 不會漏標的
+# 候選池：涵蓋全球可能進前 30 的標的（撒寬一點避免漏網）
 CANDIDATES = [
-    # ── US 大型科技 ──
-    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "AVGO", "ORCL", "NFLX", "ADBE",
+    # ── US 大型科技 / 半導體 ──
+    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "AVGO", "ORCL", "NFLX",
+    "ADBE", "CRM", "AMD", "INTC", "IBM", "CSCO", "QCOM", "MU", "AMAT", "LRCX",
+    "TXN", "PANW", "NOW", "SHOP",
     # ── US 金融 ──
-    "BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS",
-    # ── US 醫療 / 消費 ──
-    "LLY", "UNH", "JNJ", "WMT", "COST", "HD", "PG", "KO", "ABBV",
+    "BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "AXP", "BLK", "C",
+    # ── US 醫療 ──
+    "LLY", "UNH", "JNJ", "MRK", "ABBV", "PFE", "TMO", "ABT", "DHR", "BMY",
+    # ── US 消費 / 零售 ──
+    "WMT", "COST", "HD", "PG", "KO", "PEP", "MCD", "NKE", "DIS", "SBUX", "MCK",
     # ── US 能源 / 工業 ──
-    "XOM", "CVX",
+    "XOM", "CVX", "CAT", "BA", "GE", "RTX", "HON",
+    # ── US 通訊 / 電信 ──
+    "T", "VZ", "TMUS", "NEE",
     # ── 亞洲 ──
     "TSM",          # 台積電 ADR
     "005930.KS",    # 三星電子
@@ -36,6 +42,11 @@ CANDIDATES = [
     "9988.HK",      # 阿里巴巴 港股
     "BABA",         # 阿里巴巴 ADR
     "0941.HK",      # 中國移動
+    "1299.HK",      # 友邦保險 AIA
+    "TM",           # Toyota ADR
+    "BHP",          # BHP Group
+    "BYDDF",        # BYD
+    "1810.HK",      # 小米
     # ── 歐洲 ──
     "ASML",         # 艾司摩爾
     "NVO",          # Novo Nordisk
@@ -43,6 +54,12 @@ CANDIDATES = [
     "RHHBY",        # Roche
     "SAP",          # SAP
     "MC.PA",        # LVMH
+    "SHEL",         # Shell
+    "BP",           # BP
+    "AZN",          # AstraZeneca
+    "TM",           # Toyota
+    # ── 中東 ──
+    "2222.SR",      # Saudi Aramco（yfinance 支援度待驗）
 ]
 
 
@@ -131,6 +148,11 @@ FX_TO_USD = {
     "EUR": 1.08,
     "GBP": 1.27,
     "CNY": 1 / 7.2,
+    "SAR": 1 / 3.75,    # 沙特里亞爾（pegged）— Aramco 2222.SR
+    "AUD": 0.66,        # 澳洲（BHP 等若以 AUD 計）
+    "CHF": 1.13,        # 瑞郎（Roche / Nestlé）
+    "DKK": 0.145,       # 丹麥克朗（Novo Nordisk 主市場）
+    "INR": 1 / 83.0,    # 印度盧比
 }
 
 

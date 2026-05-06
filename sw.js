@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v94';  // ← 2026-05-06：Tab 8 美股熱力圖頁面加「🌍 全球前 20 大企業」區塊 + fetch_global_top_caps.py 每日抓取
+const CACHE_NAME = 'portfolio-tracker-v95';  // ← 2026-05-06：全球前 20 大 → 前 30 大（候選池擴充至 89 + 加 MU/AMD/INTC/Aramco/AZN/Toyota 等 + SAR/AUD/CHF/DKK/INR 匯率）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

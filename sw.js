@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v88';  // ← 2026-05-06：sticky 代碼欄底色從 #0a1628 改 #142846（match glass-card 表面色，避免太暗）
+const CACHE_NAME = 'portfolio-tracker-v89';  // ← 2026-05-06：sticky 代碼欄底色再調亮 (#142846 → #1d3050)；期貨+加密 卡片 期貨 row 交換 NT 金額 ↔ 損益 位置
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

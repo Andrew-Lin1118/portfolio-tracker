@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v102';  // ← 2026-05-06：整體 bg 改深 rgb(13,29,54)=#0d1d36（user 反映 #1d3050 太淺）
+const CACHE_NAME = 'portfolio-tracker-v103';  // ← 2026-05-06：整體 bg 淺一階 #0d1d36 → #142846 (rgb 20,40,70)
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

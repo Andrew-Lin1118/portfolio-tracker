@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v104';  // ← 2026-05-06：整體 bg 再深一點 #142846 → #102240 (rgb 16,34,64)
+const CACHE_NAME = 'portfolio-tracker-v105';  // ← 2026-05-06：加「🙈 隱藏資產」toggle（CSS blur 對 .mono / .stat-amount，hover 暫顯，localStorage 持久化）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

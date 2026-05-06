@@ -698,6 +698,7 @@
                         <thead>
                             <tr style="border-bottom:2px solid rgba(251,191,36,0.35);">
                                 <th style="padding:0.55rem 0.6rem; text-align:left; color:#fbbf24; white-space:nowrap;">持倉代碼</th>
+                                <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap; background:rgba(251,191,36,0.1);">綜合評價</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">時 KD</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">日 KD</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">周 KD</th>
@@ -707,7 +708,6 @@
                                 <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">時 RSI(14)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">日 RSI(14)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;">周 RSI(14)</th>
-                                <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap; background:rgba(251,191,36,0.1);">綜合評價</th>
                             </tr>
                         </thead>
                         <tbody id="tech-tbody">
@@ -7202,12 +7202,14 @@
                         tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) +
                         '</tr>');
                     techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}` +
+                        // 綜合評價搬到代碼後第 2 欄
+                        '<td style="padding:0.5rem 0.6rem; text-align:center; background:rgba(251,191,36,0.04);">' + techSummaryBadge(d) + '</td>' +
                         trc(buildKD(d.hourly_k, d.hourly_d, d.hourly_cross)) +
                         trc(buildKD(d.daily_k,  d.daily_d,  d.daily_cross))  +
                         trc(buildKD(d.weekly_k, d.weekly_d, d.weekly_cross)) +
                         trc(macdBadge(d.hourly_macd)) + trc(macdBadge(d.daily_macd)) + trc(macdBadge(d.weekly_macd)) +
                         trc(rsiBadge(d.hourly_rsi))   + trc(rsiBadge(d.daily_rsi))   + trc(rsiBadge(d.weekly_rsi)) +
-                        '<td style="padding:0.5rem 0.6rem; text-align:center; background:rgba(251,191,36,0.04);">' + techSummaryBadge(d) + '</td></tr>');
+                        '</tr>');
                 });
                 fundTbody.innerHTML = fundRowsHtml.join('');
                 techTbody.innerHTML = techRowsHtml.join('');

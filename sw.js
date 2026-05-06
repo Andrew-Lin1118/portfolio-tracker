@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v89';  // ← 2026-05-06：sticky 代碼欄底色再調亮 (#142846 → #1d3050)；期貨+加密 卡片 期貨 row 交換 NT 金額 ↔ 損益 位置
+const CACHE_NAME = 'portfolio-tracker-v90';  // ← 2026-05-06：總資產卡片 breakdown 拆兩行（股/現 第1行，期/幣 第2行）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

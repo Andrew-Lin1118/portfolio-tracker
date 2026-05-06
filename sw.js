@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v106';  // ← 2026-05-06：privacy mode 擴大覆蓋（持倉一覽全行 / 已實現損益 / 現金 / 派網 / 期貨持倉卡片）
+const CACHE_NAME = 'portfolio-tracker-v107';  // ← 2026-05-06：整合 顯示幣別+隱藏資產+匯率設定 都搬到 #manual-inputs-card 的第一列（精簡頁面）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v96';  // ← 2026-05-06：全球前 30 大企業卡片在代碼後加中文名稱（NAME_ZH dict + name_zh 欄位寫進 JSON）
+const CACHE_NAME = 'portfolio-tracker-v97';  // ← 2026-05-06：全球前 30 大企業卡片排版調整（漲跌% 從第 1 行搬到第 2 行跟市值同行）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

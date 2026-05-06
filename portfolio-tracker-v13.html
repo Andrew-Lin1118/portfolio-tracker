@@ -466,10 +466,7 @@
         <!-- 手動輸入卡片：(整合) 已實現損益 + 顯示幣別 + 隱藏資產 + 匯率 + 上一步/下一步 + 現金 + 派網 + 槓桿倍率 -->
         <div id="manual-inputs-card" class="glass-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
 
-            <!-- ── 第一列：股票已實現損益（整合進此卡片）── -->
-            <div id="stock-realized-section" style="margin-bottom:0.85rem; padding-bottom:0.85rem; border-bottom:1px solid rgba(251,191,36,0.18);"></div>
-
-            <!-- ── 第二列：顯示幣別 / 隱藏資產 / 匯率設定 / 上一步 / 下一步 ── -->
+            <!-- ── 第一列：顯示幣別 / 隱藏資產 / 匯率設定 / 上一步 / 下一步 ── -->
             <div style="display:flex; flex-wrap:wrap; gap:0.75rem 1.25rem; align-items:center; padding-bottom:0.85rem; margin-bottom:0.85rem; border-bottom:1px solid rgba(59,130,246,0.18);">
                 <!-- 顯示資產 + 幣別 -->
                 <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
@@ -530,6 +527,9 @@
                 </div>
             </div>
             <div style="color:#64748b; font-size:0.75rem; margin-top:0.5rem;">派網公開 API 不含網格/DCA/Earn 鎖倉，請從派網 App「總資產估值」頁填入 TWD 金額。槓桿倍率會用在「持倉分布圖」上方的整體槓桿率計算。</div>
+
+            <!-- ── 第三列：股票已實現損益（顯示在現金的下方）── -->
+            <div id="stock-realized-section" style="margin-top:0.85rem; padding-top:0.85rem; border-top:1px solid rgba(251,191,36,0.18);"></div>
         </div>
 
         <!-- Pie Chart -->
@@ -1434,6 +1434,7 @@
             let totalCostUSD = 0, totalValueUSD = 0, totalCostTWD = 0, totalValueTWD = 0;
             let totalDayPnLUSD  = 0, totalDayPnLTWD  = 0, hasDayPnL  = false;
             let totalPrevDayPnLUSD = 0, totalPrevDayPnLTWD = 0, hasPrevDayPnL = false;
+            let totalExtPnLUSD = 0, totalExtPnLTWD = 0, hasExtPnL = false, extLabel = null;
             // 開盤判定：依「該股票市場時區 + 開盤時間」判斷
             //   - 週末 → 未開盤
             //   - 週一~五 但今天還沒過開盤鐘 → 未開盤（如台灣早上 8:00 → HK/TW 都還沒開）
@@ -1584,6 +1585,29 @@
                     }
                 }
 
+                // ── 盤前 / 盤後損益累加（依 extendedQuote.changePoints × 持有股數 換成 USD/TWD） ──
+                if (extendedQuote && Number.isFinite(Number(extendedQuote.changePoints))) {
+                    const extPts = Number(extendedQuote.changePoints);
+                    let extPnlUSD, extPnlTWD;
+                    const extPnlNative = extPts * h.quantity;
+                    if (_isHK_HKD) {
+                        extPnlUSD = extPnlNative * exchangeRates.HKD_TWD / exchangeRates.USD_TWD;
+                        extPnlTWD = extPnlNative * exchangeRates.HKD_TWD;
+                    } else if (h.market === 'TW') {
+                        extPnlUSD = extPnlNative / exchangeRates.USD_TWD;
+                        extPnlTWD = extPnlNative;
+                    } else {
+                        extPnlUSD = extPnlNative;
+                        extPnlTWD = extPnlNative * exchangeRates.USD_TWD;
+                    }
+                    extendedQuote.pnlUSD = extPnlUSD;
+                    extendedQuote.pnlTWD = extPnlTWD;
+                    totalExtPnLUSD += extPnlUSD;
+                    totalExtPnLTWD += extPnlTWD;
+                    hasExtPnL = true;
+                    if (!extLabel && extendedQuote.label) extLabel = extendedQuote.label;
+                }
+
                 return { ...h, costTotalUSD: costUSD, valueTotalUSD: valueUSD,
                     costTotalTWD: costTWD, valueTotalTWD: valueTWD, percentage: 0,
                     prevClose, prevPrevClose,
@@ -1607,6 +1631,7 @@
                 totalPnLPercentTWD: totalCostTWD > 0 ? (totalPnLTWD / totalCostTWD) * 100 : 0,
                 totalDayPnLUSD, totalDayPnLTWD, hasDayPnL,
                 totalPrevDayPnLUSD, totalPrevDayPnLTWD, hasPrevDayPnL,
+                totalExtPnLUSD, totalExtPnLTWD, hasExtPnL, extLabel,
                 holdingsWithStats
             };
         }
@@ -2290,8 +2315,7 @@
                         <div style="margin-top:0.18rem;color:#94a3b8;font-size:0.8rem;">約 ${altText} · 原幣 ${ccyParts || '尚無賣出損益'}${r.unmatched ? ` · <span style="color:#f59e0b;">${r.unmatched} 筆賣出缺少完整買入成本</span>` : ''}</div>
                     </div>
                     <div style="display:flex;gap:0.6rem;align-items:stretch;flex-wrap:wrap;">
-                        <button onclick="setCurrency('TWD')" style="padding:0.45rem 0.75rem;background:${currency === 'TWD' ? 'rgba(251,191,36,0.22)' : 'rgba(15,30,60,0.5)'};color:${currency === 'TWD' ? '#fbbf24' : '#94a3b8'};border:1px solid rgba(251,191,36,0.28);border-radius:9px;font-weight:800;">台幣</button>
-                        <button onclick="setCurrency('USD')" style="padding:0.45rem 0.75rem;background:${currency === 'USD' ? 'rgba(251,191,36,0.22)' : 'rgba(15,30,60,0.5)'};color:${currency === 'USD' ? '#fbbf24' : '#94a3b8'};border:1px solid rgba(251,191,36,0.28);border-radius:9px;font-weight:800;">美金</button>
+                        <!-- 已實現卡內的「台幣/美金」按鈕已移除（與 #manual-inputs-card 的 USD/TWD toggle 重複） -->
                         <div style="min-width:88px;background:rgba(15,30,60,0.5);border-radius:10px;padding:0.55rem 0.75rem;text-align:center;">
                             <div style="color:#64748b;font-size:0.72rem;">賣出筆數</div><div style="color:#e2e8f0;font-weight:800;">${r.sells}</div>
                         </div>
@@ -2358,7 +2382,7 @@
             })();
             // ── 當日損益 卡片 ──────────────────────────────
             const dayCard = (function() {
-                if (!stats.hasDayPnL && _futTodayTWD === 0) return '';
+                if (!stats.hasDayPnL && _futTodayTWD === 0 && !stats.hasExtPnL) return '';
                 const totalTWD = stats.totalDayPnLTWD + _futTodayTWD;
                 const totalUSD = stats.totalDayPnLUSD + _futTodayUSD;
                 const d   = currency==='USD' ? totalUSD : totalTWD;
@@ -2375,6 +2399,17 @@
                     bdParts.push('期 ' + _compactPnl(_futTodayTWD));
                 }
                 const bd = bdParts.join(' · ');
+                // ── 盤前 / 盤後 損益備註（依 stats.totalExtPnL*）──
+                let extNoteHtml = '';
+                if (stats.hasExtPnL) {
+                    const extD   = currency === 'USD' ? stats.totalExtPnLUSD : stats.totalExtPnLTWD;
+                    const extPos = extD >= 0;
+                    const extCol = extPos ? '#10b981' : '#ef4444';
+                    const extLabel = stats.extLabel || '盤前/盤後';
+                    extNoteHtml = '<div style="margin-top:0.35rem;color:'+extCol+';font-size:0.75rem;font-weight:700;">'
+                                + extLabel + ' ' + fmtPnl(extD, currency)
+                                + '</div>';
+                }
                 return '<div class="stat-card" style="border:1px solid rgba(251,191,36,0.25);">'
                     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
                     +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
@@ -2386,6 +2421,7 @@
                     + '<div class="mono stat-amount" style="color:'+col+';">'+mainStr+'</div>'
                     + '<div class="mono stat-amount-sub" style="margin-top:0.45rem;color:'+col+';">'+subStr+'</div>'
                     + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">'+bd+'</div>' : '')
+                    + extNoteHtml
                     + '</div>';
             })();
             // ── 總損益 卡片（股票 + 期貨未實現）──────────────

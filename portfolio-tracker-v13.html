@@ -6275,11 +6275,15 @@
                     const chgCol = chg == null ? '#94a3b8' : (chg > 0 ? '#4ade80' : chg < 0 ? '#f87171' : '#94a3b8');
                     const chgStr = chg == null ? '—' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`;
                     const country = r.country ? `<span style="font-size:0.66rem;color:#64748b;">${_esc(r.country)}</span>` : '';
+                    const nameZh = r.name_zh
+                        ? `<span style="color:#94a3b8; font-size:0.7rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0;">${_esc(r.name_zh)}</span>`
+                        : '';
                     return `
                     <div style="background:rgba(15,30,60,0.55); border:1px solid rgba(59,130,246,0.18); border-radius:10px; padding:0.75rem 0.85rem; transition:all 0.15s;">
-                      <div style="display:flex; align-items:baseline; gap:0.4rem; margin-bottom:0.35rem;">
+                      <div style="display:flex; align-items:baseline; gap:0.4rem; margin-bottom:0.25rem;">
                         <span style="color:#fbbf24; font-size:0.75rem; font-weight:800; min-width:24px;">#${r.rank}</span>
-                        <span style="color:#f1f5f9; font-size:0.95rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${_esc(r.symbol)}</span>
+                        <span style="color:#f1f5f9; font-size:0.95rem; font-weight:800; white-space:nowrap;">${_esc(r.symbol)}</span>
+                        ${nameZh}
                         <span style="color:${chgCol}; font-size:0.78rem; font-weight:700; white-space:nowrap;">${chgStr}</span>
                       </div>
                       <div style="display:flex; justify-content:space-between; align-items:baseline; gap:0.4rem;">

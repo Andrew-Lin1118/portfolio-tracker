@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v100';  // ← 2026-05-06：sticky 代碼欄底色 #1d3050 → #0f2238（更貼近卡片底色，減少視覺差）
+const CACHE_NAME = 'portfolio-tracker-v101';  // ← 2026-05-06：整體 bg 統一 rgb(29,48,80)=#1d3050（body / glass-card / sticky 代碼欄；移除原漸層、視覺一致）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v110';  // ← 2026-05-06：privacy 改用 *** 替代（CSS ::after 覆蓋 + inputs 切 type=password）；今日損益卡盤前備註改白色
+const CACHE_NAME = 'portfolio-tracker-v111';  // ← 2026-05-06：股票市值卡加備註「總成本 NT$xxx」
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

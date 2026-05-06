@@ -63,24 +63,56 @@
         }
 
         /* ── 隱藏資產模式（privacy mode）── */
-        /* 對所有金額類元素加模糊；hover / touch 可暫時看清 */
+        /* 把金額類元素的文字改 transparent，用 ::after 覆蓋 '***'；hover 暫顯 */
         body.privacy-on .mono,
         body.privacy-on .stat-amount,
         body.privacy-on .stat-amount-sub,
         body.privacy-on .value,
         body.privacy-on .value-num,
-        body.privacy-on .fut-value,                                   /* 期貨持倉卡片：餘額 / 維持保證金 等 */
-        body.privacy-on .fut-sub,                                     /* 期貨持倉卡片：副資訊 */
-        body.privacy-on #cash-twd-input,                              /* 現金 TWD input */
-        body.privacy-on #pionex-twd-input,                            /* 派網總資產 input */
-        body.privacy-on #stock-realized-section,                      /* 已實現損益整卡（含標題下方數字）*/
-        body.privacy-on #holdings-table tbody td:not(:first-child),   /* 持倉一覽：除代碼欄外所有數值欄位 */
-        body.privacy-on #holdings-table tfoot td:not(:first-child) {  /* 持倉一覽合計列 */
-            filter: blur(7px);
-            transition: filter 0.18s;
+        body.privacy-on .fut-value,
+        body.privacy-on .fut-sub,
+        body.privacy-on #stock-realized-section,
+        body.privacy-on #stock-realized-section *,
+        body.privacy-on #holdings-table tbody td:not(:first-child),
+        body.privacy-on #holdings-table tfoot td:not(:first-child) {
+            color: transparent !important;
+            text-shadow: none !important;
             user-select: none;
             cursor: help;
+            position: relative;
+            transition: color 0.18s;
         }
+        body.privacy-on .mono::after,
+        body.privacy-on .stat-amount::after,
+        body.privacy-on .stat-amount-sub::after,
+        body.privacy-on .value::after,
+        body.privacy-on .value-num::after,
+        body.privacy-on .fut-value::after,
+        body.privacy-on .fut-sub::after,
+        body.privacy-on #stock-realized-section::after,
+        body.privacy-on #holdings-table tbody td:not(:first-child)::after,
+        body.privacy-on #holdings-table tfoot td:not(:first-child)::after {
+            content: '***';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            color: #94a3b8;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        /* 持倉表 td 預設右對齊 → '***' 也右對齊 */
+        body.privacy-on #holdings-table tbody td:not(:first-child)::after,
+        body.privacy-on #holdings-table tfoot td:not(:first-child)::after {
+            justify-content: flex-end;
+            padding-right: 0.5rem;
+        }
+        /* 卡片大數字 → ::after 對齊左 (跟原本 stat-amount 一致) */
+        body.privacy-on .stat-amount::after,
+        body.privacy-on .stat-amount-sub::after { justify-content: flex-start; }
+        /* hover：暫時顯示 */
         body.privacy-on .mono:hover,
         body.privacy-on .stat-amount:hover,
         body.privacy-on .stat-amount-sub:hover,
@@ -88,13 +120,25 @@
         body.privacy-on .value-num:hover,
         body.privacy-on .fut-value:hover,
         body.privacy-on .fut-sub:hover,
-        body.privacy-on #cash-twd-input:hover,
-        body.privacy-on #cash-twd-input:focus,
-        body.privacy-on #pionex-twd-input:hover,
-        body.privacy-on #pionex-twd-input:focus,
         body.privacy-on #stock-realized-section:hover,
+        body.privacy-on #stock-realized-section:hover *,
         body.privacy-on #holdings-table tbody td:hover,
-        body.privacy-on #holdings-table tfoot td:hover { filter: none; }
+        body.privacy-on #holdings-table tfoot td:hover { color: inherit !important; }
+        body.privacy-on .mono:hover::after,
+        body.privacy-on .stat-amount:hover::after,
+        body.privacy-on .stat-amount-sub:hover::after,
+        body.privacy-on .value:hover::after,
+        body.privacy-on .value-num:hover::after,
+        body.privacy-on .fut-value:hover::after,
+        body.privacy-on .fut-sub:hover::after,
+        body.privacy-on #stock-realized-section:hover::after,
+        body.privacy-on #holdings-table tbody td:hover::after,
+        body.privacy-on #holdings-table tfoot td:hover::after { content: none; }
+        /* inputs（現金 / 派網）：用 webkit-text-security 顯示 ●●●，並由 JS 切換 type=password */
+        body.privacy-on #cash-twd-input,
+        body.privacy-on #pionex-twd-input {
+            -webkit-text-security: disc;
+        }
         /* privacy 模式時 toggle 按鈕視覺強化 */
         body.privacy-on #privacy-toggle {
             background: linear-gradient(135deg, rgba(168,85,247,0.25), rgba(99,102,241,0.18)) !important;
@@ -1666,11 +1710,27 @@
         }
         // ── 隱藏資產 toggle（localStorage 持久化）──
         const PRIVACY_KEY = 'pt_v13_privacy_mode';
+        const PRIVACY_INPUT_IDS = ['cash-twd-input', 'pionex-twd-input'];
+        function _applyPrivacyToInputs(isOn) {
+            // CSS -webkit-text-security 在 Webkit 有效；Firefox 用切 type=password 真實遮蔽
+            PRIVACY_INPUT_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (isOn) {
+                    if (!el.dataset.origType) el.dataset.origType = el.type || 'number';
+                    el.type = 'password';
+                } else if (el.dataset.origType) {
+                    el.type = el.dataset.origType;
+                    delete el.dataset.origType;
+                }
+            });
+        }
         function togglePrivacyMode() {
             const isOn = document.body.classList.toggle('privacy-on');
             try { localStorage.setItem(PRIVACY_KEY, isOn ? '1' : '0'); } catch(_) {}
             const btn = document.getElementById('privacy-toggle');
             if (btn) btn.textContent = isOn ? '👁 顯示資產' : '🙈 隱藏資產';
+            _applyPrivacyToInputs(isOn);
         }
         // 初始化（在 DOM 就緒時跑）— 從 localStorage 還原
         function _initPrivacyMode() {
@@ -1679,6 +1739,7 @@
                     document.body.classList.add('privacy-on');
                     const btn = document.getElementById('privacy-toggle');
                     if (btn) btn.textContent = '👁 顯示資產';
+                    _applyPrivacyToInputs(true);
                 }
             } catch(_) {}
         }
@@ -2399,14 +2460,12 @@
                     bdParts.push('期 ' + _compactPnl(_futTodayTWD));
                 }
                 const bd = bdParts.join(' · ');
-                // ── 盤前 / 盤後 損益備註（依 stats.totalExtPnL*）──
+                // ── 盤前 / 盤後 損益備註（白色字、跟今日漲跌欄盤前同款 #e2e8f0 樣式）──
                 let extNoteHtml = '';
                 if (stats.hasExtPnL) {
-                    const extD   = currency === 'USD' ? stats.totalExtPnLUSD : stats.totalExtPnLTWD;
-                    const extPos = extD >= 0;
-                    const extCol = extPos ? '#10b981' : '#ef4444';
+                    const extD     = currency === 'USD' ? stats.totalExtPnLUSD : stats.totalExtPnLTWD;
                     const extLabel = stats.extLabel || '盤前/盤後';
-                    extNoteHtml = '<div style="margin-top:0.35rem;color:'+extCol+';font-size:0.75rem;font-weight:700;">'
+                    extNoteHtml = '<div style="margin-top:0.35rem;color:#e2e8f0;font-size:0.75rem;font-weight:700;">'
                                 + extLabel + ' ' + fmtPnl(extD, currency)
                                 + '</div>';
                 }

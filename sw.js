@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v109';  // ← 2026-05-06：刪重複幣別按鈕 + 已實現移現金下方 + 今日損益卡加盤前/盤後 P&L 備註
+const CACHE_NAME = 'portfolio-tracker-v110';  // ← 2026-05-06：privacy 改用 *** 替代（CSS ::after 覆蓋 + inputs 切 type=password）；今日損益卡盤前備註改白色
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

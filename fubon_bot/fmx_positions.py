@@ -454,8 +454,19 @@ def main():
             rs = json.load(f)
 
         baseline     = float(rs.get("baseline_pnl", 0))
-        counted      = set(rs.get("counted_close_order_nos", []))
-        proc_opens   = set(rs.get("processed_open_order_nos", []))
+        # ★ 載入時把 counted/proc_opens 兩種格式（有/無 -0000）都展開、避免格式不一致誤判
+        _raw_counted = set(rs.get("counted_close_order_nos", []))
+        _raw_opens   = set(rs.get("processed_open_order_nos", []))
+        counted      = set()
+        proc_opens   = set()
+        for o in _raw_counted:
+            counted.add(o)
+            if o.endswith("-0000"): counted.add(o[:-5])
+            else:                    counted.add(o + "-0000")
+        for o in _raw_opens:
+            proc_opens.add(o)
+            if o.endswith("-0000"): proc_opens.add(o[:-5])
+            else:                    proc_opens.add(o + "-0000")
         open_lots    = list(rs.get("open_lots", []))
         mult_map     = rs.get("multiplier", mult_map)
 
@@ -471,7 +482,7 @@ def main():
         )
 
         for t in all_trades:
-            ono   = t.get("order_no", "")
+            ono   = _norm_no(t.get("order_no", ""))   # ★ 統一正規化、雙格式不會誤判
             otype = t.get("order_type", "")
             sym   = t.get("symbol", "FITM")
             mult  = mult_map.get(sym, 10)

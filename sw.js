@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v93';  // ← 2026-05-06：fmx-dashboard 加碼/減碼觸發虛線在 5分/15分/時K 也顯示（拿掉 isIntraday 隱藏條件）
+const CACHE_NAME = 'portfolio-tracker-v94';  // ← 2026-05-06：Tab 8 美股熱力圖頁面加「🌍 全球前 20 大企業」區塊 + fetch_global_top_caps.py 每日抓取
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

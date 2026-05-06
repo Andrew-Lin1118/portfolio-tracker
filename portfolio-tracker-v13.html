@@ -817,8 +817,21 @@
             </div>
         </div><!-- /tab-pane-7 -->
 
-        <!-- Tab 8: 美股漲跌熱力圖 -->
+        <!-- Tab 8: 美股漲跌熱力圖 + 全球市值排行 -->
         <div id="tab-pane-8" class="tab-pane" style="padding-top:1rem;">
+
+            <!-- ▼▼▼ 全球前 20 大企業（市值）— 每日 7am 由 GH Actions 更新 ▼▼▼ -->
+            <div class="glass-card" style="padding:1.5rem 2rem; margin-bottom:1rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">🌍 全球前 20 大企業（市值）</h2>
+                    <div id="topcaps-meta" style="color:#94a3b8; font-size:0.78rem;"></div>
+                </div>
+                <div id="topcaps-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:0.6rem;">
+                    <div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:#64748b;">載入中...</div>
+                </div>
+            </div>
+
+            <!-- ▼▼▼ 美股熱力圖 ▼▼▼ -->
             <div class="glass-card" style="padding:1.5rem 2rem;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
                     <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">🔥 美股漲跌熱力圖</h2>
@@ -3908,9 +3921,10 @@
             if (n === 7 && holdings.length > 0) {
                 loadNews(false);
             }
-            // 切換到熱力圖 Tab：首次自動載入（widget 一次載入後常駐）
-            if (n === 8 && !_heatmapLoaded) {
-                renderHeatmap();
+            // 切換到熱力圖 Tab：首次自動載入熱力圖 + 全球前 20 大企業
+            if (n === 8) {
+                if (!_heatmapLoaded) renderHeatmap();
+                if (!_topCapsLoaded) renderTopCaps();
             }
             // 切換到財報分析（深度）Tab：首次自動載入
             if (n === 9 && !_earningsDeepLoaded) {
@@ -6213,6 +6227,73 @@
             }, 50);
 
             _heatmapLoaded = true;
+        }
+
+        // ==================== 全球前 20 大企業（市值）====================
+        // 資料源：data/global_top_caps.json（每日 GH Actions 7am 更新）
+        let _topCapsLoaded = false;
+        let _topCapsCache  = null;
+        async function renderTopCaps(forceRefresh = false) {
+            const grid = document.getElementById('topcaps-grid');
+            const meta = document.getElementById('topcaps-meta');
+            if (!grid) return;
+
+            try {
+                if (!_topCapsCache || forceRefresh) {
+                    const res = await fetch('data/global_top_caps.json?_=' + Date.now(), { cache: 'no-store' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    _topCapsCache = await res.json();
+                }
+                const d = _topCapsCache;
+                const top = Array.isArray(d.top) ? d.top : [];
+                if (!top.length) {
+                    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:#64748b;">尚無資料</div>';
+                    return;
+                }
+
+                // ── Meta（產出時間 + 來源）──
+                if (meta) {
+                    const gen = d.generated ? new Date(d.generated) : null;
+                    const fmt = gen && !isNaN(gen.getTime())
+                        ? gen.toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+                        : '?';
+                    meta.textContent = `${fmt} · yfinance (每日更新)`;
+                }
+
+                // ── 美元市值格式化（兆 / 億）──
+                const _capStr = usd => {
+                    const a = Math.abs(usd);
+                    if (a >= 1e12) return '$' + (usd/1e12).toFixed(2) + 'T';
+                    if (a >= 1e9)  return '$' + (usd/1e9).toFixed(1)  + 'B';
+                    if (a >= 1e6)  return '$' + (usd/1e6).toFixed(1)  + 'M';
+                    return '$' + usd.toFixed(0);
+                };
+
+                // ── 每張卡片 ──
+                grid.innerHTML = top.map(r => {
+                    const chg = (typeof r.change_pct === 'number') ? r.change_pct : null;
+                    const chgCol = chg == null ? '#94a3b8' : (chg > 0 ? '#4ade80' : chg < 0 ? '#f87171' : '#94a3b8');
+                    const chgStr = chg == null ? '—' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`;
+                    const country = r.country ? `<span style="font-size:0.66rem;color:#64748b;">${_esc(r.country)}</span>` : '';
+                    return `
+                    <div style="background:rgba(15,30,60,0.55); border:1px solid rgba(59,130,246,0.18); border-radius:10px; padding:0.75rem 0.85rem; transition:all 0.15s;">
+                      <div style="display:flex; align-items:baseline; gap:0.4rem; margin-bottom:0.35rem;">
+                        <span style="color:#fbbf24; font-size:0.75rem; font-weight:800; min-width:24px;">#${r.rank}</span>
+                        <span style="color:#f1f5f9; font-size:0.95rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${_esc(r.symbol)}</span>
+                        <span style="color:${chgCol}; font-size:0.78rem; font-weight:700; white-space:nowrap;">${chgStr}</span>
+                      </div>
+                      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:0.4rem;">
+                        <span class="mono" style="color:#cbd5e1; font-size:0.92rem; font-weight:700; white-space:nowrap;">${_capStr(r.market_cap_usd || 0)}</span>
+                        ${country}
+                      </div>
+                    </div>`;
+                }).join('');
+
+                _topCapsLoaded = true;
+            } catch (e) {
+                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:#ef4444;">載入失敗：${_esc(String(e && e.message || e))}</div>` +
+                                 `<div style="grid-column:1/-1; text-align:center; color:#64748b; font-size:0.8rem;">data/global_top_caps.json 可能尚未產生（GH Actions 第一次跑前不存在）</div>`;
+            }
         }
 
         // ==================== Leveraged ETF → Underlying Map ====================

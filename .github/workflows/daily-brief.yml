@@ -36,11 +36,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python data/build_daily_brief.py
 
+      - name: Fetch global top market caps (Stage 3)
+        run: python data/fetch_global_top_caps.py
+
       - name: Commit & push
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/news_raw.json data/daily_brief.json
+          git add data/news_raw.json data/daily_brief.json data/global_top_caps.json
           if git diff --cached --quiet; then
             echo "No changes; skipping commit."
             exit 0

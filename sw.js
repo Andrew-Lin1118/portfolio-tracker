@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v108';  // ← 2026-05-06：再整合 — 已實現損益 / 上一步 / 下一步 都進 #manual-inputs-card；移除「一鍵更新報價」按鈕（保留 auto-refresh-status）
+const CACHE_NAME = 'portfolio-tracker-v109';  // ← 2026-05-06：刪重複幣別按鈕 + 已實現移現金下方 + 今日損益卡加盤前/盤後 P&L 備註
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

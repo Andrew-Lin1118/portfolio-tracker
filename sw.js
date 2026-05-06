@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v92';  // ← 2026-05-06：每日簡報保留 7 天歸檔 + 日期 sub-tab 切換（schema v2: { schema_version, latest_date, daily: { date: blob } }）
+const CACHE_NAME = 'portfolio-tracker-v93';  // ← 2026-05-06：fmx-dashboard 加碼/減碼觸發虛線在 5分/15分/時K 也顯示（拿掉 isIntraday 隱藏條件）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

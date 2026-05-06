@@ -3931,8 +3931,14 @@
         // ════════════════════════════════════════════════════════════════════
         //  Tab 11: 每日簡報（讀 data/daily_brief.json + symbol_mapping.json）
         // ════════════════════════════════════════════════════════════════════
-        let _dbCache = null;          // {data, fetchedAt}
+        let _dbCache = null;          // {data, mapping, fetchedAt}
+        let _dailyBriefActiveDate = null;   // 當前選中的日期 (schema v2)，null = auto 取最新
         const DB_CACHE_TTL_MS = 60_000;  // 1 分鐘內重切 tab 不重抓
+
+        function _setDailyBriefDate(date) {
+            _dailyBriefActiveDate = date;
+            loadDailyBrief();   // 用快取重 render，不重抓
+        }
 
         async function loadDailyBrief() {
             const wrap     = document.getElementById('db-content');
@@ -3952,9 +3958,9 @@
             }
 
             try {
-                let data, mapping;
+                let raw, mapping;
                 if (useCache) {
-                    ({ data, mapping } = _dbCache);
+                    ({ data: raw, mapping } = _dbCache);
                 } else {
                     const ts = Date.now();
                     const [briefRes, mapRes] = await Promise.all([
@@ -3962,9 +3968,27 @@
                         fetch('data/symbol_mapping.json?_=' + ts).catch(() => null),
                     ]);
                     if (!briefRes.ok) throw new Error('daily_brief.json HTTP ' + briefRes.status);
-                    data = await briefRes.json();
+                    raw = await briefRes.json();
                     mapping = mapRes && mapRes.ok ? await mapRes.json() : { leveraged_etf:{}, hk_proxy:{} };
-                    _dbCache = { data, mapping, fetchedAt: Date.now() };
+                    _dbCache = { data: raw, mapping, fetchedAt: Date.now() };
+                }
+
+                // ── 偵測 schema v2 (含 daily 7 日 archive) vs 舊 flat schema ──
+                let availableDates = [];
+                let activeDate = null;
+                let data;   // 當日 brief blob
+                if (raw && raw.schema_version === 2 && raw.daily && typeof raw.daily === 'object') {
+                    availableDates = Object.keys(raw.daily).sort().reverse();   // 新→舊
+                    activeDate = (_dailyBriefActiveDate && raw.daily[_dailyBriefActiveDate])
+                        ? _dailyBriefActiveDate
+                        : availableDates[0];
+                    _dailyBriefActiveDate = activeDate;
+                    data = raw.daily[activeDate] || {};
+                } else {
+                    // 舊 flat schema fallback
+                    activeDate = (raw && raw.generated) ? raw.generated.slice(0, 10) : '';
+                    availableDates = activeDate ? [activeDate] : [];
+                    data = raw || {};
                 }
 
                 // ── Meta ──
@@ -3974,6 +3998,26 @@
                 });
                 meta.innerHTML = `<span style="color:#cbd5e1; font-weight:600;">${_esc(data.session_label || '')}</span> · ${fmt}`;
 
+                // ── 日期 sub-tab（保留 7 天）──
+                const subTabsHtml = availableDates.length <= 1 ? '' : `
+                    <div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.85rem; padding-bottom:0.5rem; border-bottom:1px solid rgba(59,130,246,0.18);">
+                      ${availableDates.map((d, i) => {
+                        const isActive = d === activeDate;
+                        const dt = new Date(d);
+                        const lbl = isNaN(dt.getTime())
+                          ? d
+                          : `${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+                        const tag = i === 0 ? ' 最新' : '';
+                        return `<button onclick="_setDailyBriefDate('${d}')" type="button"
+                                  style="padding:0.35rem 0.85rem; font-size:0.8rem; font-weight:700; border-radius:7px; cursor:pointer; white-space:nowrap; transition:all 0.15s;
+                                         background:${isActive ? 'linear-gradient(135deg,rgba(251,191,36,0.22),rgba(245,158,11,0.14))' : 'rgba(15,30,60,0.5)'};
+                                         color:${isActive ? '#fbbf24' : '#94a3b8'};
+                                         border:1px solid ${isActive ? 'rgba(251,191,36,0.5)' : 'rgba(59,130,246,0.18)'};">
+                                  ${_esc(lbl)}${tag}
+                                </button>`;
+                      }).join('')}
+                    </div>`;
+
                 // ── Global themes ──
                 const themesHtml = (data.global_themes || []).map(t => `
                     <div style="display:flex; gap:0.6rem; padding:0.7rem 1rem; background:rgba(15,30,60,0.5); border-left:3px solid #fbbf24; border-radius:6px; margin-bottom:0.5rem;">
@@ -3981,6 +4025,7 @@
                       <span style="color:#e2e8f0; line-height:1.55; font-size:0.92rem;">${_esc(t)}</span>
                     </div>`).join('');
                 themesEl.innerHTML = `
+                    ${subTabsHtml}
                     <h3 style="color:#fbbf24; font-size:0.95rem; font-weight:700; margin:0 0 0.6rem;">🌐 全球主題</h3>
                     ${themesHtml || '<div style="color:#64748b;">（無）</div>'}`;
 

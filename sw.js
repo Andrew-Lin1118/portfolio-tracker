@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v91';  // ← 2026-05-06：fmx-dashboard K 線加 2 條水平虛線 — 加碼觸發價（綠 #22c55e）+ 減碼觸發價（橘 #f97316）
+const CACHE_NAME = 'portfolio-tracker-v92';  // ← 2026-05-06：每日簡報保留 7 天歸檔 + 日期 sub-tab 切換（schema v2: { schema_version, latest_date, daily: { date: blob } }）
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

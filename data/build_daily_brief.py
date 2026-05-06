@@ -262,18 +262,56 @@ def main():
 
     brief = merge_urls_back(brief, id_to_url)
 
-    final = {
+    today_brief = {
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "based_on_news_generated": news_raw.get("generated"),
         "model": MODEL,
         "usage": usage,
         **brief,
     }
+
+    # ── 7 天滾動歸檔（schema v2: { schema_version, latest_date, daily: { "YYYY-MM-DD": {...} } }）──
+    # 用 TW 時區（GH Actions 在 TW 7am 跑 = UTC 23:00 前一天）取「商業日」
+    try:
+        from zoneinfo import ZoneInfo
+        today_tw = datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
+    except Exception:
+        today_tw = datetime.utcnow().strftime("%Y-%m-%d")
+
+    daily_dict = {}
+    if OUT_PATH.exists():
+        try:
+            existing = json.loads(OUT_PATH.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                if existing.get("schema_version") == 2 and isinstance(existing.get("daily"), dict):
+                    daily_dict = dict(existing["daily"])
+                else:
+                    # 舊 flat schema → 遷移：把現有當作一筆歷史保留
+                    old_date = (existing.get("generated") or "").split("T")[0] or today_tw
+                    legacy_blob = {k: v for k, v in existing.items()
+                                   if k not in ("schema_version", "latest_date", "daily")}
+                    if legacy_blob:
+                        daily_dict[old_date] = legacy_blob
+        except Exception as e:
+            print(f"[warn] failed reading existing daily_brief: {e}", flush=True)
+
+    daily_dict[today_tw] = today_brief
+
+    # 只留最新 7 天（依日期 desc）
+    keep_dates = sorted(daily_dict.keys(), reverse=True)[:7]
+    daily_dict = {d: daily_dict[d] for d in keep_dates}
+
+    final = {
+        "schema_version": 2,
+        "latest_date": today_tw,
+        "daily": daily_dict,
+    }
     OUT_PATH.write_text(json.dumps(final, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nWrote {OUT_PATH}", flush=True)
-    print(f"  global_themes: {len(final.get('global_themes', []))}", flush=True)
-    print(f"  cross_signals: {len(final.get('cross_holdings_signals', []))}", flush=True)
-    print(f"  by_symbol: {len(final.get('by_symbol', {}))}", flush=True)
+    print(f"\nWrote {OUT_PATH} (schema v2 — 保留 {len(daily_dict)} 天: {', '.join(keep_dates)})", flush=True)
+    print(f"  today ({today_tw}): "
+          f"global_themes={len(today_brief.get('global_themes', []))} · "
+          f"cross_signals={len(today_brief.get('cross_holdings_signals', []))} · "
+          f"by_symbol={len(today_brief.get('by_symbol', {}))}", flush=True)
 
 
 if __name__ == "__main__":

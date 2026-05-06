@@ -458,20 +458,7 @@
         <!-- Stock Realized P/L -->
         <div id="stock-realized-section" class="glass-card" style="padding:1.15rem 1.35rem; margin-bottom:1.25rem; border:1px solid rgba(251,191,36,0.18);"></div>
 
-        <!-- Exchange Rate Controls -->
-        <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
-            <label style="color:#fbbf24; font-size:0.85rem; font-weight:600; white-space:nowrap;">💱 匯率設定：</label>
-            <div style="display:flex; align-items:center; gap:0.4rem;">
-                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">USD/TWD</span>
-                <input id="input-usd-twd" type="number" step="0.01" value="31.50" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
-            </div>
-            <div style="display:flex; align-items:center; gap:0.4rem;">
-                <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">HKD/TWD</span>
-                <input id="input-hkd-twd" type="number" step="0.001" value="4.050" style="width:90px; padding:0.4rem 0.5rem; font-size:0.85rem;" onchange="applyManualRates()">
-            </div>
-            <button onclick="fetchLiveRates(this)" style="padding:0.4rem 0.9rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.35); border-radius:8px; font-weight:600; font-size:0.82rem; text-transform:none; letter-spacing:0;">🌐 抓即時匯率</button>
-            <span id="rate-source" style="color:#64748b; font-size:0.78rem;"></span>
-        </div>
+        <!-- (匯率設定 USD/TWD + HKD/TWD + 抓即時匯率) 已搬到 #manual-inputs-card 整合 -->
 
         <!-- Action Buttons -->
         <div style="display:flex; gap:1rem; margin-bottom:0.5rem; flex-wrap:wrap;">
@@ -485,9 +472,40 @@
             ｜ 下次更新：<span id="auto-refresh-countdown" style="color:#fbbf24; font-weight:600;">60</span>s
         </div>
 
-        <!-- 手動輸入卡片：現金（TWD） + 派網總資產（TWD） + 期貨/加密槓桿倍率
-             獨立成卡片，手機 / 桌面都一定看得到，不依賴 pie-section 的 display 狀態 -->
+        <!-- 手動輸入卡片：(整合) 顯示幣別 + 隱藏資產 + 匯率 + 現金 + 派網 + 槓桿倍率 -->
         <div id="manual-inputs-card" class="glass-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
+
+            <!-- ── 第一列：顯示幣別 / 隱藏資產 / 匯率設定 ── -->
+            <div style="display:flex; flex-wrap:wrap; gap:0.75rem 1.25rem; align-items:center; padding-bottom:0.85rem; margin-bottom:0.85rem; border-bottom:1px solid rgba(59,130,246,0.18);">
+                <!-- 顯示資產 + 幣別 -->
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                    <button id="privacy-toggle" onclick="togglePrivacyMode()" type="button"
+                        title="隱藏 / 顯示金額（hover 任一金額可暫時看清）"
+                        style="padding:0.42rem 0.85rem; border:1px solid rgba(148,163,184,0.4); font-weight:700; font-size:0.82rem; background:rgba(15,30,60,0.6); color:#cbd5e1; border-radius:10px; cursor:pointer; white-space:nowrap;">
+                        🙈 隱藏資產
+                    </button>
+                    <div id="currency-toggle" style="position:static; z-index:1; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35);">
+                        <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.42rem 0.95rem; border:none; font-weight:700; font-size:0.82rem; background:rgba(10,22,40,0.92); color:#64748b;">$ USD</button>
+                        <button id="currency-twd" onclick="setCurrency('TWD')" style="padding:0.42rem 0.95rem; border:none; font-weight:700; font-size:0.82rem; background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color:#0a1628;">NT$ TWD</button>
+                    </div>
+                </div>
+                <!-- 匯率設定 -->
+                <div style="display:flex; gap:0.55rem; align-items:center; flex-wrap:wrap; flex:1 1 auto; min-width:0;">
+                    <label style="color:#fbbf24; font-size:0.82rem; font-weight:600; white-space:nowrap;">💱 匯率</label>
+                    <div style="display:flex; align-items:center; gap:0.35rem;">
+                        <span style="color:#94a3b8; font-size:0.78rem; white-space:nowrap;">USD/TWD</span>
+                        <input id="input-usd-twd" type="number" step="0.01" value="31.50" style="width:78px; padding:0.32rem 0.45rem; font-size:0.82rem;" onchange="applyManualRates()">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.35rem;">
+                        <span style="color:#94a3b8; font-size:0.78rem; white-space:nowrap;">HKD/TWD</span>
+                        <input id="input-hkd-twd" type="number" step="0.001" value="4.050" style="width:78px; padding:0.32rem 0.45rem; font-size:0.82rem;" onchange="applyManualRates()">
+                    </div>
+                    <button onclick="fetchLiveRates(this)" style="padding:0.32rem 0.7rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.35); border-radius:7px; font-weight:600; font-size:0.78rem; text-transform:none; letter-spacing:0; cursor:pointer; white-space:nowrap;">🌐 抓即時匯率</button>
+                    <span id="rate-source" style="color:#64748b; font-size:0.74rem;"></span>
+                </div>
+            </div>
+
+            <!-- ── 第二列：現金 / 派網 / 槓桿倍率 (原內容) ── -->
             <div style="display:flex; flex-wrap:wrap; gap:1rem 2rem; align-items:center;">
                 <div style="display:flex; align-items:center; gap:0.6rem; flex:1 1 260px; min-width:0;">
                     <span style="color:#94a3b8; font-size:0.9rem; white-space:nowrap;">💵 現金（TWD）</span>
@@ -587,23 +605,7 @@
             </div>
 
             <div id="data-mgmt-body">
-                <!-- 顯示幣別 -->
-                <div style="margin-bottom:0.9rem;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; padding:0.75rem 0.85rem; border:1px solid rgba(59,130,246,0.18); border-radius:10px; background:rgba(59,130,246,0.05);">
-                        <label style="color:#cbd5e1; font-size:0.82rem; font-weight:700; white-space:nowrap;">顯示幣別</label>
-                        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-                            <button id="privacy-toggle" onclick="togglePrivacyMode()" type="button"
-                                title="隱藏 / 顯示金額（hover 任一金額可暫時看清）"
-                                style="padding:0.42rem 0.85rem; border:1px solid rgba(148,163,184,0.4); font-weight:700; font-size:0.82rem; background:rgba(15,30,60,0.6); color:#cbd5e1; border-radius:10px; cursor:pointer; white-space:nowrap;">
-                                🙈 隱藏資產
-                            </button>
-                            <div id="currency-toggle" style="position:static; z-index:1; display:flex; border-radius:10px; overflow:hidden; border:2px solid rgba(251,191,36,0.35);">
-                                <button id="currency-usd" onclick="setCurrency('USD')" style="padding:0.42rem 0.95rem; border:none; font-weight:700; font-size:0.82rem; background:rgba(10,22,40,0.92); color:#64748b;">$ USD</button>
-                                <button id="currency-twd" onclick="setCurrency('TWD')" style="padding:0.42rem 0.95rem; border:none; font-weight:700; font-size:0.82rem; background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color:#0a1628;">NT$ TWD</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- (顯示幣別 + 隱藏資產) 已搬到 #manual-inputs-card 上方整合 -->
 
                 <!-- 交易操作 -->
                 <div style="margin-bottom:0.9rem;">

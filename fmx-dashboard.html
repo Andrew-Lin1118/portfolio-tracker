@@ -3320,6 +3320,14 @@ function renderPriceChart(chartData, state) {
   const livePrice0 = state?.last_price || closes[closes.length - 1];
   const liqPrice = _calcLiqPx(livePrice0, state);
 
+  // ── 加碼 / 減碼觸發價（依當前權益反推；無持倉時不顯示）─────
+  const _pxPyr = (state?.contracts > 0)
+    ? _calcLeverageTriggerPx(state.pyramid_trigger ?? 5.9, state) : null;
+  const _pxDel = (state?.contracts > 0)
+    ? _calcLeverageTriggerPx(state.max_leverage    ?? 6.8, state) : null;
+  const pyramidPrice = (_pxPyr != null && isFinite(_pxPyr)) ? _pxPyr : null;
+  const delevPrice   = (_pxDel != null && isFinite(_pxDel)) ? _pxDel : null;
+
   const isIntraday = chartData._intraday || false;
   _priceChartIsIntraday = isIntraday;   // 供 _computeMaxBarThickness / _onChartZoom 使用
   const filterOn   = !isIntraday && (state?.trend_filter ?? (document.getElementById('filterToggle')?.checked ?? true));
@@ -3456,6 +3464,20 @@ function renderPriceChart(chartData, state) {
           borderColor: '#e8a838', borderWidth: 1.2,
           pointRadius: 0, tension: 0, fill: false,
           borderDash: [5, 3], order: 6, hidden: !filterOn || isIntraday,
+        },
+        {
+          type: 'line', label: '加碼觸發價',
+          data: lineData(dates.map(() => pyramidPrice)),
+          borderColor: '#22c55e', borderWidth: 1.2,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [3, 3], order: 7, hidden: pyramidPrice == null || isIntraday,
+        },
+        {
+          type: 'line', label: '減碼觸發價',
+          data: lineData(dates.map(() => delevPrice)),
+          borderColor: '#f97316', borderWidth: 1.2,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [3, 3], order: 8, hidden: delevPrice == null || isIntraday,
         },
       ],
     },

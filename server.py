@@ -57,6 +57,11 @@ _py_dir   = os.path.dirname(sys.executable)
 _py_stock = os.path.join(_py_dir, 'python_stock.exe')
 PY = _py_stock if os.path.exists(_py_stock) else sys.executable
 
+# Surfshark VPN python：路由經 VPN，出口 IP 是 Binance 白名單（86.104.213.158）。
+# 用於 crypto fetcher（呼叫 Binance API），其餘子程序維持 PY（真實台灣 IP）。
+_py_vpn = r"C:\Python310-Trading\python.exe"
+PY_VPN = _py_vpn if os.path.exists(_py_vpn) else PY
+
 STATE_FILE       = os.path.join(DIR, 'fmx_state.json')
 LIVE_QUOTES_FILE = os.path.join(DIR, 'fmx_live_quotes.json')
 STRATEGY_SCRIPT  = os.path.join(BOT, 'strategy-fmx-live.py')
@@ -393,7 +398,7 @@ def _crypto_balance_scheduler():
         try:
             now = time.time()
             if (now - _crypto_last_fetch) >= CRYPTO_REFRESH_SEC:
-                args = [PY, CRYPTO_FETCH_SCRIPT]
+                args = [PY_VPN, CRYPTO_FETCH_SCRIPT]
                 if _crypto_autopush:
                     args.append('--commit')
                 try:

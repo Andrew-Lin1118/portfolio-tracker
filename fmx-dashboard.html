@@ -1288,7 +1288,7 @@ function _applyProductSwitch(code) {
   // 重新 fetch K線（使用該商品的 yf ticker）
   lastChartData  = null;
   lastChartFetch = 0;
-  fetchState().then(state => {
+  Promise.all([fetchState(), fetchAllFutTrades()]).then(([state]) => {
     fetchChartData(_kInterval).then(cd => {
       if (cd) {
         lastChartData = cd;
@@ -3128,6 +3128,31 @@ async function fetchState() {
   }
 }
 
+// ── 抓全部歷史成交（data/fut_trades.json，server.py 由 SDK 持續寫入）──
+// 每次 state 刷新時順便更新；給 priceChart 標進出場三角形用
+async function fetchAllFutTrades() {
+  try {
+    const r = await fetch('./data/fut_trades.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const trades = Array.isArray(d) ? d : (d.trades || []);
+    // 正規化成跟 state.recent_trades 同樣的欄位（chart 程式碼複用）
+    window._allFutTrades = trades.map(t => ({
+      date:       t.date || '',
+      time:       t.time || '',
+      buy_sell:   t.buy_sell || '',
+      symbol:     t.symbol || '',
+      lots:       Number(t.orig_lots ?? t.lots ?? 0) || 0,
+      price:      Number(t.price ?? 0) || 0,
+      order_type: t.order_type || '',
+    }));
+    return window._allFutTrades;
+  } catch(e) {
+    console.warn('fetchAllFutTrades error', e);
+    return null;
+  }
+}
+
 // ════════════════════════════════════════════════════════
 //  FETCH TWII CHART DATA  (proxy → Yahoo Finance)
 // ════════════════════════════════════════════════════════
@@ -3234,7 +3259,7 @@ function switchKInterval(interval) {
   // 強制重新 fetch 並重繪
   lastChartData  = null;
   lastChartFetch = 0;
-  fetchState().then(state => {
+  Promise.all([fetchState(), fetchAllFutTrades()]).then(([state]) => {
     fetchChartData(interval).then(cd => {
       if (cd) {
         lastChartData  = cd;
@@ -3440,14 +3465,14 @@ function renderPriceChart(chartData, state) {
         {
           type: 'line', label: '均攤成本',
           data: lineData(dates.map(() => avgCost)),
-          borderColor: '#26a269', borderWidth: 1.2,
+          borderColor: '#ffffff', borderWidth: 1.2,
           pointRadius: 0, tension: 0, fill: false,
           borderDash: [3, 3], order: 3, hidden: isIntraday,
         },
         {
           type: 'line', label: '強平價',
           data: lineData(dates.map(() => liqPrice)),
-          borderColor: '#e05252', borderWidth: 1.2,
+          borderColor: '#dc2626', borderWidth: 2.5,
           pointRadius: 0, tension: 0, fill: false,
           borderDash: [6, 3], order: 4, hidden: liqPrice == null,
         },
@@ -3475,10 +3500,66 @@ function renderPriceChart(chartData, state) {
         {
           type: 'line', label: '減碼觸發價',
           data: lineData(dates.map(() => delevPrice)),
-          borderColor: '#f97316', borderWidth: 1.2,
+          borderColor: '#ef4444', borderWidth: 1.2,
           pointRadius: 0, tension: 0, fill: false,
           borderDash: [3, 3], order: 8, hidden: delevPrice == null,
         },
+        // ── 買進三角形（▲ 綠）/ 賣出倒三角形（▼ 紅）──
+        // 優先用 window._allFutTrades（全歷史，由 fetchAllFutTrades 載入）；fallback 到 state.recent_trades（最近 10 筆）
+        ...(() => {
+          const all = Array.isArray(window._allFutTrades) ? window._allFutTrades
+                    : (Array.isArray(state?.recent_trades) ? state.recent_trades : []);
+          // 把交易聚合到對應的 catLabel 上：daily → 'YYYY-MM-DD'；intraday 用最近的 catLabel match
+          const _matchCat = (date, time) => {
+            if (!date) return null;
+            const day = String(date).replace(/\//g, '-');   // '2026/05/04' → '2026-05-04'
+            if (!isIntraday) return catLabels.includes(day) ? day : null;
+            // intraday：catLabel = 'MM/dd HH:mm'，把成交時間正規化後找最接近的
+            const dt = new Date(`${day}T${(time || '00:00:00').slice(0, 8)}`);
+            if (isNaN(dt.getTime())) return null;
+            const ts = dt.getTime();
+            // 線性掃描 dates（已是 ms timestamp）找最近的 bar
+            let bestIdx = -1, bestDiff = Infinity;
+            for (let i = 0; i < dates.length; i++) {
+              const diff = Math.abs(new Date(dates[i]).getTime() - ts);
+              if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+            }
+            return bestIdx >= 0 ? catLabels[bestIdx] : null;
+          };
+          const buyByCat = {}, sellByCat = {};
+          for (const t of all) {
+            const side = (t.buy_sell || '').toLowerCase();
+            if (side !== 'buy' && side !== 'sell') continue;
+            const cat = _matchCat(t.date, t.time);
+            if (!cat) continue;
+            const px = Number(t.price) || 0;
+            if (px <= 0) continue;
+            if (side === 'buy') {
+              if (buyByCat[cat] == null || px < buyByCat[cat]) buyByCat[cat] = px;
+            } else {
+              if (sellByCat[cat] == null || px > sellByCat[cat]) sellByCat[cat] = px;
+            }
+          }
+          return [
+            {
+              type: 'line', label: '買進',
+              data: catLabels.map(c => ({ x: c, y: buyByCat[c] != null ? buyByCat[c] : null })),
+              borderColor: 'transparent', backgroundColor: '#22c55e',
+              pointStyle: 'triangle', pointRadius: 9, pointHoverRadius: 11,
+              pointBorderColor: '#0f1419', pointBorderWidth: 1.5,
+              showLine: false, order: 9, spanGaps: false,
+            },
+            {
+              type: 'line', label: '賣出',
+              data: catLabels.map(c => ({ x: c, y: sellByCat[c] != null ? sellByCat[c] : null })),
+              borderColor: 'transparent', backgroundColor: '#ef4444',
+              pointStyle: 'triangle', pointRadius: 9, pointHoverRadius: 11,
+              pointBorderColor: '#0f1419', pointBorderWidth: 1.5,
+              rotation: 180,   // 倒三角形（▼）
+              showLine: false, order: 10, spanGaps: false,
+            },
+          ];
+        })(),
       ],
     },
     options: {
@@ -4164,10 +4245,11 @@ async function refresh() {
   // 庫存並行更新（不阻塞主流程；force=false 使用 server 端快取，避免頻繁登入）
   fetchAndRenderPositions(false).catch(e => console.warn('positions refresh err', e));
 
-  // Fetch state + TAIFEX market in parallel
+  // Fetch state + TAIFEX market + 全部成交歷史 in parallel
   const [state, market] = await Promise.all([
     fetchState().catch(e => { console.warn('fetchState err', e); return null; }),
     fetchTaifexMarket().catch(e => { console.warn('fetchTaifexMarket err', e); return null; }),
+    fetchAllFutTrades().catch(e => { console.warn('fetchAllFutTrades err', e); return null; }),
   ]);
 
   // Fetch chart data: intraday 每 30 秒更新，日K+ 每 5 分鐘更新

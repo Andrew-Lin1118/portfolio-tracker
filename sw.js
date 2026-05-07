@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v111';  // ← 2026-05-06：股票市值卡加備註「總成本 NT$xxx」
+const CACHE_NAME = 'portfolio-tracker-v140';  // ← 2026-05-07：穩定 extendedQuote 快取避免 24H 損益跳動
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   './data/fundamentals.json',

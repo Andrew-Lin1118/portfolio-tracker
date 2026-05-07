@@ -524,7 +524,7 @@
                         <button id="currency-twd" onclick="setCurrency('TWD')" style="padding:0.42rem 0.95rem; border:none; font-weight:700; font-size:0.82rem; background:linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color:#0a1628;">NT$ TWD</button>
                     </div>
                 </div>
-                <!-- 匯率設定 -->
+                <!-- 匯率設定（自動抓即時匯率，無需手動更新）-->
                 <div style="display:flex; gap:0.55rem; align-items:center; flex-wrap:wrap;">
                     <label style="color:#fbbf24; font-size:0.82rem; font-weight:600; white-space:nowrap;">💱 匯率</label>
                     <div style="display:flex; align-items:center; gap:0.35rem;">
@@ -535,7 +535,14 @@
                         <span style="color:#94a3b8; font-size:0.78rem; white-space:nowrap;">HKD/TWD</span>
                         <input id="input-hkd-twd" type="number" step="0.001" value="4.050" style="width:78px; padding:0.32rem 0.45rem; font-size:0.82rem;" onchange="applyManualRates()">
                     </div>
-                    <button onclick="fetchLiveRates(this)" style="padding:0.32rem 0.7rem; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.35); border-radius:7px; font-weight:600; font-size:0.78rem; text-transform:none; letter-spacing:0; cursor:pointer; white-space:nowrap;">🌐 抓即時匯率</button>
+                    <div style="display:flex; align-items:center; gap:0.35rem;">
+                        <span style="color:#94a3b8; font-size:0.78rem; white-space:nowrap;">JPY/TWD</span>
+                        <input id="input-jpy-twd" type="number" step="0.0001" value="0.2100" style="width:82px; padding:0.32rem 0.45rem; font-size:0.82rem;" onchange="applyManualRates()">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.35rem;">
+                        <span style="color:#94a3b8; font-size:0.78rem; white-space:nowrap;">CNY/TWD</span>
+                        <input id="input-cny-twd" type="number" step="0.001" value="4.350" style="width:78px; padding:0.32rem 0.45rem; font-size:0.82rem;" onchange="applyManualRates()">
+                    </div>
                     <span id="rate-source" style="color:#64748b; font-size:0.74rem;"></span>
                 </div>
                 <!-- 上一步 / 下一步（從原 Action Buttons 區塊整合進來） -->
@@ -773,10 +780,11 @@
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (近4季)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (全年預估)</th>
                                 <th style="padding:0.55rem 0.6rem; text-align:right; color:#fbbf24; white-space:nowrap;">EPS (明年預估)</th>
+                                <th style="padding:0.55rem 0.6rem; text-align:center; color:#fbbf24; white-space:nowrap;" title="標的（含槓桿 ETF 對應原型）在全球前 50 大企業（市值）中的排名，>50 顯示 —">全球市值排名</th>
                             </tr>
                         </thead>
                         <tbody id="fund-tbody">
-                            <tr><td colspan="17" style="text-align:center; padding:3rem; color:#64748b;">⏳ 載入分析數據中...</td></tr>
+                            <tr><td colspan="18" style="text-align:center; padding:3rem; color:#64748b;">⏳ 載入分析數據中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -914,10 +922,10 @@
         <!-- Tab 8: 美股漲跌熱力圖 + 全球市值排行 -->
         <div id="tab-pane-8" class="tab-pane" style="padding-top:1rem;">
 
-            <!-- ▼▼▼ 全球前 30 大企業（市值）— 每日 7am 由 GH Actions 更新 ▼▼▼ -->
+            <!-- ▼▼▼ 全球前 50 大企業（市值）— 每日 7am 由 GH Actions 更新 ▼▼▼ -->
             <div class="glass-card" style="padding:1.5rem 2rem; margin-bottom:1rem;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
-                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">🌍 全球前 30 大企業（市值）</h2>
+                    <h2 style="color:#f1f5f9; font-size:1.1rem; font-weight:600; margin:0;">🌍 全球前 50 大企業（市值）</h2>
                     <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
                         <a href="https://tw.tradingview.com/markets/world-stocks/worlds-largest-companies/"
                            target="_blank" rel="noopener noreferrer"
@@ -929,7 +937,7 @@
                         <div id="topcaps-meta" style="color:#94a3b8; font-size:0.78rem;"></div>
                     </div>
                 </div>
-                <div id="topcaps-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:0.6rem;">
+                <div id="topcaps-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(115px, 1fr)); gap:0.4rem;">
                     <div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:#64748b;">載入中...</div>
                 </div>
                 <!-- TV Screener widget（折疊預設、按鈕展開）-->
@@ -1302,10 +1310,11 @@
         let _stockTxnsLoaded = false;
         let _stockTxnsError = '';
         let _stockRealizedExpanded = false;
+        let _allTxnsExpanded = false;
         let _stockTxnsPendingCount = 0;
         const PT_STOCK_TXNS_PENDING_KEY = 'pt_v13_stock_txns_pending';
         let currency = 'TWD';
-        let exchangeRates = { USD_TWD: 31.5, HKD_TWD: 4.05 };
+        let exchangeRates = { USD_TWD: 31.5, HKD_TWD: 4.05, JPY_TWD: 0.21, CNY_TWD: 4.35 };
         let tradeType = 'buy';
         let _selectedHoldingSymbol = null;  // v15.037 click-lock 高亮
         let _holdingsTableHidden  = false;  // v15.029 持倉一覽隱藏
@@ -1376,9 +1385,21 @@
         }
 
         function _extendedChangeText(h) {
-            const label = h.extendedQuote?.label;
+            // 統一過夜時段標籤：任何來源回傳 '夜盤' / '盤前/盤後'（NY 過夜時 fallback 預設值）→ 都正規化成 '24H'
+            const rawLabel = h.extendedQuote?.label;
+            let label = (rawLabel === '夜盤' || rawLabel === '盤前/盤後') ? '24H' : rawLabel;
             const pct = Number(h.extendedQuote?.changePct ?? h.dayChangePct);
-            const points = h.extendedQuote?.changePoints;
+            const points = h.extendedQuote?.changePoints ?? h.dayChangePoints;
+            // ── 美股非 regular market 期間若沒抓到 extendedQuote（如 WDCX/STXX 等冷門 ETF），
+            //    用 dayChange 推 24H/盤前/盤後 label，避免有些 ETF 顯示有些沒顯示
+            if (!label && typeof _isUsStockSymbol === 'function' && _isUsStockSymbol(h.symbol)) {
+                const inRegular = typeof _isUsRegularMarketNow === 'function' ? _isUsRegularMarketNow() : false;
+                if (!inRegular && isFinite(pct) && Math.abs(pct) > 0.0001) {
+                    const session = typeof _usExtendedSessionNow === 'function' ? _usExtendedSessionNow() : null;
+                    label = session?.label || '24H';
+                    if (label === '夜盤') label = '24H';
+                }
+            }
             if (!label || !isFinite(pct)) return '';
             return `${label} ${_changeWithPointsText(pct, points)}`;
         }
@@ -2028,6 +2049,69 @@
                 _stockTxnsError = pendingRows.length ? '' : (e?.message || '讀取失敗');
             }
             renderStockRealized();
+            // 一次性修復：把 HK 純數字 sym 補成 .HK（針對誤輸入造成的舊 log）
+            try { _normalizeTxnSymbolsOnce(); } catch(_) {}
+        }
+
+        // ── 一次性 LOG sym 正規化（HK 純數字 → 加 .HK）───────────────
+        // 旗標：localStorage 'pt_v13_txn_norm_hk_v1' 設定後不再執行
+        async function _normalizeTxnSymbolsOnce() {
+            const FLAG_KEY = 'pt_v13_txn_norm_hk_v1';
+            try {
+                if (localStorage.getItem(FLAG_KEY) === '1') return;
+            } catch(_) {}
+            const targets = [];
+            for (const t of (_stockTxns || [])) {
+                if (!t || !t.sym || !t.client_id) continue;
+                const isHkLike = (t.bourse === 'HK') || /^\d{1,5}$/.test(t.sym);
+                if (!isHkLike) continue;
+                if (t.sym.endsWith('.HK')) continue;
+                if (!/^\d{1,5}$/.test(t.sym)) continue;
+                const normalized = t.sym.padStart(4, '0') + '.HK';
+                targets.push({ ...t, sym: normalized, bourse: 'HK', currency: t.currency || 'HKD' });
+            }
+            if (!targets.length) {
+                try { localStorage.setItem(FLAG_KEY, '1'); } catch(_) {}
+                return;
+            }
+            // ── 1) 同步 pending（localStorage）────────
+            try {
+                const pending = _getPendingStockTxns();
+                const pendingFixed = pending.map(p => {
+                    if (!p.client_id) return p;
+                    const fix = targets.find(x => x.client_id === p.client_id);
+                    return fix ? { ...p, sym: fix.sym, bourse: 'HK', currency: fix.currency } : p;
+                });
+                _savePendingStockTxns(pendingFixed);
+            } catch(_) {}
+            // ── 2) 推到 server（依 client_id 逐筆 update）────
+            let serverOk = 0, serverFail = 0;
+            for (const fix of targets) {
+                try {
+                    const r = await fetch(_stockTxnsApiUrl(), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'update', client_id: fix.client_id, transaction: fix })
+                    });
+                    const j = await r.json().catch(() => ({}));
+                    if (r.ok && j.status !== 'fail') serverOk++;
+                    else serverFail++;
+                } catch(_) { serverFail++; }
+            }
+            // ── 3) 更新 in-memory ─────────────────
+            _stockTxns = (_stockTxns || []).map(t => {
+                const fix = targets.find(x => x.client_id === t.client_id);
+                return fix ? { ...t, sym: fix.sym, bourse: 'HK', currency: fix.currency } : t;
+            });
+            // 全部 server 成功才設 flag（失敗下次重試）
+            if (serverFail === 0) {
+                try { localStorage.setItem(FLAG_KEY, '1'); } catch(_) {}
+            }
+            console.log(`[txn-normalize] 修正 ${targets.length} 筆 HK 數字代碼 → .HK；server ok=${serverOk} fail=${serverFail}`);
+            if (typeof showImportToast === 'function' && targets.length > 0) {
+                showImportToast(`✅ 已修正 ${targets.length} 筆港股交易紀錄代碼（補上 .HK）`, 2500);
+            }
+            renderStockRealized();
         }
 
         async function recordStockTransaction(txn) {
@@ -2181,6 +2265,31 @@
             renderStockRealized();
         }
 
+        function toggleAllTxnsDetails() {
+            _allTxnsExpanded = !_allTxnsExpanded;
+            renderStockRealized();
+        }
+
+        // 開啟「新增交易」Modal（空 client_id → 進入 create 模式）
+        function openCreateTxnModal() {
+            const today = (new Date()).toISOString().slice(0, 10);
+            document.getElementById('re-client-id').value = '';
+            document.getElementById('re-date').value = today;
+            document.getElementById('re-symbol').value = '';
+            document.getElementById('re-bourse').value = 'US';
+            document.getElementById('re-type').value = 'buy';
+            document.getElementById('re-qty').value = '';
+            document.getElementById('re-price').value = '';
+            document.getElementById('re-fee').value = '0';
+            const info = document.getElementById('re-readonly-info');
+            if (info) info.textContent = '新增交易紀錄（將寫入 stocker_txns.json + 自動同步 server）';
+            const title = document.querySelector('#realized-edit-modal h3');
+            if (title) title.textContent = '➕ 新增交易紀錄';
+            const delBtn = document.querySelector('#realized-edit-modal button[onclick*="confirmDeleteRealizedTxn"]');
+            if (delBtn) delBtn.style.display = 'none';
+            document.getElementById('realized-edit-modal').style.display = 'flex';
+        }
+
         function refreshStockRealized() {
             _stockTxnsLoaded = false;
             _stockTxns = [];
@@ -2215,30 +2324,44 @@
                 const upd = txn.updated_at ? ` · 上次修改 ${new Date(txn.updated_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}` : '';
                 info.textContent = `client_id: ${clientId}${src ? ' · ' + src : ''}${rec}${upd}`;
             }
+            // 還原 modal 為「編輯」模式（重設標題 + 顯示刪除按鈕）
+            const title = document.querySelector('#realized-edit-modal h3');
+            if (title) title.textContent = '✏️ 編輯交易紀錄';
+            const delBtn = document.querySelector('#realized-edit-modal button[onclick*="confirmDeleteRealizedTxn"]');
+            if (delBtn) delBtn.style.display = '';
             document.getElementById('realized-edit-modal').style.display = 'flex';
         }
 
         async function saveRealizedEdit() {
             const cid = document.getElementById('re-client-id').value.trim();
-            if (!cid) { alert('client_id 遺失'); return; }
-            const payload = {
-                action: 'update',
-                client_id: cid,
-                transaction: {
-                    date:     document.getElementById('re-date').value.trim(),
-                    sym:      document.getElementById('re-symbol').value.trim().toUpperCase(),
-                    bourse:   document.getElementById('re-bourse').value,
-                    type:     document.getElementById('re-type').value,
-                    qty:      parseFloat(document.getElementById('re-qty').value),
-                    price:    parseFloat(document.getElementById('re-price').value),
-                    fee:      parseFloat(document.getElementById('re-fee').value || '0'),
-                }
+            // 港股代碼正規化（HK 市場時純數字 → 補 .HK）
+            const rawSym = document.getElementById('re-symbol').value.trim().toUpperCase();
+            const bourse = document.getElementById('re-bourse').value;
+            const sym = (typeof _normalizeHkSymbol === 'function')
+                ? _normalizeHkSymbol(rawSym, bourse)
+                : rawSym;
+            const txn = {
+                date:     document.getElementById('re-date').value.trim(),
+                sym:      sym,
+                bourse:   bourse,
+                type:     document.getElementById('re-type').value,
+                qty:      parseFloat(document.getElementById('re-qty').value),
+                price:    parseFloat(document.getElementById('re-price').value),
+                fee:      parseFloat(document.getElementById('re-fee').value || '0'),
             };
-            if (!payload.transaction.date || !payload.transaction.sym ||
-                !(payload.transaction.qty > 0) || !(payload.transaction.price >= 0)) {
+            if (!txn.date || !txn.sym || !(txn.qty > 0) || !(txn.price >= 0)) {
                 alert('請填寫日期 / 代碼 / 股數 / 價格');
                 return;
             }
+            // 有 client_id → update；空 → create
+            const isCreate = !cid;
+            // 編輯時需要記下舊代碼（可能改了 sym），以便兩個代碼都重算
+            const oldSym = !isCreate
+                ? (((_stockTxns || []).find(t => t && t.client_id === cid) || {}).sym || sym)
+                : null;
+            const payload = isCreate
+                ? txn
+                : { action: 'update', client_id: cid, transaction: txn };
             try {
                 const r = await fetch(`${FMX_API_BASE}/stock/txns`, {
                     method: 'POST',
@@ -2248,11 +2371,150 @@
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok || data.status === 'fail') throw new Error(data.error || ('HTTP ' + r.status));
                 hideRealizedEditModal();
-                if (typeof showImportToast === 'function') showImportToast(`✅ 已更新 ${payload.transaction.sym} 交易紀錄`, 1800);
-                refreshStockRealized();
+                if (typeof showImportToast === 'function') {
+                    showImportToast(isCreate
+                        ? `✅ 已新增 ${txn.sym} ${txn.type === 'buy' ? '買入' : '賣出'} 紀錄`
+                        : `✅ 已更新 ${txn.sym} 交易紀錄`, 1800);
+                }
+                // 先 reload 再 sync 持倉（_stockTxns 要是新狀態才能正確算）
+                _stockTxnsLoaded = false;
+                _stockTxns = [];
+                renderStockRealized();
+                await loadStockTransactions(true);
+                _syncHoldingsFromTxns([sym, oldSym].filter(Boolean));
             } catch (e) {
                 alert('儲存失敗：' + (e?.message || e));
             }
+        }
+
+        // 從 _stockTxns 重算指定 symbol 的持倉（加權平均成本，考慮買進+賣出+手續費）
+        // 預期 _stockTxns 已是最新（呼叫前先 reload）
+        function _syncHoldingsFromTxns(symbols) {
+            const list = Array.isArray(symbols) ? symbols : [symbols];
+            const seen = new Set();
+            for (const sym of list) {
+                if (!sym || seen.has(sym)) continue;
+                seen.add(sym);
+                _syncOneHolding(sym);
+            }
+            saveToStorage();
+            renderAll();
+        }
+
+        // 一鍵：掃所有 _stockTxns 的 unique symbol 重算每檔的持倉與成本
+        async function rebuildAllHoldingsFromTxns() {
+            if (!confirm('將從交易紀錄重新計算所有持倉的數量與成本（保留現價/名稱），確定？')) return;
+            // 確保 _stockTxns 是最新的
+            _stockTxnsLoaded = false;
+            _stockTxns = [];
+            await loadStockTransactions(true);
+            const symbols = [...new Set((_stockTxns || []).map(t => t && t.sym).filter(Boolean))];
+            if (!symbols.length) {
+                alert('沒有可用的交易紀錄');
+                return;
+            }
+            saveHistory();
+            symbols.forEach(s => _syncOneHolding(s));
+            saveToStorage();
+            renderAll();
+            if (typeof showImportToast === 'function') {
+                showImportToast(`✅ 已從 ${(_stockTxns || []).length} 筆交易重算 ${symbols.length} 檔持倉`, 2200);
+            }
+        }
+
+        function _syncOneHolding(sym) {
+            const txns = (_stockTxns || [])
+                .filter(t => t && t.sym === sym && (t.type === 'buy' || t.type === 'sell'))
+                .slice()
+                .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            if (txns.length === 0) return;
+            // 簡單 buy/sell 加總（區分於成本計算用的 FIFO 流程）
+            const totalBuy  = txns.filter(t => t.type === 'buy').reduce((s, t) => s + (Number(t.qty) || 0), 0);
+            const totalSell = txns.filter(t => t.type === 'sell').reduce((s, t) => s + (Number(t.qty) || 0), 0);
+            const netRaw   = totalBuy - totalSell;
+            const idx = holdings.findIndex(h => h.symbol === sym);
+            const existing = idx >= 0 ? holdings[idx] : null;
+            // overflow 判定：賣多於買 → txn log 不完整（IMPORT_DATA 初始倉位未紀錄）
+            // → 不動 holdings，避免誤刪有效持倉
+            if (netRaw < -1e-6) {
+                console.warn(`[sync] ${sym} 交易紀錄賣多於買 (net=${netRaw.toFixed(2)}), 不動 holdings 保留現狀 ${existing ? `qty=${existing.quantity}` : '(no holding)'}`);
+                return;
+            }
+            // 全平 (net ≈ 0) → 從 holdings 移除
+            if (netRaw <= 1e-6) {
+                if (idx >= 0) {
+                    holdings.splice(idx, 1);
+                    console.log(`[sync] ${sym} 已平倉 (net=0)，從 holdings 移除`);
+                }
+                return;
+            }
+            // 正常情況：FIFO 加權成本計算
+            let qty = 0, totalCost = 0;
+            let bourse = txns[0].bourse || 'US';
+            for (const t of txns) {
+                const q = Number(t.qty) || 0;
+                const p = Number(t.price) || 0;
+                const f = Number(t.fee) || 0;
+                if (t.bourse) bourse = t.bourse;
+                if (t.type === 'buy') {
+                    qty += q;
+                    totalCost += q * p + f;
+                } else {
+                    if (qty > 0) {
+                        const avg = totalCost / qty;
+                        const sellQty = Math.min(q, qty);
+                        totalCost -= sellQty * avg;
+                        qty -= sellQty;
+                    }
+                }
+            }
+            if (qty <= 1e-6) {
+                if (idx >= 0) holdings.splice(idx, 1);
+                return;
+            }
+            const avgCost = totalCost / qty;
+            const newH = {
+                id: existing?.id || (Date.now() + Math.floor(Math.random() * 1000)),
+                symbol: sym,
+                market: bourse,
+                name: existing?.name || '',
+                quantity: parseFloat(qty.toFixed(6)),
+                costPrice: parseFloat(avgCost.toFixed(4)),
+                currentPrice: existing?.currentPrice || avgCost,
+                addedDate: existing?.addedDate || new Date().toISOString(),
+            };
+            if (idx >= 0) holdings[idx] = newH;
+            else holdings.push(newH);
+        }
+
+        // 一鍵清掃：移除 holdings 中已平倉（txn net=0）的 symbol
+        // 跟 rebuild 不同的是：不重算成本、不動 overflow 標的，只刪「確定已平」的
+        function cleanupClosedHoldings() {
+            if (!confirm('將從 holdings 移除：在交易紀錄中買賣已對沖完畢的 symbol（如 ZIM/WINT 全部平倉）。是否繼續？')) return;
+            const txnNet = {};
+            for (const t of (_stockTxns || [])) {
+                if (!t || !t.sym) continue;
+                if (!txnNet[t.sym]) txnNet[t.sym] = 0;
+                const q = Number(t.qty) || 0;
+                if (t.type === 'buy') txnNet[t.sym] += q;
+                else if (t.type === 'sell') txnNet[t.sym] -= q;
+            }
+            const removed = [];
+            for (let i = holdings.length - 1; i >= 0; i--) {
+                const h = holdings[i];
+                if (txnNet[h.symbol] != null && Math.abs(txnNet[h.symbol]) <= 1e-6) {
+                    removed.push(h.symbol);
+                    holdings.splice(i, 1);
+                }
+            }
+            if (removed.length === 0) {
+                alert('沒有需要移除的已平倉持倉');
+                return;
+            }
+            saveHistory();
+            saveToStorage();
+            renderAll();
+            alert(`✅ 已移除 ${removed.length} 檔已平倉持倉：\n${removed.join(', ')}`);
         }
 
         async function confirmDeleteRealizedTxn() {
@@ -2271,7 +2533,11 @@
                 if (!r.ok || data.status === 'fail') throw new Error(data.error || ('HTTP ' + r.status));
                 hideRealizedEditModal();
                 if (typeof showImportToast === 'function') showImportToast(`✅ 已刪除 ${sym} 交易紀錄`, 1800);
-                refreshStockRealized();
+                _stockTxnsLoaded = false;
+                _stockTxns = [];
+                renderStockRealized();
+                await loadStockTransactions(true);
+                _syncHoldingsFromTxns([sym]);
             } catch (e) {
                 alert('刪除失敗：' + (e?.message || e));
             }
@@ -2339,6 +2605,71 @@
                     <td style="padding:0.42rem 0.55rem;text-align:center;">${editBtn}</td>
                 </tr>`;
             }).join('');
+            // ── 全部交易紀錄面板（買 + 賣，可編輯）──
+            const allTxnsHtml = (() => {
+                if (!_allTxnsExpanded) return '';
+                const all = (_stockTxns || [])
+                    .filter(t => t && t.sym && t.type)
+                    .slice()
+                    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                const _ccy = c => (c || '').toUpperCase() || 'USD';
+                const _bourseFlag = b => b === 'TW' ? '🇹🇼' : b === 'HK' ? '🇭🇰' : '🇺🇸';
+                const rowsHtml = all.slice(0, 500).map(t => {
+                    const isBuy = String(t.type).toLowerCase() === 'buy';
+                    const typeBadge = isBuy
+                        ? '<span style="padding:0.12rem 0.42rem;background:rgba(16,185,129,0.18);color:#10b981;border-radius:4px;font-size:0.72rem;font-weight:700;">買</span>'
+                        : '<span style="padding:0.12rem 0.42rem;background:rgba(239,68,68,0.18);color:#ef4444;border-radius:4px;font-size:0.72rem;font-weight:700;">賣</span>';
+                    const editable = !!t.client_id && t.source !== 'fubon_realized_report';
+                    const editBtn = editable
+                        ? `<button onclick="event.stopPropagation();openRealizedEditModal('${t.client_id}')" title="編輯此筆" style="padding:0.18rem 0.45rem;background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:5px;font-size:0.72rem;cursor:pointer;">✏️</button>`
+                        : `<span title="${t.source === 'fubon_realized_report' ? '券商報表來源不可編輯' : '無 client_id 不可編輯'}" style="color:#475569;font-size:0.72rem;">—</span>`;
+                    const ccy = _ccy(t.currency);
+                    const total = (Number(t.qty) || 0) * (Number(t.price) || 0);
+                    return `
+                    <tr style="border-bottom:1px solid rgba(148,163,184,0.08);">
+                        <td style="padding:0.42rem 0.55rem;color:#94a3b8;white-space:nowrap;">${_esc(t.date || '')}</td>
+                        <td style="padding:0.42rem 0.55rem;text-align:center;">${typeBadge}</td>
+                        <td style="padding:0.42rem 0.55rem;color:#fbbf24;font-weight:800;white-space:nowrap;">${_bourseFlag(t.bourse)} ${_esc(t.sym)}</td>
+                        <td style="padding:0.42rem 0.55rem;text-align:right;color:#e2e8f0;">${(Number(t.qty)||0).toLocaleString('en-US',{maximumFractionDigits:4})}</td>
+                        <td style="padding:0.42rem 0.55rem;text-align:right;color:#60a5fa;">${_fmtPlainCurrency(Number(t.price)||0, ccy)}</td>
+                        <td style="padding:0.42rem 0.55rem;text-align:right;color:#94a3b8;">${_fmtPlainCurrency(Number(t.fee)||0, ccy)}</td>
+                        <td style="padding:0.42rem 0.55rem;text-align:right;color:#cbd5e1;font-weight:600;">${_fmtPlainCurrency(total, ccy)}</td>
+                        <td style="padding:0.42rem 0.55rem;text-align:center;">${editBtn}</td>
+                    </tr>`;
+                }).join('');
+                return `
+                <div style="margin-top:1rem;background:rgba(15,30,60,0.32);border:1px solid rgba(99,102,241,0.22);border-radius:10px;overflow:hidden;">
+                    <div style="padding:0.6rem 0.85rem;display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap;background:rgba(99,102,241,0.08);">
+                        <div>
+                            <span style="color:#a5b4fc;font-weight:800;">📋 全部交易紀錄</span>
+                            <span style="color:#64748b;font-size:0.78rem;margin-left:0.5rem;">${all.length} 筆（買 + 賣）${all.length > 500 ? ' · 僅顯示最近 500 筆' : ''}</span>
+                        </div>
+                        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                          <button onclick="cleanupClosedHoldings()" title="移除 holdings 中已完全平倉（txn 買賣對沖為 0）的 symbol，例如 ZIM/WINT" style="padding:0.42rem 0.7rem;background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.35);border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">🧹 清掃已平倉</button>
+                          <button onclick="rebuildAllHoldingsFromTxns()" title="掃描所有交易紀錄重算每個 symbol 的持倉與成本（已避免覆寫 overflow 標的）" style="padding:0.42rem 0.7rem;background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.35);border-radius:7px;font-weight:700;font-size:0.78rem;cursor:pointer;">🔄 從交易重算持倉</button>
+                          <button onclick="openCreateTxnModal()" style="padding:0.42rem 0.85rem;background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#0a1628;border:none;border-radius:7px;font-weight:800;font-size:0.82rem;cursor:pointer;">➕ 新增交易</button>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;min-width:760px;font-size:0.8rem;">
+                            <thead style="background:rgba(30,41,59,0.72);">
+                                <tr>
+                                    <th style="padding:0.48rem 0.55rem;text-align:left;color:#94a3b8;">日期</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:center;color:#94a3b8;">類型</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:left;color:#94a3b8;">代碼</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">股數</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">價格</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">手續費</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:right;color:#94a3b8;">金額</th>
+                                    <th style="padding:0.48rem 0.55rem;text-align:center;color:#94a3b8;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml || '<tr><td colspan="8" style="padding:1rem;text-align:center;color:#64748b;">尚無交易紀錄，點右上「➕ 新增交易」開始</td></tr>'}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+            })();
+
             const detailHtml = _stockRealizedExpanded ? `
                 <div style="margin-top:1rem;display:grid;grid-template-columns:minmax(220px,0.9fr) minmax(420px,2fr);gap:1rem;align-items:start;">
                     <div style="background:rgba(15,30,60,0.42);border:1px solid rgba(148,163,184,0.12);border-radius:10px;padding:0.75rem 0.9rem;">
@@ -2383,11 +2714,13 @@
                         <div style="min-width:88px;background:rgba(15,30,60,0.5);border-radius:10px;padding:0.55rem 0.75rem;text-align:center;">
                             <div style="color:#64748b;font-size:0.72rem;">勝率</div><div style="color:#10b981;font-weight:800;">${winRate}%</div>
                         </div>
-                        <button onclick="toggleStockRealizedDetails()" style="padding:0.45rem 0.85rem;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.32);border-radius:9px;font-weight:800;">${_stockRealizedExpanded ? '▲ 收合明細' : '▼ 查看明細'}</button>
+                        <button onclick="toggleStockRealizedDetails()" style="padding:0.45rem 0.85rem;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.32);border-radius:9px;font-weight:800;">${_stockRealizedExpanded ? '▲ 收合已實現' : '▼ 已實現明細'}</button>
+                        <button onclick="toggleAllTxnsDetails()" style="padding:0.45rem 0.85rem;background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:9px;font-weight:800;">${_allTxnsExpanded ? '▲ 收合交易紀錄' : '▼ 全部交易（買+賣）'}</button>
                         <button onclick="refreshStockRealized()" title="重新讀取 stocker_txns.json" style="padding:0.45rem 0.75rem;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.32);border-radius:9px;">重新整理</button>
                     </div>
                 </div>
-                ${detailHtml}`;
+                ${detailHtml}
+                ${allTxnsHtml}`;
         }
 
         function renderStats(stats) {
@@ -2400,12 +2733,28 @@
             const _futUnrealUSD = _fxRate > 0 ? _futUnrealTWD / _fxRate : 0;
             const _futTodayUSD  = _fxRate > 0 ? _futTodayTWD  / _fxRate : 0;
             const _futPrevUSD   = _fxRate > 0 ? _futPrevTWD   / _fxRate : 0;
-            const _compactPnl = n => {
+            const _compactPnl = (n, ccy) => {
                 const a = Math.abs(n);
                 const sign = n >= 0 ? '+' : '-';
-                if (a >= 100000000) return sign + (a/100000000).toFixed(1) + '億';
-                if (a >= 10000)     return sign + (a/10000).toFixed(1) + '萬';
-                return sign + Math.round(a).toLocaleString('zh-TW');
+                if (ccy === 'USD') {
+                    if (a >= 1e6) return sign + '$' + (a/1e6).toFixed(2) + 'M';
+                    if (a >= 1e3) return sign + '$' + (a/1e3).toFixed(1) + 'K';
+                    return sign + '$' + Math.round(a).toLocaleString('en-US');
+                }
+                if (a >= 100000000) return sign + 'NT$' + (a/100000000).toFixed(1) + '億';
+                if (a >= 10000)     return sign + 'NT$' + (a/10000).toFixed(1) + '萬';
+                return sign + 'NT$' + Math.round(a).toLocaleString('zh-TW');
+            };
+            // 損益卡 breakdown 統一樣式：emoji + 類別色標籤 + 紅綠金額（與總資產卡同款）
+            // 依當前 currency 顯示對應幣別金額（TWD 模式秀台幣、USD 模式秀美金）
+            const _pnlRow = (icon, label, labelColor, twd) => {
+                const amtCol = twd >= 0 ? '#10b981' : '#ef4444';
+                const _fxR = exchangeRates.USD_TWD || 31.5;
+                const val = currency === 'USD' ? (_fxR > 0 ? twd / _fxR : 0) : twd;
+                return '<div style="display:flex;align-items:baseline;gap:0.35rem;white-space:nowrap;line-height:1.6;">'
+                    + '<span style="color:' + labelColor + ';font-weight:700;">' + icon + ' ' + label + '</span>'
+                    + '<span class="mono" style="color:' + amtCol + ';">' + _compactPnl(val, currency) + '</span>'
+                    + '</div>';
             };
 
             // ── 昨日損益 卡片 ──────────────────────────────
@@ -2422,12 +2771,12 @@
                 const pct = prevVal > 0 ? (stats.totalPrevDayPnLUSD / prevVal * 100).toFixed(2) : null;
                 const pctStr = pct != null ? ' (' + (pos?'+':'') + pct + '%)' : '';
                 // breakdown：僅在有期貨資料時顯示（目前期貨昨日=0 時略過）
-                const bdParts = [];
+                const bdRows = [];
                 if (_futPrevTWD !== 0) {
-                    bdParts.push('股 ' + _compactPnl(stats.totalPrevDayPnLTWD));
-                    bdParts.push('期 ' + _compactPnl(_futPrevTWD));
+                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalPrevDayPnLTWD));
+                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futPrevTWD));
                 }
-                const bd = bdParts.join(' · ');
+                const bd = bdRows.join('');
                 return '<div class="stat-card" style="border:1px solid rgba(148,163,184,0.2);">'
                     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
                     +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
@@ -2437,8 +2786,7 @@
                     +   '<span class="mono stat-pct" style="color:'+col+';flex-shrink:0;">'+pctStr+'</span>'
                     + '</div>'
                     + '<div class="mono stat-amount" style="color:'+col+';">'+mainStr+'</div>'
-                    + '<div class="mono stat-amount-sub" style="margin-top:0.45rem;color:'+col+';">'+subStr+'</div>'
-                    + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">'+bd+'</div>' : '')
+                    + (bd ? '<div class="mono" style="font-size:0.78rem;margin-top:0.35rem;">'+bd+'</div>' : '')
                     + '</div>';
             })();
             // ── 當日損益 卡片 ──────────────────────────────
@@ -2454,12 +2802,12 @@
                 const prevVal = stats.totalValue - stats.totalDayPnLUSD;
                 const pct = prevVal > 0 ? (stats.totalDayPnLUSD / prevVal * 100).toFixed(2) : null;
                 const pctStr = pct != null ? ' (' + (pos?'+':'') + pct + '%)' : '';
-                const bdParts = [];
+                const bdRows = [];
                 if (_futTodayTWD !== 0) {
-                    bdParts.push('股 ' + _compactPnl(stats.totalDayPnLTWD));
-                    bdParts.push('期 ' + _compactPnl(_futTodayTWD));
+                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalDayPnLTWD));
+                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futTodayTWD));
                 }
-                const bd = bdParts.join(' · ');
+                const bd = bdRows.join('');
                 // ── 盤前 / 盤後 損益備註（白色字、跟今日漲跌欄盤前同款 #e2e8f0 樣式）──
                 let extNoteHtml = '';
                 if (stats.hasExtPnL) {
@@ -2478,8 +2826,7 @@
                     +   '<span class="mono stat-pct" style="color:'+col+';flex-shrink:0;">'+pctStr+'</span>'
                     + '</div>'
                     + '<div class="mono stat-amount" style="color:'+col+';">'+mainStr+'</div>'
-                    + '<div class="mono stat-amount-sub" style="margin-top:0.45rem;color:'+col+';">'+subStr+'</div>'
-                    + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">'+bd+'</div>' : '')
+                    + (bd ? '<div class="mono" style="font-size:0.78rem;margin-top:0.35rem;">'+bd+'</div>' : '')
                     + extNoteHtml
                     + '</div>';
             })();
@@ -2498,12 +2845,12 @@
                 const pctStr = stats.totalPnLPercent != null
                     ? '(' + (stats.totalPnL>=0?'+':'') + stats.totalPnLPercent.toFixed(2) + '%)'
                     : '';
-                const bdParts = [];
+                const bdRows = [];
                 if (_futUnrealTWD !== 0) {
-                    bdParts.push('股 ' + _compactPnl(stats.totalPnLTWD));
-                    bdParts.push('期 ' + _compactPnl(_futUnrealTWD));
+                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalPnLTWD));
+                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futUnrealTWD));
                 }
-                const bd = bdParts.join(' · ');
+                const bd = bdRows.join('');
                 return '<div class="stat-card">'
                     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:nowrap;">'
                     +   '<div style="display:flex;align-items:center;gap:0.75rem;">'
@@ -2513,10 +2860,7 @@
                     +   '<span class="mono stat-pct '+(stats.totalPnL>=0?'profit':'loss')+'" style="flex-shrink:0;">'+pctStr+'</span>'
                     + '</div>'
                     + '<div class="mono stat-amount '+amtClass+'">'+mainStr+'</div>'
-                    + '<div class="mono stat-amount-sub" style="margin-top:0.45rem;">'
-                    +   '<span class="'+amtClass+'">'+subStr+'</span>'
-                    + '</div>'
-                    + (bd ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">'+bd+'</div>' : '')
+                    + (bd ? '<div class="mono" style="font-size:0.78rem;margin-top:0.35rem;">'+bd+'</div>' : '')
                     + '</div>';
             })();
 
@@ -2532,13 +2876,30 @@
                 const totalUSD = futUSD + cryptoUSD;
                 const mainStr = currency === 'USD' ? fmtAmt(totalUSD, 'USD') : fmtAmt(totalTWD, 'TWD');
                 const subStr  = currency === 'USD' ? fmtAmt(totalTWD, 'TWD') : fmtAmt(totalUSD, 'USD');
+                // 總資產（股票+現金+期貨+加密）→ 算占比；只有此卡內部用，不影響其他地方
+                const _cashTWDForPct  = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
+                const _grandTWDForPct = (stats?.totalValueTWD || 0) + _cashTWDForPct + futTWD + cryptoTWD;
+                const _pct = (v) => (_grandTWDForPct > 0 ? (v / _grandTWDForPct * 100) : 0);
+                const _pctStr = (v) => (_grandTWDForPct > 0 ? _pct(v).toFixed(1) + '%' : '—');
+                const totalPctStr = _pctStr(totalTWD);
+                const futPctStr   = _pctStr(futTWD);
+                const cryptoPctStr= _pctStr(cryptoTWD);
 
-                const _t = n => {
-                    const a = Math.abs(Number(n||0));
-                    if (a >= 1e8) return (a/1e8).toFixed(2) + '億';
-                    if (a >= 1e4) return (a/1e4).toFixed(1) + '萬';
-                    return Math.round(a).toLocaleString('zh-TW');
+                // 依當前 currency 顯示金額。傳入永遠是 TWD 值，內部換算
+                const _fxR2 = exchangeRates.USD_TWD || 31.5;
+                const _amt = (twd) => {
+                    if (currency === 'USD') {
+                        const u = _fxR2 > 0 ? Math.abs(twd) / _fxR2 : 0;
+                        if (u >= 1e6) return '$' + (u/1e6).toFixed(2) + 'M';
+                        if (u >= 1e3) return '$' + (u/1e3).toFixed(1) + 'K';
+                        return '$' + Math.round(u).toLocaleString('en-US');
+                    }
+                    const a = Math.abs(Number(twd||0));
+                    if (a >= 1e8) return 'NT$' + (a/1e8).toFixed(2) + '億';
+                    if (a >= 1e4) return 'NT$' + (a/1e4).toFixed(1) + '萬';
+                    return 'NT$' + Math.round(a).toLocaleString('zh-TW');
                 };
+                // _t 保留給簡寫（無前綴），現在統一改為 _amt 帶前綴
                 const _u = n => {
                     const a = Math.abs(Number(n||0));
                     if (a >= 10000) return '$' + (a/1000).toFixed(1) + 'K';
@@ -2552,12 +2913,13 @@
                     const unreal = (typeof getFuturesUnrealizedTWD === 'function') ? getFuturesUnrealizedTWD() : 0;
                     const pos    = unreal >= 0;
                     const ucol   = pos ? '#10b981' : '#ef4444';
-                    const ustr   = (pos?'+':'')+unreal.toLocaleString('zh-TW',{maximumFractionDigits:0});
+                    const ustr   = (pos?'+':'-')+_amt(unreal);
                     futLines.push(
-                        '<div style="display:flex;align-items:baseline;justify-content:space-between;column-gap:0.35rem;row-gap:0.1rem;margin-top:0.4rem;font-size:clamp(0.66rem,3.2cqw,0.82rem);flex-wrap:wrap;">'
+                        '<div style="display:flex;align-items:baseline;justify-content:space-between;column-gap:0.35rem;margin-top:0.4rem;font-size:clamp(0.62rem,3cqw,0.8rem);flex-wrap:nowrap;min-width:0;">'
                         + '<span style="color:#a855f7;font-weight:700;white-space:nowrap;">📈 期貨</span>'
                         + '<span class="mono" style="color:'+ucol+';white-space:nowrap;">'+ustr+'</span>'
-                        + '<span class="mono" style="color:#cbd5e1;white-space:nowrap;">NT$' + _t(futTWD) + '</span>'
+                        + '<span class="mono" style="color:#cbd5e1;white-space:nowrap;">' + _amt(futTWD)
+                        +   ' <span style="color:#94a3b8;font-size:0.85em;">(' + futPctStr + ')</span></span>'
                         + '</div>'
                     );
                 }
@@ -2571,16 +2933,17 @@
                     const bdParts = [];
                     if (spotU  > 0) bdParts.push('幣安現貨 ' + _u(spotU));
                     if (fUsdtU > 0) bdParts.push('幣安合約 ' + _u(fUsdtU));
-                    if (pioTWD > 0) bdParts.push('派網 NT$' + _t(pioTWD));
+                    if (pioTWD > 0) bdParts.push('派網 ' + _amt(pioTWD));
                     const age = Number(_cryptoData?._age_seconds ?? -1);
                     const ageStr = age >= 0
                         ? '<span class="mono" style="color:#64748b;font-size:0.88em;margin-left:0.35rem;white-space:nowrap;">('
                           + (age < 60 ? age + 's' : Math.floor(age/60) + 'm') + '前)</span>'
                         : '';
                     futLines.push(
-                        '<div style="display:flex;align-items:baseline;justify-content:space-between;column-gap:0.35rem;row-gap:0.1rem;margin-top:0.4rem;font-size:clamp(0.66rem,3.2cqw,0.82rem);flex-wrap:wrap;">'
+                        '<div style="display:flex;align-items:baseline;justify-content:space-between;column-gap:0.35rem;margin-top:0.4rem;font-size:clamp(0.62rem,3cqw,0.8rem);flex-wrap:nowrap;min-width:0;">'
                         + '<span style="color:#f59e0b;font-weight:700;white-space:nowrap;">🪙 加密' + ageStr + '</span>'
-                        + '<span class="mono" style="color:#cbd5e1;white-space:nowrap;">NT$' + _t(cryptoTWD) + '</span>'
+                        + '<span class="mono" style="color:#cbd5e1;white-space:nowrap;">' + _amt(cryptoTWD)
+                        +   ' <span style="color:#94a3b8;font-size:0.85em;">(' + cryptoPctStr + ')</span></span>'
                         + '</div>'
                         + (bdParts.length ? '<div class="mono" style="color:#64748b;font-size:clamp(0.6rem,2.6cqw,0.72rem);margin-top:0.15rem;text-align:right;line-height:1.35;">' + bdParts.join(' · ') + '</div>' : '')
                     );
@@ -2595,7 +2958,7 @@
                     +   '</div>'
                     + '</div>'
                     + '<div class="mono stat-amount" style="background:linear-gradient(135deg,#a855f7 0%,#f59e0b 100%);-webkit-background-clip:text;background-clip:text;color:transparent;">'+mainStr+'</div>'
-                    + '<div class="mono stat-amount-sub" style="color:#64748b;margin-top:0.4rem;">'+subStr+'</div>'
+                    + '<div class="mono" style="color:#a78bfa;font-size:0.82rem;font-weight:700;margin-top:0.4rem;">占資產 ' + totalPctStr + '</div>'
                     + futLines.join('')
                     + '</div>';
             })();
@@ -2610,37 +2973,64 @@
                 const grandUSD = exchangeRates.USD_TWD > 0 ? grandTWD / exchangeRates.USD_TWD : 0;
                 const mainStr = currency === 'USD' ? fmtAmt(grandUSD, 'USD') : fmtAmt(grandTWD, 'TWD');
                 const subStr  = currency === 'USD' ? fmtAmt(grandTWD, 'TWD') : fmtAmt(grandUSD, 'USD');
-                // breakdown: 股 / 現 / 期 / 幣（TWD 簡寫）
-                const _compact = n => {
-                    if (n >= 100000000) return (n/100000000).toFixed(1) + '億';
-                    if (n >= 10000)     return (n/10000).toFixed(1) + '萬';
-                    return Math.round(n).toLocaleString('zh-TW');
+                // breakdown: 股 / 現 / 期 / 幣（依當前幣別顯示）
+                const _fxRate = exchangeRates.USD_TWD || 31.5;
+                const _toUsd = twd => _fxRate > 0 ? twd / _fxRate : 0;
+                const _compact = (n, ccy) => {
+                    if (ccy === 'USD') {
+                        if (n >= 1e6)  return '$' + (n/1e6).toFixed(2) + 'M';
+                        if (n >= 1e3)  return '$' + (n/1e3).toFixed(1) + 'K';
+                        return '$' + Math.round(n).toLocaleString('en-US');
+                    }
+                    if (n >= 100000000) return 'NT$' + (n/100000000).toFixed(1) + '億';
+                    if (n >= 10000)     return 'NT$' + (n/10000).toFixed(1) + '萬';
+                    return 'NT$' + Math.round(n).toLocaleString('zh-TW');
                 };
-                // 第 1 行：股 + 現；第 2 行：期 + 幣（避免一行過長 wrap 不好看）
-                const line1 = [];
-                const line2 = [];
-                if (stats.totalValueTWD > 0) line1.push('股 ' + _compact(stats.totalValueTWD));
-                if (cashTWD > 0)             line1.push('現 ' + _compact(cashTWD));
-                if (futTWD > 0)              line2.push('期 ' + _compact(futTWD));
-                if (cryptoTWD > 0)           line2.push('幣 ' + _compact(cryptoTWD));
-                const _seg = arr => arr.join(' · ');
-                const breakdown = [_seg(line1), _seg(line2)].filter(Boolean).join('<br>');
+                // 各類別逐行顯示：emoji + 類別色 + 金額 + 占比；不放分隔符
+                // 顏色對齊既有卡片：股=藍、現=綠、期=紫、幣=橘
+                const _pctStr = v => grandTWD > 0 ? ' <span style="color:#64748b;">(' + (v / grandTWD * 100).toFixed(1) + '%)</span>' : '';
+                const _row = (icon, label, color, twd) => {
+                    const val = currency === 'USD' ? _toUsd(twd) : twd;
+                    return '<div style="display:flex;align-items:baseline;gap:0.35rem;white-space:nowrap;line-height:1.6;">'
+                        + '<span style="color:' + color + ';font-weight:700;">' + icon + ' ' + label + '</span>'
+                        + '<span class="mono" style="color:#cbd5e1;">' + _compact(val, currency) + '</span>'
+                        + _pctStr(twd)
+                        + '</div>';
+                };
+                const rows = [];
+                if (stats.totalValueTWD > 0) rows.push(_row('📊', '股票', '#3b82f6', stats.totalValueTWD));
+                if (cashTWD > 0)             rows.push(_row('💵', '現金', '#10b981', cashTWD));
+                if (futTWD > 0)              rows.push(_row('📈', '期貨', '#a855f7', futTWD));
+                if (cryptoTWD > 0)           rows.push(_row('🪙', '加密', '#f59e0b', cryptoTWD));
+                const breakdown = rows.join('');
                 return '<div class="stat-card" style="border:2px solid rgba(16,185,129,0.45);">'
                     + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">'
                     +   '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#10b981 0%,#059669 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(16,185,129,0.4);">🏦</div>'
                     +   '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總資產</span>'
                     + '</div>'
                     + '<div class="mono stat-amount" style="color:#10b981;">'+mainStr+'</div>'
-                    + '<div class="mono stat-amount-sub" style="color:#64748b;margin-top:0.4rem;">'+subStr+'</div>'
                     + (breakdown ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.35rem;">'+breakdown+'</div>' : '')
                     + '</div>';
             })();
 
             // 股票市值卡片（變數化方便調整順序）
             const stockValueCard = (function() {
+                // 損益 / 總成本：用「萬」為單位、1 位小數（USD 沿用 fmtAmt 完整數字）
+                const _wan = (n) => {
+                    const a = Math.abs(Number(n||0));
+                    if (a >= 100000000) return (Math.sign(n) < 0 ? '-' : '') + (a/100000000).toFixed(2) + '億';
+                    return (Math.sign(n) < 0 ? '-' : '') + (a/10000).toFixed(1) + '萬';
+                };
                 const costStr = currency === 'USD'
                     ? fmtAmt(stats.totalCost, 'USD')
-                    : fmtAmt(stats.totalCostTWD, 'TWD');
+                    : 'NT$' + _wan(stats.totalCostTWD);
+                const pnlVal = currency === 'USD' ? stats.totalPnL : stats.totalPnLTWD;
+                const pnlPct = currency === 'USD' ? stats.totalPnLPercent : stats.totalPnLPercentTWD;
+                const pnlStr = currency === 'USD'
+                    ? fmtAmt(Math.abs(pnlVal), 'USD')
+                    : 'NT$' + _wan(Math.abs(pnlVal));
+                const pnlSign = pnlVal >= 0 ? '+' : '−';
+                const pnlColor = pnlVal >= 0 ? '#10b981' : '#ef4444';
                 return `
                 <div class="stat-card">
                     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
@@ -2648,8 +3038,8 @@
                         <span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">股票市值</span>
                     </div>
                     <div class="mono stat-amount" style="color:#3b82f6;">${currency==='USD' ? fmtAmt(stats.totalValue,'USD') : fmtAmt(stats.totalValueTWD,'TWD')}</div>
-                    <div class="mono stat-amount-sub" style="color:#64748b;margin-top:0.4rem;">${currency==='USD' ? fmtAmt(stats.totalValueTWD,'TWD') : fmtAmt(stats.totalValue,'USD')}</div>
-                    <div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.3rem;">總成本 ${costStr}</div>
+                    <div class="mono" style="color:${pnlColor};font-size:0.78rem;font-weight:700;margin-top:0.4rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">損益 ${pnlSign}${pnlStr} (${pnlSign}${Math.abs(pnlPct).toFixed(1)}%)</div>
+                    <div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.25rem;">總成本 ${costStr}</div>
                 </div>`;
             })();
 
@@ -3663,20 +4053,121 @@
                 }
             } catch(e) { /* 設定還原失敗不影響持倉 */ }
 
+            // ③ 一次性歸一化：港股代碼若漏 .HK 自動補上 + 同代碼合併（修復誤輸入造成的重複持倉）
+            try { _normalizeAllHoldings(); } catch(_) {}
+            // ④ 一次性持倉修正（白名單規則，跑完就 set flag 不再執行）
+            try { _applyOneTimeHoldingFixes(); } catch(_) {}
+
             return holdings.length > 0;
+        }
+
+        // 一次性持倉修正：用 localStorage flag 控制只跑一次
+        // 使用情境：txn 紀錄有 overflow 或 holdings 被誤刪，手動補回正確值
+        function _applyOneTimeHoldingFixes() {
+            const FLAG_KEY = 'pt_v13_holding_fixes_v1';
+            try {
+                if (localStorage.getItem(FLAG_KEY) === '1') return;
+            } catch(_) { return; }
+            const fixes = [
+                // NVDL：實際 700 股 @ $43.296（IMPORT_DATA 初始 750 但 txn 賣多買少導致 rebuild 誤刪）
+                { symbol: 'NVDL', market: 'US', name: 'GraniteShares 2x Long NVDA Daily',
+                  quantity: 700, costPrice: 43.296 },
+            ];
+            const applied = [];
+            for (const fix of fixes) {
+                const idx = holdings.findIndex(h => h.symbol === fix.symbol);
+                const existing = idx >= 0 ? holdings[idx] : null;
+                const newH = {
+                    id: existing?.id || (Date.now() + Math.floor(Math.random() * 1000)),
+                    symbol: fix.symbol,
+                    market: fix.market,
+                    name: fix.name || existing?.name || '',
+                    quantity: fix.quantity,
+                    costPrice: fix.costPrice,
+                    currentPrice: existing?.currentPrice || fix.costPrice,
+                    addedDate: existing?.addedDate || new Date().toISOString(),
+                };
+                if (idx >= 0) holdings[idx] = newH;
+                else holdings.push(newH);
+                applied.push(fix.symbol);
+            }
+            try { localStorage.setItem(FLAG_KEY, '1'); } catch(_) {}
+            if (applied.length > 0) {
+                console.log('[holding-fix] 一次性修正:', applied.join(', '));
+            }
+        }
+
+        // 港股代碼正規化：market='HK' 且純數字 → 補成 4 位數 + .HK（"7709" → "7709.HK"; "700" → "0700.HK"）
+        function _normalizeHkSymbol(symbol, market) {
+            if (!symbol) return symbol;
+            const s = String(symbol).trim().toUpperCase();
+            const looksHk = (market === 'HK') || s.endsWith('.HK');
+            if (!looksHk) return s;
+            if (s.endsWith('.HK')) return s;
+            if (/^\d{1,5}$/.test(s)) {
+                return s.padStart(4, '0') + '.HK';
+            }
+            return s;
+        }
+
+        // 一次性歸一化所有 holdings：補 .HK 後合併重複（加權平均成本）
+        function _normalizeAllHoldings() {
+            let changed = false;
+            // pass 1：補 .HK
+            holdings.forEach(h => {
+                const norm = _normalizeHkSymbol(h.symbol, h.market);
+                if (norm !== h.symbol) {
+                    h.symbol = norm;
+                    if (!h.market || h.market === 'US') h.market = 'HK';
+                    changed = true;
+                }
+            });
+            // pass 2：合併重複代碼（加權平均成本，加總股數）
+            const map = new Map();
+            const mergedLog = [];
+            for (const h of holdings) {
+                const ex = map.get(h.symbol);
+                if (ex) {
+                    const totalQty = (ex.quantity || 0) + (h.quantity || 0);
+                    const totalCost = (ex.costPrice || 0) * (ex.quantity || 0) + (h.costPrice || 0) * (h.quantity || 0);
+                    if (totalQty > 0) {
+                        ex.quantity = parseFloat(totalQty.toFixed(6));
+                        ex.costPrice = parseFloat((totalCost / totalQty).toFixed(4));
+                    }
+                    // currentPrice 偏好較新且 != costPrice 的（fresh 報價）
+                    if (h.currentPrice && Math.abs(h.currentPrice - h.costPrice) > 0.001) {
+                        ex.currentPrice = h.currentPrice;
+                    }
+                    if (h.name && !ex.name) ex.name = h.name;
+                    mergedLog.push(h.symbol);
+                    changed = true;
+                } else {
+                    map.set(h.symbol, h);
+                }
+            }
+            if (changed) {
+                holdings = Array.from(map.values());
+                if (mergedLog.length > 0) {
+                    console.log('[normalize] 已合併重複持倉:', [...new Set(mergedLog)].join(', '));
+                }
+                if (typeof saveToStorage === 'function') saveToStorage();
+            }
+            return changed;
         }
 
         // ==================== 操作 ====================
         function addHolding() {
             const isBuy = tradeType === 'buy';
-            const symbol = isBuy
+            const rawSymbol = isBuy
                 ? document.getElementById('form-symbol').value.trim().toUpperCase()
                 : document.getElementById('form-symbol-sell').value.trim().toUpperCase();
             const quantity  = parseFloat(document.getElementById('form-quantity').value);
             const costPrice = parseFloat(document.getElementById('form-cost').value);
             const feeRaw    = parseFloat(document.getElementById('form-fee')?.value);
             const fee       = (isFinite(feeRaw) && feeRaw > 0) ? feeRaw : 0;
-            const market    = isBuy ? document.getElementById('form-market').value : (holdings.find(h=>h.symbol===symbol)?.market || 'US');
+            const market    = isBuy ? document.getElementById('form-market').value : (holdings.find(h=>h.symbol===rawSymbol)?.market || 'US');
+            // 港股代碼正規化：HK 市場時純數字自動補 .HK（避免「7709」與「7709.HK」分開算）
+            const symbol = _normalizeHkSymbol(rawSymbol, market);
             if (!symbol || !quantity || !costPrice) return alert('請填寫所有必要欄位');
             saveHistory();
             const existingIndex = holdings.findIndex(h => h.symbol === symbol);
@@ -4023,43 +4514,23 @@
         function applyManualRates() {
             const usd = parseFloat(document.getElementById('input-usd-twd').value);
             const hkd = parseFloat(document.getElementById('input-hkd-twd').value);
+            const jpy = parseFloat(document.getElementById('input-jpy-twd')?.value);
+            const cny = parseFloat(document.getElementById('input-cny-twd')?.value);
             if (!isNaN(usd) && usd > 0) exchangeRates.USD_TWD = usd;
             if (!isNaN(hkd) && hkd > 0) exchangeRates.HKD_TWD = hkd;
+            if (!isNaN(jpy) && jpy > 0) exchangeRates.JPY_TWD = jpy;
+            if (!isNaN(cny) && cny > 0) exchangeRates.CNY_TWD = cny;
             document.getElementById('rate-source').textContent = '（手動設定）';
             renderAll();
-        }
-
-        async function fetchLiveRates(btn) {
-            btn.textContent = '更新中...'; btn.disabled = true;
-            const timer = setTimeout(() => {
-                btn.textContent = '🌐 抓即時匯率'; btn.disabled = false;
-                showWarnToast('⏱ 匯率 API 逾時，請稍後再試');
-            }, 8000);
-            try {
-                const res = await fetch('https://open.er-api.com/v6/latest/USD');
-                clearTimeout(timer);
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const data = await res.json();
-                if (!data.rates || !data.rates['TWD'] || !data.rates['HKD']) throw new Error('API 回傳格式異常');
-                const twd = data.rates['TWD'];
-                const hkd = data.rates['HKD'];
-                exchangeRates.USD_TWD = parseFloat(twd.toFixed(4));
-                exchangeRates.HKD_TWD = parseFloat((twd / hkd).toFixed(4));
-                document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
-                document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
-                document.getElementById('rate-source').textContent = '✓ 即時匯率（' + new Date().toLocaleTimeString('zh-TW') + '）';
-                renderAll();
-            } catch(e) {
-                clearTimeout(timer);
-                showWarnToast('❌ 無法取得即時匯率：' + e.message);
-            } finally {
-                btn.textContent = '🌐 抓即時匯率'; btn.disabled = false;
-            }
         }
 
         function syncRateInputs() {
             document.getElementById('input-usd-twd').value = exchangeRates.USD_TWD.toFixed(2);
             document.getElementById('input-hkd-twd').value = exchangeRates.HKD_TWD.toFixed(4);
+            const jpyEl = document.getElementById('input-jpy-twd');
+            if (jpyEl && exchangeRates.JPY_TWD) jpyEl.value = exchangeRates.JPY_TWD.toFixed(4);
+            const cnyEl = document.getElementById('input-cny-twd');
+            if (cnyEl && exchangeRates.CNY_TWD) cnyEl.value = exchangeRates.CNY_TWD.toFixed(3);
         }
 
 
@@ -5147,7 +5618,7 @@
                             const change = isFinite(prev) && prev > 0 ? last - prev : null;
                             const changePct = isFinite(prev) && prev > 0 ? change / prev * 100 : null;
                             const ext = (q.extended && Number(q.extended.price) > 0) ? {
-                                label: q.extended.label || '夜盤',
+                                label: q.extended.label || '24H',
                                 phase: q.extended.phase || 'extended',
                                 price: Number(q.extended.price),
                                 changePoints: q.extended.changePoints != null ? Number(q.extended.changePoints) : null,
@@ -6458,27 +6929,27 @@
                     return '$' + usd.toFixed(0);
                 };
 
-                // ── 每張卡片 ──
+                // ── 每張卡片（緊湊版：auto-fill 至少 115px / 列）──
                 grid.innerHTML = top.map(r => {
                     const chg = (typeof r.change_pct === 'number') ? r.change_pct : null;
                     const chgCol = chg == null ? '#94a3b8' : (chg > 0 ? '#4ade80' : chg < 0 ? '#f87171' : '#94a3b8');
                     const chgStr = chg == null ? '—' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`;
-                    const country = r.country ? `<span style="font-size:0.66rem;color:#64748b;">${_esc(r.country)}</span>` : '';
-                    const nameZh = r.name_zh
-                        ? `<span style="color:#94a3b8; font-size:0.72rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0;">${_esc(r.name_zh)}</span>`
-                        : '<span style="flex:1; min-width:0;"></span>';
+                    const nameZhLine = r.name_zh
+                        ? `<div style="color:#94a3b8; font-size:0.66rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:0.18rem;" title="${_esc(r.name_zh)}">${_esc(r.name_zh)}</div>`
+                        : '';
+                    const tipParts = [];
+                    if (r.name_zh) tipParts.push(r.name_zh);
+                    if (r.country) tipParts.push(r.country);
+                    const tip = tipParts.length ? ` title="${_esc(tipParts.join(' · '))}"` : '';
                     return `
-                    <div style="background:rgba(15,30,60,0.55); border:1px solid rgba(59,130,246,0.18); border-radius:10px; padding:0.75rem 0.85rem; transition:all 0.15s;">
-                      <div style="display:flex; align-items:baseline; gap:0.4rem; margin-bottom:0.3rem;">
-                        <span style="color:#fbbf24; font-size:0.75rem; font-weight:800; min-width:24px;">#${r.rank}</span>
-                        <span style="color:#f1f5f9; font-size:0.95rem; font-weight:800; white-space:nowrap;">${_esc(r.symbol)}</span>
-                        ${nameZh}
+                    <div${tip} style="background:rgba(15,30,60,0.55); border:1px solid rgba(59,130,246,0.18); border-radius:8px; padding:0.5rem 0.55rem; transition:all 0.15s; min-width:0;">
+                      <div style="display:flex; align-items:baseline; gap:0.25rem; margin-bottom:0.18rem; min-width:0;">
+                        <span style="color:#fbbf24; font-size:0.65rem; font-weight:800; flex-shrink:0;">#${r.rank}</span>
+                        <span style="color:#f1f5f9; font-size:0.78rem; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">${_esc(r.symbol)}</span>
                       </div>
-                      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:0.4rem;">
-                        <span class="mono" style="color:#cbd5e1; font-size:0.92rem; font-weight:700; white-space:nowrap;">${_capStr(r.market_cap_usd || 0)}</span>
-                        <span style="color:${chgCol}; font-size:0.82rem; font-weight:700; white-space:nowrap;">${chgStr}</span>
-                      </div>
-                      ${country ? `<div style="margin-top:0.25rem; text-align:right;">${country}</div>` : ''}
+                      ${nameZhLine}
+                      <div class="mono" style="color:#cbd5e1; font-size:0.78rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${_capStr(r.market_cap_usd || 0)}</div>
+                      <div style="color:${chgCol}; font-size:0.7rem; font-weight:700; white-space:nowrap;">${chgStr}</div>
                     </div>`;
                 }).join('');
 
@@ -6825,11 +7296,17 @@
         })();
 
         // ==================== Yahoo Finance fetch via CORS proxy ====================
-        const _isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        // _isLocal 涵蓋：localhost / 127.0.0.1 / Tailscale IP（100.64.0.0/10）/ 區網私有 IP
+        // 這些情境下 server.py 通常在同源跑著，/proxy 走同源最穩、不靠公共代理
+        const _hn = window.location.hostname;
+        const _isPrivateLan = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.)/.test(_hn);
+        const _isTailscale  = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(_hn);
+        const _isLocal = (_hn === 'localhost' || _hn === '127.0.0.1' || _isPrivateLan || _isTailscale);
         const YF_PROXIES = [
             // 嘗試直接存取（Yahoo 有時允許 CORS）
             u => u,
-            // 本機後端或已設定 Render 後端才啟用
+            // 本機 / Tailscale / LAN：走同源 /proxy（server.py 自家後端最快）
+            // GitHub Pages：走 BACKEND_URL（Render 部署的後端）
             ...(_isLocal || BACKEND_URL ? [u => (BACKEND_URL || '') + '/proxy?url=' + encodeURIComponent(u)] : []),
             u => 'https://corsproxy.io/?'                          + encodeURIComponent(u),
             u => 'https://api.allorigins.win/raw?url='             + encodeURIComponent(u),
@@ -7330,12 +7807,36 @@
                 }
             } catch(_) {}
 
+            // ── 確保 global_top_caps.json 載入（基本面最後一欄要顯示排名）──
+            try {
+                if (!window._topCapsCache) {
+                    const _r = await fetch('./data/global_top_caps.json?t=' + Date.now(), { cache: 'no-store' });
+                    if (_r.ok) window._topCapsCache = await _r.json();
+                }
+            } catch(_) {}
+            const _topCapsRank = (sym) => {
+                const list = window._topCapsCache?.top || [];
+                const found = list.find(x => x.symbol === sym);
+                return found ? found.rank : null;
+            };
+
             // ── 渲染函式（抽出來方便：1) 重新整理頁面後立即用快取填表 2) fetch 完最終再渲染一次）──
             const _renderAnalysisTables = () => {
                 const fmt  = v => (v != null && !isNaN(v)) ? parseFloat(v).toFixed(2) : '-';
                 const fmtp = v => (v != null && !isNaN(v)) ? (parseFloat(v)*100).toFixed(1) + '%' : '-';
                 const tr   = (v, a) => '<td style="padding:0.5rem 0.6rem; text-align:' + (a||'right') + '; color:#e2e8f0;">' + v + '</td>';
                 const trc  = v => '<td style="padding:0.5rem 0.6rem; text-align:center;">' + v + '</td>';
+                const rankCell = (sym) => {
+                    const rk = _topCapsRank(sym);
+                    if (rk == null) return '<td style="padding:0.5rem 0.6rem; text-align:center; color:#475569;">—</td>';
+                    let color = '#94a3b8', bg = 'rgba(148,163,184,0.10)';
+                    if (rk <= 10)       { color = '#fbbf24'; bg = 'rgba(251,191,36,0.15)'; }   // 金 (前 10)
+                    else if (rk <= 25)  { color = '#10b981'; bg = 'rgba(16,185,129,0.15)'; }   // 綠 (前 25)
+                    else if (rk <= 50)  { color = '#60a5fa'; bg = 'rgba(96,165,250,0.12)'; }   // 藍 (前 50)
+                    else if (rk <= 100) { color = '#a78bfa'; bg = 'rgba(167,139,250,0.12)'; }  // 紫 (前 100)
+                    else if (rk <= 200) { color = '#f472b6'; bg = 'rgba(244,114,182,0.12)'; }  // 粉 (前 200)
+                    return `<td style="padding:0.5rem 0.6rem; text-align:center;"><span style="padding:0.2rem 0.5rem; border-radius:6px; background:${bg}; color:${color}; font-weight:700; font-size:0.85rem;">#${rk}</span></td>`;
+                };
                 const buildKD = (k, dv, cross) => {
                     if (k == null) return '<span class="kd-neu">-</span>';
                     const up = cross==='golden', dn = cross==='death';
@@ -7351,7 +7852,7 @@
                     const rowStyle = 'style="border-bottom:1px solid rgba(255,255,255,0.05);"';
                     if (!d || d._error) {
                         const errMsg = '❌ ' + (d?._error||'無數據').split('\n')[0];
-                        fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}<td colspan="16" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
+                        fundRowsHtml.push(`<tr id="arow-${rowId}" ${rowStyle}>${symTd}<td colspan="17" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
                         techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}<td colspan="10" style="color:#ef4444;font-size:0.82rem;padding:0.5rem;">${errMsg}</td></tr>`);
                         return;
                     }
@@ -7375,6 +7876,7 @@
                         tr(fmtp(d.rev_yoy)) + tr(fmtp(d.rev_fwd)) +
                         tr(fmtp(d.gross_margin)) + tr(fmtp(d.operating_margin)) +
                         tr(fmt(d.eps_cur_q)) + tr(fmt(d.eps_next_q)) + tr(fmt(d.eps_ttm)) + tr(fmt(d.eps_cur_y)) + tr(fmt(d.eps_next_y)) +
+                        rankCell(r.query) +
                         '</tr>');
                     techRowsHtml.push(`<tr id="trow-${rowId}" ${rowStyle}>${symTd}` +
                         // 綜合評價搬到代碼後第 2 欄
@@ -7403,7 +7905,7 @@
                 // ── 技術面過期 → 只重抓 KD/MACD/RSI + prevClose ──
                 // 有舊資料時跳過 loading rows，背景刷新（前台維持顯示舊資料）
                 if (!silent && !_hasAnyCachedData) {
-                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 16, '⏳ 更新技術面...')).join('');
+                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 17, '⏳ 更新技術面...')).join('');
                     techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 更新技術面...')).join('').replace(/arow-/g, 'trow-');
                 } else if (!silent && _hasAnyCachedData) {
                     if (btn) btn.textContent = '背景刷新中（技術面）...';
@@ -7494,7 +7996,7 @@
                 // ── 基本面（或全部）過期 → 完整重抓 ──
                 // 有舊資料時跳過 loading rows，背景刷新（前台維持顯示舊資料）
                 if (!silent && !_hasAnyCachedData) {
-                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 16, '⏳ 查詢中...')).join('');
+                    fundTbody.innerHTML = rows.map(r => loadingRow(r, 17, '⏳ 查詢中...')).join('');
                     techTbody.innerHTML = rows.map(r => loadingRow(r, 10, '⏳ 查詢中...')).join('').replace(/arow-/g, 'trow-');
                 } else if (!silent && _hasAnyCachedData) {
                     if (btn) btn.textContent = '背景刷新中...';
@@ -7910,7 +8412,7 @@
                 const msg = (e && e.message) ? e.message : String(e || '未知錯誤');
                 const safeMsg = msg.replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
                 if (fundTbody) {
-                    fundTbody.innerHTML = `<tr><td colspan="17" style="text-align:center; padding:2rem; color:#ef4444;">❌ 基本面載入失敗：${safeMsg}</td></tr>`;
+                    fundTbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding:2rem; color:#ef4444;">❌ 基本面載入失敗：${safeMsg}</td></tr>`;
                 }
                 if (techTbody) {
                     techTbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:2rem; color:#ef4444;">❌ 技術面載入失敗：${safeMsg}</td></tr>`;
@@ -7972,6 +8474,8 @@
                     if (data.rates && data.rates['TWD'] && data.rates['HKD']) {
                         exchangeRates.USD_TWD = parseFloat(data.rates['TWD'].toFixed(4));
                         exchangeRates.HKD_TWD = parseFloat((data.rates['TWD'] / data.rates['HKD']).toFixed(4));
+                        if (data.rates['JPY']) exchangeRates.JPY_TWD = parseFloat((data.rates['TWD'] / data.rates['JPY']).toFixed(4));
+                        if (data.rates['CNY']) exchangeRates.CNY_TWD = parseFloat((data.rates['TWD'] / data.rates['CNY']).toFixed(4));
                         syncRateInputs();
                         const rateEl = document.getElementById('rate-source');
                         if (rateEl) rateEl.textContent = '✓ 即時匯率（' + new Date().toLocaleTimeString('zh-TW') + '）';
@@ -9614,9 +10118,11 @@
                 const ext = q.extended;
                 const extPrice = Number(ext?.price);
                 if (ext && isFinite(extPrice) && extPrice > 0) {
+                    // 統一過夜時段標籤：Futu 回傳 '夜盤' 改顯示 '24H'，與其他來源一致
+                    const _normLabel = ext.label === '夜盤' ? '24H' : (ext.label || '盤前/盤後');
                     window._extendedQuoteActive[sym] = true;
                     window._extendedQuoteMeta[sym] = {
-                        label: ext.label || '盤前/盤後',
+                        label: _normLabel,
                         phase: ext.phase || 'extended',
                         price: extPrice,
                         changePoints: ext.changePoints ?? null,
@@ -10384,9 +10890,16 @@
             const futuPrices = {};  // Futu/Moomoo quotes are preferred over Yahoo fallback.
             const usExtendedSession = _usExtendedSessionNow();
             const usExtendedNow = usExtendedSession.active;
-            if (!usExtendedNow) {
+            // ⚠️ 不再無條件清空 _extendedQuoteActive/Meta — 之前清空後，本次 yfFetch 失敗的 symbol
+            //    extendedQuote 會消失，下次 yfFetch 成功又出現 → 造成 24H 損益累計總額在不同 symbol
+            //    集合間跳動。改為：regular market 期間才清（那時不該有 ext 報價）；其他時段保留舊值
+            //    讓新 fetch 的資料覆蓋既有 entry，失敗的 symbol 沿用上次值，避免閃爍。
+            if (typeof _isUsRegularMarketNow === 'function' && _isUsRegularMarketNow()) {
                 window._extendedQuoteActive = {};
                 window._extendedQuoteMeta = {};
+            } else {
+                if (!window._extendedQuoteActive) window._extendedQuoteActive = {};
+                if (!window._extendedQuoteMeta) window._extendedQuoteMeta = {};
             }
 
             // ── 優先：data/prices.json（GitHub Actions 定時更新，同域無 CORS）──
@@ -10419,11 +10932,15 @@
                     if (rd?.rates?.TWD && rd?.rates?.HKD) {
                         mergedRates.USD_TWD = parseFloat(rd.rates.TWD.toFixed(4));
                         mergedRates.HKD_TWD = parseFloat((rd.rates.TWD / rd.rates.HKD).toFixed(4));
+                        if (rd.rates.JPY) mergedRates.JPY_TWD = parseFloat((rd.rates.TWD / rd.rates.JPY).toFixed(4));
+                        if (rd.rates.CNY) mergedRates.CNY_TWD = parseFloat((rd.rates.TWD / rd.rates.CNY).toFixed(4));
                     }
                 } catch(_) {}
             }
             if (mergedRates.USD_TWD) exchangeRates.USD_TWD = mergedRates.USD_TWD;
             if (mergedRates.HKD_TWD) exchangeRates.HKD_TWD = mergedRates.HKD_TWD;
+            if (mergedRates.JPY_TWD) exchangeRates.JPY_TWD = mergedRates.JPY_TWD;
+            if (mergedRates.CNY_TWD) exchangeRates.CNY_TWD = mergedRates.CNY_TWD;
             syncRateInputs();
 
             // ── proxy ETF 即時價快取覆寫 ──
@@ -10528,7 +11045,9 @@
                         // 需另抓 1m includePrePost。即使 NY 過夜（usExtendedNow=false）也跑 — 拿最近一根分鐘 K
                         // 當「最新延長盤價」（通常是昨日 post-market 最後一筆，例 NY 19:59 ET），讓使用者看到夜盤後的最後價而非「—」。
                         // 這個 fallback 在 Futu OpenD 未啟動時尤其重要。
-                        if (_isUsStockSymbol(_ph.symbol)) {
+                        // ⚠️ regular market 期間（NY 09:30-16:00）skip：regularMarketPrice 已即時，
+                        //    再跑這段會誤把現價標成「夜盤」標籤。
+                        if (_isUsStockSymbol(_ph.symbol) && !_isUsRegularMarketNow()) {
                             try {
                                 const _id = await yfFetch(
                                     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(_ph.symbol)}?interval=1m&range=1d&includePrePost=true`
@@ -10565,7 +11084,7 @@
                                         : null;
                                     if (!_hasPreferredPrice) prices[_ph.symbol] = _iq.price;
                                     // label：當前在 pre/post 用 session.label；NY 過夜（usExtendedNow=false）時用「夜盤」
-                                    const _phaseLabel = usExtendedSession.label || '夜盤';
+                                    const _phaseLabel = usExtendedSession.label || '24H';
                                     const _phaseKey   = usExtendedSession.phase || 'overnight';
                                     if (!window._proxyIntradayCache) window._proxyIntradayCache = {};
                                     window._proxyIntradayCache[_ph.symbol] = {

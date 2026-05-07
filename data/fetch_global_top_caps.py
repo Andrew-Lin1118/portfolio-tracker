@@ -17,7 +17,7 @@ import yfinance as yf
 
 ROOT = Path(__file__).resolve().parent
 OUT_PATH = ROOT / "global_top_caps.json"
-TARGET_TOP_N = 30
+TARGET_TOP_N = 250
 
 # 中文名稱對照（手動維護）— 給前端顯示用
 NAME_ZH = {
@@ -44,7 +44,8 @@ NAME_ZH = {
     # ── US 通訊 ──
     "T": "AT&T", "VZ": "威訊", "TMUS": "T-Mobile", "NEE": "新世紀能源",
     # ── 亞洲 ──
-    "TSM": "台積電", "005930.KS": "三星電子", "0700.HK": "騰訊",
+    "TSM": "台積電", "005930.KS": "三星電子", "000660.KS": "SK 海力士",
+    "SNDK": "SanDisk", "0700.HK": "騰訊",
     "9988.HK": "阿里巴巴", "BABA": "阿里巴巴 ADR", "0941.HK": "中國移動",
     "1299.HK": "友邦保險 AIA", "TM": "豐田", "BHP": "必和必拓",
     "BYDDF": "比亞迪", "1810.HK": "小米",
@@ -53,6 +54,57 @@ NAME_ZH = {
     "SAP": "SAP", "MC.PA": "LVMH", "SHEL": "殼牌", "BP": "BP", "AZN": "阿斯利康",
     # ── 中東 ──
     "2222.SR": "沙烏地阿美",
+    # ── 用戶持倉 proxy 對應原型 + 中型科技 ──
+    "PLTR": "Palantir", "WDC": "西數", "STX": "希捷", "COHR": "Coherent",
+    "LITE": "Lumentum", "NBIS": "Nebius", "ASTS": "AST SpaceMobile",
+    "AAOI": "AOI", "AXTI": "AXT",
+    # ── S&P 500 大中型補充 ──
+    "INTU": "Intuit", "ISRG": "直覺手術", "ANET": "Arista", "DDOG": "Datadog",
+    "FTNT": "Fortinet", "PYPL": "PayPal", "EA": "EA", "MRVL": "Marvell",
+    "NXPI": "恩智浦", "MCHP": "Microchip", "MPWR": "MPS", "GFS": "格芯",
+    "ON": "安森美", "DELL": "戴爾", "HPQ": "惠普", "HPE": "慧與",
+    "SMCI": "美超微", "SNPS": "Synopsys", "CDNS": "Cadence", "ADSK": "Autodesk",
+    "WDAY": "Workday", "ZS": "Zscaler", "CRWD": "CrowdStrike",
+    "TEAM": "Atlassian", "MDB": "MongoDB", "SNOW": "Snowflake",
+    "DELL": "戴爾", "MSI": "摩托羅拉", "EQIX": "Equinix",
+    "REGN": "Regeneron", "VRTX": "Vertex", "GILD": "吉利德",
+    "CI": "Cigna", "ELV": "Elevance",
+    "SCHW": "嘉信", "SPGI": "S&P Global", "ICE": "ICE", "MCO": "穆迪",
+    "PGR": "Progressive", "TFC": "Truist", "PNC": "PNC",
+    "DE": "強鹿", "EMR": "艾默生", "ETN": "Eaton", "ITW": "ITW",
+    "LMT": "洛馬", "NOC": "諾格", "GD": "General Dynamics",
+    "UNP": "UPRR", "CSX": "CSX", "NSC": "諾福克南方",
+    "FDX": "FedEx", "UPS": "UPS",
+    "TGT": "Target", "LOW": "勞氏", "TJX": "TJX",
+    "BKNG": "Booking", "ABNB": "Airbnb", "UBER": "Uber",
+    "SBUX": "星巴克", "CMG": "Chipotle",
+    "MDLZ": "億滋", "MO": "奧馳亞", "PM": "菲莫",
+    "CL": "高露潔", "KMB": "金佰利", "EL": "雅詩蘭黛",
+    "F": "福特", "GM": "通用",
+    "PSX": "菲利普66", "VLO": "Valero", "MPC": "馬拉松",
+    "OXY": "西方石油", "EOG": "EOG",
+    # 加密相關
+    "COIN": "Coinbase", "MSTR": "Strategy", "RIOT": "Riot",
+    # ── 國際大中型 ──
+    "6758.T": "Sony", "9984.T": "軟銀", "8035.T": "東京威力",
+    "4063.T": "信越化學", "6594.T": "日本電產", "6861.T": "基恩斯",
+    "6981.T": "村田製作", "7203.T": "豐田", "8058.T": "三菱商事",
+    "8031.T": "三井物產", "9432.T": "NTT", "8306.T": "三菱UFJ",
+    "005380.KS": "現代汽車", "035420.KS": "Naver", "035720.KS": "Kakao",
+    "207940.KS": "三星生物", "051910.KS": "LG化學", "006400.KS": "三星SDI",
+    "3690.HK": "美團", "1024.HK": "快手", "9618.HK": "京東",
+    "9999.HK": "網易", "0005.HK": "匯豐", "0939.HK": "建設銀行",
+    "1398.HK": "工商銀行", "3988.HK": "中國銀行", "0388.HK": "港交所",
+    "0857.HK": "中國石油", "0386.HK": "中石化",
+    "RELIANCE.NS": "Reliance", "TCS.NS": "TCS", "HDFCBANK.NS": "HDFC Bank",
+    "INFY": "Infosys", "ICICIBANK.NS": "ICICI",
+    "SIE.DE": "西門子", "VOW.DE": "福斯", "DTE.DE": "德國電信",
+    "LIN": "林德", "HSBC": "匯豐 ADR", "UL": "聯合利華",
+    "TTE": "TotalEnergies", "SAN": "桑坦德", "BBVA": "BBVA",
+    "AIR.PA": "空中巴士", "OR.PA": "萊雅",
+    "ENB.TO": "Enbridge", "CNQ.TO": "加拿大自然資源",
+    "RY.TO": "皇家銀行", "TD.TO": "TD銀行",
+    "VALE": "淡水河谷",
 }
 
 
@@ -75,6 +127,8 @@ CANDIDATES = [
     # ── 亞洲 ──
     "TSM",          # 台積電 ADR
     "005930.KS",    # 三星電子
+    "000660.KS",    # SK 海力士（HBM/DRAM）
+    "SNDK",         # SanDisk（2025 從 WDC 分拆）
     "0700.HK",      # 騰訊
     "9988.HK",      # 阿里巴巴 港股
     "BABA",         # 阿里巴巴 ADR
@@ -97,6 +151,38 @@ CANDIDATES = [
     "TM",           # Toyota
     # ── 中東 ──
     "2222.SR",      # Saudi Aramco（yfinance 支援度待驗）
+    # ── 用戶持倉 proxy 對應原型 ──
+    "PLTR", "WDC", "STX", "COHR", "LITE", "NBIS", "ASTS", "AAOI", "AXTI",
+    # ── US S&P 500 大中型擴充 ──
+    "INTU", "ISRG", "ANET", "DDOG", "FTNT", "PYPL", "EA", "MRVL",
+    "NXPI", "MCHP", "MPWR", "GFS", "ON", "DELL", "HPQ", "HPE",
+    "SMCI", "SNPS", "CDNS", "ADSK", "WDAY", "ZS", "CRWD",
+    "TEAM", "MDB", "SNOW", "MSI", "EQIX",
+    "REGN", "VRTX", "GILD", "CI", "ELV",
+    "SCHW", "SPGI", "ICE", "MCO", "PGR", "TFC", "PNC",
+    "DE", "EMR", "ETN", "ITW", "LMT", "NOC", "GD",
+    "UNP", "CSX", "NSC", "FDX", "UPS",
+    "TGT", "LOW", "TJX", "BKNG", "ABNB", "UBER", "CMG",
+    "MDLZ", "MO", "PM", "CL", "KMB", "EL",
+    "F", "GM", "PSX", "VLO", "MPC", "OXY", "EOG",
+    "COIN", "MSTR", "RIOT",
+    # ── 日本 ──
+    "6758.T", "9984.T", "8035.T", "4063.T", "6594.T", "6861.T", "6981.T",
+    "7203.T", "8058.T", "8031.T", "9432.T", "8306.T",
+    # ── 韓國 ──
+    "005380.KS", "035420.KS", "035720.KS", "207940.KS", "051910.KS", "006400.KS",
+    # ── 香港 / 中國 ──
+    "3690.HK", "1024.HK", "9618.HK", "9999.HK", "0005.HK", "0939.HK",
+    "1398.HK", "3988.HK", "0388.HK", "0857.HK", "0386.HK",
+    # ── 印度 ──
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY", "ICICIBANK.NS",
+    # ── 歐洲 ──
+    "SIE.DE", "VOW.DE", "DTE.DE", "LIN", "HSBC", "UL",
+    "TTE", "SAN", "BBVA", "AIR.PA", "OR.PA",
+    # ── 加拿大 ──
+    "ENB.TO", "CNQ.TO", "RY.TO", "TD.TO",
+    # ── 巴西 ──
+    "VALE",
 ]
 
 

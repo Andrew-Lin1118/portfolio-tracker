@@ -424,19 +424,32 @@ def fetch_one(symbol, fund):
         if not qtrs:
             return None
 
-        # earnings_history 對齊（取 EPS estimate）
+        # earnings_history 對齊（取 EPS estimate / actual）
+        # ⚠️ 改變策略：優先採用 earnings_history.eps_actual（per-quarter 真實值，較可靠）
+        #    yfinance 的 quarterly_income_stmt Diluted EPS 對某些公司（WDC/SNDK/LITE）會回傳
+        #    累計值（TTM / YTD）或重複前季數值 → 跟 estimate 一比 surprise 誇張或前後重複
+        #    income_stmt 的值僅當 earnings_history 沒對到該季時才當 fallback
         eh = (fund or {}).get('earnings_history') or []
         for q in qtrs:
             for e in eh:
                 if e.get('report_date') and e['report_date'].startswith(q['period'][:7]):
                     q['published_date'] = e.get('report_date')
                     q['eps_estimate'] = _safe_float(e.get('eps_estimate'))
-                    if q.get('eps_actual') is None:
-                        q['eps_actual'] = _safe_float(e.get('eps_actual'))
+                    eh_actual = _safe_float(e.get('eps_actual'))
+                    # 優先採信 earnings_history 的 eps_actual
+                    if eh_actual is not None:
+                        q['eps_actual'] = eh_actual
                     q['surprise_pct'] = _safe_float(e.get('surprise_pct'))
                     break
             if not q.get('published_date'):
                 q['published_date'] = _infer_published_date_for_quarter(q.get('period'), eh)
+        # 第二道防線：相鄰兩季 EPS 完全一樣（重複行）= yfinance 抓重複，後者標 None
+        for i in range(1, len(qtrs)):
+            ea_prev = qtrs[i-1].get('eps_actual')
+            ea_curr = qtrs[i].get('eps_actual')
+            if ea_prev is not None and ea_curr is not None and abs(ea_prev - ea_curr) < 1e-6:
+                qtrs[i]['eps_actual'] = None
+                qtrs[i]['surprise_pct'] = None
 
         # yfinance sometimes exposes an earnings-date-only quarter before the full
         # income statement is available (TSM can show EPS without revenue/margins).

@@ -1619,7 +1619,16 @@
                     !_isMarketOpenedToday(h) ||
                     (_mkt != null && _mkt.hasOwnProperty(h.symbol) && _mkt[h.symbol] === false)
                 );
+                // ── per-symbol day PnL TTL 快取（僅當本次抓不到 prevClose 時 fallback 用）──
+                // 注意：v147 曾加「prevClose 突變抓快取」邏輯，但會在 v152 修正 prevClose 時抱著舊錯值不放 →
+                //   已移除該守門，新計算永遠覆蓋；只保留「本次完全沒值」時的 fallback。
+                if (!window._dayPnlSymbolCache) window._dayPnlSymbolCache = {};
+                const _dpCache = window._dayPnlSymbolCache;
+                const _dpTtl = 90 * 1000;
+                const _dpNow = Date.now();
                 let dayChangePoints = null, dayChangePct = null, dayPnlUSD = null, dayPnlTWD = null;
+                const _dpCached = _dpCache[h.symbol];
+                const _dpCanUseCache = _dpCached && (_dpNow - _dpCached.ts) < _dpTtl;
                 if (!marketNotOpened && prevClose != null && prevClose > 0) {
                     dayChangePoints = h.currentPrice - prevClose;
                     dayChangePct = (dayChangePoints / prevClose) * 100;
@@ -1634,6 +1643,16 @@
                         dayPnlUSD = dayPnlNative;
                         dayPnlTWD = dayPnlNative * exchangeRates.USD_TWD;
                     }
+                    _dpCache[h.symbol] = { dayChangePoints, dayChangePct, dayPnlUSD, dayPnlTWD, ts: _dpNow };
+                    totalDayPnLUSD += dayPnlUSD;
+                    totalDayPnLTWD += dayPnlTWD;
+                    hasDayPnL = true;
+                } else if (_dpCanUseCache) {
+                    // 本次完全抓不到 prevClose → 沿用 90s 內的舊值，避免該 symbol 從 sum 消失造成跳動
+                    dayChangePoints = _dpCached.dayChangePoints;
+                    dayChangePct = _dpCached.dayChangePct;
+                    dayPnlUSD = _dpCached.dayPnlUSD;
+                    dayPnlTWD = _dpCached.dayPnlTWD;
                     totalDayPnLUSD += dayPnlUSD;
                     totalDayPnLTWD += dayPnlTWD;
                     hasDayPnL = true;
@@ -1651,7 +1670,25 @@
                 }
 
                 // ── 盤前 / 盤後損益累加（依 extendedQuote.changePoints × 持有股數 換成 USD/TWD） ──
-                if (extendedQuote && Number.isFinite(Number(extendedQuote.changePoints))) {
+                // 用 90s TTL 快取 per-symbol extPnL，避免價格 tick 造成 24H 總額在不同 render 間跳動
+                if (!window._extPnlSymbolCache) window._extPnlSymbolCache = {};
+                const _epCache = window._extPnlSymbolCache;
+                const _epTtl = 90 * 1000;
+                const _epNow = Date.now();
+                const _useCachedEp = _epCache[h.symbol]
+                    && (_epNow - _epCache[h.symbol].ts) < _epTtl
+                    && (!extendedQuote || !Number.isFinite(Number(extendedQuote.changePoints)));
+                if (_useCachedEp) {
+                    // 本次沒有有效 extendedQuote → 沿用最近 90s 內計算過的值，避免漏入 sum
+                    const cached = _epCache[h.symbol];
+                    if (!extendedQuote) extendedQuote = { label: cached.label || '24H' };
+                    extendedQuote.pnlUSD = cached.pnlUSD;
+                    extendedQuote.pnlTWD = cached.pnlTWD;
+                    totalExtPnLUSD += cached.pnlUSD;
+                    totalExtPnLTWD += cached.pnlTWD;
+                    hasExtPnL = true;
+                    if (!extLabel && cached.label) extLabel = cached.label;
+                } else if (extendedQuote && Number.isFinite(Number(extendedQuote.changePoints))) {
                     const extPts = Number(extendedQuote.changePoints);
                     let extPnlUSD, extPnlTWD;
                     const extPnlNative = extPts * h.quantity;
@@ -1671,6 +1708,8 @@
                     totalExtPnLTWD += extPnlTWD;
                     hasExtPnL = true;
                     if (!extLabel && extendedQuote.label) extLabel = extendedQuote.label;
+                    // 寫快取 — 下次 fetch 失敗時可沿用
+                    _epCache[h.symbol] = { pnlUSD: extPnlUSD, pnlTWD: extPnlTWD, label: extendedQuote.label, ts: _epNow };
                 }
 
                 return { ...h, costTotalUSD: costUSD, valueTotalUSD: valueUSD,
@@ -2747,13 +2786,17 @@
             };
             // 損益卡 breakdown 統一樣式：emoji + 類別色標籤 + 紅綠金額（與總資產卡同款）
             // 依當前 currency 顯示對應幣別金額（TWD 模式秀台幣、USD 模式秀美金）
-            const _pnlRow = (icon, label, labelColor, twd) => {
+            // pct 為 null 不顯示百分比；有值就附上紅綠括號
+            const _pnlRow = (icon, label, labelColor, twd, pct) => {
                 const amtCol = twd >= 0 ? '#10b981' : '#ef4444';
                 const _fxR = exchangeRates.USD_TWD || 31.5;
                 const val = currency === 'USD' ? (_fxR > 0 ? twd / _fxR : 0) : twd;
+                const pctHtml = (pct != null && isFinite(pct))
+                    ? ` <span style="color:${amtCol};">(${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</span>`
+                    : '';
                 return '<div style="display:flex;align-items:baseline;gap:0.35rem;white-space:nowrap;line-height:1.6;">'
                     + '<span style="color:' + labelColor + ';font-weight:700;">' + icon + ' ' + label + '</span>'
-                    + '<span class="mono" style="color:' + amtCol + ';">' + _compactPnl(val, currency) + '</span>'
+                    + '<span class="mono" style="color:' + amtCol + ';">' + _compactPnl(val, currency) + pctHtml + '</span>'
                     + '</div>';
             };
 
@@ -2771,10 +2814,17 @@
                 const pct = prevVal > 0 ? (stats.totalPrevDayPnLUSD / prevVal * 100).toFixed(2) : null;
                 const pctStr = pct != null ? ' (' + (pos?'+':'') + pct + '%)' : '';
                 // breakdown：僅在有期貨資料時顯示（目前期貨昨日=0 時略過）
+                // 股票 % = 昨日股票 PnL / 昨日股票市值
+                const _stockBaseUSD = stats.totalValue - stats.totalDayPnLUSD - stats.totalPrevDayPnLUSD;
+                const _stockPctPrev = _stockBaseUSD > 0
+                    ? (stats.totalPrevDayPnLUSD / _stockBaseUSD * 100) : null;
+                const _futEquityTWD = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+                const _futBaseTWD = _futEquityTWD - _futPrevTWD - _futTodayTWD;
+                const _futPctPrev = _futBaseTWD > 0 ? (_futPrevTWD / _futBaseTWD * 100) : null;
                 const bdRows = [];
                 if (_futPrevTWD !== 0) {
-                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalPrevDayPnLTWD));
-                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futPrevTWD));
+                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalPrevDayPnLTWD, _stockPctPrev));
+                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futPrevTWD, _futPctPrev));
                 }
                 const bd = bdRows.join('');
                 return '<div class="stat-card" style="border:1px solid rgba(148,163,184,0.2);">'
@@ -2802,19 +2852,33 @@
                 const prevVal = stats.totalValue - stats.totalDayPnLUSD;
                 const pct = prevVal > 0 ? (stats.totalDayPnLUSD / prevVal * 100).toFixed(2) : null;
                 const pctStr = pct != null ? ' (' + (pos?'+':'') + pct + '%)' : '';
+                // 股票 % = 今日股票 PnL / 今日起始股票市值
+                const _stockBaseTodayUSD = stats.totalValue - stats.totalDayPnLUSD;
+                const _stockPctToday = _stockBaseTodayUSD > 0
+                    ? (stats.totalDayPnLUSD / _stockBaseTodayUSD * 100) : null;
+                const _futEquityTWD2 = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+                const _futBaseTodayTWD = _futEquityTWD2 - _futTodayTWD;
+                const _futPctToday = _futBaseTodayTWD > 0 ? (_futTodayTWD / _futBaseTodayTWD * 100) : null;
                 const bdRows = [];
                 if (_futTodayTWD !== 0) {
-                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalDayPnLTWD));
-                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futTodayTWD));
+                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalDayPnLTWD, _stockPctToday));
+                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futTodayTWD, _futPctToday));
                 }
                 const bd = bdRows.join('');
                 // ── 盤前 / 盤後 損益備註（白色字、跟今日漲跌欄盤前同款 #e2e8f0 樣式）──
+                // 加百分比（基數 = 今日 PnL 之外的市值，與主卡 % 同口徑）
                 let extNoteHtml = '';
                 if (stats.hasExtPnL) {
                     const extD     = currency === 'USD' ? stats.totalExtPnLUSD : stats.totalExtPnLTWD;
                     const extLabel = stats.extLabel || '盤前/盤後';
+                    // % 計算：盤前損益 / 持倉成本基準（用 totalValue - totalDayPnL 做分母，等同主卡）
+                    const _basisUSD = stats.totalValue - stats.totalDayPnLUSD;
+                    const extPct = _basisUSD > 0 ? (stats.totalExtPnLUSD / _basisUSD * 100) : null;
+                    const extPctStr = extPct != null
+                        ? ' (' + (extPct >= 0 ? '+' : '') + extPct.toFixed(2) + '%)'
+                        : '';
                     extNoteHtml = '<div style="margin-top:0.35rem;color:#e2e8f0;font-size:0.75rem;font-weight:700;">'
-                                + extLabel + ' ' + fmtPnl(extD, currency)
+                                + extLabel + ' ' + fmtPnl(extD, currency) + extPctStr
                                 + '</div>';
                 }
                 return '<div class="stat-card" style="border:1px solid rgba(251,191,36,0.25);">'
@@ -2845,10 +2909,17 @@
                 const pctStr = stats.totalPnLPercent != null
                     ? '(' + (stats.totalPnL>=0?'+':'') + stats.totalPnLPercent.toFixed(2) + '%)'
                     : '';
+                // 股票 % = 股票總 PnL / 股票總成本（同主卡 totalPnLPercent）
+                // 期貨 % = 未實現 PnL / (期貨權益 - 未實現 PnL)（粗估）
+                const _stockPctTotal = (stats.totalPnLPercent != null && isFinite(stats.totalPnLPercent))
+                    ? stats.totalPnLPercent : null;
+                const _futEquityTWD3 = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
+                const _futBaseTotalTWD = _futEquityTWD3 - _futUnrealTWD;
+                const _futPctTotal = _futBaseTotalTWD > 0 ? (_futUnrealTWD / _futBaseTotalTWD * 100) : null;
                 const bdRows = [];
                 if (_futUnrealTWD !== 0) {
-                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalPnLTWD));
-                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futUnrealTWD));
+                    bdRows.push(_pnlRow('📊', '股票', '#3b82f6', stats.totalPnLTWD, _stockPctTotal));
+                    bdRows.push(_pnlRow('📈', '期貨', '#a855f7', _futUnrealTWD, _futPctTotal));
                 }
                 const bd = bdRows.join('');
                 return '<div class="stat-card">'
@@ -7110,8 +7181,8 @@
             'AXTX':    ['AXT Inc',    'AXTI', 'AXT'],
             'STXX':    ['Seagate',    'Seagate Technology', 'STX'],
             'USD':     ['Semiconductor ETF', 'SOXX', 'PHLX'],   // 半導體 ETF
-            '7709.HK': ['SK Hynix',   'Hynix',  '000660'],
-            '9747.HK': ['Samsung Electronics', 'Samsung', '005930'],
+            '7709.HK': ['SK Hynix',   'Hynix',  '000660', '海力士', 'SK海力士', 'SK 海力士'],
+            '9747.HK': ['Samsung Electronics', 'Samsung', '005930', '三星電子', '三星'],
 
             // ── 原型股 / 一般股（搜尋用公司英文名，避免 fallback 只用 ticker 過濾掉多數新聞）──
             'NVDA':    ['NVIDIA',     'Nvidia',           'NVDA'],
@@ -7135,8 +7206,8 @@
             'SOXX':    ['Semiconductor ETF', 'SOXX',      'PHLX'],
             'STX':     ['Seagate',    'STX'],
             'BTC-USD': ['Bitcoin',    'BTC',  'crypto'],
-            '000660.KS': ['SK Hynix', 'Hynix',  '000660'],
-            '005930.KS': ['Samsung Electronics', 'Samsung', '005930'],
+            '000660.KS': ['SK Hynix', 'Hynix',  '000660', '海力士', 'SK海力士', 'SK 海力士'],
+            '005930.KS': ['Samsung Electronics', 'Samsung', '005930', '三星電子', '三星'],
         };
 
         // 取得用於新聞搜尋與過濾的關鍵字陣列；非槓桿 ETF 直接用 symbol
@@ -10109,10 +10180,20 @@
                     if (futuPrices) futuPrices[sym] = last;
                     applied++;
                 }
+                // Futu 是最即時的「prev_close」追蹤源 — 它知道目前市場 session 的真正昨收：
+                //   - NY 5/7 在 session：Futu prev_close = 5/6 close（正確）
+                //   - NY 5/7 收盤後：Futu prev_close = 5/7 close（變成新的 prev）
+                // 因此 Futu 的 prev_close 永遠是「相對當下市場 session 的正確昨收」，要採信。
+                // prices.json 是 GH Actions 每小時生成，會 lag 一個 session（例如 5/7 NY 開盤後仍是 5/6 視角）。
+                // → 採用 Futu 為主，prices.json 為 fallback。
                 const prev = Number(q.prev_close_price);
-                if (isFinite(prev) && prev > 0) window._prevCloseCache[sym] = prev;
+                if (isFinite(prev) && prev > 0) {
+                    window._prevCloseCache[sym] = prev;
+                }
                 const prevPrev = Number(q.prev_prev_close_price);
-                if (isFinite(prevPrev) && prevPrev > 0) window._prevPrevCloseCache[sym] = prevPrev;
+                if (isFinite(prevPrev) && prevPrev > 0) {
+                    window._prevPrevCloseCache[sym] = prevPrev;
+                }
                 window._marketOpenedToday[sym] = true;
 
                 const ext = q.extended;
@@ -10139,18 +10220,46 @@
             if (!window._prevCloseCache) window._prevCloseCache = {};
             if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
             const wanted = symbols ? new Set(symbols) : null;
+            // ── Session-aware shift 邏輯 ─────────────────────────
+            // prices.json 是定期 snapshot：
+            //   .prices[sym]       = 當下抓到的價格（snapshot 那刻的最新價，可能是即時或盤後）
+            //   .prev_closes[sym]  = 該 snapshot 對應的「上一個交易日收盤」
+            //   .prev_prev_closes  = 再上一個交易日收盤
+            // 若 NY 已開新一天 session（Futu prev_close 跟 prices.json.price 一致 → 表示舊 snapshot 的 price
+            //   已變成「真實昨收」），則 shift 一天：prices.json.price → prevClose, prev_closes → prevPrevClose
+            // 否則維持原樣（pre-session / pre-shift）
+            const _doShift = (sym) => {
+                const futuPrev = Number(window._prevCloseCache[sym]);
+                const pjPrice  = Number(pj.prices?.[sym]);
+                if (futuPrev > 0 && pjPrice > 0) {
+                    return Math.abs(futuPrev - pjPrice) / pjPrice < 0.005;   // 0.5% tolerance
+                }
+                return false;
+            };
             Object.entries(pj.prev_closes || {}).forEach(([sym, val]) => {
                 if (wanted && !wanted.has(sym)) return;
                 const n = Number(val);
-                if (n > 0 && !(window._prevCloseCache[sym] > 0)) window._prevCloseCache[sym] = n;
+                if (!(n > 0)) return;
+                if (window._prevCloseCache[sym] > 0) {
+                    // Futu 已給 prevClose → 只填 prevPrevClose（用 prices.json 的 prev_close 作 prevPrev）
+                    if (_doShift(sym)) {
+                        // 已 shift：prices.json.prev_closes 變成 prevPrevClose
+                        if (!(window._prevPrevCloseCache[sym] > 0)) {
+                            window._prevPrevCloseCache[sym] = n;
+                        }
+                    }
+                } else {
+                    // Futu 沒給 → 直接用 prices.json 的 prev_close 當 prevClose
+                    window._prevCloseCache[sym] = n;
+                }
             });
             Object.entries(pj.prev_prev_closes || {}).forEach(([sym, val]) => {
                 if (wanted && !wanted.has(sym)) return;
                 const n = Number(val);
-                const pc = Number(window._prevCloseCache[sym]);
-                const ppc = Number(window._prevPrevCloseCache[sym]);
-                const staleOrBad = !(ppc > 0) || (pc > 0 && Math.abs(pc - ppc) < 0.0001 && Math.abs(pc - n) > 0.0001);
-                if (n > 0 && staleOrBad) window._prevPrevCloseCache[sym] = n;
+                if (!(n > 0)) return;
+                if (!(window._prevPrevCloseCache[sym] > 0)) {
+                    window._prevPrevCloseCache[sym] = n;
+                }
             });
         }
 
@@ -10925,6 +11034,27 @@
                 _applyFutuQuotes(futuData, prices, futuPrices);
             }
 
+            // ── post-Futu shift：Futu 沒給 prev_prev_close（None）時，用 prices.json 推導 ──
+            // 邏輯：若 Futu 的 prev_close ≈ prices.json.prices[sym] → 表示 prices.json 已 lag 一 session
+            //   → prices.json.prev_closes[sym] 就是「Futu prev 的前一天」= prevPrevClose
+            // 若 prev_close 跟 pj.price 不一樣（pj 跟得上 / Futu 沒給）→ 維持原 prevPrev
+            try {
+                const pj = window._priceJsonCache;
+                if (pj && pj.prices && pj.prev_closes) {
+                    holdings.forEach(h => {
+                        const sym = h.symbol;
+                        const futuPrev = Number(window._prevCloseCache?.[sym]);
+                        const pjPrice  = Number(pj.prices[sym]);
+                        const pjPrev   = Number(pj.prev_closes[sym]);
+                        if (futuPrev > 0 && pjPrice > 0 && pjPrev > 0
+                            && Math.abs(futuPrev - pjPrice) / pjPrice < 0.005) {
+                            // shift 條件成立 → prevPrev = pj.prev_closes（這是 Futu prev 的 prev）
+                            window._prevPrevCloseCache[sym] = pjPrev;
+                        }
+                    });
+                }
+            } catch(_) {}
+
             // ── 匯率更新 ──
             if (!mergedRates.USD_TWD) {
                 try {
@@ -11110,14 +11240,19 @@
                                 }
                             } catch(_) {}
                         }
-                        // 昨收 / 前日收：用 5d 日 K 判斷最新完成交易日，避免 prices.json 盤前快照造成「昨日=前日」。
+                        // 昨收 / 前日收：yfFetch 是 fallback，只在 Futu 沒給的情況下使用
+                        // （Futu 已寫入 → 跳過；避免 yfFetch 5d K 邊界誤判覆寫掉 Futu 的正確值）
                         if (_daily?.prevClose != null && _daily.prevClose > 0) {
                             if (!window._prevCloseCache) window._prevCloseCache = {};
-                            window._prevCloseCache[_ph.symbol] = _daily.prevClose;
+                            if (!(window._prevCloseCache[_ph.symbol] > 0)) {
+                                window._prevCloseCache[_ph.symbol] = _daily.prevClose;
+                            }
                         }
                         if (_daily?.prevPrevClose != null && _daily.prevPrevClose > 0) {
                             if (!window._prevPrevCloseCache) window._prevPrevCloseCache = {};
-                            window._prevPrevCloseCache[_ph.symbol] = _daily.prevPrevClose;
+                            if (!(window._prevPrevCloseCache[_ph.symbol] > 0)) {
+                                window._prevPrevCloseCache[_ph.symbol] = _daily.prevPrevClose;
+                            }
                         }
                         if (_daily) {
                             if (!window._marketOpenedToday) window._marketOpenedToday = {};
@@ -11331,27 +11466,38 @@
 
                 // ── Fallback: Yahoo Finance（無 token / 港台股 / Finnhub 失敗）──
                 // 用「公司英文名」搜尋，命中率比用 ticker 高；再用 keywords 過濾掉不相關新聞
+                // 韓國/港股 也用 ticker 多搜一輪（拿亞洲在地新聞）
                 if (!gotItems) {
-                    try {
-                        const data = await yfFetch(
-                            `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(searchQuery)}&newsCount=10&quotesCount=0`
-                        );
-                        for (const item of (data?.news || [])) {
-                            if ((item.providerPublishTime || 0) < sevenDaysAgo) continue;
-                            // 必須命中關鍵字（標題或摘要含任一）才保留
-                            if (!_newsMatchesKeywords(item, keywords)) {
-                                cntFiltered++;
-                                continue;
+                    const queries = [searchQuery];
+                    // 對 .KS / .HK 標的補一輪 ticker 搜尋
+                    if (sym && (sym.endsWith('.KS') || sym.endsWith('.HK')) && !queries.includes(sym)) {
+                        queries.push(sym);
+                    }
+                    const seenForThisSym = new Set();
+                    for (const q of queries) {
+                        try {
+                            const data = await yfFetch(
+                                `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&newsCount=10&quotesCount=0`
+                            );
+                            for (const item of (data?.news || [])) {
+                                if ((item.providerPublishTime || 0) < sevenDaysAgo) continue;
+                                const uid = item.uuid || item.title;
+                                if (uid && seenForThisSym.has(uid)) continue;
+                                if (!_newsMatchesKeywords(item, keywords)) {
+                                    cntFiltered++;
+                                    continue;
+                                }
+                                if (uid) seenForThisSym.add(uid);
+                                allNews.push({
+                                    ...item,
+                                    _querySymbol: sym,
+                                    _holdingSymbol: holdingSym,
+                                    _source: 'yahoo'
+                                });
+                                cntYahoo++;
                             }
-                            allNews.push({
-                                ...item,
-                                _querySymbol: sym,
-                                _holdingSymbol: holdingSym,
-                                _source: 'yahoo'
-                            });
-                            cntYahoo++;
-                        }
-                    } catch(e) {}
+                        } catch(e) {}
+                    }
                 }
 
                 if (i < uniqueHoldings.length - 1) await new Promise(r => setTimeout(r, fhToken ? 200 : 400));

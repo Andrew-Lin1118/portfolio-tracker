@@ -1979,8 +1979,9 @@ function initRowDrag(handleId, prevElId, minH=40) {
 // ─────────────────────────────────────────────────────────────────
 // Keyboard
 // ─────────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true; });
-document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; });
+document.addEventListener('keydown', e => { if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Meta') _shiftHeld = true; });
+document.addEventListener('keyup',   e => { if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Meta') _shiftHeld = false; });
+window.addEventListener('blur', () => { _shiftHeld = false; });
 
 // ─────────────────────────────────────────────────────────────────
 // Refresh

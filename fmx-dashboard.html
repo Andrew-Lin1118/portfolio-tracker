@@ -1055,13 +1055,15 @@ let autoRefreshTimer = null;
 let priceChartObj   = null;
 let leverageChartObj = null;
 // leverageHistory removed — now using RSI chart
-let _shiftHeld = false;   // Shift 鍵狀態：預設滾輪=X軸（改變K棒數量），Shift+滾輪=Y軸（微調價格）
+let _shiftHeld = false;   // 修飾鍵：Shift / Ctrl / Cmd 任一按下就是 Y 軸縮放（TradingView：Ctrl+wheel = Y zoom；保留 Shift 相容）
 let _pyrTriggerPx      = null;   // 加槓桿觸發價（快取，供即時更新百分比用）
 let _delTriggerPx      = null;   // 減槓桿觸發價（快取，供即時更新百分比用）
 let _pyramidTriggerLive = null;  // pyramid_trigger 從 state 同步（避免讀 DOM 預設值）
 let _maxLevLive         = null;  // max_leverage 從 state 同步
-document.addEventListener('keydown', e => { if (e.key === 'Shift') _shiftHeld = true; });
-document.addEventListener('keyup',   e => { if (e.key === 'Shift') _shiftHeld = false; });
+document.addEventListener('keydown', e => { if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Meta') _shiftHeld = true; });
+document.addEventListener('keyup',   e => { if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Meta') _shiftHeld = false; });
+// 視窗失焦時清掉修飾鍵狀態（避免 Cmd+Tab 後 Ctrl 卡住）
+window.addEventListener('blur', () => { _shiftHeld = false; });
 
 // ── TAIFEX 商品對照表 ──────────────────────────────────
 // fubon : 富邦 SDK 代碼 (下單用)

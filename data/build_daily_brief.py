@@ -25,7 +25,7 @@ import anthropic
 
 ROOT = Path(__file__).resolve().parent
 MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 12000
+MAX_TOKENS = 24000  # 12000 會在 45 holdings 時撞頂截斷 JSON（2026-05-22 事故）
 MAX_NEWS_PER_SYMBOL = 25  # 送 LLM 前每標的最多保留多少篇
 
 NEWS_RAW_PATH = ROOT / "news_raw.json"
@@ -232,52 +232,127 @@ def merge_urls_back(brief_json, id_to_url):
     return brief_json
 
 
-def main():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set", file=sys.stderr)
-        sys.exit(2)
-
-    news_raw = _load_json(NEWS_RAW_PATH)
-    mapping = _load_json(MAPPING_PATH)
-    earnings = _load_json(EARNINGS_PATH)
-    holdings = _load_json(HOLDINGS_PATH)
-
-    context_block = _build_context_block(mapping, holdings, earnings)
-    news_block, id_to_url = _build_news_block(news_raw)
-
-    print(f"[input] {len(holdings)} holdings, {len(id_to_url)} news items "
-          f"(capped {MAX_NEWS_PER_SYMBOL}/symbol)", flush=True)
-
-    raw_text, usage = call_claude(SYSTEM_PROMPT, context_block, news_block)
-    cleaned = _strip_json_fence(raw_text)
-
-    try:
-        brief = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        debug_path = ROOT / "daily_brief_raw_response.txt"
-        debug_path.write_text(raw_text, encoding="utf-8")
-        print(f"ERROR: failed to parse JSON: {e}", file=sys.stderr)
-        print(f"raw response saved to {debug_path}", file=sys.stderr)
-        sys.exit(3)
-
-    brief = merge_urls_back(brief, id_to_url)
-
-    today_brief = {
-        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "based_on_news_generated": news_raw.get("generated"),
-        "model": MODEL,
-        "usage": usage,
-        **brief,
-    }
-
-    # ── 7 天滾動歸檔（schema v2: { schema_version, latest_date, daily: { "YYYY-MM-DD": {...} } }）──
-    # 用 TW 時區（GH Actions 在 TW 7am 跑 = UTC 23:00 前一天）取「商業日」
+def _today_tw():
     try:
         from zoneinfo import ZoneInfo
-        today_tw = datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
+        return datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
     except Exception:
-        today_tw = datetime.utcnow().strftime("%Y-%m-%d")
+        return datetime.utcnow().strftime("%Y-%m-%d")
 
+
+def _clip_text(text, limit=90):
+    s = re.sub(r"\s+", " ", str(text or "")).strip()
+    return s if len(s) <= limit else s[: limit - 1].rstrip() + "…"
+
+
+def _headline_sentiment(title):
+    s = str(title or "").lower()
+    positive = (
+        "beat", "beats", "raise", "raises", "raised", "upgrade", "upgraded",
+        "higher", "jumps", "soars", "surges", "rally", "bullish", "strong",
+        "growth", "record", "profit", "outperform", "buy",
+    )
+    negative = (
+        "miss", "misses", "cut", "cuts", "downgrade", "downgraded", "lower",
+        "falls", "drops", "slips", "plunge", "bearish", "weak", "loss",
+        "lawsuit", "probe", "risk", "warning", "sell",
+    )
+    score = sum(1 for w in positive if w in s) - sum(1 for w in negative if w in s)
+    return "+" if score > 0 else "-" if score < 0 else "0"
+
+
+def _score_from_headlines(items):
+    score = 0
+    for it in (items or [])[:6]:
+        sent = _headline_sentiment(it.get("title"))
+        score += 1 if sent == "+" else -1 if sent == "-" else 0
+    return max(-2, min(2, score))
+
+
+def build_local_fallback_brief(news_raw, mapping, holdings):
+    """Build a deterministic brief when ANTHROPIC_API_KEY is unavailable."""
+    symbols_data = news_raw.get("symbols", {}) or {}
+    holdings = [str(s).strip().upper() for s in holdings if str(s).strip()]
+
+    by_symbol = {}
+    for sym in holdings:
+        items = list((symbols_data.get(sym, {}) or {}).get("news", []) or [])
+        score = _score_from_headlines(items)
+        headlines = []
+        for it in items[:3]:
+            title = it.get("title", "")
+            headlines.append({
+                "title": title,
+                "url": it.get("url", ""),
+                "publisher": it.get("publisher", ""),
+                "ts": it.get("ts", ""),
+                "summary": _clip_text(title, 80),
+                "sentiment": _headline_sentiment(title),
+            })
+        if items:
+            focus = "；".join(_clip_text(it.get("title", ""), 45) for it in items[:2])
+            summary = f"近 24 小時抓到 {len(items)} 則新聞，焦點為：{focus}。"
+        else:
+            summary = "近 24 小時未抓到明確新聞，先維持中性觀察。"
+        by_symbol[sym] = {
+            "headlines": headlines,
+            "theme_summary": summary,
+            "score": score,
+            "linked_warnings_used": ["local_fallback_no_anthropic_key"],
+        }
+
+    groups = {
+        "AI / 半導體鏈": [
+            "NVDA", "AMD", "TSM", "AVGO", "MU", "SNDK", "STX", "WDC",
+            "AAOI", "AXTI", "COHR", "LITE", "SOXX", "000660.KS", "005930.KS",
+            "USD", "MUU", "SNXX", "TSMX", "AMDL", "AVGX", "AAOX", "AXTX",
+            "COHX", "LITX", "STXX", "WDCX",
+        ],
+        "大型科技 / 雲端軟體": [
+            "META", "GOOG", "GOOGL", "ORCL", "PLTR", "NET", "CRWD", "AAPL",
+            "FBL", "GGLL", "ORCU", "PLTU",
+        ],
+        "加密與交易平台": ["BTC-USD", "ETH", "BTC.D", "MSTR", "COIN", "CRCL", "BMNR"],
+        "航太 / 國防 / 通訊": ["ASTS", "KTOS", "ONDS", "SMR", "GLW", "CIEN", "ASTX"],
+        "金屬與商品": ["SLV", "SLVX"],
+    }
+
+    global_themes = []
+    cross_signals = []
+    for theme, members in groups.items():
+        active = [s for s in members if (symbols_data.get(s, {}) or {}).get("news")]
+        if not active:
+            continue
+        total_news = sum(len((symbols_data.get(s, {}) or {}).get("news", []) or []) for s in active)
+        top = sorted(active, key=lambda s: len((symbols_data.get(s, {}) or {}).get("news", []) or []), reverse=True)[:5]
+        avg_score = sum(by_symbol.get(s, {}).get("score", 0) for s in top) / max(len(top), 1)
+        direction = "+" if avg_score > 0.25 else "-" if avg_score < -0.25 else "0"
+        severity = "high" if total_news >= 60 else "medium" if total_news >= 20 else "low"
+        global_themes.append(
+            f"{theme}：近 24 小時共 {total_news} 則相關新聞，主要集中在 {', '.join(top)}；此為本機 fallback 依新聞標題彙整。"
+        )
+        if len(top) >= 2:
+            cross_signals.append({
+                "theme": theme,
+                "tickers": top,
+                "severity": severity,
+                "direction": direction,
+                "note": f"{theme} 多檔同時有新聞流，建議搭配價格與持倉曝險確認是否需要調整風控。",
+            })
+
+    if not global_themes:
+        global_themes = ["近 24 小時新聞量偏低；本機 fallback 已建立今日簡報骨架，待 Claude/API 正常後可覆蓋為完整分析。"]
+
+    return {
+        "session_label": "本機 fallback：Google News 近 24h（未使用 Claude）",
+        "global_themes": global_themes[:3],
+        "cross_holdings_signals": cross_signals[:4],
+        "by_symbol": by_symbol,
+    }
+
+
+def write_daily_archive(today_brief):
+    today_tw = _today_tw()
     daily_dict = {}
     if OUT_PATH.exists():
         try:
@@ -286,7 +361,6 @@ def main():
                 if existing.get("schema_version") == 2 and isinstance(existing.get("daily"), dict):
                     daily_dict = dict(existing["daily"])
                 else:
-                    # 舊 flat schema → 遷移：把現有當作一筆歷史保留
                     old_date = (existing.get("generated") or "").split("T")[0] or today_tw
                     legacy_blob = {k: v for k, v in existing.items()
                                    if k not in ("schema_version", "latest_date", "daily")}
@@ -297,7 +371,6 @@ def main():
 
     daily_dict[today_tw] = today_brief
 
-    # 只留最新 7 天（依日期 desc）
     keep_dates = sorted(daily_dict.keys(), reverse=True)[:7]
     daily_dict = {d: daily_dict[d] for d in keep_dates}
 
@@ -307,11 +380,76 @@ def main():
         "daily": daily_dict,
     }
     OUT_PATH.write_text(json.dumps(final, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nWrote {OUT_PATH} (schema v2 — 保留 {len(daily_dict)} 天: {', '.join(keep_dates)})", flush=True)
+    print(f"\nWrote {OUT_PATH} (schema v2 — keep {len(daily_dict)} days: {', '.join(keep_dates)})", flush=True)
     print(f"  today ({today_tw}): "
           f"global_themes={len(today_brief.get('global_themes', []))} · "
           f"cross_signals={len(today_brief.get('cross_holdings_signals', []))} · "
           f"by_symbol={len(today_brief.get('by_symbol', {}))}", flush=True)
+
+
+def main():
+    news_raw = _load_json(NEWS_RAW_PATH)
+    mapping = _load_json(MAPPING_PATH)
+    earnings = _load_json(EARNINGS_PATH)
+    holdings = _load_json(HOLDINGS_PATH)
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("WARN: ANTHROPIC_API_KEY not set; writing local fallback brief", flush=True)
+        brief = build_local_fallback_brief(news_raw, mapping, holdings)
+        today_brief = {
+            "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "based_on_news_generated": news_raw.get("generated"),
+            "model": "local-fallback",
+            "usage": {"fallback": True, "reason": "ANTHROPIC_API_KEY not set"},
+            **brief,
+        }
+        write_daily_archive(today_brief)
+        return
+
+    context_block = _build_context_block(mapping, holdings, earnings)
+    news_block, id_to_url = _build_news_block(news_raw)
+
+    print(f"[input] {len(holdings)} holdings, {len(id_to_url)} news items "
+          f"(capped {MAX_NEWS_PER_SYMBOL}/symbol)", flush=True)
+
+    try:
+        raw_text, usage = call_claude(SYSTEM_PROMPT, context_block, news_block)
+        cleaned = _strip_json_fence(raw_text)
+        brief = json.loads(cleaned)
+    except Exception as e:
+        debug_path = ROOT / "daily_brief_raw_response.txt"
+        if "raw_text" in locals():
+            debug_path.write_text(raw_text, encoding="utf-8")
+            print(f"WARN: Claude response failed to parse/build: {e}", flush=True)
+            print(f"raw response saved to {debug_path}", flush=True)
+        else:
+            print(f"WARN: Claude request failed: {type(e).__name__}: {e}", flush=True)
+
+        brief = build_local_fallback_brief(news_raw, mapping, holdings)
+        today_brief = {
+            "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "based_on_news_generated": news_raw.get("generated"),
+            "model": "local-fallback-after-claude-error",
+            "usage": {
+                "fallback": True,
+                "reason": f"{type(e).__name__}: {e}",
+                "claude_usage": locals().get("usage"),
+            },
+            **brief,
+        }
+        write_daily_archive(today_brief)
+        return
+
+    brief = merge_urls_back(brief, id_to_url)
+
+    today_brief = {
+        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "based_on_news_generated": news_raw.get("generated"),
+        "model": MODEL,
+        "usage": usage,
+        **brief,
+    }
+    write_daily_archive(today_brief)
 
 
 if __name__ == "__main__":

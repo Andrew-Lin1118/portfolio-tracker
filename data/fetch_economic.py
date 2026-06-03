@@ -51,6 +51,57 @@ SERIES = [
 ]
 
 
+def _add_months(d, months):
+    y = d.year + (d.month - 1 + months) // 12
+    m = (d.month - 1 + months) % 12 + 1
+    return datetime.date(y, m, 1)
+
+
+def _next_business_day(d):
+    while d.weekday() >= 5:
+        d += datetime.timedelta(days=1)
+    return d
+
+
+def _first_weekday(year, month, weekday):
+    d = datetime.date(year, month, 1)
+    while d.weekday() != weekday:
+        d += datetime.timedelta(days=1)
+    return d
+
+
+def _last_business_day(year, month):
+    if month == 12:
+        d = datetime.date(year + 1, 1, 1) - datetime.timedelta(days=1)
+    else:
+        d = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= datetime.timedelta(days=1)
+    return d
+
+
+def estimate_next_update(series_id, obs_date):
+    """Monthly FRED observation date -> estimated next release time in Taiwan."""
+    try:
+        base = datetime.date.fromisoformat(str(obs_date)[:10])
+    except Exception:
+        return None
+    target = _add_months(base, 2)
+    if series_id == 'UNRATE':
+        d = _first_weekday(target.year, target.month, 4)  # first Friday
+    elif series_id in ('PCEPI', 'PCEPILFE'):
+        d = _last_business_day(target.year, target.month)
+    elif series_id == 'PPIFIS':
+        d = _next_business_day(datetime.date(target.year, target.month, 11))
+    else:
+        d = _next_business_day(datetime.date(target.year, target.month, 10))
+    return {
+        'date': d.isoformat(),
+        'time_tpe': '20:30',
+        'note': '預估',
+    }
+
+
 def http_get(url, timeout=15, force_https_unverified=False):
     import ssl
     req = urllib.request.Request(url, headers=HEADERS)
@@ -256,12 +307,13 @@ def build_indicator(series_id, name, kind):
                 return None
             last  = valid[-1]
             prev  = valid[-2] if len(valid) >= 2 else None
-            history = valid[-36:]  # 近 36 個月
+            history = valid[-60:]  # 近 60 個月（5 年）
         else:  # level
             last  = raw[-1]
             prev  = raw[-2] if len(raw) >= 2 else None
-            history = raw[-36:]
+            history = raw[-60:]
 
+        next_update = estimate_next_update(series_id, last['date'])
         return {
             'id':        series_id,
             'name':      name,
@@ -270,6 +322,9 @@ def build_indicator(series_id, name, kind):
             'value':     round(last['value'], 3),
             'prev':      round(prev['value'], 3) if prev else None,
             'mom':       round(last['value'] - prev['value'], 3) if prev else None,  # 月變化（pt）
+            'next_update': next_update['date'] if next_update else None,
+            'next_update_time_tpe': next_update['time_tpe'] if next_update else None,
+            'next_update_note': next_update['note'] if next_update else None,
             'history':   [{'date': h['date'], 'value': round(h['value'], 3)} for h in history],
         }
     except Exception as e:

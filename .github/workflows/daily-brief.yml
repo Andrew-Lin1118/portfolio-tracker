@@ -2,8 +2,11 @@ name: Daily Brief
 
 on:
   schedule:
-    # 每天 TW 7:00 = UTC 23:00（前一天）
+    # 主排程：每天 TW 07:00 = UTC 23:00（前一天）
     - cron: '0 23 * * *'
+    # 備援排程：每天 TW 10:00 = UTC 02:00（同一 TW 日）。
+    # GitHub 免費排程偶爾會略過某次觸發；兩個時段彼此獨立，主排程被略過時由備援補跑。
+    - cron: '0 2 * * *'
   workflow_dispatch:   # 允許手動觸發
 
 concurrency:
@@ -20,26 +23,50 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # 冪等保護：排程觸發時，若「今日（TW）」簡報已存在則跳過後續生成，
+      # 避免備援排程在主排程已成功時重複呼叫 Claude API（重複花費 ~$0.25）。
+      # 手動觸發（workflow_dispatch）一律強制重新生成。
+      - name: Check if today's brief already exists
+        id: check
+        run: |
+          TODAY=$(TZ=Asia/Taipei date '+%Y-%m-%d')
+          LATEST=$(python3 -c "import json;print(json.load(open('data/daily_brief.json',encoding='utf-8')).get('latest_date',''))" 2>/dev/null || echo "")
+          echo "today=$TODAY"   >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" = "$TODAY" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "✅ 今日 ($TODAY) 簡報已存在 (latest_date=$LATEST)，跳過生成。"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "▶ 需生成 (today=$TODAY, latest_date=$LATEST, event=${{ github.event_name }})。"
+          fi
+
       - name: Set up Python
+        if: steps.check.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
         run: pip install "yfinance>=0.2.40" "anthropic>=0.40.0"
 
       - name: Fetch news (Stage 1)
+        if: steps.check.outputs.skip != 'true'
         run: python data/fetch_news.py
 
       - name: Build daily brief (Stage 2)
+        if: steps.check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python data/build_daily_brief.py
 
       - name: Fetch global top market caps (Stage 3)
+        if: steps.check.outputs.skip != 'true'
         run: python data/fetch_global_top_caps.py
 
       - name: Commit & push
+        if: steps.check.outputs.skip != 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

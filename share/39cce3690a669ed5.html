@@ -193,9 +193,53 @@
         line-height: 1.6;
     }
 
+    /* ── 手機：表格 → 直向堆疊卡片（每個指標一張小卡，完全不需左右滑） ── */
     @media (max-width: 560px) {
-        .scroll-hint { display: block; }
-        .section { padding: 0.9rem 0.4rem 0.4rem; }
+        .scroll-hint { display: none; }
+        .section { padding: 0.9rem 0.6rem 0.5rem; }
+        .table-scroll { overflow-x: visible; }
+        table { min-width: 0; font-size: 0.86rem; }
+        thead { display: none; }
+        tbody, tbody tr, tbody td { display: block; width: 100%; }
+        /* sticky 首欄在卡片模式不需要 */
+        thead th:first-child, tbody td:first-child { position: static; }
+        tbody tr {
+            background: var(--card2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 0.55rem;
+            padding: 0.5rem 0.75rem 0.6rem;
+        }
+        tbody td {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.6rem;
+            padding: 0.28rem 0;
+            text-align: right;
+            border: none;
+            white-space: normal;
+            background: transparent;
+        }
+        /* 每格左側自動帶出欄位標題（量測日期 / Δ） */
+        tbody td::before {
+            content: attr(data-label);
+            color: var(--muted);
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-align: left;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+        /* 指標名稱當卡片標題：整列、無左標籤、底線分隔 */
+        tbody td:first-child {
+            justify-content: flex-start;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0.35rem;
+            padding-bottom: 0.4rem;
+        }
+        tbody td:first-child::before { content: ""; }
+        .metric-name { white-space: normal; font-size: 0.9rem; }
     }
 </style>
 </head>
@@ -414,20 +458,20 @@
                 const deltaPrev = (typeof latest === 'number' && typeof prev === 'number') ? latest - prev : null;
                 const cellHtml = cols.map(m => {
                     const v = m[metric.key], tag = m[metric.key + '_tag'];
-                    return `<td class="num">${fmt(v, metric.decimals)}<span class="metric-unit">${metric.unit}</span>${tag ? `<span class="${tagClass(tag)}">${tag}</span>` : ''}</td>`;
+                    const lbl = `${m.date.slice(5)}・${m.label}`;
+                    return `<td class="num" data-label="${lbl}">${fmt(v, metric.decimals)}<span class="metric-unit">${metric.unit}</span>${tag ? `<span class="${tagClass(tag)}">${tag}</span>` : ''}</td>`;
                 }).join('');
                 return `
                     <tr>
-                        <td><span class="metric-name">${metric.name}</span></td>
+                        <td data-label=""><span class="metric-name">${metric.name}</span></td>
                         ${cellHtml}
-                        <td class="num ${deltaClass(deltaBase, metric.direction)}">${deltaBase != null ? `${deltaArrow(deltaBase)} ${fmtDelta(deltaBase, metric.decimals)}` : '—'}</td>
-                        ${multi ? `<td class="num ${deltaClass(deltaPrev, metric.direction)}">${deltaPrev != null ? `${deltaArrow(deltaPrev)} ${fmtDelta(deltaPrev, metric.decimals)}` : '—'}</td>` : ''}
+                        <td class="num ${deltaClass(deltaBase, metric.direction)}" data-label="Δ 基線">${deltaBase != null ? `${deltaArrow(deltaBase)} ${fmtDelta(deltaBase, metric.decimals)}` : '—'}</td>
+                        ${multi ? `<td class="num ${deltaClass(deltaPrev, metric.direction)}" data-label="Δ 上次">${deltaPrev != null ? `${deltaArrow(deltaPrev)} ${fmtDelta(deltaPrev, metric.decimals)}` : '—'}</td>` : ''}
                     </tr>`;
             }).join('');
             return `
                 <div class="section">
                     <div class="section-title" style="color:${group.color}">${group.title}</div>
-                    <div class="scroll-hint">← 左右滑動看完整數據 →</div>
                     <div class="table-scroll"><table>${headHtml}<tbody>${rows}</tbody></table></div>
                 </div>`;
         }).join('');
@@ -438,10 +482,10 @@
                 <div class="table-scroll"><table>
                     <thead><tr><th>項目</th>${cols.map(m => `<th class="num">${m.date.slice(5)}</th>`).join('')}</tr></thead>
                     <tbody>
-                        <tr><td><span class="metric-name">身體類型</span></td>${cols.map(m => `<td class="num"><span class="${tagClass(m.body_type)}">${m.body_type || '—'}</span></td>`).join('')}</tr>
-                        <tr><td><span class="metric-name">肌肉控制建議</span></td>${cols.map(m => `<td class="num" style="color:#94a3b8">${m.muscle_control || '—'}</td>`).join('')}</tr>
-                        <tr><td><span class="metric-name">量測時間</span></td>${cols.map(m => `<td class="num" style="color:#94a3b8">${m.time || '—'}</td>`).join('')}</tr>
-                        <tr><td><span class="metric-name">註記</span></td>${cols.map(m => `<td class="num" style="color:#94a3b8">${m.note || '—'}</td>`).join('')}</tr>
+                        <tr><td data-label=""><span class="metric-name">身體類型</span></td>${cols.map(m => `<td class="num" data-label="${m.date.slice(5)}"><span class="${tagClass(m.body_type)}">${m.body_type || '—'}</span></td>`).join('')}</tr>
+                        <tr><td data-label=""><span class="metric-name">肌肉控制建議</span></td>${cols.map(m => `<td class="num" data-label="${m.date.slice(5)}" style="color:#94a3b8">${m.muscle_control || '—'}</td>`).join('')}</tr>
+                        <tr><td data-label=""><span class="metric-name">量測時間</span></td>${cols.map(m => `<td class="num" data-label="${m.date.slice(5)}" style="color:#94a3b8">${m.time || '—'}</td>`).join('')}</tr>
+                        <tr><td data-label=""><span class="metric-name">註記</span></td>${cols.map(m => `<td class="num" data-label="${m.date.slice(5)}" style="color:#94a3b8">${m.note || '—'}</td>`).join('')}</tr>
                     </tbody>
                 </table></div>
             </div>`;

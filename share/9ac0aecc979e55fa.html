@@ -149,6 +149,7 @@
     tbody tr { border-bottom: 1px solid rgba(148, 163, 184, 0.08); }
     tbody td { padding: 0.5rem 0.6rem; color: var(--text); }
     .metric-name { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .metric-ref { display: block; color: #64748b; font-weight: 400; font-size: 0.68rem; margin-top: 0.12rem; line-height: 1.2; white-space: nowrap; }
     .metric-unit { color: var(--muted); font-size: 0.78em; margin-left: 0.2rem; }
     .tag {
         display: inline-block;
@@ -210,6 +211,7 @@
         }
         thead th.num, td.num { white-space: normal; }
         .metric-name { white-space: normal; font-size: 0.7rem; line-height: 1.2; }
+        .metric-ref { white-space: normal; font-size: 0.58rem; }
         .metric-unit { margin-left: 0.08rem; font-size: 0.72em; }
         /* 評等標籤縮小、換到數值下一行，避免撐爆欄寬 */
         .tag {
@@ -243,6 +245,7 @@
     </div>
 
     <div class="footer">
+        指標下方灰字為「一般成人通用參考值」（依性別區分），僅供對照；體脂計顯示的<b style="color:#94a3b8">標準/不足/偏高</b>色籤是依機器內建（含性別、年齡）門檻判定，與通用值可能略有差異。<br>
         本報告依智能體重計「體重報告」逐項彙整，僅供個人健康追蹤參考，不作為醫療診斷依據。
     </div>
 </div>
@@ -302,10 +305,10 @@
         {
             title: '🎯 核心指標', color: '#3b82f6',
             metrics: [
-                { key: 'weight',       name: '體重',     unit: 'kg', decimals: 1, direction: 'down' },
-                { key: 'bmi',          name: 'BMI',      unit: '',   decimals: 1, direction: 'down' },
-                { key: 'body_fat_pct', name: '體脂率',   unit: '%',  decimals: 1, direction: 'down' },
-                { key: 'score',        name: '身體得分', unit: '分', decimals: 0, direction: 'up'   },
+                { key: 'weight',       name: '體重',     unit: 'kg', decimals: 1, direction: 'down', ref: '標準 45–58kg' },
+                { key: 'bmi',          name: 'BMI',      unit: '',   decimals: 1, direction: 'down', ref: '標準 18.5–24' },
+                { key: 'body_fat_pct', name: '體脂率',   unit: '%',  decimals: 1, direction: 'down', ref: '女性適中 21–31%' },
+                { key: 'score',        name: '身體得分', unit: '分', decimals: 0, direction: 'up',   ref: '≥80 良好' },
             ]
         },
         {
@@ -327,16 +330,16 @@
                 { key: 'water_pct',   name: '身體水分',   unit: '%', decimals: 1, direction: 'up'   },
                 { key: 'protein_pct', name: '蛋白質率',   unit: '%', decimals: 1, direction: 'up'   },
                 { key: 'bone_pct',    name: '骨鹽率',     unit: '%', decimals: 1, direction: 'up'   },
-                { key: 'whr',         name: '推測腰臀比', unit: '',  decimals: 2, direction: 'down' },
+                { key: 'whr',         name: '推測腰臀比', unit: '',  decimals: 2, direction: 'down', ref: '女性 ≤0.85' },
             ]
         },
         {
             title: '🩺 其他生理指標', color: '#fbbf24',
             metrics: [
-                { key: 'visceral_fat', name: '內臟脂肪等級', unit: '',      decimals: 0, direction: 'down' },
-                { key: 'bmr',          name: '基礎代謝率',   unit: 'Kcal',  decimals: 0, direction: 'up'   },
-                { key: 'body_age',     name: '身體年齡',     unit: '歲',    decimals: 0, direction: 'down' },
-                { key: 'heart_rate',   name: '靜態心率',     unit: '次/分', decimals: 0, direction: 'down' },
+                { key: 'visceral_fat', name: '內臟脂肪等級', unit: '',      decimals: 0, direction: 'down', ref: '標準 1–9' },
+                { key: 'bmr',          name: '基礎代謝率',   unit: 'Kcal',  decimals: 0, direction: 'up',   ref: '達預測值為標準' },
+                { key: 'body_age',     name: '身體年齡',     unit: '歲',    decimals: 0, direction: 'down', ref: '< 實際年齡為佳' },
+                { key: 'heart_rate',   name: '靜態心率',     unit: '次/分', decimals: 0, direction: 'down', ref: '靜息 60–100' },
             ]
         },
         {
@@ -442,7 +445,7 @@
                 }).join('');
                 return `
                     <tr>
-                        <td data-label=""><span class="metric-name">${metric.name}</span></td>
+                        <td data-label=""><span class="metric-name">${metric.name}</span>${metric.ref ? `<span class="metric-ref">${metric.ref}</span>` : ''}</td>
                         ${cellHtml}
                         <td class="num ${deltaClass(deltaBase, metric.direction)}" data-label="Δ 基線">${deltaBase != null ? `${deltaArrow(deltaBase)} ${fmtDelta(deltaBase, metric.decimals)}` : '—'}</td>
                         ${multi ? `<td class="num ${deltaClass(deltaPrev, metric.direction)}" data-label="Δ 上次">${deltaPrev != null ? `${deltaArrow(deltaPrev)} ${fmtDelta(deltaPrev, metric.decimals)}` : '—'}</td>` : ''}

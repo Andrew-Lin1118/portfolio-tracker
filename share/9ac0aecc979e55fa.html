@@ -193,53 +193,32 @@
         line-height: 1.6;
     }
 
-    /* ── 手機：表格 → 直向堆疊卡片（每個指標一張小卡，完全不需左右滑） ── */
+    /* ── 手機：維持左右並排表格，整張縮到一頁寬、儲存格內自動換行，不出現左右滑動視窗 ── */
     @media (max-width: 560px) {
         .scroll-hint { display: none; }
-        .section { padding: 0.9rem 0.6rem 0.5rem; }
-        .table-scroll { overflow-x: visible; }
-        table { min-width: 0; font-size: 0.86rem; }
-        thead { display: none; }
-        tbody, tbody tr, tbody td { display: block; width: 100%; }
-        /* sticky 首欄在卡片模式不需要 */
-        thead th:first-child, tbody td:first-child { position: static; }
-        tbody tr {
-            background: var(--card2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            margin-bottom: 0.55rem;
-            padding: 0.5rem 0.75rem 0.6rem;
-        }
-        tbody td {
-            display: flex;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: 0.6rem;
-            padding: 0.28rem 0;
-            text-align: right;
-            border: none;
+        .section { padding: 0.9rem 0.45rem 0.4rem; }
+        .table-scroll { overflow-x: hidden; }
+        /* 固定版面 → 欄寬平均分配，內容換行不撐寬 */
+        table { min-width: 0; width: 100%; table-layout: fixed; font-size: 0.66rem; }
+        /* 首欄（指標名）較窄、其餘平均；不需黏住因為已塞滿一頁 */
+        thead th:first-child, tbody td:first-child { position: static; width: 21%; }
+        thead th, tbody td {
+            padding: 0.4rem 0.2rem;
             white-space: normal;
-            background: transparent;
+            word-break: break-word;
+            vertical-align: top;
         }
-        /* 每格左側自動帶出欄位標題（量測日期 / Δ） */
-        tbody td::before {
-            content: attr(data-label);
-            color: var(--muted);
-            font-size: 0.72rem;
-            font-weight: 600;
-            text-align: left;
-            white-space: nowrap;
-            flex: 0 0 auto;
+        thead th.num, td.num { white-space: normal; }
+        .metric-name { white-space: normal; font-size: 0.7rem; line-height: 1.2; }
+        .metric-unit { margin-left: 0.08rem; font-size: 0.72em; }
+        /* 評等標籤縮小、換到數值下一行，避免撐爆欄寬 */
+        .tag {
+            display: inline-block;
+            margin-left: 0;
+            margin-top: 0.12rem;
+            padding: 0.04rem 0.28rem;
+            font-size: 0.58rem;
         }
-        /* 指標名稱當卡片標題：整列、無左標籤、底線分隔 */
-        tbody td:first-child {
-            justify-content: flex-start;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 0.35rem;
-            padding-bottom: 0.4rem;
-        }
-        tbody td:first-child::before { content: ""; }
-        .metric-name { white-space: normal; font-size: 0.9rem; }
     }
 </style>
 </head>

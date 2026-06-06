@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#0f172a">
+<title>猛健樂成效追蹤報表</title>
+<style>
+    :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --card2: #273449;
+        --border: rgba(148, 163, 184, 0.18);
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --green: #10b981;
+        --red: #ef4444;
+        --yellow: #fbbf24;
+        --blue: #3b82f6;
+        --purple: #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-text-size-adjust: 100%; }
+    html { scroll-behavior: smooth; }
+    body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        background-attachment: fixed;
+        color: var(--text);
+        font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+        min-height: 100vh;
+        padding: 1.25rem 1rem calc(1.5rem + env(safe-area-inset-bottom));
+        -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 {
+        font-size: clamp(1.25rem, 5.5vw, 1.6rem);
+        font-weight: 800;
+        background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        margin-bottom: 0.3rem;
+        line-height: 1.25;
+    }
+    .subtitle { color: var(--muted); font-size: clamp(0.72rem, 3.2vw, 0.85rem); margin-bottom: 1.25rem; line-height: 1.5; }
+
+    .info-banner {
+        background: rgba(59, 130, 246, 0.08);
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        border-left: 3px solid var(--blue);
+        padding: 0.7rem 0.9rem;
+        border-radius: 8px;
+        margin-bottom: 1.2rem;
+        color: var(--text);
+        font-size: clamp(0.74rem, 3.2vw, 0.83rem);
+        line-height: 1.6;
+    }
+    .info-banner b { color: #93c5fd; }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.7rem;
+        margin-bottom: 1.5rem;
+    }
+    .stat-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 0.85rem 1rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .stat-label {
+        color: var(--yellow);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.45rem;
+    }
+    .stat-value {
+        font-size: clamp(1.4rem, 6.5vw, 1.7rem);
+        font-weight: 800;
+        font-family: ui-monospace, "JetBrains Mono", monospace;
+        line-height: 1.1;
+    }
+    .stat-delta {
+        font-size: 0.72rem;
+        font-weight: 700;
+        margin-top: 0.35rem;
+        font-family: ui-monospace, "JetBrains Mono", monospace;
+        line-height: 1.4;
+    }
+    .delta-good { color: var(--green); }
+    .delta-bad { color: var(--red); }
+    .delta-neutral { color: var(--muted); }
+
+    .section {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 1rem 0.5rem 0.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+    }
+    .section-title {
+        font-size: clamp(0.9rem, 4vw, 1rem);
+        font-weight: 700;
+        color: var(--blue);
+        margin: 0 0.6rem 0.85rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    /* 手機優化關鍵：水平捲動 + 首欄黏住 */
+    .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+    .table-scroll::-webkit-scrollbar { height: 6px; }
+    .table-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.3); border-radius: 3px; }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: clamp(0.78rem, 3.4vw, 0.88rem);
+        min-width: 480px;
+    }
+    thead th {
+        text-align: left;
+        padding: 0.55rem 0.6rem;
+        font-weight: 700;
+        color: var(--muted);
+        font-size: 0.74rem;
+        letter-spacing: 0.3px;
+        border-bottom: 1px solid var(--border);
+        background: #19253b;
+        white-space: nowrap;
+    }
+    thead th.num, td.num { text-align: right; font-family: ui-monospace, "JetBrains Mono", monospace; white-space: nowrap; }
+    /* 首欄黏住 */
+    thead th:first-child, tbody td:first-child {
+        position: sticky;
+        left: 0;
+        background: #19253b;
+        z-index: 2;
+    }
+    tbody td:first-child { background: var(--card); }
+    tbody tr { border-bottom: 1px solid rgba(148, 163, 184, 0.08); }
+    tbody td { padding: 0.5rem 0.6rem; color: var(--text); }
+    .metric-name { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .metric-unit { color: var(--muted); font-size: 0.78em; margin-left: 0.2rem; }
+    .tag {
+        display: inline-block;
+        padding: 0.08rem 0.45rem;
+        border-radius: 999px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        margin-left: 0.3rem;
+        vertical-align: middle;
+    }
+    .tag-standard { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; }
+    .tag-high { background: rgba(251, 191, 36, 0.18); color: #fcd34d; }
+    .tag-obese { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
+
+    .legend {
+        display: flex;
+        gap: 0.9rem 1.2rem;
+        flex-wrap: wrap;
+        font-size: 0.74rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+        padding: 0 0.2rem;
+    }
+    .legend span { display: flex; align-items: center; gap: 0.35rem; }
+    .legend i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; }
+
+    .scroll-hint {
+        display: none;
+        color: #64748b;
+        font-size: 0.7rem;
+        text-align: right;
+        margin: 0 0.6rem 0.4rem;
+    }
+
+    .footer {
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.72rem;
+        margin-top: 1.8rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        line-height: 1.6;
+    }
+
+    @media (max-width: 560px) {
+        .scroll-hint { display: block; }
+        .section { padding: 0.9rem 0.4rem 0.4rem; }
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>🧬 猛健樂成效追蹤報表</h1>
+    <div class="subtitle" id="subtitle"></div>
+
+    <div class="info-banner" id="overview"></div>
+
+    <div id="summary" class="summary-grid"></div>
+
+    <div id="sections"></div>
+
+    <div class="legend">
+        <span><i style="background:#10b981"></i> 朝健康方向（綠）</span>
+        <span><i style="background:#ef4444"></i> 朝不利方向（紅）</span>
+        <span><i style="background:#94a3b8"></i> 無顯著變化</span>
+        <span class="tag tag-standard">標準</span>
+        <span class="tag tag-high">稍多/偏高</span>
+        <span class="tag tag-obese">肥胖</span>
+    </div>
+
+    <div class="footer">
+        本報告依智能體重計「體重報告」逐項彙整，僅供個人健康追蹤參考，不作為醫療診斷依據。
+    </div>
+</div>
+
+<script>
+    // ─────────────────────────────────────────────────────────────
+    // 量測資料（與 report.html 同步；此為分享版，純檢視）
+    // ─────────────────────────────────────────────────────────────
+    const measurements = [
+        {
+            date: '2026-05-29', time: '08:52', label: '基線', note: '猛健樂療程前 / 起始基準',
+            weight: 82.6, weight_tag: '偏高',
+            score: 81,
+            bmi: 27.9, bmi_tag: '偏高',
+            body_fat_pct: 25.5, body_fat_pct_tag: '偏高',
+            water_kg: 43.5, fat_kg: 21.1, bone_kg: 3.2, protein_kg: 14.0,
+            muscle_kg: 58.2, muscle_kg_tag: '標準',
+            lean_mass_kg: 61.4,
+            skeletal_muscle_kg: 31.2, skeletal_muscle_kg_tag: '標準',
+            muscle_pct: 70.6, muscle_pct_tag: '標準',
+            water_pct: 52.8, water_pct_tag: '標準',
+            protein_pct: 16.9, protein_pct_tag: '標準',
+            bone_pct: 3.9, bone_pct_tag: '標準',
+            whr: 1.0, whr_tag: '偏高',
+            visceral_fat: 11, visceral_fat_tag: '稍多',
+            bmr: 1698, bmr_tag: '標準',
+            body_age: 37,
+            heart_rate: 99, heart_rate_tag: '標準',
+            body_type: '肥胖',
+            std_weight: 64.4, weight_control: -18.2, fat_control: -11.4, muscle_control: '繼續保持',
+        },
+        {
+            date: '2026-06-05', time: '08:41', label: '第 1 次追蹤', note: '療程第 7 天',
+            weight: 81.5, weight_tag: '偏高',
+            score: 81,
+            bmi: 27.5, bmi_tag: '偏高',
+            body_fat_pct: 25.1, body_fat_pct_tag: '偏高',
+            water_kg: 43.8, fat_kg: 20.5, bone_kg: 3.2, protein_kg: 13.3,
+            muscle_kg: 57.8, muscle_kg_tag: '標準',
+            lean_mass_kg: 61.0,
+            skeletal_muscle_kg: 31.7, skeletal_muscle_kg_tag: '標準',
+            muscle_pct: 70.9, muscle_pct_tag: '標準',
+            water_pct: 53.7, water_pct_tag: '標準',
+            protein_pct: 16.3, protein_pct_tag: '標準',
+            bone_pct: 3.9, bone_pct_tag: '標準',
+            whr: 0.9, whr_tag: '標準',
+            visceral_fat: 10, visceral_fat_tag: '稍多',
+            bmr: 1688, bmr_tag: '標準',
+            body_age: 37,
+            heart_rate: 88, heart_rate_tag: '標準',
+            body_type: '肥胖',
+            std_weight: 64.4, weight_control: -17.1, fat_control: -10.8, muscle_control: '繼續保持',
+        },
+    ];
+
+    const metricGroups = [
+        {
+            title: '🎯 核心指標', color: '#3b82f6',
+            metrics: [
+                { key: 'weight',       name: '體重',     unit: 'kg', decimals: 1, direction: 'down' },
+                { key: 'bmi',          name: 'BMI',      unit: '',   decimals: 1, direction: 'down' },
+                { key: 'body_fat_pct', name: '體脂率',   unit: '%',  decimals: 1, direction: 'down' },
+                { key: 'score',        name: '身體得分', unit: '分', decimals: 0, direction: 'up'   },
+            ]
+        },
+        {
+            title: '🧪 身體組成（絕對量）', color: '#10b981',
+            metrics: [
+                { key: 'fat_kg',             name: '脂肪量',   unit: 'kg', decimals: 1, direction: 'down' },
+                { key: 'muscle_kg',          name: '肌肉量',   unit: 'kg', decimals: 1, direction: 'up'   },
+                { key: 'skeletal_muscle_kg', name: '骨骼肌量', unit: 'kg', decimals: 1, direction: 'up'   },
+                { key: 'lean_mass_kg',       name: '去脂體重', unit: 'kg', decimals: 1, direction: 'up'   },
+                { key: 'water_kg',           name: '體水分量', unit: 'kg', decimals: 1, direction: 'neutral' },
+                { key: 'protein_kg',         name: '蛋白質量', unit: 'kg', decimals: 1, direction: 'up'   },
+                { key: 'bone_kg',            name: '骨鹽量',   unit: 'kg', decimals: 1, direction: 'neutral' },
+            ]
+        },
+        {
+            title: '📊 比率指標', color: '#a855f7',
+            metrics: [
+                { key: 'muscle_pct',  name: '肌肉率',     unit: '%', decimals: 1, direction: 'up'   },
+                { key: 'water_pct',   name: '身體水分',   unit: '%', decimals: 1, direction: 'up'   },
+                { key: 'protein_pct', name: '蛋白質率',   unit: '%', decimals: 1, direction: 'up'   },
+                { key: 'bone_pct',    name: '骨鹽率',     unit: '%', decimals: 1, direction: 'up'   },
+                { key: 'whr',         name: '推測腰臀比', unit: '',  decimals: 2, direction: 'down' },
+            ]
+        },
+        {
+            title: '🩺 其他生理指標', color: '#fbbf24',
+            metrics: [
+                { key: 'visceral_fat', name: '內臟脂肪等級', unit: '',      decimals: 0, direction: 'down' },
+                { key: 'bmr',          name: '基礎代謝率',   unit: 'Kcal',  decimals: 0, direction: 'up'   },
+                { key: 'body_age',     name: '身體年齡',     unit: '歲',    decimals: 0, direction: 'down' },
+                { key: 'heart_rate',   name: '靜態心率',     unit: '次/分', decimals: 0, direction: 'down' },
+            ]
+        },
+        {
+            title: '🎯 體重建議（系統推算）', color: '#ef4444',
+            metrics: [
+                { key: 'std_weight',     name: '標準體重',     unit: 'kg', decimals: 1, direction: 'neutral' },
+                { key: 'weight_control', name: '體重控制目標', unit: 'kg', decimals: 1, direction: 'absUp' },
+                { key: 'fat_control',    name: '脂肪控制目標', unit: 'kg', decimals: 1, direction: 'absUp' },
+            ]
+        },
+    ];
+
+    function fmt(v, decimals) {
+        if (v == null || v === '') return '—';
+        if (typeof v === 'string') return v;
+        return Number(v).toFixed(decimals ?? 1);
+    }
+    function deltaClass(delta, direction) {
+        if (delta == null || Math.abs(delta) < 1e-9) return 'delta-neutral';
+        if (direction === 'neutral') return 'delta-neutral';
+        if (direction === 'absUp') return delta > 0 ? 'delta-good' : 'delta-bad';
+        if (direction === 'up')     return delta > 0 ? 'delta-good' : 'delta-bad';
+        if (direction === 'down')   return delta < 0 ? 'delta-good' : 'delta-bad';
+        return 'delta-neutral';
+    }
+    function deltaArrow(delta) {
+        if (delta == null || Math.abs(delta) < 1e-9) return '＝';
+        return delta > 0 ? '▲' : '▼';
+    }
+    function fmtDelta(delta, decimals) {
+        if (delta == null) return '';
+        if (Math.abs(delta) < 1e-9) return '0';
+        return (delta > 0 ? '+' : '') + Number(delta).toFixed(decimals ?? 1);
+    }
+    function tagClass(tag) {
+        if (!tag) return '';
+        if (tag === '標準') return 'tag tag-standard';
+        if (tag === '肥胖') return 'tag tag-obese';
+        return 'tag tag-high';
+    }
+
+    // 頂部標題 / 總覽
+    (function renderHeader() {
+        const base = measurements[0], latest = measurements[measurements.length - 1];
+        document.getElementById('subtitle').innerHTML =
+            `GLP-1 / 體重管理用藥效果監控 · 共 ${measurements.length} 次量測`;
+        const days = Math.round((new Date(latest.date) - new Date(base.date)) / 86400000);
+        const dw = (latest.weight - base.weight);
+        const df = (latest.fat_kg - base.fat_kg);
+        document.getElementById('overview').innerHTML =
+            `量測區間：<b>${base.date}</b>（基線）→ <b>${latest.date}</b>（最新），共 <b>${days}</b> 天。` +
+            ` 體重 ${dw <= 0 ? '減' : '增'} <b>${Math.abs(dw).toFixed(1)} kg</b>、` +
+            `脂肪量 ${df <= 0 ? '減' : '增'} <b>${Math.abs(df).toFixed(1)} kg</b>` +
+            `（脂肪佔減重 ${dw !== 0 ? Math.round(df / dw * 100) : 0}%）。`;
+    })();
+
+    function renderSummary() {
+        const baseline = measurements[0];
+        const latest = measurements[measurements.length - 1];
+        const cards = [
+            { key: 'weight',       label: '體重',   unit: 'kg', direction: 'down', color: '#10b981' },
+            { key: 'bmi',          label: 'BMI',    unit: '',   direction: 'down', color: '#3b82f6' },
+            { key: 'body_fat_pct', label: '體脂率', unit: '%',  direction: 'down', color: '#a855f7' },
+            { key: 'fat_kg',       label: '脂肪量', unit: 'kg', direction: 'down', color: '#fbbf24' },
+        ];
+        document.getElementById('summary').innerHTML = cards.map(c => {
+            const cur = latest[c.key], base = baseline[c.key];
+            const delta = (cur != null && base != null) ? (cur - base) : null;
+            const cls = deltaClass(delta, c.direction);
+            return `
+                <div class="stat-card" style="border-left:3px solid ${c.color};">
+                    <div class="stat-label">${c.label}</div>
+                    <div class="stat-value" style="color:${c.color}">${fmt(cur, 1)}<span class="metric-unit">${c.unit}</span></div>
+                    <div class="stat-delta ${cls}">
+                        ${deltaArrow(delta)} ${fmtDelta(delta, 1)} ${c.unit}<br><span style="color:#64748b">vs 基線 ${fmt(base,1)}</span>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function renderSections() {
+        const baseline = measurements[0];
+        const cols = measurements;
+        const multi = cols.length >= 3; // 3 次以上才同時顯示「對基線/對上次」
+        const html = metricGroups.map(group => {
+            const headHtml = `
+                <thead><tr>
+                    <th>指標</th>
+                    ${cols.map(m => `<th class="num">${m.date.slice(5)}<br><span style="font-weight:400;color:#64748b;font-size:0.68rem;">${m.label}</span></th>`).join('')}
+                    <th class="num">Δ 基線</th>
+                    ${multi ? '<th class="num">Δ 上次</th>' : ''}
+                </tr></thead>`;
+            const rows = group.metrics.map(metric => {
+                const baseVal = baseline[metric.key];
+                const latest = cols[cols.length - 1][metric.key];
+                const prev = cols.length >= 2 ? cols[cols.length - 2][metric.key] : null;
+                const deltaBase = (typeof latest === 'number' && typeof baseVal === 'number') ? latest - baseVal : null;
+                const deltaPrev = (typeof latest === 'number' && typeof prev === 'number') ? latest - prev : null;
+                const cellHtml = cols.map(m => {
+                    const v = m[metric.key], tag = m[metric.key + '_tag'];
+                    return `<td class="num">${fmt(v, metric.decimals)}<span class="metric-unit">${metric.unit}</span>${tag ? `<span class="${tagClass(tag)}">${tag}</span>` : ''}</td>`;
+                }).join('');
+                return `
+                    <tr>
+                        <td><span class="metric-name">${metric.name}</span></td>
+                        ${cellHtml}
+                        <td class="num ${deltaClass(deltaBase, metric.direction)}">${deltaBase != null ? `${deltaArrow(deltaBase)} ${fmtDelta(deltaBase, metric.decimals)}` : '—'}</td>
+                        ${multi ? `<td class="num ${deltaClass(deltaPrev, metric.direction)}">${deltaPrev != null ? `${deltaArrow(deltaPrev)} ${fmtDelta(deltaPrev, metric.decimals)}` : '—'}</td>` : ''}
+                    </tr>`;
+            }).join('');
+            return `
+                <div class="section">
+                    <div class="section-title" style="color:${group.color}">${group.title}</div>
+                    <div class="scroll-hint">← 左右滑動看完整數據 →</div>
+                    <div class="table-scroll"><table>${headHtml}<tbody>${rows}</tbody></table></div>
+                </div>`;
+        }).join('');
+
+        const textBlock = `
+            <div class="section">
+                <div class="section-title" style="color:#64748b">📝 質性指標</div>
+                <div class="table-scroll"><table>
+                    <thead><tr><th>項目</th>${cols.map(m => `<th class="num">${m.date.slice(5)}</th>`).join('')}</tr></thead>
+                    <tbody>
+                        <tr><td><span class="metric-name">身體類型</span></td>${cols.map(m => `<td class="num"><span class="${tagClass(m.body_type)}">${m.body_type || '—'}</span></td>`).join('')}</tr>
+                        <tr><td><span class="metric-name">肌肉控制建議</span></td>${cols.map(m => `<td class="num" style="color:#94a3b8">${m.muscle_control || '—'}</td>`).join('')}</tr>
+                        <tr><td><span class="metric-name">量測時間</span></td>${cols.map(m => `<td class="num" style="color:#94a3b8">${m.time || '—'}</td>`).join('')}</tr>
+                        <tr><td><span class="metric-name">註記</span></td>${cols.map(m => `<td class="num" style="color:#94a3b8">${m.note || '—'}</td>`).join('')}</tr>
+                    </tbody>
+                </table></div>
+            </div>`;
+        document.getElementById('sections').innerHTML = html + textBlock;
+    }
+
+    renderSummary();
+    renderSections();
+</script>
+</body>
+</html>

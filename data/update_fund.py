@@ -5,18 +5,41 @@ GitHub Actions 基本面 + 技術面資料更新腳本
   技術面（日/週/小時 KD、MACD、RSI）
 寫入 fundamentals.json，供 GitHub Pages 直接讀取，確保兩端數字一致。
 """
+import copy
 import json, time, os
 from datetime import datetime, timezone, timedelta
 
 import yfinance as yf
+import yfinance.cache as yf_cache
 import pandas as pd
 
+try:
+    from curl_cffi import requests as curl_requests
+    _YF_SESSION = curl_requests.Session(impersonate='chrome', verify=False)
+except Exception:
+    _YF_SESSION = None
+
+
+def yf_ticker(symbol):
+    if _YF_SESSION is not None:
+        return yf.Ticker(symbol, session=_YF_SESSION)
+    return yf.Ticker(symbol)
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
+_YF_CACHE_DIR = os.path.join(ROOT, '.yfinance_cache')
+try:
+    os.makedirs(_YF_CACHE_DIR, exist_ok=True)
+    yf_cache.set_cache_location(_YF_CACHE_DIR)
+    if hasattr(yf, 'set_tz_cache_location'):
+        yf.set_tz_cache_location(_YF_CACHE_DIR)
+except Exception:
+    pass
 
 # Naver Finance 補資料模組（用於韓股 yfinance 滯後/漏季時補強）
 try:
     from fetch_naver_earnings import (
         fetch_naver_eps_history,
+        fetch_naver_fundamentals,
         fetch_naver_latest_earnings_disclosure,
         stock_code_from_yf_symbol,
     )
@@ -27,6 +50,7 @@ except ImportError:
     try:
         from fetch_naver_earnings import (
             fetch_naver_eps_history,
+            fetch_naver_fundamentals,
             fetch_naver_latest_earnings_disclosure,
             stock_code_from_yf_symbol,
         )
@@ -45,6 +69,28 @@ PROXY_EARNINGS_MAP = {
     '9747.HK': '005930.KS',   # 南韓三星電子 ETF  → 005930.KS
 }
 
+FUNDAMENTAL_ALIAS_MAP = {
+    'GOOG': 'GOOGL',           # Alphabet A/C shares share the same fundamentals/EPS history
+}
+
+def _load_proxy_valuation_map():
+    """讀 symbol_mapping.json，取得槓桿/代理商品 → 原型股對照。"""
+    mapping_path = os.path.join(ROOT, 'symbol_mapping.json')
+    proxy_map = dict(PROXY_EARNINGS_MAP)
+    try:
+        with open(mapping_path, encoding='utf-8') as f:
+            mapping = json.load(f)
+        for section in ('leveraged_etf', 'hk_proxy'):
+            for proxy_sym, meta in (mapping.get(section) or {}).items():
+                proto = meta.get('proto') if isinstance(meta, dict) else None
+                if proto:
+                    proxy_map[proxy_sym] = proto
+    except Exception:
+        pass
+    return proxy_map
+
+PROXY_VALUATION_MAP = _load_proxy_valuation_map()
+
 # ── 財報日期手動覆蓋表（yfinance 時間戳偶有偏差，在此校正） ─────────────
 # yfinance 對部份亞洲股（尤其韓股）的 earnings_dates 時間戳會用 EDT 清晨或
 # 午後時段標記，換算 KST 後可能較實際發布日早 1 天。若已知下一季真實發布日
@@ -56,6 +102,39 @@ EARNINGS_DATE_OVERRIDES = {
 
 
 # ── 工具函數 ──────────────────────────────────────────────────────────────
+EPS_HISTORY_OVERRIDES = {
+    'AAOI': {
+        '2026-05-07': {
+            'eps_estimate': -0.05,
+            'eps_actual': -0.07,
+            'source': 'company_press_release_non_gaap',
+        },
+    },
+    'WDC': {
+        '2025-07-30': {
+            'eps_estimate': 1.48,
+            'eps_actual': 1.66,
+            'source': 'company_press_release_non_gaap',
+        },
+        '2025-10-30': {
+            'eps_estimate': 1.57,
+            'eps_actual': 1.78,
+            'source': 'company_press_release_non_gaap',
+        },
+        '2026-01-29': {
+            'eps_estimate': 1.93,
+            'eps_actual': 2.13,
+            'source': 'company_press_release_non_gaap',
+        },
+        '2026-04-30': {
+            'eps_estimate': 2.39,
+            'eps_actual': 2.72,
+            'source': 'company_press_release_non_gaap',
+        },
+    },
+}
+
+
 def safe_float(v, decimals=4):
     """安全轉 float；NaN/None 回傳 None"""
     try:
@@ -65,6 +144,116 @@ def safe_float(v, decimals=4):
         return round(f, decimals)
     except Exception:
         return None
+
+
+def trailing_eps_from_history(history, count=4):
+    vals = []
+    for item in reversed(history or []):
+        if not isinstance(item, dict):
+            continue
+        v = safe_float(item.get('eps_actual'))
+        if v is not None:
+            vals.append(v)
+            if len(vals) >= count:
+                break
+    if len(vals) < count:
+        return None
+    return safe_float(sum(vals))
+
+
+def apply_eps_history_overrides(sym, history):
+    overrides = EPS_HISTORY_OVERRIDES.get(sym.upper())
+    if not overrides:
+        return
+    for item in history or []:
+        if not isinstance(item, dict):
+            continue
+        override = overrides.get(item.get('report_date'))
+        if not override:
+            continue
+        old_actual = item.get('eps_actual')
+        old_est = item.get('eps_estimate')
+        item['eps_actual'] = safe_float(override.get('eps_actual'))
+        item['eps_estimate'] = safe_float(override.get('eps_estimate'))
+        est = item.get('eps_estimate')
+        actual = item.get('eps_actual')
+        item['surprise_pct'] = safe_float((actual - est) / abs(est)) if est not in (None, 0) and actual is not None else None
+        item['eps_basis'] = 'non_gaap'
+        item['eps_override_source'] = override.get('source')
+        print(
+            f'    EPS override {sym} {item.get("report_date")}: '
+            f'actual {old_actual} -> {item.get("eps_actual")}, '
+            f'est {old_est} -> {item.get("eps_estimate")}',
+            flush=True,
+        )
+
+
+def derive_pe_from_eps(price, eps_ttm):
+    p = safe_float(price)
+    e = safe_float(eps_ttm)
+    if p is None or e is None or p <= 0 or e <= 0:
+        return None
+    return safe_float(p / e)
+
+
+def derive_peg_from_eps_forecast(sym_data):
+    """
+    PEG fallback：Yahoo trailingPegRatio 缺值時，以「預期本益比 / 明年 EPS 成長率(%)」推導。
+    只在 current/next-year EPS 都為正且明年 EPS 成長為正時使用；虧轉盈或負成長不硬算。
+    """
+    eps_cur_y = safe_float(sym_data.get('eps_cur_y'))
+    eps_next_y = safe_float(sym_data.get('eps_next_y'))
+    if eps_cur_y is None or eps_next_y is None or eps_cur_y <= 0 or eps_next_y <= eps_cur_y:
+        return None, None
+
+    growth_pct = (eps_next_y - eps_cur_y) / eps_cur_y * 100.0
+    if growth_pct <= 0:
+        return None, None
+
+    base_pe = safe_float(sym_data.get('fpe')) or safe_float(sym_data.get('pe'))
+    if base_pe is None or base_pe <= 0:
+        return None, None
+
+    return safe_float(base_pe / growth_pct), safe_float(growth_pct, 2)
+
+
+def fill_missing_peg_values(result_map):
+    """
+    補 PEG：
+      1) 個股：Yahoo PEG 缺值時，用 EPS 今年/明年預估推導。
+      2) 槓桿/代理商品：本身通常沒有 PEG，沿用原型股 PEG。
+    """
+    filled = []
+
+    for sym, sym_data in result_map.items():
+        if not isinstance(sym_data, dict) or sym_data.get('error') or sym_data.get('peg') is not None:
+            continue
+        peg, growth_pct = derive_peg_from_eps_forecast(sym_data)
+        if peg is None:
+            continue
+        sym_data['peg'] = peg
+        sym_data['peg_source'] = 'derived_eps_yoy_fpe'
+        sym_data['peg_growth_pct'] = growth_pct
+        filled.append(f'{sym}={peg} (EPS +{growth_pct}%)')
+
+    for proxy_sym, proto_sym in PROXY_VALUATION_MAP.items():
+        proxy = result_map.get(proxy_sym)
+        proto = result_map.get(proto_sym)
+        if not isinstance(proxy, dict) or not isinstance(proto, dict):
+            continue
+        if proxy.get('peg') is not None or proto.get('peg') is None:
+            continue
+        proxy['peg'] = proto.get('peg')
+        proxy['peg_source'] = 'underlying_proxy'
+        proxy['peg_underlying'] = proto_sym
+        if proto.get('peg_source'):
+            proxy['peg_underlying_source'] = proto.get('peg_source')
+        filled.append(f'{proxy_sym}={proxy["peg"]} (from {proto_sym})')
+
+    if filled:
+        print('  PEG fallback filled: ' + ', '.join(filled), flush=True)
+    else:
+        print('  PEG fallback: no additional values', flush=True)
 
 
 def calc_kd(df, period=9):
@@ -182,7 +371,7 @@ def _safe_print(msg):
 def _process_symbol(sym):
     _safe_print(f'  fetching {sym}...')
     try:
-        t    = yf.Ticker(sym)
+        t    = yf_ticker(sym)
         info = t.info
 
         # ── 基本面 ──────────────────────────────────────────
@@ -436,9 +625,14 @@ def _process_symbol(sym):
                 except Exception:
                     pass
 
+        apply_eps_history_overrides(sym, earnings_history)
+        eps_ttm_from_history = trailing_eps_from_history(earnings_history)
+        eps_ttm_value = eps_ttm_from_history or safe_float(info.get('trailingEps'))
+        pe_value = safe_float(info.get('trailingPE')) or derive_pe_from_eps(prev_close, eps_ttm_value)
+
         result[sym] = {
             # 基本面（全部透過 safe_float 防止 NaN 寫入 JSON）
-            'pe':               safe_float(info.get('trailingPE')),
+            'pe':               pe_value,
             'fpe':              safe_float(info.get('forwardPE')),
             'peg':              safe_float(info.get('trailingPegRatio')),
             'ps':               safe_float(info.get('priceToSalesTrailing12Months')),
@@ -446,11 +640,13 @@ def _process_symbol(sym):
             'rev_yoy':          safe_float(info.get('revenueGrowth')),
             'rev_fwd':          rev_fwd,
             'hist_avg_pe':      hist_avg_pe,
-            'eps_ttm':          safe_float(info.get('trailingEps')),
+            'eps_ttm':          eps_ttm_value,
             'eps_cur_q':        eps_cur_q,
             'eps_next_q2':      eps_next_q,
             'eps_cur_y':        safe_float(info.get('epsCurrentYear')),
             'eps_next_y':       safe_float(info.get('epsForward')),
+            'eps_ttm_provider':  'earnings_history' if eps_ttm_from_history is not None else 'yahoo_trailingEps',
+            'eps_ttm_yahoo':     safe_float(info.get('trailingEps')),
             'gross_margin':        gross_margin,
             'operating_margin':    operating_margin,
             'target_mean_price':   target_mean_price,
@@ -554,6 +750,48 @@ def _merge_naver_for_korean_stock(yf_sym, sym_data):
 
     # next_earnings_date 校正：Naver disclosure 顯示最近一次「實績」日期
     try:
+        naver_fund = fetch_naver_fundamentals(code)
+    except Exception as e:
+        naver_fund = {}
+        print(f'  [{yf_sym}] Naver fundamentals FAIL: {e}', flush=True)
+
+    if naver_fund:
+        replaced = []
+        for field in ('pe', 'pb', 'fpe', 'eps_next_q2'):
+            value = safe_float(naver_fund.get(field))
+            if value is not None:
+                old = sym_data.get(field)
+                sym_data[field] = value
+                if old != value:
+                    replaced.append(field)
+
+        # Naver usually exposes one annual consensus year. Keep Yahoo's
+        # current-year value if it exists, but use the Naver consensus to
+        # fill the forward/next-year slot that Yahoo often leaves blank.
+        eps_cur_y = safe_float(naver_fund.get('eps_cur_y'))
+        if eps_cur_y is not None:
+            old = sym_data.get('eps_cur_y')
+            sym_data['eps_cur_y'] = eps_cur_y
+            if old != eps_cur_y:
+                replaced.append('eps_cur_y')
+
+        eps_next_y = safe_float(naver_fund.get('eps_next_y'))
+        if eps_next_y is not None:
+            old = sym_data.get('eps_next_y')
+            sym_data['eps_next_y'] = eps_next_y
+            if old != eps_next_y:
+                replaced.append('eps_next_y')
+
+        if replaced:
+            sym_data['fundamental_source'] = 'naver'
+            sym_data['naver_code'] = code
+            if 'eps_ttm' in replaced:
+                sym_data['eps_ttm_provider'] = 'naver'
+            if naver_fund.get('eps_estimate_period'):
+                sym_data['naver_eps_estimate_period'] = naver_fund.get('eps_estimate_period')
+            print(f'  [{yf_sym}] Naver fundamentals filled: {", ".join(replaced)}', flush=True)
+
+    try:
         latest_disc, title = fetch_naver_latest_earnings_disclosure(code)
     except Exception as e:
         latest_disc = None
@@ -581,6 +819,10 @@ else:
     print('\n[Naver] fetch_naver_earnings 模組未載入，跳過韓股補資料', flush=True)
 
 
+print('\n[PEG] 缺值補齊 ───────────────────────────────', flush=True)
+fill_missing_peg_values(result)
+
+
 # ── 財報日期手動覆蓋：EARNINGS_DATE_OVERRIDES > yfinance ────────────────────
 for _ov_sym, _ov_date in EARNINGS_DATE_OVERRIDES.items():
     if _ov_sym in result and isinstance(result[_ov_sym], dict):
@@ -597,14 +839,89 @@ for proxy_sym, underlying_sym in PROXY_EARNINGS_MAP.items():
         print(f'  [{proxy_sym}] next_earnings_date 從 {underlying_sym} 補充: {result[proxy_sym]["next_earnings_date"]}', flush=True)
 
 # ── 寫出 ──────────────────────────────────────────────────────────────────
-output = {
-    'generated': datetime.now(timezone.utc).isoformat(),
-    'data': result
-}
+def _fund_entry_useful(d):
+    if not isinstance(d, dict) or d.get('error'):
+        return False
+    keys = (
+        'pe', 'fpe', 'peg', 'ps', 'pb', 'hist_avg_pe',
+        'eps_ttm', 'eps_cur_q', 'eps_cur_y', 'eps_next_y',
+        'daily_k', 'weekly_k', 'hourly_k',
+        'daily_macd', 'weekly_macd', 'hourly_macd',
+        'daily_rsi', 'weekly_rsi', 'hourly_rsi',
+        'prev_close', 'prev_prev_close', 'next_earnings_date',
+    )
+    if any(d.get(k) not in (None, '', '-') for k in keys):
+        return True
+    return bool(d.get('earnings_history'))
+
+def _json_safe(v):
+    if isinstance(v, dict):
+        return {k: _json_safe(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_json_safe(item) for item in v]
+    if isinstance(v, float) and (v != v or v in (float('inf'), float('-inf'))):
+        return None
+    return v
+
+for alias_sym, source_sym in FUNDAMENTAL_ALIAS_MAP.items():
+    if alias_sym not in symbols:
+        continue
+    source = result.get(source_sym)
+    alias = result.get(alias_sym)
+    if not _fund_entry_useful(source):
+        continue
+    if _fund_entry_useful(alias):
+        continue
+    cloned = copy.deepcopy(source)
+    cloned['symbol'] = alias_sym
+    cloned['fundamental_alias_source'] = source_sym
+    result[alias_sym] = cloned
+    print(f'  [{alias_sym}] fundamentals filled from {source_sym}', flush=True)
 
 out_path = os.path.join(ROOT, 'fundamentals.json')
+old_data = {}
+old_useful = 0
+if os.path.exists(out_path):
+    try:
+        with open(out_path, encoding='utf-8') as f:
+            old_data = json.load(f).get('data', {})
+        old_useful = sum(1 for v in old_data.values() if _fund_entry_useful(v))
+    except Exception:
+        old_data = {}
+        old_useful = 0
+
+preserved = []
+for sym in symbols:
+    if _fund_entry_useful(result.get(sym)):
+        continue
+    old_entry = old_data.get(sym)
+    if _fund_entry_useful(old_entry):
+        result[sym] = old_entry
+        result[sym]['preserved_from_previous'] = True
+        preserved.append(sym)
+if preserved:
+    print(f'  preserved previous useful fundamentals for: {", ".join(preserved)}', flush=True)
+
+new_useful = sum(1 for v in result.values() if _fund_entry_useful(v))
+
+min_useful = max(5, int(max(len(result), len(symbols)) * 0.25))
+if old_useful and new_useful < max(min_useful, int(old_useful * 0.60)):
+    raise RuntimeError(
+        f'Abort fundamentals.json write: only {new_useful} useful rows '
+        f'(previous {old_useful}). This usually means the data provider failed.'
+    )
+if not old_useful and len(result) >= 10 and new_useful < min_useful:
+    raise RuntimeError(
+        f'Abort fundamentals.json write: only {new_useful} useful rows out of {len(result)}.'
+    )
+
+output = {
+    'generated': datetime.now(timezone.utc).isoformat(),
+    'data': _json_safe(result)
+}
+
 with open(out_path, 'w', encoding='utf-8') as f:
-    json.dump(output, f, ensure_ascii=False, indent=2)
+    json.dump(output, f, ensure_ascii=False, indent=2, allow_nan=False)
 
 print(f'\nDone. {len(result)} symbols → fundamentals.json  ({datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")})')
 
@@ -649,3 +966,11 @@ try:
     _sp3.run([_sy3.executable, os.path.join(ROOT, 'fetch_etf_holdings.py')], check=False, timeout=180)
 except Exception as _e:
     print(f'  [etf_holdings] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+
+# ── 順便更新台指成分股權重（taiex_weights.json；期貨持倉曝險回推用）──
+try:
+    print('\n更新台指成分股權重 (taiex_weights.json) ...', flush=True)
+    import subprocess as _sp4, sys as _sy4
+    _sp4.run([_sy4.executable, os.path.join(ROOT, 'fetch_taiex_weights.py')], check=False, timeout=60)
+except Exception as _e:
+    print(f'  [taiex_weights] 更新失敗（不影響 fundamentals）：{_e}', flush=True)

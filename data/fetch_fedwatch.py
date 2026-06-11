@@ -295,6 +295,21 @@ def main():
             elif diff_bps >=  25: inferred_change = f'預期升息 {diff_bps}bp'
             else:                 inferred_change = '預期維持不變'
 
+    # ── 防止「抓取全失敗」時用空資料覆蓋既有的好資料 ──
+    #   來源（investing.com Cloudflare / FRED 403 / DBnomics 404）常整批失效；
+    #   若這次什麼都沒抓到，但既有 fedwatch.json 仍有可用資料 → 保留，不覆寫。
+    got_nothing = (not meetings) and (current.get('upper') is None)
+    if got_nothing and os.path.exists(OUT_FILE):
+        try:
+            with open(OUT_FILE, encoding='utf-8') as f:
+                prev = json.load(f)
+            prev_ok = (prev.get('current_ffr', {}).get('upper') is not None) or (prev.get('meetings'))
+            if prev_ok:
+                print('\n本次來源全失敗，保留既有 fedwatch.json（不以空資料覆蓋）', flush=True)
+                return
+        except Exception:
+            pass
+
     payload = {
         'generated':         datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z',
         'source':            'investing.com Fed Rate Monitor + FRED DBnomics',

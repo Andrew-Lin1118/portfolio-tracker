@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FMX 微台策略監控</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- TradingView Lightweight Charts：K 線主圖 + RSI 副圖（原生時間軸跳空收合 / 游標縮放 / 拖拽平移） -->
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -50,6 +52,7 @@
     box-shadow: 0 0 6px currentColor;
   }
   #statusDot.running { background: var(--green); color: var(--green); }
+  #statusDot.paused { background: var(--gold); color: var(--gold); }
   #statusDot.stopped { background: var(--red); color: var(--red); }
   #statusLabel { font-size: 11px; color: var(--muted); }
   #lastRefresh { font-size: 11px; color: var(--muted); margin-left: 6px; }
@@ -648,8 +651,11 @@
         <input type="number" id="cfgLowPeriod" value="100" min="1" step="1">
       </div>
       <div style="font-size:9px;color:var(--muted);line-height:1.35;margin-top:3px">
-        <b style="color:var(--gold)">買入</b>：價格突破近 N 日高<br>
-        <b style="color:var(--red)">清倉</b>：價格跌破 M 日移動平均線
+        <b style="color:var(--gold)">買入</b>：
+          多頭區(>M日MA) → 突破 N 日高進場；
+          空頭區(&lt;M日MA) → 突破 N 日MA 搶反彈<br>
+        <b style="color:var(--red)">清倉</b>：價格同時跌破 M 日MA 且跌破 N 日MA（雙重確認，避免假摔）<br>
+        <span style="color:var(--muted);opacity:.8">※ M 日MA 為長線多空分界；單條跌破不出場，須短均線 N 日MA 確認破位</span>
       </div>
       <button class="btn gold" style="width:100%;margin-top:6px" onclick="applySettings()">套用順勢濾網</button>
     </div>
@@ -696,7 +702,11 @@
            font-size:10px;line-height:1.6;color:#8b949e;pointer-events:none;min-width:110px;
            white-space:pre"></div>
       <div class="chart-wrapper" id="priceChartWrap" style="flex:1;min-height:80px">
-        <canvas id="priceChart"></canvas>
+        <!-- 均線圖例（顏色說明）：渲染時由 JS 填入，intraday 隱藏 -->
+        <div id="maLegend" style="display:none;position:absolute;top:8px;right:8px;z-index:10;
+             background:rgba(28,34,48,0.85);border:1px solid #30363d;border-radius:6px;padding:4px 8px;
+             font-size:10px;line-height:1.7;color:#c9d1d9;pointer-events:none;white-space:nowrap"></div>
+        <div id="priceChart" style="width:100%;height:100%"></div>
       </div>
       <!-- ▒▒ K 線 ↕ RSI 高度分隔（桌機 + 手機都可拖） -->
       <div class="row-drag-handle row-drag-rsi" id="rowDragRsi" title="拖曳調整 K 線 / RSI 高度比例"></div>
@@ -706,7 +716,7 @@
         <span id="rsiSignal" style="font-size:10px;padding:1px 6px;border-radius:3px;display:none"></span>
       </div>
       <div class="chart-small" id="leverageChartWrap" style="height:100px">
-        <canvas id="leverageChart"></canvas>
+        <div id="leverageChart" style="width:100%;height:100%"></div>
       </div>
     </div>
 
@@ -875,6 +885,7 @@
     <div class="stat-card">
       <div class="label">強平價</div>
       <div class="value red" id="statLiqPrice">—</div>
+      <div class="sub" id="statLiqPriceSub"></div>
     </div>
 
     <div class="stat-row">
@@ -1052,8 +1063,14 @@
 // ════════════════════════════════════════════════════════
 const BASE = '';           // same origin (served by server.py)
 let autoRefreshTimer = null;
-let priceChartObj   = null;
-let leverageChartObj = null;
+let priceChartObj   = null;   // legacy Chart.js handle — 已遷移 LWC，永遠保持 null（舊 guard 自動跳過）
+let leverageChartObj = null;  // 同上（RSI 副圖也已遷移）
+// ── TradingView Lightweight Charts 句柄 ──
+//   _lwcPrice = { chart, candle, lines:{key:series}, priceLines:{key:line}, interval, isIntraday, times:[], lastClose }
+//   _lwcRsi   = { chart, rsi, period }
+let _lwcPrice = null;
+let _lwcRsi   = null;
+let _lwcSyncing = false;   // X 軸雙向同步的 reentrancy guard
 // leverageHistory removed — now using RSI chart
 let _shiftHeld = false;   // 修飾鍵：Shift / Ctrl / Cmd 任一按下就是 Y 軸縮放（TradingView：Ctrl+wheel = Y zoom；保留 Shift 相容）
 let _pyrTriggerPx      = null;   // 加槓桿觸發價（快取，供即時更新百分比用）
@@ -1082,17 +1099,19 @@ const _PROD_MIN_PX = {
 const PRODUCTS = {
   // mis: TAIFEX MIS 即時行情 base code（不含月份）
   // TMF=微型臺指, MXF=小臺, TXF=臺指；這裡只影響 dashboard 行情顯示，不影響下單代碼。
-  'MXFR1': { name: '微型台指期貨', taifex: null,  mis: 'TMF', fallbackMis: ['MXF','TXF','TX'], yf: '^TWII', futKline: true, mult: 10,   maint: 18300 },
-  'TXFR1': { name: '台股期貨(大台)',taifex: 'TX',  mis: 'TXF', yf: '^TWII', futKline: true, mult: 200,  maint: 366000 },
-  'MTXR1': { name: '小型台指期貨', taifex: 'MTX', mis: 'MXF', yf: '^TWII', futKline: true, mult: 50,   maint: 91500 },
-  'TE':    { name: '電子期貨',     taifex: 'TE',  mis: 'TE',  yf: null,    mult: 4000, maint: 511000 },
-  'TF':    { name: '金融期貨',     taifex: 'TF',  mis: 'TF',  yf: null,    mult: 1000, maint: 103000 },
+  // init: 原始保證金/口（用於計算風險指標 = 權益總值 / Σ(qty × init)）
+  // 數值依 TAIFEX 2025-Q4 公告（指數類大約 init = maint × 1.305）
+  'MXFR1': { name: '微型台指期貨', taifex: null,  mis: 'TMF', fallbackMis: ['MXF','TXF','TX'], yf: '^TWII', futKline: true, mult: 10,   maint: 20150,  init: 26300 },
+  'TXFR1': { name: '台股期貨(大台)',taifex: 'TX',  mis: 'TXF', yf: '^TWII', futKline: true, mult: 200,  maint: 403000, init: 526000 },
+  'MTXR1': { name: '小型台指期貨', taifex: 'MTX', mis: 'MTX', yf: '^TWII', futKline: true, mult: 50,   maint: 100750, init: 131500 },
+  'TE':    { name: '電子期貨',     taifex: 'TE',  mis: 'TE',  yf: null,    mult: 4000, maint: 511000, init: 667000 },
+  'TF':    { name: '金融期貨',     taifex: 'TF',  mis: 'TF',  yf: null,    mult: 1000, maint: 103000, init: 134000 },
   // GDF: 100g 黃金期貨，報價單位 NTD/g；BRF: 200桶布蘭特，報價單位 NTD/桶
   // yfScale：將 Yahoo Finance 國際報價（USD）轉換為 TAIFEX 台幣報價，以對齊 K 線 Y 軸刻度
-  'GDF':   { name: '黃金期貨',     taifex: 'GDF', mis: 'GDF', yf: 'GC=F',  yfScale: 1.029, mult: 100,  maint: 40000, dp: 1 },
-  'BRF':   { name: '布蘭特原油',   taifex: 'BRF', mis: 'BRF', yf: 'BZ=F',  yfScale: 32,    mult: 200,  maint: 55000, dp: 1 },
-  'ZEF':   { name: '小型電子期貨', taifex: 'ZEF', mis: 'ZEF', yf: null,    mult: 2000, maint: 63875 },
-  'ZFF':   { name: '小型金融期貨', taifex: 'ZFF', mis: 'ZFF', yf: null,    mult: 500,  maint: 25750 },
+  'GDF':   { name: '黃金期貨',     taifex: 'GDF', mis: 'GDF', yf: 'GC=F',  yfScale: 1.029, mult: 100,  maint: 40000,  init: 52000,  dp: 1 },
+  'BRF':   { name: '布蘭特原油',   taifex: 'BRF', mis: 'BRF', yf: 'BZ=F',  yfScale: 32,    mult: 200,  maint: 55000,  init: 71500,  dp: 1 },
+  'ZEF':   { name: '小型電子期貨', taifex: 'ZEF', mis: 'ZEF', yf: null,    mult: 2000, maint: 63875,  init: 83000 },
+  'ZFF':   { name: '小型金融期貨', taifex: 'ZFF', mis: 'ZFF', yf: null,    mult: 500,  maint: 25750,  init: 33500 },
 };
 
 // 把持倉 symbol（如 FITM / MXFE6 / TXFE6）映射到 PRODUCTS key，用於取得乘數等
@@ -1151,6 +1170,23 @@ function _computePortfolioNotional(livePriceOverride = null) {
   }
   if (!detail.length) return null;
   return { notional, lots, detail };
+}
+
+// 計算整體持倉的原始保證金總額 Σ(qty × init_per_lot)
+// 用於風險指標 = 權益總值 / 原始保證金總額 × 100%
+// 回傳 0 表示無持倉或產品無 init 設定。
+function _computePortfolioInitMargin() {
+  if (!Array.isArray(_sdkPositions) || _sdkPositions.length === 0) return 0;
+  let total = 0;
+  for (const p of _sdkPositions) {
+    const prodKey = _symbolToProductKey(p.symbol);
+    if (!prodKey) continue;
+    const qty = Math.abs(Number(p.qty) || 0);
+    if (!qty) continue;
+    const initPer = PRODUCTS[prodKey]?.init ?? 0;
+    if (initPer > 0) total += qty * initPer;
+  }
+  return total;
 }
 
 let currentSymbol    = 'MXFR1';
@@ -1455,30 +1491,7 @@ function _computeMaxBarThickness(chart) {
 }
 
 function resetChartZoom() {
-  if (priceChartObj && lastChartData) {
-    // 還原為最後 initBars 根「真實」K 棒（右側 padding 不預設顯示）
-    const initBars2 = lastChartData._initBars || 90;
-    const dates2    = lastChartData.dates;
-    const realN     = dates2.length;
-    const minIdx    = Math.max(0, realN - initBars2);
-    const maxIdx    = realN - 1;
-    const allLabels = priceChartObj.scales.x?.labels || priceChartObj.data.labels || dates2;
-    const minLbl    = allLabels[minIdx] ?? dates2[minIdx];
-    const maxLbl    = allLabels[maxIdx] ?? dates2[maxIdx];
-    priceChartObj.options.scales.x.min = minLbl;
-    priceChartObj.options.scales.x.max = maxLbl;
-    if (leverageChartObj) {
-      // 副圖 linear scale 用索引
-      leverageChartObj.options.scales.x.min = minIdx;
-      leverageChartObj.options.scales.x.max = maxIdx;
-      leverageChartObj.update('none');
-    }
-    priceChartObj.resetZoom?.();
-    // K 棒寬度還原
-    const ds = priceChartObj.data.datasets[0];
-    if (ds) ds.maxBarThickness = _computeMaxBarThickness(priceChartObj);
-    priceChartObj.update('none');
-  }
+  _lwcResetZoom();   // LWC：回到最後 initBars 根（RSI 副圖經 logical-range 同步自動跟隨）
   const el = document.getElementById('badgeZoom');
   if (el) { el.textContent = '⊕ 還原縮放'; el.style.borderColor = '#555'; el.style.color = '#888'; }
 }
@@ -1618,9 +1631,8 @@ let _misTimer   = null;
 const _TAIFEX_MO_MAP = {F:1,G:2,H:3,J:4,K:5,M:6,N:7,Q:8,U:9,V:10,X:11,Z:12};
 
 // ── Fugle API 月份字母代碼（字母順序 A-L）──
-// 只加入與 TAIFEX 不衝突的字母（A/B/C/D/E/I/L）
-// F/G/H/J/K/M/N/Q/U/V/X/Z 已被 TAIFEX 使用，優先用 TAIFEX 定義
-const _FUGLE_MO_MAP  = {A:1,B:2,C:3,D:4,E:5,I:9,L:12};
+// daemon / order path uses this format; TAIFEX public QuoteList uses a different code table.
+const _FUGLE_MO_MAP  = {A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,I:9,J:10,K:11,L:12};
 const _QUOTE_LIST_MO_MAP = {A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,I:9,J:10,K:11,L:12};
 
 // ── 台指系列商品：MXFR1/TXFR1/MTXR1 追蹤同一台股加權指數，effectiveRef 共用 ──
@@ -1632,9 +1644,9 @@ const _TW_INDEX_KEYS_GLOBAL = new Set(['MXFR1', 'TXFR1', 'MTXR1']);
 function _daemonSessionOkStrict(q, currNight) {
   if (!q || q.error) return false;
   if (q._stale || q._daemonStale) return false;
-  const s = q._session || '';
+  const s = String(q._session || q.session || '').toLowerCase();
   if (!s) return false;
-  const daemonNight = s.includes('afterhours');
+  const daemonNight = s.includes('afterhours') || s.includes('night');
   return currNight ? daemonNight : !daemonNight;
 }
 
@@ -1665,12 +1677,17 @@ function _resolveHeldContractRef(sym, info, misData, twIndexEffectiveRef) {
     return refInfo ? refInfo.ref : null;
   };
 
-  const codes = [
-    info.mis,
-    info.mis ? info.mis + 'F' : null,
-    info.taifex,
-    ...(info.fallbackMis || []),
-  ].filter(Boolean);
+  const codes = (sym === 'MXFR1'
+    ? [
+        info.mis,
+        info.mis ? info.mis + 'F' : null,
+      ]
+    : [
+        info.mis,
+        info.mis ? info.mis + 'F' : null,
+        info.taifex,
+        ...(info.fallbackMis || []),
+      ]).filter(Boolean);
 
   // 1. MIS 即時同月份
   for (const code of codes) {
@@ -1690,6 +1707,11 @@ function _resolveHeldContractRef(sym, info, misData, twIndexEffectiveRef) {
   }
 
   // 3. 台指系列共用（最後備援）
+  // MXFR1(TM(F) micro) must use its own same-month quote row. When MIS is
+  // still loading, do not fall back to the broader index proxy ref; that is
+  // what produced the bogus +4% move during night session.
+  if (sym === 'MXFR1') return null;
+
   if (_TW_INDEX_KEYS_GLOBAL.has(sym) && twIndexEffectiveRef != null && twIndexEffectiveRef > 1000) {
     return twIndexEffectiveRef;
   }
@@ -1700,14 +1722,59 @@ function _resolveHeldContractRef(sym, info, misData, twIndexEffectiveRef) {
 // ── 持倉合約月份解析 ────────────────────────────────────────────
 function _heldContractMonth(sym) {
   if (!Array.isArray(_sdkPositions)) return '';
-  const pos = _sdkPositions.find(p => _symbolToProductKey(p.symbol) === sym);
+  const pos = _sdkPositions
+    .filter(p => _symbolToProductKey(p.symbol) === sym)
+    .sort((a, b) => {
+      const am = _normToYYYYMM(a.contract_month) || _symToMonthYYYYMM(a.symbol) || '';
+      const bm = _normToYYYYMM(b.contract_month) || _symToMonthYYYYMM(b.symbol) || '';
+      return bm.localeCompare(am);
+    })[0];
   if (!pos) return '';
   return _normToYYYYMM(pos.contract_month) || _symToMonthYYYYMM(pos.symbol) || '';
+}
+
+function _sdkPositionMatchesSymbol(p, sym) {
+  const prod = _symbolToProductKey(p?.symbol);
+  return prod === sym ||
+    (p?.symbol || '').replace(/R\d$/, '') === sym.replace(/R\d$/, '') ||
+    p?.symbol === 'MXFR1' || p?.symbol === 'FITM';
+}
+
+function _activeSdkPositionFor(sym) {
+  if (!Array.isArray(_sdkPositions)) return null;
+  const matches = _sdkPositions.filter(p => _sdkPositionMatchesSymbol(p, sym));
+  if (!matches.length) return null;
+  return matches.sort((a, b) => {
+    const am = _normToYYYYMM(a.contract_month) || _symToMonthYYYYMM(a.symbol) || '';
+    const bm = _normToYYYYMM(b.contract_month) || _symToMonthYYYYMM(b.symbol) || '';
+    return bm.localeCompare(am);
+  })[0];
+}
+
+function _activeSdkPositionsFor(sym) {
+  if (!Array.isArray(_sdkPositions)) return [];
+  const active = _activeSdkPositionFor(sym);
+  const activeMonth = active ? (_normToYYYYMM(active.contract_month) || _symToMonthYYYYMM(active.symbol) || '') : '';
+  return _sdkPositions.filter(p => {
+    if (!_sdkPositionMatchesSymbol(p, sym)) return false;
+    const mon = _normToYYYYMM(p.contract_month) || _symToMonthYYYYMM(p.symbol) || '';
+    return activeMonth ? mon === activeMonth : true;
+  });
 }
 
 // ── 台指系列共用 effectiveRef 計算 ─────────────────────────────
 // 優先 _fubonQuoteCache（5s），再從 sdkMktQuotesCache 的 MXFR1/TXFR1 取
 // 只採用時段一致 (_session 欄位) 的 daemon 資料
+function _activeHeldLivePrice(fallbackPrice = null) {
+  const pos = _activeSdkPositionFor(currentSymbol);
+  const posPx = Number(pos?.cur_price ?? pos?.market_price ?? pos?.last_price ?? _sdkPosPriceRef);
+  if (Number.isFinite(posPx) && posPx > 0) return posPx;
+  const cachedPx = Number(_sdkPosPriceRef);
+  if (Number.isFinite(cachedPx) && cachedPx > 0) return cachedPx;
+  const fb = Number(fallbackPrice);
+  return Number.isFinite(fb) && fb > 0 ? fb : null;
+}
+
 function _computeTwIndexEffectiveRef(currNight) {
   const fq = _fubonQuoteCache;
   if (fq && !fq.error && fq.last > 5000 && fq.change != null
@@ -1734,9 +1801,13 @@ function _computeTwIndexEffectiveRef(currNight) {
  */
 function _symToMonthYYYYMM(s) {
   if (!s || s.length < 2) return '';
-  const alpha = s.slice(-2, -1).toUpperCase();
-  const yr    = parseInt(s.slice(-1));
-  const mNum  = _TAIFEX_MO_MAP[alpha] ?? _FUGLE_MO_MAP[alpha];
+  const sym   = String(s).trim().toUpperCase();
+  const alpha = sym.slice(-2, -1).toUpperCase();
+  const yr    = parseInt(sym.slice(-1));
+  const isFugleSymbol = /^(TMF|MXF|TXF|MTX|GDF|BRF|ZEF|ZFF|TE|TF)[A-L]\d$/.test(sym);
+  const mNum  = isFugleSymbol
+    ? (_FUGLE_MO_MAP[alpha] ?? _TAIFEX_MO_MAP[alpha])
+    : (_TAIFEX_MO_MAP[alpha] ?? _FUGLE_MO_MAP[alpha]);
   if (!mNum || isNaN(yr)) return '';
   return `${2020 + yr}${String(mNum).padStart(2, '0')}`;
 }
@@ -1761,12 +1832,22 @@ function _normToYYYYMM(m) {
 
 function _normQuoteListToYYYYMM(m) {
   if (!m) return '';
-  const s = String(m).trim();
-  if (/^\d{6}$/.test(s)) return s;
-  if (/^\d{4}$/.test(s)) return '20' + s;
-  if (s.length === 2) {
-    const mo = _QUOTE_LIST_MO_MAP[s[0].toUpperCase()];
-    const yr = parseInt(s[1]);
+  const s = String(m).trim().toUpperCase();
+  const compact = s.replace(/[^A-Z0-9]/g, '');
+  if (/^\d{6}$/.test(compact)) return compact;
+  if (/^\d{4}$/.test(compact) && !compact.startsWith('20')) return '20' + compact;
+  if (/^\d{2}$/.test(compact)) {
+    const mo = parseInt(compact, 10);
+    if (mo >= 1 && mo <= 12) {
+      const now = new Date();
+      let yr = now.getFullYear();
+      if (mo < now.getMonth() + 1) yr += 1;
+      return `${yr}${String(mo).padStart(2, '0')}`;
+    }
+  }
+  if (compact.length === 2) {
+    const mo = _QUOTE_LIST_MO_MAP[compact[0]];
+    const yr = parseInt(compact[1]);
     if (mo && !isNaN(yr)) return `${2020 + yr}${String(mo).padStart(2,'0')}`;
   }
   return '';
@@ -1782,10 +1863,76 @@ function _parseSignedMarketNumber(v) {
   return n;
 }
 
+function _parseMarketPctNumber(v) {
+  if (v == null || v === '') return null;
+  const n = parseFloat(String(v).replace(/,/g, '').replace('%', '').trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+function _parseSignedChangeWithPct(changeValue, pctValue = null) {
+  const chg = _parseSignedMarketNumber(changeValue);
+  if (chg == null) return null;
+  const pct = _parseMarketPctNumber(pctValue);
+  if (pct == null || pct === 0 || chg === 0) return chg;
+  if (pct < 0 && chg > 0) return -chg;
+  if (pct > 0 && chg < 0) return Math.abs(chg);
+  return chg;
+}
+
+function _localYMD(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function _prevDailyCloseRef(displayLast = null) {
+  const cd = lastChartData;
+  if (!cd || cd._intraday || !Array.isArray(cd.dates) || !Array.isArray(cd.closes)) return null;
+  const today = _localYMD();
+  let idx = cd.closes.length - 1;
+  while (idx >= 0) {
+    const close = Number(cd.closes[idx]);
+    const date = String(cd.dates[idx] || '');
+    if (!Number.isFinite(close) || close <= 100) { idx--; continue; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today) { idx--; continue; }
+    const last = Number(displayLast);
+    if (Number.isFinite(last) && last > 100 && Math.abs(last / close - 1) > 0.08) return null;
+    return { ref: close, date };
+  }
+  return null;
+}
+
+function _prevDailyCloseChange(sym, info, last) {
+  if (!_TW_INDEX_KEYS_GLOBAL.has(sym) || last == null) return null;
+  if (info?.futKline) {
+    // Futures live quote change must come from a quote feed.
+    // Daily candles can be shifted by session/contract rollover and can produce false live changes.
+    return null;
+  }
+  const refInfo = _prevDailyCloseRef(last);
+  if (!refInfo?.ref) return null;
+  const rawLast = Number(last);
+  const rawChg = rawLast - refInfo.ref;
+  if (!Number.isFinite(rawChg) || Math.abs(rawChg) < 0.01) return null;
+  const dp = info?.dp || 0;
+  const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+  const pctVal = rawChg / refInfo.ref * 100;
+  return {
+    ref: refInfo.ref,
+    refDate: refInfo.date,
+    last: rawLast,
+    chg,
+    pct: (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%',
+    source: 'prev_daily_close',
+  };
+}
+
 function _quoteRowRef(row) {
   if (!row) return null;
   const last = _parseSignedMarketNumber(row.Last ?? row.CLastPrice ?? row.LastPrice);
-  const chg  = _parseSignedMarketNumber(row.Change ?? row.CDiff ?? row.PriceChange);
+  const pctRaw = row['%'] ?? row.CDiffRate ?? row.ChangeRate;
+  const chg  = _parseSignedChangeWithPct(row.Change ?? row.CDiff ?? row.PriceChange, pctRaw);
   if (last == null || chg == null || last < 100 || chg === 0) return null;
   const ref = last - chg;
   if (!ref || ref < 100) return null;
@@ -1793,24 +1940,95 @@ function _quoteRowRef(row) {
   return { ref, rowLast: last, rowChg: chg };
 }
 
-function _mxfDisplayChangeFromMis(month = '', misData = null) {
+function _displayChangeFromSdkQuote(sym, displayLast = null) {
+  const info = PRODUCTS[sym] || {};
+  const candidates = [];
+  const batchQ = _sdkMktQuotesCache?.quotes?.[sym];
+  if (batchQ) candidates.push(batchQ);
+  if (sym === currentSymbol && _fubonQuoteCache) candidates.push(_fubonQuoteCache);
+
+  for (const q of candidates) {
+    if (!q || q.error) continue;
+    const qLast = Number(q.last);
+    let ref = Number(q.ref);
+    const qChange = Number(q.change);
+    if (!Number.isFinite(ref) && Number.isFinite(qLast) && Number.isFinite(qChange)) {
+      ref = qLast - qChange;
+    }
+    if (!Number.isFinite(ref) || ref <= 1000) continue;
+
+    let last = Number(displayLast);
+    if (!Number.isFinite(last) || last <= 0) last = qLast;
+    if (!Number.isFinite(last) || last <= 0) continue;
+    if (Number.isFinite(qLast) && Math.abs(last - qLast) > Math.max(200, qLast * 0.01)) {
+      continue;
+    }
+
+    let rawChg = last - ref;
+    let pctVal = (rawChg / ref) * 100;
+    const qPct = Number(q.change_pct);
+    if (Number.isFinite(qPct) && Math.abs(pctVal - qPct) > 1.5 && Number.isFinite(qChange)) {
+      rawChg = qChange;
+      pctVal = qPct;
+      last = qLast;
+    }
+
+    const dp = info.dp || 0;
+    const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+    return {
+      ref,
+      last,
+      chg,
+      pct: (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%',
+      source: 'sdk_quote_ref',
+    };
+  }
+  return null;
+}
+
+function _mxfDisplayChangeFromMis(month = '', misData = null, displayLast = null) {
   const targetMonth = _normToYYYYMM(month) || month || _heldContractMonth('MXFR1') || '';
+  const liveLast = Number(displayLast);
   const pick = (code) => {
     const row = targetMonth
       ? (_misByCodeMonth[`${code}_${targetMonth}`] || null)
       : null;
     return row || misData?.[code] || misData?.[code + 'F'] || _misCache?.[code] || _misCache?.[code + 'F'] || null;
   };
-  for (const code of ['MXF', 'TXF']) {
+  for (const code of ['TMF']) {
     const row = pick(code);
     const refInfo = _quoteRowRef(row);
     if (!row?._quoteList || !refInfo?.rowChg) continue;
+    if (code === 'TMF') {
+      // ── 防呆：TAIFEX MIS 的 TMF（微型臺指）成交價偶爾延遲/凍結（曾整盤落後
+      //   上千點、甚至低於當日最低價）。若與呼叫端帶入的 SDK 即時價偏離過大，
+      //   視 MIS 成交價為過時，改用 SDK 即時價搭配 MIS 參考價（昨結算，盤中不變）
+      //   計算漲跌，不再貼用過時的 MIS 成交價。正常情況同合約差距 < 個位數，不誤判。
+      if (liveLast > 0 && Math.abs(refInfo.rowLast - liveLast) > Math.max(120, liveLast * 0.004)) {
+        const rawChg = liveLast - refInfo.ref;
+        const pct = (rawChg >= 0 ? '+' : '') + (rawChg / refInfo.ref * 100).toFixed(2) + '%';
+        return { chg: Math.round(rawChg), pct, code, last: liveLast };
+      }
+      const pctRaw = row?.['%'] || row?.CDiffRate;
+      const pctNum = parseFloat(String(pctRaw || '').replace('%', ''));
+      const pctAbs = !isNaN(pctNum)
+        ? Math.abs(pctNum)
+        : Math.abs(refInfo.rowChg / refInfo.ref * 100);
+      if (pctAbs >= 3.5) continue;
+      const pct = !isNaN(pctNum)
+        ? ((pctNum >= 0 ? '+' : '') + pctNum.toFixed(2) + '%')
+        : ((refInfo.rowChg >= 0 ? '+' : '') + (refInfo.rowChg / refInfo.ref * 100).toFixed(2) + '%');
+      return { chg: Math.round(refInfo.rowChg), pct, code, last: refInfo.rowLast };
+    }
+    const rawChg = liveLast > 0 ? (liveLast - refInfo.ref) : refInfo.rowChg;
     const pctRaw = row?.['%'] || row?.CDiffRate;
     const pctNum = parseFloat(String(pctRaw || '').replace('%', ''));
-    const pct = !isNaN(pctNum)
+    const pct = liveLast > 0
+      ? ((rawChg >= 0 ? '+' : '') + (rawChg / refInfo.ref * 100).toFixed(2) + '%')
+      : !isNaN(pctNum)
       ? ((pctNum >= 0 ? '+' : '') + pctNum.toFixed(2) + '%')
       : ((refInfo.rowChg >= 0 ? '+' : '') + (refInfo.rowChg / refInfo.ref * 100).toFixed(2) + '%');
-    return { chg: Math.round(refInfo.rowChg), pct, code };
+    return { chg: Math.round(rawChg), pct, code };
   }
   return null;
 }
@@ -1859,9 +2077,26 @@ function _findQuoteRowForMonth(codes, month, misData, last = null) {
 }
 
 function _resolveFubonStyleChange(sym, info, last, misData, opts = {}) {
-  if (last == null || !info) return null;
+  if (!info) return null;
   const dp = info.dp || 0;
   const month = _heldContractMonth(sym) || _symToMonthYYYYMM(sym) || '';
+
+  // ── 防呆：TAIFEX MIS 公開行情偶爾延遲/凍結（曾整盤落後上千點、甚至低於當日
+  //   最低價）。本函式預設「對齊富邦犀利」而以 MIS 成交價/漲跌為準，但當呼叫端
+  //   帶入的 last 來自富邦 SDK 即時價（與富邦犀利同源、最可靠），而 MIS 同月份
+  //   報價與其偏離過大時，視 MIS 為過時資料，整段 MIS 對齊邏輯跳過、回傳 null，
+  //   讓呼叫端保留 SDK 即時價。正常情況下兩者同合約差距 < 個位數，不會誤判。
+  const _liveLast = Number(last) > 0 ? Number(last) : null;
+  if (_liveLast != null) {
+    const _chkRow = _findQuoteRowForMonth(
+      [info.mis, info.taifex, info.mis ? info.mis + 'F' : null, ...(info.fallbackMis || [])],
+      month, misData || _misCache, last);
+    const _chkLast = _quoteRowRef(_chkRow)?.rowLast;
+    if (_chkLast != null && Math.abs(_chkLast - _liveLast) > Math.max(120, _liveLast * 0.004)) {
+      console.warn(`[fubonStyle] ${sym} MIS 報價 ${_chkLast} 與 SDK 即時 ${_liveLast} 偏離過大 → 視 MIS 過時，保留 SDK 價`);
+      return null;
+    }
+  }
 
   if (sym === 'MXFR1') {
     // 顯示層優先完全貼齊富邦犀利的「微型臺指」列：價格、漲跌點、漲跌幅
@@ -1870,35 +2105,55 @@ function _resolveFubonStyleChange(sym, info, last, misData, opts = {}) {
     const directMicroRow = _findQuoteRowForMonth([info.mis], month, misData || _misCache, last);
     const directMicroRef = _quoteRowRef(directMicroRow);
     if (directMicroRow?._quoteList && directMicroRef?.rowLast != null && directMicroRef?.rowChg != null) {
+      const rawLast = directMicroRef.rowLast;
+      const rawChg = directMicroRef.rowChg;
       const rowPct = directMicroRow?.['%'] || directMicroRow?.CDiffRate;
-      const pctVal = (directMicroRef.rowChg / directMicroRef.ref) * 100;
+      const pctVal = (rawChg / directMicroRef.ref) * 100;
       const pctText = rowPct != null && rowPct !== ''
         ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
         : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
-      const chg = dp > 0 ? +directMicroRef.rowChg.toFixed(dp) : Math.round(directMicroRef.rowChg);
+      const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+      const prevCloseCheck = _prevDailyCloseChange(sym, info, rawLast);
+      if (prevCloseCheck) {
+        // 注意：日 K 線是現貨 ^TWII，prevClose 含期貨正/逆價差（今天差 ~500 點），
+        // 與期貨真實漲跌可差上百點，故只在「方向相反」時才視為 SDK 基準錯誤。
+        const signFlip = chg * prevCloseCheck.chg < 0
+                         && Math.abs(chg) > 0.01 && Math.abs(prevCloseCheck.chg) > 0.01;
+        if (signFlip) return prevCloseCheck;
+      }
       return {
         ref: directMicroRef.ref,
-        last: directMicroRef.rowLast,
+        last: rawLast,
         chg,
         pct: pctText,
         source: 'direct_mis',
       };
     }
 
+    // ★ 同月份期貨 MIS（MXF/TXF/TX）參考價優先於現貨日 K 收盤：
+    //   日 K 用現貨 ^TWII，其昨收與期貨昨結算差一個價差（含正價差時差數百點），
+    //   直接拿現貨昨收當期貨參考會把價差誤算成漲跌 → 必須先用期貨 MIS 反推。
     const pxRow = _findQuoteRowForMonth([info.mis], month, misData || _misCache, last);
+    // MXFR1 live change must use the TMF quote row itself. Do not infer it from
+    // MXF/TXF or daily candles; their reference price can differ during night session.
+    return null;
+
     const pxRef = _quoteRowRef(pxRow);
     const changeRow = _findQuoteRowForMonth(info.fallbackMis || ['MXF','TXF'], month, misData || _misCache, last);
     const changeRef = _quoteRowRef(changeRow);
     if (changeRow?._quoteList && changeRef?.rowChg != null) {
       const rowPct = changeRow?.['%'] || changeRow?.CDiffRate;
-      const pctVal = (changeRef.rowChg / changeRef.ref) * 100;
-      const pctText = rowPct != null && rowPct !== ''
-        ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
-        : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
       const rawLast = opts.preferInputLast && Number(last) > 0
         ? Number(last)
         : (pxRef?.rowLast ?? Number(last));
-      const chg = dp > 0 ? +changeRef.rowChg.toFixed(dp) : Math.round(changeRef.rowChg);
+      const rawChg = opts.preferInputLast && Number(last) > 0
+        ? (rawLast - changeRef.ref)
+        : changeRef.rowChg;
+      const pctVal = (rawChg / changeRef.ref) * 100;
+      const pctText = !opts.preferInputLast && rowPct != null && rowPct !== ''
+        ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
+        : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
+      const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
       return {
         ref: changeRef.ref,
         last: rawLast,
@@ -1907,22 +2162,33 @@ function _resolveFubonStyleChange(sym, info, last, misData, opts = {}) {
         source: 'index_mis_change',
       };
     }
+
+    // 現貨日 K 收盤反推（最後手段：含期貨價差誤差，僅在期貨 MIS 全無資料時用）
+    const prevCloseChange = _prevDailyCloseChange(sym, info, last);
+    if (prevCloseChange) return prevCloseChange;
   }
 
   // 台指系列在 Fugle/SDK 的漲跌基準偶爾會拿到不同月份或舊參考價。
-  // 若 TAIFEX MIS 有本商品直接代碼（MXFR1=TMF, MTXR1=MXF, TXFR1=TXF）同月份 QuoteList，
+  // 若 TAIFEX MIS 有本商品直接代碼（MXFR1=TMF, MTXR1=MTX, TXFR1=TXF）同月份 QuoteList，
   // 顯示層一律以 MIS 的成交價/漲跌/漲跌幅為準，對齊富邦犀利行情。
   const directMisRow = _findQuoteRowForMonth([info.mis], month, misData || _misCache, last);
   const directRef = _quoteRowRef(directMisRow);
   if (directMisRow?._quoteList && directRef?.rowLast != null && directRef?.rowChg != null) {
-    const rawLast = opts.preferInputLast && Number(last) > 0 ? Number(last) : directRef.rowLast;
-    const rawChg = rawLast - directRef.ref;
+    const rawLast = directRef.rowLast;
+    const rawChg = directRef.rowChg;
     const rowPct = directMisRow?.['%'] || directMisRow?.CDiffRate;
     const pctVal = (rawChg / directRef.ref) * 100;
-    const pctText = !opts.preferInputLast && rowPct != null && rowPct !== ''
+    const pctText = rowPct != null && rowPct !== ''
       ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
       : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
     const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+    const prevCloseCheck = _prevDailyCloseChange(sym, info, rawLast);
+    if (prevCloseCheck) {
+      // 同上：日 K 為現貨，prevClose 含期貨價差，只在方向相反時才視為 SDK 基準錯誤。
+      const signFlip = chg * prevCloseCheck.chg < 0
+                       && Math.abs(chg) > 0.01 && Math.abs(prevCloseCheck.chg) > 0.01;
+      if (signFlip) return prevCloseCheck;
+    }
     return {
       ref: directRef.ref,
       last: rawLast,
@@ -1932,26 +2198,34 @@ function _resolveFubonStyleChange(sym, info, last, misData, opts = {}) {
     };
   }
 
+  // 期貨 MIS 同月份參考價優先（含正確昨結算），現貨日 K 收盤退到最後
   const directCodes = [info.mis, info.taifex, info.mis ? info.mis + 'F' : null];
   const fallbackCodes = info.fallbackMis || [];
+  if (last == null) return null;
   const row = _findQuoteRowForMonth([...directCodes, ...fallbackCodes], month, misData || _misCache, last);
   const refInfo = _quoteRowRef(row);
-  if (!refInfo || !refInfo.ref) return null;
-  const useQuoteListDisplay = row?._quoteList && refInfo.rowLast && !opts.preferInputLast;
-  const rawLast = useQuoteListDisplay ? refInfo.rowLast : Number(last);
-  const rawChg = useQuoteListDisplay ? refInfo.rowChg : rawLast - refInfo.ref;
-  const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
-  const pctVal = (rawChg / refInfo.ref) * 100;
-  const rowPct = useQuoteListDisplay ? (row?.['%'] || row?.CDiffRate) : null;
-  const pctText = rowPct != null && rowPct !== ''
-    ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
-    : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
-  return {
-    ref: refInfo.ref,
-    last: rawLast,
-    chg,
-    pct: pctText,
-  };
+  if (refInfo && refInfo.ref) {
+    const useQuoteListDisplay = row?._quoteList && refInfo.rowLast && !opts.preferInputLast;
+    const rawLast = useQuoteListDisplay ? refInfo.rowLast : Number(last);
+    const rawChg = useQuoteListDisplay ? refInfo.rowChg : rawLast - refInfo.ref;
+    const chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+    const pctVal = (rawChg / refInfo.ref) * 100;
+    const rowPct = useQuoteListDisplay ? (row?.['%'] || row?.CDiffRate) : null;
+    const pctText = rowPct != null && rowPct !== ''
+      ? ((parseFloat(rowPct) >= 0 ? '+' : '') + parseFloat(rowPct).toFixed(2) + '%')
+      : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
+    return {
+      ref: refInfo.ref,
+      last: rawLast,
+      chg,
+      pct: pctText,
+    };
+  }
+
+  // 現貨日 K 收盤反推（最後手段：含期貨價差誤差）
+  const prevCloseChange = _prevDailyCloseChange(sym, info, last);
+  if (prevCloseChange) return prevCloseChange;
+  return null;
 }
 
 function isNightSession() {
@@ -1970,13 +2244,13 @@ async function fetchTaifexMIS(force = false) {
     // 日盤：MarketType=1 → 無 MarketType → DailyMarketReportFut
     const misCandidates = isNightSession()
       ? [
-          `${BASE}/taifex/futures_quotes?market_type=1&kind_id=1`,
+          `${BASE}/taifex/futures_quotes?market_type=2&kind_id=1`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut&MarketType=2`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut`,             // 夜盤備援：無 MarketType 也可能回傳夜盤即時
           `https://openapi.taifex.com.tw/v1/DailyMarketReportFut`,   // 含夜盤場次資料
         ]
       : [
-          `${BASE}/taifex/futures_quotes?market_type=0&kind_id=1`,
+          `${BASE}/taifex/futures_quotes?market_type=1&kind_id=1`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut&MarketType=1`,
           `https://mis.taifex.com.tw/futures/api/getQuoteList?SymbolType=Fut`,
           `https://openapi.taifex.com.tw/v1/DailyMarketReportFut`,
@@ -2024,19 +2298,27 @@ async function fetchTaifexMIS(force = false) {
         // SymbolID 格式：產品代碼 + 月份字母 + 年份數字，例如 'TXFK6'（TAIFEX 5月）
         // 使用最後兩碼 slice(-2) 作為月份代碼（字母+年份數字），其餘為產品代碼
         // 不用 /^([A-Z]+)\d/ 正則，避免將月份字母（如 K）誤納入產品代碼
-        symId  = row.SymbolID || row.Symbol || '';
+        symId  = String(row.SymbolID || row.Symbol || row.Contract || '').trim();
         if (symId.length < 3) continue;
-        const cleanSymId = symId.replace(/-[A-Z]+$/, '');
-        const officialMatch = cleanSymId.match(/^([A-Z]+)([A-Z]\d)$/);
-        code   = officialMatch ? officialMatch[1] : cleanSymId.slice(0, -2);   // 'TXFE6-F' → 'TXF' | 'TMFE6-F' → 'TMF'
+        const cleanSymId = symId.replace(/-[A-Z]+$/, '').replace(/\s+/g, '').toUpperCase();
+        const contractMonthRaw = row.ContractMonth || row['ContractMonth(Week)'] || row.ExpireMonth || row.MaturityMonth || row.Month || '';
+        const yyyymmMatch = cleanSymId.match(/^([A-Z]+)(\d{6})$/);
+        const yymmMatch   = cleanSymId.match(/^([A-Z]+)(\d{4})$/);
+        const mmMatch     = cleanSymId.match(/^([A-Z]+)(\d{2})$/);
+        const alphaMatch  = cleanSymId.match(/^([A-Z]+)([A-Z]\d)$/);
+        const parsedCode  = yyyymmMatch?.[1] || yymmMatch?.[1] || mmMatch?.[1] || alphaMatch?.[1] || '';
+        const parsedMonth = yyyymmMatch?.[2] || yymmMatch?.[2] || mmMatch?.[2] || alphaMatch?.[2] || contractMonthRaw || '';
+        code   = parsedCode || (contractMonthRaw ? cleanSymId : cleanSymId.slice(0, -2));   // 'TXFE6-F' → 'TXF' | 'TMF202606'/'TMF06' → 'TMF'
         rawPx  = (row.CLastPrice || row.LastPrice || '').replace(/,/g, '');
         rawChg = (row.CDiff || row.PriceChange || '').replace(/,/g, '');
         const pctRaw = row.CDiffRate ?? row.ChangeRate ?? '';
         const pctNum = parseFloat(String(pctRaw).replace('%', ''));
+        const signedMisChg = _parseSignedChangeWithPct(row.CDiff || row.PriceChange || rawChg, pctRaw);
+        if (signedMisChg != null) rawChg = String(signedMisChg);
         rawPct = !isNaN(pctNum) ? ((pctNum >= 0 ? '+' : '') + pctNum.toFixed(2) + '%') : (pctRaw || '');
         rawVol = (row.CTotalVolume || row.Volume || '').replace(/,/g, '');
         rawOI  = (row.COI || row.OpenInterest || '').replace(/,/g, '');
-        month  = officialMatch ? officialMatch[2] : symId.slice(-2);      // 'TXFK6' → 'K6' | 'TXFE6-F' → 'E6'
+        month  = parsedMonth || cleanSymId.slice(-2);      // 'TXFK6' → 'K6' | 'TMF202606'/'TMF06' → '202606'/'06'
       } else {
         // DailyMarketReportFut 格式 (夜盤場次過濾)
         // 夜盤時優先取 '夜盤' 行，但也接受 '一般' 行作為備援（第二輪處理）
@@ -2053,7 +2335,7 @@ async function fetchTaifexMIS(force = false) {
         rawPx  = (row.Last   || '').replace(/,/g, '');
         // DailyMarketReportFut 的 Change 可能含 △/▲/▼ 前綴（如 '△231'），需去除才能 parseFloat
         rawChg = (row.Change || '').replace(/[△▲▼,\s]/g, '');
-        const signedChg = _parseSignedMarketNumber(row.Change);
+        const signedChg = _parseSignedChangeWithPct(row.Change, row['%']);
         if (signedChg != null) rawChg = String(signedChg);
         rawPct = row['%'] || '';
         rawVol = (row.Volume || '').replace(/,/g, '');
@@ -2069,8 +2351,14 @@ async function fetchTaifexMIS(force = false) {
       const lastValid = last > _minPx;
 
       // 月份標準化 → YYYYMM (供對比和 _misByCodeMonth key 使用)
-      const isOfficialQuoteList = isMISFormat && /-[A-Z]+$/.test(symId || '');
-      const monthYYYYMM = (isOfficialQuoteList ? _normQuoteListToYYYYMM(month) : _normToYYYYMM(month)) || month;
+      const monthCompact = String(month || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const isOfficialQuoteList = isMISFormat && /-[A-Z]+$/i.test(symId || '');
+      const isNumericQuoteMonth = /^\d{2}$|^\d{4}$|^\d{6}$/.test(monthCompact);
+      const monthYYYYMM = (isMISFormat
+        ? ((isOfficialQuoteList || isNumericQuoteMonth)
+            ? (_normQuoteListToYYYYMM(month) || _normToYYYYMM(month))
+            : (_normToYYYYMM(month) || _normQuoteListToYYYYMM(month)))
+        : _normToYYYYMM(month)) || month;
 
       // ── 所有月份快取（供夜盤跨月漲跌修正使用）──
       if (lastValid && monthYYYYMM) {
@@ -2186,6 +2474,18 @@ function _nightChangeFromMIS(misCode, sdkSymbol, nightPrice, info) {
   const dp           = info?.dp || 0;
   const roundChg     = (v) => dp > 0 ? +Number(v).toFixed(dp) : Math.round(v);
   const fmtPct       = (p) => (p >= 0 ? '+' : '') + p.toFixed(2) + '%';
+
+  if (contractMon) {
+    for (const code of [misCode, info?.taifex].filter(Boolean)) {
+      const row = _misByCodeMonth[`${code}_${contractMon}`];
+      const refInfo = _quoteRowRef(row);
+      if (!refInfo?.rowChg) continue;
+      const pctRaw = row?.['%'] || row?.CDiffRate;
+      const pctNum = parseFloat(String(pctRaw || '').replace('%', ''));
+      const pct = !isNaN(pctNum) ? fmtPct(pctNum) : fmtPct(refInfo.rowChg / refInfo.ref * 100);
+      return { chg: roundChg(refInfo.rowChg), pct };
+    }
+  }
 
   if (misCode === 'TMF') {
     for (const fb of ['MXF', 'TXF']) {
@@ -2398,7 +2698,7 @@ function renderInventory(market, state, misData) {
         }
       }
       // 3. 台指系列共用
-      if (sdkEffRef == null && _TW_INDEX_KEYS.has(sym) && _twIndexEffectiveRef != null) {
+      if (sdkEffRef == null && sym !== 'MXFR1' && _TW_INDEX_KEYS.has(sym) && _twIndexEffectiveRef != null) {
         sdkEffRef = _twIndexEffectiveRef;
       }
       if (sdkEffRef != null && sdkEffRef > 1000) {
@@ -2603,7 +2903,16 @@ function renderInventory(market, state, misData) {
       }
 
       // 3. 台指系列共用（最後備援）
-      if (effectiveRef == null && _TW_INDEX_KEYS.has(sym) && _twIndexEffectiveRef != null) {
+      if (effectiveRef == null && sym !== 'MXFR1' && _TW_INDEX_KEYS.has(sym) && _twIndexEffectiveRef != null) {
+        effectiveRef = _twIndexEffectiveRef;
+      }
+
+      // 3b. 台指系列 ref 合理性檢查：MXFR1 在 MIS 全無時 _resolveHeldContractRef 會退回
+      //     現貨日 K 昨收（含期貨正/逆價差，可差數百~上千點），導致漲跌嚴重失真
+      //     （曾見 +5% 假象）。三檔台指共用同一指數昨結算價，正常差距僅個位數，
+      //     故當解析 ref 與共用結算價 _twIndexEffectiveRef 偏離過大時，改用共用結算價。
+      if (_TW_INDEX_KEYS.has(sym) && _twIndexEffectiveRef != null && _twIndexEffectiveRef > 1000
+          && (effectiveRef == null || Math.abs(effectiveRef - _twIndexEffectiveRef) > 200)) {
         effectiveRef = _twIndexEffectiveRef;
       }
 
@@ -2662,6 +2971,14 @@ function renderInventory(market, state, misData) {
       if (fubonStyleFinal.source === 'direct_mis' && fubonStyleFinal.last != null) last = fubonStyleFinal.last;
       chg = fubonStyleFinal.chg;
       chgPct = fubonStyleFinal.pct;
+    }
+
+    if (sym === 'MXFR1') {
+      const sdkDisplayChange = _displayChangeFromSdkQuote(sym, last);
+      if (sdkDisplayChange) {
+        chg = sdkDisplayChange.chg;
+        chgPct = sdkDisplayChange.pct;
+      }
     }
 
     if (_monthView === 'near' || _monthView === 'all') {
@@ -2785,7 +3102,8 @@ function renderInventory(market, state, misData) {
 
   tbody.innerHTML = rows.map(r => {
     if (r.sym === 'MXFR1') {
-      const fixedChange = _mxfDisplayChangeFromMis(r.month, misData);
+      const fixedChange = _displayChangeFromSdkQuote(r.sym, r.last)
+        || _mxfDisplayChangeFromMis(r.month, misData, r.last);
       if (fixedChange) {
         r = { ...r, chg: fixedChange.chg, chgPct: fixedChange.pct };
       }
@@ -2961,21 +3279,15 @@ async function fetchAndRenderPositions(force = false) {
     }
 
     // 快取 SDK 回報的均價，供圖表使用
-    const mxfPos = positions.find(p =>
-      (p.symbol || '').replace(/R\d$/, '') === currentSymbol.replace(/R\d$/, '') ||
-      p.symbol === 'MXFR1' || p.symbol === 'FITM'
-    );
+    _sdkPositions = positions;
+    const mxfPos = _activeSdkPositionFor(currentSymbol);
     if (mxfPos?.avg_price != null) {
       _sdkAvgPrice = mxfPos.avg_price;
       // 立即更新均攤成本卡片（updateStats 因 _sdkAvgPrice != null 而跳過，需在此更新）
       const avgCostEl = document.getElementById('statAvgCost');
       if (avgCostEl) avgCostEl.textContent = fmt(_sdkAvgPrice);
       // 若圖表已建立則立即更新均價線
-      if (priceChartObj && lastChartData) {
-        const avgDs = priceChartObj.data.datasets[2];
-        avgDs.data  = lastChartData.dates.map(() => _sdkAvgPrice);
-        priceChartObj.update('none');
-      }
+      if (_lwcPrice) _lwcSetPriceLine('avg', _lwcPrice.isIntraday ? null : _sdkAvgPrice, '#ffffff', '均攤');
     }
 
     tbody.innerHTML = (bannerRow || '') + _renderPositionRows(positions);
@@ -2987,13 +3299,30 @@ async function fetchAndRenderPositions(force = false) {
     // 建立 prodKey → market_price 對照表，供行情表與即時損益同步使用
     // 確保庫存表的「現價」與行情表顯示的價格一致（同一 SDK 資料源）
     _sdkPositionPriceMap = {};
+    const _posNight = isNightSession();
     for (const p of positions) {
       const pk = _symbolToProductKey(p.symbol);
       if (!pk) continue;
-      const px = p.cur_price ?? p.market_price;
-      if (px != null && Number(px) > 0) {
-        _sdkPositionPriceMap[pk] = Number(px);
+      let px = p.cur_price ?? p.market_price;
+      if (px == null || !(Number(px) > 0)) continue;
+      px = Number(px);
+      // ── 防呆：SDK 持倉 query_hybrid_position 的 market_price 偶為過時死值
+      //   （accounting endpoint 不保證即時，曾出現低於當日最低價的值，污染行情表）。
+      //   若 daemon 有「同合約月份 + 時段一致」的新鮮即時報價，且持倉價偏離過大
+      //   （> max(100 點, 0.5%)），改採 daemon 即時價。月份不一致時（持倉非近月）
+      //   仍以持倉價為準，不誤判。
+      const dq = _sdkMktQuotesCache?.quotes?.[pk];
+      if (dq && !dq.error && dq.last != null && dq.last > 0
+          && _daemonSessionOkStrict(dq, _posNight)) {
+        const heldMon = _normToYYYYMM(p.contract_month) || _symToMonthYYYYMM(p.symbol) || '';
+        const dqMon   = _symToMonthYYYYMM(dq.symbol || '') || _normToYYYYMM(dq.month || '');
+        const monOk   = !heldMon || !dqMon || heldMon === dqMon;
+        if (monOk && Math.abs(px - dq.last) > Math.max(100, dq.last * 0.005)) {
+          console.warn(`[posPrice] ${pk} 持倉 market_price=${px} 偏離 daemon 即時 ${dq.last} 過大 → 採用 daemon 即時價`);
+          px = dq.last;
+        }
       }
+      _sdkPositionPriceMap[pk] = px;
     }
 
     // ── 用 SDK 即時淨值更新頂部「帳戶淨值」卡片 ──────────────────────
@@ -3007,19 +3336,30 @@ async function fetchAndRenderPositions(force = false) {
       ? todayBal + posUnrealTotal
       : (data.margin?.equity ?? data.margin?.today_balance);
     const sdkEquity = trueEquity;
-    // 記錄 fmx_positions.py 算出的已實現損益（錨點 + FIFO 累加），供下方「已實現損益」卡使用
+    // 已實現損益顯示優先級：
+    //   ① fmx_positions.py 已自動選用 cash_implied (today_balance − initial) 當 baseline 落後時
+    //   ② data.margin.realized_pnl 就是最終覆寫值（FIFO 或 cash_implied，server 已決定）
+    //   ③ 加上 broker_today（盤中即時的當日 realized）做即時調整
     if (data.margin?.realized_pnl != null) {
-      _sdkRealized = Number(data.margin.realized_pnl);
+      const _baseline = Number(data.margin.realized_pnl);
+      const _src      = String(data.margin.realized_pnl_source || '');
+      // margin.realized_pnl 已含今日所有 close（FIFO 累加或 cash_implied 推算），
+      // 不再加 realized_pnl_broker — 後端塞的是 SDK 累計值而非當日 delta，會雙加。
+      _sdkRealized = _baseline;
       const realEl = document.getElementById('statRealized');
       if (realEl) {
-        realEl.textContent = fmt(_sdkRealized);
-        realEl.className   = 'value ' + colorClass(_sdkRealized);
+        const subInfo = _src.startsWith('cash_implied')
+          ? `<div style="font-size:0.5em;opacity:0.7;margin-top:2px;">cash 推算</div>`
+          : '';
+        realEl.innerHTML = `${fmt(_sdkRealized)}${subInfo}`;
+        realEl.className = 'value ' + colorClass(_sdkRealized);
       }
     }
     if (sdkEquity != null && sdkEquity > 0) {
       _sdkEquity = sdkEquity;   // 供即時槓桿計算用（即時價基礎）
       // 累計口數（所有部位）— positions 使用 qty 欄位
-      const totalContracts = positions.reduce((s, p) => s + Math.abs(Number(p.qty) || 0), 0);
+      const activePositions = _activeSdkPositionsFor(currentSymbol);
+      const totalContracts = activePositions.reduce((s, p) => s + Math.abs(Number(p.qty) || 0), 0);
       if (totalContracts > 0) {
         _sdkContracts = totalContracts;
         document.getElementById('statContracts').textContent = totalContracts;
@@ -3065,16 +3405,17 @@ async function fetchAndRenderPositions(force = false) {
     // ★ 重要：使用 position.unrealized_pnl（即時價計算），而非 margin.unrealized_pnl（結算價計算）
     //   margin.unrealized 基於結算價，與 exposure（即時價）混用會造成槓桿算錯。
     //   position.unrealized = qty × (cur_price - avg) × mult — 與庫存表「即時現價」一致。
-    const sdkMxfPos = positions.find(p =>
-      (p.symbol || '').replace(/R\d$/, '') === currentSymbol.replace(/R\d$/, '') ||
-      p.symbol === 'MXFR1' || p.symbol === 'FITM'
-    );
+    const sdkMxfPos = _activeSdkPositionFor(currentSymbol);
     // 優先用 position.unrealized_pnl（即時價），fallback 到 margin.unrealized_pnl（結算價）
     const posUnrealRef = sdkMxfPos?.unrealized_pnl ?? data.margin?.unrealized_pnl;
     if (posUnrealRef != null) {
       _sdkPosUnreal   = Number(posUnrealRef);                // 即時價未實現損益（與 _sdkEquity 一致）
       _sdkPosPriceRef = Number(sdkMxfPos?.cur_price ?? 0) || null;  // 對應的即時現價
       // 立即更新右側面板（與庫存表同步）
+      if (_sdkPosPriceRef) {
+        _updateTriggerPxSubs(_sdkPosPriceRef);
+        _updateLeverageLive(_sdkPosPriceRef);
+      }
       const unrealEl = document.getElementById('statUnreal');
       if (unrealEl) {
         unrealEl.textContent = fmt(_sdkPosUnreal);
@@ -3170,6 +3511,71 @@ const _K_CONFIGS = {
   min5:    { interval: '5m',  range: '5d',  initBars: 72,  unit: 'minute',label: '5分',  intraday: true  },
 };
 
+// 抓 Yahoo 指數序列 → {dates[],opens,closes,highs,lows}
+// 多來源備援：server /proxy → corsproxy.io → allorigins（任一成功即止；
+// server 因本機 TLS 攔截常抓不到 Yahoo，client 端 proxy 可繞過）。
+async function _fetchYahooChartJson(url) {
+  // 1) server /proxy
+  try { const r = await fetch(`${BASE}/proxy?url=${encodeURIComponent(url)}`); if (r.ok) { const j = await r.json(); if (j?.chart?.result) return j; } } catch(_) {}
+  // 2) corsproxy.io
+  try { const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`); if (r.ok) { const j = await r.json(); if (j?.chart?.result) return j; } } catch(_) {}
+  // 3) allorigins（包一層 {contents}）
+  try { const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`); if (r.ok) { const w = await r.json(); const j = JSON.parse(w.contents); if (j?.chart?.result) return j; } } catch(_) {}
+  return null;
+}
+async function _fetchYahooSeries(yfTicker, interval, range, yfScale, dp) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfTicker)}?interval=${interval}&range=${range}`;
+    const j = await _fetchYahooChartJson(url);
+    const res = j?.chart?.result?.[0];
+    if (!res || !res.timestamp) return null;
+    const ts = res.timestamp, q = res.indicators.quote[0];
+    const idx = ts.reduce((a, _, i) => { if (q.close?.[i] != null || q.open?.[i] != null) a.push(i); return a; }, []);
+    const sc = v => (v != null ? +(v * yfScale).toFixed(dp) : null);
+    return {
+      dates:  idx.map(i => new Date(ts[i] * 1000).toISOString().slice(0, 10)),
+      opens:  idx.map(i => sc(q.open?.[i]  ?? q.close?.[i] ?? null)),
+      closes: idx.map(i => sc(q.close?.[i] ?? q.open?.[i]  ?? null)),
+      highs:  idx.map(i => sc(q.high?.[i]  ?? q.close?.[i] ?? null)),
+      lows:   idx.map(i => sc(q.low?.[i]   ?? q.close?.[i] ?? null)),
+    };
+  } catch (e) { console.warn('[yahoo series] fetch failed', e); return null; }
+}
+
+// 用 Yahoo ^TWII（現貨）依當前基差（最新期貨收 − 最新現貨收）平移後，
+// 把「早於期貨 archive 起點」的現貨 bar 接到期貨前面 → 連續長期歷史且與持倉線對齊。
+async function _spliceSpotHistory(fut, kInterval, yfTicker, yfScale, dp) {
+  try {
+    if (!fut?.dates?.length) return fut;
+    const rangeMap = { daily: '5y', weekly: '10y', monthly: 'max' };
+    const intMap   = { daily: '1d', weekly: '1wk', monthly: '1mo' };
+    const spot = await _fetchYahooSeries(yfTicker, intMap[kInterval] || '1d', rangeMap[kInterval] || '5y', yfScale, dp);
+    if (!spot?.dates?.length) return fut;
+    const lastFut  = fut.closes[fut.closes.length - 1];
+    const lastSpot = spot.closes[spot.closes.length - 1];
+    if (!Number.isFinite(lastFut) || !Number.isFinite(lastSpot)) return fut;
+    const basis = lastFut - lastSpot;                 // 期貨相對現貨的基差（含正負）
+    const adj = v => (v != null ? +(v + basis).toFixed(dp) : null);
+    const firstFutDate = fut.dates[0];
+    const od = [], oo = [], oc = [], oh = [], ol = [];
+    for (let i = 0; i < spot.dates.length; i++) {
+      if (spot.dates[i] >= firstFutDate) break;       // dates 升冪；只取期貨起點之前
+      od.push(spot.dates[i]); oo.push(adj(spot.opens[i])); oc.push(adj(spot.closes[i]));
+      oh.push(adj(spot.highs[i])); ol.push(adj(spot.lows[i]));
+    }
+    if (!od.length) return fut;
+    return {
+      ...fut,
+      dates:  od.concat(fut.dates),
+      opens:  oo.concat(fut.opens),
+      closes: oc.concat(fut.closes),
+      highs:  oh.concat(fut.highs),
+      lows:   ol.concat(fut.lows),
+      _spliced: od.length, _basis: +basis.toFixed(dp),
+    };
+  } catch (e) { console.warn('[splice spot] failed', e); return fut; }
+}
+
 async function fetchChartData(kInterval) {
   kInterval = kInterval || _kInterval;
   const cfg = _K_CONFIGS[kInterval] || _K_CONFIGS.daily;
@@ -3183,27 +3589,45 @@ async function fetchChartData(kInterval) {
   // ── 台指期貨（MXFR1/TXFR1/MTXR1）intraday K 線改走 Fubon SDK ──
   // 這樣 K 線會顯示真實期貨價（含正價差），而不是現貨 ^TWII
   // 日/週/月 K 仍使用 ^TWII（期貨歷史 API 訂閱受限）
-  const _intradayTf = { hourly:'60', min15:'15', min5:'5' };
-  if (prod?.futKline && _intradayTf[kInterval]) {
+  // Prefer local futures K-line archive/live API for TX/MX/MTX before Yahoo fallback.
+  const _futTf = { hourly:'60', min15:'15', min5:'5', daily:'D', weekly:'W', monthly:'M' };
+  const futTf = _futTf[kInterval];
+  if (prod?.futKline && futTf) {
     try {
       const fk = await fetch(
         `${BASE}/futopt/kline?symbol=${encodeURIComponent(currentSymbol)}`
-        + `&interval=${_intradayTf[kInterval]}&range=${cfg.range}&yf=${encodeURIComponent(yfTicker)}`
+        + `&interval=${futTf}&range=${cfg.range}&yf=${encodeURIComponent(yfTicker)}`
       );
       const fj = await fk.json();
-      const cdls = fj?.candles || [];
+      const cdls = (fj?.candles || []).filter(b =>
+        b?.t != null && [b.o, b.h, b.l, b.c].every(v => Number.isFinite(Number(v)))
+      );
       if (cdls.length > 0) {
         const dp = prod?.dp ?? 0;
-        return {
-          dates:     cdls.map(b => b.t),
-          opens:     cdls.map(b => +b.o.toFixed(dp)),
-          closes:    cdls.map(b => +b.c.toFixed(dp)),
-          highs:     cdls.map(b => +b.h.toFixed(dp)),
-          lows:      cdls.map(b => +b.l.toFixed(dp)),
+        const isFutIntraday = cfg.intraday || ['5', '15', '60'].includes(String(futTf));
+        const px = v => +Number(v).toFixed(dp);
+        const localDate = t => {
+          const d = new Date(Number(t));
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          return `${d.getFullYear()}-${mm}-${dd}`;
+        };
+        const out = {
+          dates:     cdls.map(b => isFutIntraday ? b.t : localDate(b.t)),
+          opens:     cdls.map(b => px(b.o)),
+          closes:    cdls.map(b => px(b.c)),
+          highs:     cdls.map(b => px(b.h)),
+          lows:      cdls.map(b => px(b.l)),
           _interval: kInterval, _initBars: cfg.initBars, _unit: cfg.unit,
-          _intraday: true, _source: fj.source || 'fubon',
+          _intraday: isFutIntraday, _source: fj.source || 'fubon',
           _sourceSymbol: fj.symbol,
         };
+        // 日/週/月 K：TAIFEX 只保留近 2-3 月每日檔，期貨歷史很短 →
+        // 用 Yahoo ^TWII（現貨，3 年+）依「當前基差」平移續接到期貨前面，補足長期歷史。
+        if (!isFutIntraday && ['daily','weekly','monthly'].includes(kInterval)) {
+          return await _spliceSpotHistory(out, kInterval, yfTicker, yfScale, dp);
+        }
+        return out;
       }
       // candles 為空則 fallthrough 到 Yahoo Finance
     } catch (e) {
@@ -3268,6 +3692,8 @@ function switchKInterval(interval) {
         lastChartFetch = Date.now();
         renderPriceChart(cd, state);
         renderLeverageChart(state?.leverage, cd);
+      } else {
+        renderPriceChart(null, state);
       }
     });
   });
@@ -3312,6 +3738,7 @@ function calcSMA(data, period) {
 function lastFiniteValue(arr) {
   if (!Array.isArray(arr)) return null;
   for (let i = arr.length - 1; i >= 0; i--) {
+    if (arr[i] == null || arr[i] === '') continue;
     const v = Number(arr[i]);
     if (Number.isFinite(v)) return v;
   }
@@ -3329,20 +3756,471 @@ function calcRollingLow(closes, period) {
 // ════════════════════════════════════════════════════════
 //  RENDER PRICE CHART  (紅綠K線蠟燭圖 + 均線疊加)
 // ════════════════════════════════════════════════════════
+function _setChartMessage(message) {
+  const area = document.getElementById('chartArea') || document.getElementById('priceChartWrap');
+  if (!area) return;
+  let el = document.getElementById('chartMessage');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'chartMessage';
+    el.style.cssText = [
+      'position:absolute', 'left:50%', 'top:48%', 'transform:translate(-50%,-50%)',
+      'z-index:9', 'padding:8px 12px', 'border:1px solid #2b333d',
+      'background:rgba(13,20,32,0.92)', 'border-radius:6px',
+      'color:#8b949e', 'font-size:12px', 'pointer-events:none',
+    ].join(';');
+    area.appendChild(el);
+  }
+  el.textContent = message || '';
+  el.style.display = message ? 'block' : 'none';
+}
+
+function _chartControllerAvailable(name) {
+  try { return !!Chart?.registry?.getController?.(name); }
+  catch (_) { return false; }
+}
+
+function _renderSimplePriceCanvas(canvas, chartData) {
+  if (!canvas || !chartData?.dates?.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, rect.width || canvas.clientWidth || 900);
+  const h = Math.max(1, rect.height || canvas.clientHeight || 360);
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0f1419';
+  ctx.fillRect(0, 0, w, h);
+
+  const n = chartData.dates.length;
+  const visible = Math.min(n, chartData._initBars || 90);
+  const start = Math.max(0, n - visible);
+  const lows = chartData.lows.slice(start).map(Number).filter(Number.isFinite);
+  const highs = chartData.highs.slice(start).map(Number).filter(Number.isFinite);
+  if (!lows.length || !highs.length) return;
+  let lo = Math.min(...lows), hi = Math.max(...highs);
+  const pad = Math.max(1, (hi - lo) * 0.04);
+  lo -= pad; hi += pad;
+
+  const plot = { l: 48, t: 22, r: w - 12, b: h - 26 };
+  const y = v => plot.b - ((v - lo) / Math.max(1, hi - lo)) * (plot.b - plot.t);
+  ctx.strokeStyle = '#1f252d';
+  ctx.lineWidth = 1;
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#66707c';
+  for (let i = 0; i <= 4; i++) {
+    const yy = plot.t + (plot.b - plot.t) * i / 4;
+    const val = hi - (hi - lo) * i / 4;
+    ctx.beginPath();
+    ctx.moveTo(plot.l, yy);
+    ctx.lineTo(plot.r, yy);
+    ctx.stroke();
+    ctx.fillText(Math.round(val).toLocaleString('zh-TW'), plot.r - 46, yy - 3);
+  }
+
+  const slot = (plot.r - plot.l) / Math.max(1, visible);
+  const bodyW = Math.max(2, Math.min(10, slot * 0.62));
+  for (let vi = 0; vi < visible; vi++) {
+    const i = start + vi;
+    const o = Number(chartData.opens[i]), c = Number(chartData.closes[i]);
+    const hh = Number(chartData.highs[i]), ll = Number(chartData.lows[i]);
+    if (![o, c, hh, ll].every(Number.isFinite)) continue;
+    const x = plot.l + slot * vi + slot / 2;
+    const color = c >= o ? '#26a269' : '#e05252';
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y(hh));
+    ctx.lineTo(x, y(ll));
+    ctx.stroke();
+    const top = Math.min(y(o), y(c));
+    const bh = Math.max(1, Math.abs(y(o) - y(c)));
+    ctx.fillRect(x - bodyW / 2, top, bodyW, bh);
+  }
+  ctx.fillStyle = '#8b949e';
+  ctx.fillText('簡易 K 線模式', plot.l, 14);
+}
+
+// ════════════════════════════════════════════════════════
+//  TradingView Lightweight Charts 實作（主圖 + RSI 副圖）
+// ════════════════════════════════════════════════════════
+// 時間轉換：intraday → 本地時區校正後的 UNIX 秒（LWC 以 UTC 格式化，加位移讓軸顯示台灣當地時間）
+//           daily+   → 'YYYY-MM-DD'（business day）
+function _lwcToTime(d, isIntraday) {
+  if (isIntraday) {
+    const ms = (typeof d === 'number') ? d : new Date(d).getTime();
+    if (!isFinite(ms)) return null;
+    return Math.floor((ms - new Date(ms).getTimezoneOffset() * 60000) / 1000);
+  }
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return null;
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
+// 更新/移除一條水平常數線（強平/加碼/減碼/均攤）
+function _lwcSetPriceLine(key, price, color, title, dash = true) {
+  const P = _lwcPrice;
+  if (!P?.candle) return;
+  if (P.priceLines[key]) { try { P.candle.removePriceLine(P.priceLines[key]); } catch(_){} P.priceLines[key] = null; }
+  if (price == null || !isFinite(price)) return;
+  P.priceLines[key] = P.candle.createPriceLine({
+    price, color, lineWidth: key === 'liq' ? 2 : 1,
+    lineStyle: dash ? LightweightCharts.LineStyle.Dashed : LightweightCharts.LineStyle.Solid,
+    axisLabelVisible: true, title,
+  });
+}
+
+// 即時更新最後一根 K 棒收盤（含 high/low 擴張）
+function _lwcUpdateLastClose(px) {
+  const P = _lwcPrice;
+  if (!P?.candle || !P.lastBar || !isFinite(px)) return;
+  const b = P.lastBar;
+  b.close = px;
+  if (px > b.high) b.high = px;
+  if (px < b.low)  b.low  = px;
+  try { P.candle.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close }); } catch(_) {}
+}
+
+// 還原縮放：回到最後 initBars 根
+function _lwcResetZoom() {
+  if (!_lwcPrice?.chart) return;
+  const ts = _lwcPrice.chart.timeScale();
+  const n = _lwcPrice.len || 0, ib = _lwcPrice.initBars || 90;
+  try {
+    if (n <= ib) ts.fitContent();                                  // 資料少於初始視窗 → 全部填滿（避免左側大片空白）
+    else ts.setVisibleLogicalRange({ from: n - ib, to: n - 1 });   // 否則顯示最後 initBars 根
+  } catch(_) { try { ts.fitContent(); } catch(__){} }
+  _lwcSyncRsiToPrice();   // 直接把主圖目前範圍推給 RSI（不只靠 subscription）
+}
+
+// 把主圖目前可見範圍直接套到 RSI 副圖（belt-and-suspenders，確保初始與還原時對齊）
+function _lwcSyncRsiToPrice() {
+  if (!_lwcPrice?.chart || !_lwcRsi?.chart) return;
+  try {
+    const r = _lwcPrice.chart.timeScale().getVisibleLogicalRange();
+    if (r) { _lwcSyncing = true; try { _lwcRsi.chart.timeScale().setVisibleLogicalRange(r); } finally { _lwcSyncing = false; } }
+  } catch(_) {}
+}
+
+// 主圖 ↔ RSI 副圖 X 軸雙向同步（logical range 對齊，加 reentrancy guard）
+function _lwcWireSync() {
+  if (!_lwcPrice?.chart || !_lwcRsi?.chart) return;
+  const a = _lwcPrice.chart.timeScale(), b = _lwcRsi.chart.timeScale();
+  const link = (src, dst) => src.subscribeVisibleLogicalRangeChange(r => {
+    if (_lwcSyncing || !r) return;
+    _lwcSyncing = true;
+    try { dst.setVisibleLogicalRange(r); } finally { _lwcSyncing = false; }
+  });
+  if (!_lwcPrice._synced) { link(a, b); _lwcPrice._synced = true; }
+  if (!_lwcRsi._synced)   { link(b, a); _lwcRsi._synced   = true; }
+  // wiring 後做幾次初始推送（等兩圖都 paint 後對齊）
+  _lwcSyncRsiToPrice();
+  requestAnimationFrame(_lwcSyncRsiToPrice);
+  setTimeout(_lwcSyncRsiToPrice, 200);
+  setTimeout(_lwcSyncRsiToPrice, 450);
+}
+
+// 買賣標記：交易時間對應到最近的 K 棒，並「每根 K 棒每方向聚合成一個箭頭」，
+// 標上該棒累計成交次數（例：買×3 / 賣×5），避免同棒多筆成交疊出一大串箭頭。
+function _lwcMarkers(dates, times, isIntraday, state) {
+  const all = Array.isArray(window._allFutTrades) ? window._allFutTrades
+            : (Array.isArray(state?.recent_trades) ? state.recent_trades : []);
+  if (!all.length) return [];
+  const barMs = dates.map(d => (typeof d === 'number' ? d : new Date(d).getTime()));
+  const agg = {};   // key = `${barIdx}|${side}` → { time, side, count }
+  for (const t of all) {
+    const side = (t.buy_sell || '').toLowerCase();
+    if (side !== 'buy' && side !== 'sell') continue;
+    const day = String(t.date || '').replace(/\//g, '-');
+    if (!day) continue;
+    const ts = new Date(`${day}T${(t.time || '00:00:00').slice(0, 8)}`).getTime();
+    if (isNaN(ts)) continue;
+    let bi = -1, bd = Infinity;
+    for (let i = 0; i < barMs.length; i++) { const diff = Math.abs(barMs[i] - ts); if (diff < bd) { bd = diff; bi = i; } }
+    if (bi < 0 || times[bi] == null) continue;
+    const lots = Math.abs(Number(t.lots ?? t.qty ?? 1)) || 1;   // 有口數就累計口數，否則計筆數
+    const k = bi + '|' + side;
+    if (!agg[k]) agg[k] = { time: times[bi], side, count: 0 };
+    agg[k].count += lots;
+  }
+  const out = Object.values(agg).map(a => ({
+    time: a.time,
+    position: a.side === 'buy' ? 'belowBar' : 'aboveBar',
+    color: a.side === 'buy' ? '#22c55e' : '#ef4444',
+    shape: a.side === 'buy' ? 'arrowUp' : 'arrowDown',
+    text: (a.side === 'buy' ? '買' : '賣') + (a.count > 1 ? '×' + a.count : ''),
+  }));
+  out.sort((x, y) => (x.time > y.time ? 1 : x.time < y.time ? -1 : 0));
+  return out;
+}
+
+function _renderPriceChartLWC(chartData, state) {
+  const el = document.getElementById('priceChart');
+  if (!el) return;
+  if (!chartData || !Array.isArray(chartData.dates) || !chartData.dates.length) {
+    _setChartMessage('K線資料暫時無法載入');
+    return;
+  }
+  _setChartMessage('');
+  if (typeof LightweightCharts === 'undefined') {
+    el.innerHTML = '<div style="padding:20px;color:#8b949e;font-size:12px">圖表元件載入失敗（Lightweight Charts CDN 未載入）</div>';
+    return;
+  }
+
+  const { dates, opens, closes, highs, lows } = chartData;
+  const dp = PRODUCTS[currentSymbol]?.dp || 0;
+  const isIntraday = chartData._intraday || false;
+  const interval   = chartData._interval || 'daily';
+  const initBars   = chartData._initBars || 90;
+
+  // ── 指標（沿用既有運算）──
+  const ma100 = calcEMA(closes, 100);
+  const sma20 = calcSMA(closes, 20);
+  const sma60 = calcSMA(closes, 60);
+  const avgCost = _sdkAvgPrice ?? (state?.avg_cost > 0 ? state.avg_cost : null);
+  const livePrice0 = state?.last_price || closes[closes.length - 1];
+  const liqPrice = _calcLiqPx(livePrice0, state);
+  const _pxPyr = (state?.contracts > 0) ? _calcLeverageTriggerPx(state.pyramid_trigger ?? 5.9, state) : null;
+  const _pxDel = (state?.contracts > 0) ? _calcLeverageTriggerPx(state.max_leverage    ?? 6.8, state) : null;
+  const pyramidPrice = (_pxPyr != null && isFinite(_pxPyr)) ? _pxPyr : null;
+  const delevPrice   = (_pxDel != null && isFinite(_pxDel)) ? _pxDel : null;
+  const filterOn = !isIntraday && (state?.trend_filter ?? (document.getElementById('filterToggle')?.checked ?? true));
+  const highN = parseInt(state?.high_period ?? document.getElementById('cfgHighPeriod')?.value ?? 10, 10) || 10;
+  const lowM  = parseInt(state?.low_period  ?? document.getElementById('cfgLowPeriod')?.value  ?? 100, 10) || 100;
+  const rollingHi = filterOn ? calcRollingHigh(highs || closes, highN) : [];
+  const rollingLo = filterOn ? calcSMA(closes, lowM) : [];
+  const lastC = state?.last_price || closes[closes.length - 1];
+
+  const times = dates.map(d => _lwcToTime(d, isIntraday));
+  const candles = dates.map((_, i) => ({
+    time: times[i],
+    open:  Number(opens?.[i] ?? closes[i]),
+    high:  Number(highs?.[i] ?? closes[i]),
+    low:   Number(lows?.[i]  ?? closes[i]),
+    close: Number(i === dates.length - 1 ? (lastC ?? closes[i]) : closes[i]),
+  })).filter(c => c.time != null && [c.open, c.high, c.low, c.close].every(Number.isFinite));
+  const linePts = arr => dates.map((_, i) => ({ time: times[i], value: Number(arr?.[i]) }))
+    .filter(p => p.time != null && Number.isFinite(p.value));
+
+  // 同 interval → 重用圖表（保留縮放/平移視野）；否則重建
+  const reuse = _lwcPrice && _lwcPrice.interval === interval && _lwcPrice.chart;
+  let P = _lwcPrice;
+  if (!reuse) {
+    if (_lwcPrice?._ro) { try { _lwcPrice._ro.disconnect(); } catch(_){} }
+    if (_lwcPrice?.chart) { try { _lwcPrice.chart.remove(); } catch(_){} }
+    el.innerHTML = '';
+    // 不用 autoSize（此版面下 LWC 的 ResizeObserver 量到 0）；改顯式尺寸 + 自管 ResizeObserver
+    const chart = LightweightCharts.createChart(el, {
+      width: el.clientWidth || 600, height: el.clientHeight || 300,
+      layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 10 },
+      grid: { vertLines: { color: '#1f252d' }, horzLines: { color: '#1f252d' } },
+      rightPriceScale: { borderColor: '#30363d', minimumWidth: 72, scaleMargins: { top: 0.08, bottom: 0.08 } },
+      timeScale: { borderColor: '#30363d', timeVisible: isIntraday, secondsVisible: false, rightOffset: isIntraday ? 6 : 4 },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      localization: { locale: 'zh-TW', priceFormatter: v => Number(v).toLocaleString('zh-TW', { maximumFractionDigits: dp }) },
+    });
+    const candle = chart.addCandlestickSeries({
+      upColor: '#26a269', downColor: '#e05252', borderVisible: false,
+      wickUpColor: '#26a269', wickDownColor: '#e05252',
+      priceFormat: { type: 'price', precision: dp, minMove: Math.pow(10, -dp) },
+    });
+    P = { chart, candle, lines: {}, priceLines: {}, interval, isIntraday };
+    _lwcPrice = P;
+    // 容器尺寸變動 → 同步 chart 尺寸（取代 autoSize；也涵蓋拖拉分隔線/手機切 tab/視窗縮放）
+    // 首次量到有效尺寸時做一次初始 fitContent（避免 paint 前 fitContent 失效）
+    P._ro = new ResizeObserver(() => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w > 0 && h > 0) {
+        chart.applyOptions({ width: w, height: h });
+        if (!P._didInitFit) { P._didInitFit = true; _lwcResetZoom(); }
+      }
+    });
+    try { P._ro.observe(el); } catch(_) {}
+    // chartHoverInfo（左上 OHLC 圖例）
+    chart.subscribeCrosshairMove(param => {
+      const info = document.getElementById('chartHoverInfo');
+      if (!info) return;
+      const c = param?.seriesData?.get(P.candle);
+      if (!param?.time || !param?.point || param.point.x < 0 || !c) { info.style.display = 'none'; return; }
+      const f = v => Number(v).toLocaleString('zh-TW', { maximumFractionDigits: P.dp ?? 0 });
+      const up = c.close >= c.open, kc = up ? '#26a269' : '#e04141';
+      const sw = col => `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${col};margin-right:5px;vertical-align:middle"></span>`;
+      let html = `<div>${sw(kc)}${up ? '▲' : '▼'} 開:${f(c.open)}</div>`
+               + `<div style="margin-left:14px">高:${f(c.high)}&nbsp;&nbsp;低:${f(c.low)}</div>`
+               + `<div style="margin-left:14px">收:${f(c.close)}</div>`;
+      const pl = P._plVals || {};
+      if (pl.liq != null) html += `<div>${sw('#dc2626')}強平價: ${f(pl.liq)}</div>`;
+      if (pl.pyr != null) html += `<div>${sw('#22c55e')}加碼觸發價: ${f(pl.pyr)}</div>`;
+      if (pl.del != null) html += `<div>${sw('#ef4444')}減碼觸發價: ${f(pl.del)}</div>`;
+      info.innerHTML = html;
+      info.style.display = 'block';
+    });
+  }
+  P.dp = dp;
+  P.isIntraday = isIntraday;
+  P.initBars = initBars;
+  P.len = candles.length;
+  // reuse 時 setData 會重置視野 → 先存目前可見範圍，setData 後還原（保留使用者縮放/平移）
+  let _savedRange = null;
+  if (reuse) { try { _savedRange = P.chart.timeScale().getVisibleLogicalRange(); } catch(_) {} }
+  P.candle.setData(candles);
+  if (reuse && _savedRange) { try { P.chart.timeScale().setVisibleLogicalRange(_savedRange); } catch(_) {} }
+  P.lastBar = candles.length ? { ...candles[candles.length - 1] } : null;
+  P.lastTime = P.lastBar?.time ?? null;
+
+  // ── MA 疊加線（intraday 隱藏，比照原行為）──
+  const setLine = (key, color, arr, opts = {}) => {
+    if (!P.lines[key]) {
+      P.lines[key] = P.chart.addLineSeries({
+        color, lineWidth: opts.lw || 1,
+        lineStyle: opts.dash ? LightweightCharts.LineStyle.Dashed : LightweightCharts.LineStyle.Solid,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      });
+    }
+    const has = !isIntraday && arr && arr.length;
+    P.lines[key].applyOptions({ color, visible: !!has });
+    P.lines[key].setData(has ? linePts(arr) : []);
+  };
+  setLine('ma20',  '#10b981', sma20);
+  setLine('ma60',  '#f59e0b', sma60);
+  setLine('ma100', '#388bfd', ma100, { lw: 2 });
+  setLine('rollHi','#a855f7', filterOn ? rollingHi : [], { dash: true });
+  setLine('rollLo','#e8a838', filterOn ? rollingLo : [], { dash: true });
+
+  // ── 均線圖例（顏色說明）──
+  const legendEl = document.getElementById('maLegend');
+  if (legendEl) {
+    if (isIntraday) {
+      legendEl.style.display = 'none';
+    } else {
+      const item = (c, t, dash) => `<span style="display:inline-block;width:16px;border-top:2px ${dash ? 'dashed' : 'solid'} ${c};margin-right:5px;vertical-align:middle"></span>${t}`;
+      const rows = [ item('#10b981', '20MA'), item('#f59e0b', '60MA'), item('#388bfd', '100MA') ];
+      if (filterOn) { rows.push(item('#a855f7', highN + '日高 (買入)', true)); rows.push(item('#e8a838', lowM + '日均 (清倉)', true)); }
+      legendEl.innerHTML = rows.join('<br>');
+      legendEl.style.display = 'block';
+    }
+  }
+
+  // ── 水平常數線 ──
+  _lwcSetPriceLine('avg', isIntraday ? null : avgCost, '#ffffff', '均攤');
+  _lwcSetPriceLine('liq', liqPrice, '#dc2626', '強平');
+  _lwcSetPriceLine('pyr', pyramidPrice, '#22c55e', '加碼');
+  _lwcSetPriceLine('del', delevPrice, '#ef4444', '減碼');
+  P._plVals = { liq: liqPrice, pyr: pyramidPrice, del: delevPrice, avg: isIntraday ? null : avgCost };
+
+  // ── 買賣標記 ──
+  try { P.candle.setMarkers(_lwcMarkers(dates, times, isIntraday, state)); } catch(_) {}
+
+  // 初次建立：多次延遲嘗試初始 fit（LWC 在自家 RAF 內才完成版面計算；多打幾次確保套用）
+  if (!reuse) {
+    _lwcResetZoom();
+    requestAnimationFrame(() => _lwcResetZoom());
+    setTimeout(() => _lwcResetZoom(), 150);
+    setTimeout(() => _lwcResetZoom(), 400);
+  }
+
+  // 同步 RSI 副圖
+  renderLeverageChart(state?.leverage, chartData);
+}
+
+function _renderRsiChartLWC(chartData) {
+  const el = document.getElementById('leverageChart');
+  if (!el || typeof LightweightCharts === 'undefined') return;
+  const closes = chartData?.closes;
+  const dates  = chartData?.dates ?? [];
+  const period = 14;
+  if (!closes || closes.length < period + 1) {
+    if (_lwcRsi?._ro) { try { _lwcRsi._ro.disconnect(); } catch(_){} }
+    if (_lwcRsi?.chart) { try { _lwcRsi.chart.remove(); } catch(_){} _lwcRsi = null; }
+    return;
+  }
+  const isIntraday = chartData?._intraday || false;
+  const interval   = chartData?._interval || 'daily';
+  const rsiRaw = calcRSI(closes, period);
+  const times  = dates.map(d => _lwcToTime(d, isIntraday));
+  // null 期（RSI 前 14 根暖身）改用 whitespace 點（只給 time），讓 RSI 與主圖逐根對齊，
+  // 否則被過濾後序列變短 → logical-range 同步會把 RSI 壓到左側、右側空白。
+  const rsiData = rsiRaw.map((v, i) => times[i] == null ? null
+                    : (v != null ? { time: times[i], value: v } : { time: times[i] }))
+                  .filter(Boolean);
+
+  // 徽章
+  const lastRSI = [...rsiRaw].reverse().find(v => v != null);
+  const rsiValEl = document.getElementById('rsiValue'), rsiSigEl = document.getElementById('rsiSignal');
+  if (rsiValEl && lastRSI != null) {
+    rsiValEl.textContent = 'RSI(' + period + ') ' + lastRSI.toFixed(1);
+    rsiValEl.style.color = lastRSI >= 70 ? 'var(--red)' : lastRSI <= 30 ? 'var(--green)' : 'var(--orange)';
+  }
+  if (rsiSigEl) {
+    if (lastRSI >= 70) { Object.assign(rsiSigEl.style, { display:'', background:'#3a1a1a', border:'1px solid var(--red)', color:'var(--red)' }); rsiSigEl.textContent = '超買⚠'; }
+    else if (lastRSI <= 30) { Object.assign(rsiSigEl.style, { display:'', background:'#0e2016', border:'1px solid var(--green)', color:'var(--green)' }); rsiSigEl.textContent = '超賣✓'; }
+    else rsiSigEl.style.display = 'none';
+  }
+
+  const reuse = _lwcRsi && _lwcRsi.interval === interval && _lwcRsi.chart;
+  let R = _lwcRsi;
+  if (!reuse) {
+    if (_lwcRsi?._ro) { try { _lwcRsi._ro.disconnect(); } catch(_){} }
+    if (_lwcRsi?.chart) { try { _lwcRsi.chart.remove(); } catch(_){} }
+    el.innerHTML = '';
+    const chart = LightweightCharts.createChart(el, {
+      width: el.clientWidth || 600, height: el.clientHeight || 100,
+      layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 9 },
+      grid: { vertLines: { color: '#1a1f28' }, horzLines: { color: '#1a1f28' } },
+      rightPriceScale: { borderColor: '#30363d', minimumWidth: 72 },
+      timeScale: { visible: false, borderColor: '#30363d' },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    });
+    const rsi = chart.addLineSeries({
+      color: '#e8a838', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false,
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+    });
+    [[70, 'rgba(224,82,82,0.45)'], [30, 'rgba(38,162,105,0.45)'], [50, 'rgba(120,120,140,0.4)']].forEach(([p, c]) => {
+      rsi.createPriceLine({ price: p, color: c, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true });
+    });
+    R = { chart, rsi, interval };
+    _lwcRsi = R;
+    R._ro = new ResizeObserver(() => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
+    });
+    try { R._ro.observe(el); } catch(_) {}
+    _lwcWireSync();
+  }
+  R.rsi.setData(rsiData);
+}
+
 function renderPriceChart(chartData, state) {
+  return _renderPriceChartLWC(chartData, state);
+  /* ───────── 以下為舊 Chart.js 實作，已遷移 Lightweight Charts，unreachable 保留待移除 ───────── */
   const canvas = document.getElementById('priceChart');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   // 用 Chart 內部 registry 確保 canvas 上的舊圖表都被清除（避免 "Canvas is already in use" 錯誤）
-  const existing = Chart.getChart(canvas);
-  if (existing) { existing.destroy(); }
+  const existing = (typeof Chart !== 'undefined') ? Chart.getChart(canvas) : null;
+  if (existing) { try { existing.destroy(); } catch(_){} }
   if (priceChartObj) { try { priceChartObj.destroy(); } catch(_){} }
   priceChartObj = null;
-  if (!chartData) return;
+  if (!chartData || !Array.isArray(chartData.dates) || !chartData.dates.length) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    _setChartMessage('K線資料暫時無法載入');
+    return;
+  }
+  _setChartMessage('');
+  if (typeof Chart === 'undefined' || !_chartControllerAvailable('candlestick')) {
+    _renderSimplePriceCanvas(canvas, chartData);
+    return;
+  }
 
   const { dates, opens, closes, highs, lows } = chartData;
   const tss = dates.map(d => new Date(d).getTime());
 
-  const ema200   = calcEMA(closes, 100);
+  const ma100    = calcEMA(closes, 100);
+  const sma20    = calcSMA(closes, 20);
+  const sma60    = calcSMA(closes, 60);
   const avgCost  = _sdkAvgPrice ?? (state?.avg_cost > 0 ? state.avg_cost : null);
   const livePrice0 = state?.last_price || closes[closes.length - 1];
   const liqPrice = _calcLiqPx(livePrice0, state);
@@ -3451,18 +4329,34 @@ function renderPriceChart(chartData, state) {
           label: '台指 ^TWII',
           data: candleData,
           color: { up: '#26a269', down: '#e05252', unchanged: '#8b949e' },
+          backgroundColor: { up: '#26a269', down: '#e05252', unchanged: '#8b949e' },
           borderColor: { up: '#26a269', down: '#e05252', unchanged: '#8b949e' },
+          borderWidth: 1.2,
           barPercentage: 0.8,
           categoryPercentage: 0.8,
           maxBarThickness: _initMaxBarThick,
           order: 1,
         },
         {
-          type: 'line', label: '100 EMA',
-          data: lineData(ema200),
+          type: 'line', label: '20 MA',
+          data: lineData(sma20),
+          borderColor: '#10b981', borderWidth: 1.1,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [], order: 2.2, hidden: isIntraday,
+        },
+        {
+          type: 'line', label: '60 MA',
+          data: lineData(sma60),
+          borderColor: '#f59e0b', borderWidth: 1.1,
+          pointRadius: 0, tension: 0, fill: false,
+          borderDash: [], order: 2.4, hidden: isIntraday,
+        },
+        {
+          type: 'line', label: '100 MA',
+          data: lineData(ma100),
           borderColor: '#388bfd', borderWidth: 1.2,
           pointRadius: 0, tension: 0, fill: false,
-          borderDash: [4, 2], order: 2, hidden: isIntraday,
+          borderDash: [], order: 2.6, hidden: isIntraday,
         },
         {
           type: 'line', label: '均攤成本',
@@ -3699,6 +4593,8 @@ function calcRSI(closes, period) {
 }
 
 function renderLeverageChart(lev, chartData) {
+  return _renderRsiChartLWC(chartData);
+  /* ───────── 舊 Chart.js RSI 實作，已遷移 Lightweight Charts，unreachable 保留待移除 ───────── */
   const ctx      = document.getElementById('leverageChart').getContext('2d');
   const closes   = chartData?.closes;
   const dates    = chartData?.dates ?? [];
@@ -3895,11 +4791,20 @@ function updateStats(state, chartData) {
   }
   const liqEl = document.getElementById('statLiqPrice');
   liqEl.textContent = state.liq_price ? fmt(state.liq_price) : '—';
+  const liqSubInit = document.getElementById('statLiqPriceSub');
   if (price && state.liq_price) {
-    const liqDist = ((price - state.liq_price) / price * 100).toFixed(1);
+    const liqDistNum = (price - state.liq_price) / price * 100;
+    const liqDist    = liqDistNum.toFixed(1);
+    const liqPts     = Math.abs(Math.round(price - state.liq_price)).toLocaleString();
     document.getElementById('badgeLiq').textContent = `強平距離 ${liqDist}%`;
     document.getElementById('badgeLiq').className =
-      'badge ' + (parseFloat(liqDist) < 5 ? 'red' : parseFloat(liqDist) < 15 ? 'gold' : 'green');
+      'badge ' + (liqDistNum < 5 ? 'red' : liqDistNum < 15 ? 'gold' : 'green');
+    if (liqSubInit) {
+      const c = liqDistNum < 5 ? 'var(--red)' : liqDistNum < 15 ? 'var(--gold2)' : 'var(--green)';
+      liqSubInit.innerHTML = `距離 <span style="color:${c};font-weight:700">${liqDist}%</span> (${liqPts} 點)`;
+    }
+  } else if (liqSubInit) {
+    liqSubInit.textContent = '';
   }
 
   // ── 反推加槓桿 / 減槓桿觸發價 ──────────────────────────────
@@ -3945,9 +4850,13 @@ function updateStats(state, chartData) {
       document.getElementById('statUnrealPct').textContent = fmtPct(upct) + ' vs 均攤';
     }
   }
-  // 已實現損益：優先用 fmx_positions.py 的錨點+累加值（160,967 以後會持續累加），
-  // 若 SDK 尚未回應才退用 fmx_state.realized_pnl（策略自己的累計，可能較舊）
-  const _displayRealized = (_sdkRealized != null) ? _sdkRealized : state.realized_pnl;
+  // 已實現損益：優先級依序
+  //   ① SDK margin.realized_pnl（FIFO 錨點+累加，含所有手動下單）  ← 最準
+  //   ② state.realized_pnl_broker（strategy 每 tick 從 fut_realized_state.json 同步） ← 中介
+  //   ③ state.realized_pnl（bot-tracked，僅含 bot 自己下的單）       ← 最舊
+  const _displayRealized = (_sdkRealized != null)
+    ? _sdkRealized
+    : (state.realized_pnl_broker != null ? state.realized_pnl_broker : state.realized_pnl);
   document.getElementById('statRealized').textContent = _displayRealized != null ? fmt(_displayRealized) : '—';
   document.getElementById('statRealized').className   = 'value ' + colorClass(_displayRealized);
   document.getElementById('statCreated').textContent  = state.created_date || '—';
@@ -4032,10 +4941,31 @@ function updateStats(state, chartData) {
     loEl.style.display = 'none';
   }
 
-  // Status dot
-  const running = state.bot_running === true;
-  document.getElementById('statusDot').className = running ? 'running' : 'stopped';
-  document.getElementById('statusLabel').textContent = running ? '運行中' : '已停止';
+  // Status dot：用「save_ts 新鮮度」判斷比 state.bot_running 旗標更可靠
+  //   - state.bot_running 只在 server.py 用 /fmx/control 啟動時才會被設成 True
+  //   - 若是 start_bot.bat 從外部啟動，server.py 不知道，旗標永遠 False → 誤判
+  //   - save_ts 是 bot 每 5 分鐘 tick 寫的，新鮮度 = 活著的真實證據
+  const _saveTs = state.save_ts ? Date.parse(state.save_ts) : null;
+  const _ageSec = _saveTs ? (Date.now() - _saveTs) / 1000 : Infinity;
+  // 容忍上限：tick 是 5 分鐘 = 300s，給 60s 緩衝
+  const _ALIVE_THRESHOLD = 360;
+  const _now = new Date();
+  const _mins = _now.getHours() * 60 + _now.getMinutes();
+  const _day = _now.getDay();
+  const _isSatEarly = _day === 6 && _mins <= 300;
+  const _isMonEarly = _day === 1 && _mins <= 300;
+  const _isWeekend = _day === 0 || (_day === 6 && !_isSatEarly);
+  const _isTradingNow = !_isWeekend && !_isMonEarly && (
+    (_mins >= 8 * 60 + 45 && _mins <= 13 * 60 + 45) ||
+    (_mins >= 15 * 60 || _mins <= 5 * 60)
+  );
+  const running = (state.bot_running === true) || (_ageSec < _ALIVE_THRESHOLD);
+  const paused = !running && !_isTradingNow && _ageSec < 7200;
+  document.getElementById('statusDot').className = running ? 'running' : (paused ? 'paused' : 'stopped');
+  let _statusText = running ? '運行中' : '已停止';
+  if (running && _ageSec >= 60) _statusText += ` (${Math.floor(_ageSec)}s前)`;
+  if (paused) _statusText = `盤間休息 (${Math.floor(_ageSec / 60)}分前)`;
+  document.getElementById('statusLabel').textContent = _statusText;
 
   // RSI chart (用主圖的歷史價格資料計算)
   renderLeverageChart(lev, lastChartData);
@@ -4238,6 +5168,15 @@ let lastChartData = null;
 let lastChartFetch = 0;
 let _lastFilterOn = true;
 
+function _priceChartDataset(label) {
+  return priceChartObj?.data?.datasets?.find(ds => ds?.label === label) || null;
+}
+
+function _setHorizontalLineDatasetY(ds, y) {
+  if (!ds?.data?.length) return;
+  ds.data = ds.data.map(p => (p && typeof p === 'object') ? { ...p, y } : y);
+}
+
 async function refresh() {
   const lastRefreshEl = document.getElementById('lastRefresh');
   lastRefreshEl.textContent = '更新中…';
@@ -4262,28 +5201,18 @@ async function refresh() {
     lastChartData = await fetchChartData(_kInterval);
     lastChartFetch = now;
     try { renderPriceChart(lastChartData, state); }
-    catch(chartErr) { console.error('[renderPriceChart]', chartErr); }
+    catch(chartErr) {
+      console.error('[renderPriceChart]', chartErr);
+      try { _renderSimplePriceCanvas(document.getElementById('priceChart'), lastChartData); } catch(_) {}
+    }
   } else if (state) {
-    if (priceChartObj && state.last_price && lastChartData) {
-      // 更新最後一根K棒收盤價（candlestick {x,o,h,l,c} 格式）
-      const ds = priceChartObj.data.datasets[0];
-      const lastCandle = ds.data[ds.data.length - 1];
-      if (lastCandle && typeof lastCandle === 'object' && 'c' in lastCandle) {
-        lastCandle.c = state.last_price;
-        if (state.last_price > lastCandle.h) lastCandle.h = state.last_price;
-        if (state.last_price < lastCandle.l) lastCandle.l = state.last_price;
-      }
-      // 更新均攤成本 / 強平線（category scale：直接更新 y 值，x 保持 catLabel 字串不動）
-      const avgDs      = priceChartObj.data.datasets[2];
-      const liqDs      = priceChartObj.data.datasets[3];
-      const avgCost    = _sdkAvgPrice ?? (state.avg_cost > 0 ? state.avg_cost : null);
-      const newLiqPx   = _calcLiqPx(state.last_price, state);
-      if (avgDs?.data?.length) avgDs.data.forEach(p => { if (p) p.y = avgCost; });
-      if (liqDs?.data?.length) {
-        liqDs.data.forEach(p => { if (p) p.y = newLiqPx; });
-        liqDs.hidden = newLiqPx == null;   // 有強平價才顯示
-      }
-      priceChartObj.update('none');
+    if (_lwcPrice?.candle && state.last_price && lastChartData) {
+      _lwcUpdateLastClose(state.last_price);                       // 更新最後一根 K 棒
+      const avgCost  = _sdkAvgPrice ?? (state.avg_cost > 0 ? state.avg_cost : null);
+      const newLiqPx = _calcLiqPx(state.last_price, state);
+      _lwcSetPriceLine('avg', _lwcPrice.isIntraday ? null : avgCost, '#ffffff', '均攤');
+      _lwcSetPriceLine('liq', newLiqPx, '#dc2626', '強平');
+      if (_lwcPrice._plVals) { _lwcPrice._plVals.avg = _lwcPrice.isIntraday ? null : avgCost; _lwcPrice._plVals.liq = newLiqPx; }
     }
   }
 
@@ -4731,6 +5660,39 @@ let _sdkMktQuotesCache = null;
 let _sdkMktQuotesTs    = 0;
 let _sdkMktQuotesBusy  = false;
 
+function _mergeSdkMarketQuotes(prev, next) {
+  if (!next?.quotes) return next;
+  if (!prev?.quotes) return next;
+  const merged = {
+    ...next,
+    quotes: { ...next.quotes },
+  };
+  for (const [sym, q] of Object.entries(merged.quotes)) {
+    const prevQ = prev.quotes?.[sym];
+    if (!q || q.error || !prevQ || prevQ.error) continue;
+    const hasChange = q.change != null || q.change_pct != null || q.ref != null;
+    const prevRef = Number(prevQ.ref ?? (
+      prevQ.last != null && prevQ.change != null ? Number(prevQ.last) - Number(prevQ.change) : null
+    ));
+    const sameContract = !q.symbol || !prevQ.symbol || q.symbol === prevQ.symbol;
+    const sameMonth = !q.month || !prevQ.month || String(q.month) === String(prevQ.month);
+    const last = Number(q.last);
+    if (hasChange || !sameContract || !sameMonth || !Number.isFinite(last) || !Number.isFinite(prevRef) || prevRef <= 0) {
+      continue;
+    }
+    const change = last - prevRef;
+    merged.quotes[sym] = {
+      ...prevQ,
+      ...q,
+      ref: prevRef,
+      change,
+      change_pct: (change / prevRef) * 100,
+      _change_source: 'cached_ref',
+    };
+  }
+  return merged;
+}
+
 async function fetchFubonMarketQuotes(force = false) {
   const now = Date.now();
   if (!force && _sdkMktQuotesCache && now - _sdkMktQuotesTs < 10000) return _sdkMktQuotesCache;
@@ -4741,16 +5703,19 @@ async function fetchFubonMarketQuotes(force = false) {
       signal: AbortSignal.timeout ? AbortSignal.timeout(70000) : undefined,
     });
     const data = await r.json();
-    if (data.status === 'ok' && data.quotes) {
-      _sdkMktQuotesCache = data;
+    const hasUsableQuote = data?.quotes && Object.values(data.quotes).some(q =>
+      q && !q.error && Number.isFinite(Number(q.last))
+    );
+    if ((data.status === 'ok' || data.status === 'partial') && hasUsableQuote) {
+      _sdkMktQuotesCache = _mergeSdkMarketQuotes(_sdkMktQuotesCache, data);
       _sdkMktQuotesTs    = data._stale ? _sdkMktQuotesTs : Date.now();
       const el = document.getElementById('sdkMktBadge');
       if (el && !data._stale) {
         el.textContent = 'SDK 剛更新';
-        el.style.color = 'var(--green)';
+        el.style.color = data.status === 'partial' ? 'var(--gold2)' : 'var(--green)';
       }
     }
-    return data;
+    return _sdkMktQuotesCache;
   } catch (e) {
     console.warn('market_quotes fetch error:', e);
     return _sdkMktQuotesCache;
@@ -4804,7 +5769,7 @@ function updateLivePrice(market, misData) {
   // 2. MIS 即時 / 日報表    → SDK 無資料時備援
   // 3. SDK 持倉（無 change）→ 最後備援
   const _livePxMin = _PROD_MIN_PX[currentSymbol] ?? 0;
-  let dispLast = null, dispChg = 0, dispPct = '', dispSrc = '';
+  let dispLast = null, dispChg = null, dispPct = '', dispSrc = '';
 
   // MIS / 日報表
   const misRow   = misData[misCode] || misData[misCode + 'F'] || null;
@@ -4843,7 +5808,8 @@ function updateLivePrice(market, misData) {
         effRef = srcQ.last - srcQ.change;
       }
     }
-    if (effRef == null && _TW_INDEX_KEYS_GLOBAL.has(currentSymbol) && _twEffRef != null) {
+    if (effRef == null && currentSymbol !== 'MXFR1'
+        && _TW_INDEX_KEYS_GLOBAL.has(currentSymbol) && _twEffRef != null) {
       effRef = _twEffRef;
     }
     if (effRef != null && effRef > 1000) {
@@ -4856,17 +5822,49 @@ function updateLivePrice(market, misData) {
     }
   };
 
+  // ── MIS 漲跌的可信值（用作 sanity check，SDK 與 MIS 不一致時以 MIS 為準）
+  // SDK change 偶爾會用 today_open 當基準（不是真昨收）→ 跟 TAIFEX MIS 顯示的方向不一樣
+  const _misChgRef = (() => {
+    const row = misRow || dailyRow;
+    if (!row) return null;
+    const c = parseFloat((row.Change || '').replace(/,/g,''));
+    const last = parseFloat((row.Last || '').replace(/,/g,''));
+    const ref = isFinite(c) && isFinite(last) ? (last - c) : null;
+    if (!isFinite(c) || !ref || ref <= 0) return null;
+    return { chg: c, pct: c / ref * 100, last, ref };
+  })();
+  const _alignWithMIS = (sdkChg, sdkPct, sdkLast) => {
+    if (!_misChgRef) return null;
+    // 簽名相反 OR 差超過 100 點 → SDK baseline 不對，採 MIS
+    const signFlip = (sdkChg ?? 0) * _misChgRef.chg < 0
+                     && Math.abs(sdkChg ?? 0) > 0.01 && Math.abs(_misChgRef.chg) > 0.01;
+    const bigGap = Math.abs((sdkChg ?? 0) - _misChgRef.chg) > 100;
+    if (!signFlip && !bigGap) return null;
+    // 用 MIS ref 重新計算（保留 SDK 的 last 價）
+    const newChg = sdkLast - _misChgRef.ref;
+    const newPct = newChg / _misChgRef.ref * 100;
+    console.warn(`[livePrice] SDK change=${sdkChg} 與 MIS=${_misChgRef.chg} 不一致 → 採 MIS ref=${_misChgRef.ref}, newChg=${newChg.toFixed(0)}`);
+    return { chg: newChg, pct: newPct };
+  };
+
   if (sdkRealtime) {
     dispLast = sdkQ.last;
     dispChg  = sdkQ.change;
     dispPct  = sdkQ.change_pct != null ? (sdkQ.change_pct >= 0 ? '+' : '') + sdkQ.change_pct.toFixed(2) + '%' : '';
+    // ── MIS sanity：SDK change 跟 MIS 反向或差太多 → 採 MIS（避免「指數對但漲跌反」）──
+    const _mfix = _alignWithMIS(sdkQ.change, sdkQ.change_pct, sdkQ.last);
+    if (_mfix) {
+      const dp = p?.dp || 0;
+      dispChg = dp > 0 ? +_mfix.chg.toFixed(dp) : Math.round(_mfix.chg);
+      dispPct = (_mfix.pct >= 0 ? '+' : '') + _mfix.pct.toFixed(2) + '%';
+    }
     const nightL = (_sdkMktQuotesCache?.night ?? _curNight) ? '🌙夜盤' : '⚡日盤';
     const vol = sdkQ.volume != null ? Number(sdkQ.volume).toLocaleString('zh-TW') : '—';
     const oi  = sdkQ.open_interest != null ? Number(sdkQ.open_interest).toLocaleString('zh-TW') : '—';
     dispSrc  = `${nightL} SDK ｜ ${sdkQ.month || sdkQ.symbol || ''} ｜ 量:${vol} ｜ OI:${oi}`;
     document.getElementById('quoteSrcLabel').textContent = `即時報價 (富邦SDK ${sdkQ.symbol || currentSymbol})`;
     // 結算日異常修正：SDK pct >3% 視為異常，改用同指數 R1 換算
-    if (Math.abs(sdkQ.change_pct ?? 0) >= 3.0) {
+    if (Math.abs(sdkQ.change_pct ?? 0) >= 3.0 && !_mfix) {
       const _nc = _nightChangeFromMIS(misCode, sdkQ.symbol, dispLast, p);
       if (_nc) { dispChg = _nc.chg; dispPct = _nc.pct; }
     }
@@ -4877,10 +5875,16 @@ function updateLivePrice(market, misData) {
     dispLast = fq.last;
     dispChg  = fq.change;
     dispPct  = fq.change_pct != null ? (fq.change_pct >= 0 ? '+' : '') + fq.change_pct.toFixed(2) + '%' : '';
+    const _mfix = _alignWithMIS(fq.change, fq.change_pct, fq.last);
+    if (_mfix) {
+      const dp = p?.dp || 0;
+      dispChg = dp > 0 ? +_mfix.chg.toFixed(dp) : Math.round(_mfix.chg);
+      dispPct = (_mfix.pct >= 0 ? '+' : '') + _mfix.pct.toFixed(2) + '%';
+    }
     const nightL = _curNight ? '🌙夜盤' : '⚡日盤';
     dispSrc  = `${nightL} 富邦SDK ｜ ${fq.symbol || currentSymbol}`;
     document.getElementById('quoteSrcLabel').textContent = `即時報價 (富邦SDK ${fq.symbol || currentSymbol})`;
-    if (Math.abs(fq.change_pct ?? 0) >= 3.0) {
+    if (Math.abs(fq.change_pct ?? 0) >= 3.0 && !_mfix) {
       const _nc = _nightChangeFromMIS(misCode, fq.symbol, dispLast, p);
       if (_nc) { dispChg = _nc.chg; dispPct = _nc.pct; }
     }
@@ -4894,7 +5898,7 @@ function updateLivePrice(market, misData) {
     const tLast = parseFloat((taifexRow.Last || '').replace(/,/g,''));
     if (_livePxMin === 0 || tLast >= _livePxMin) {
       dispLast = tLast;
-      dispChg  = parseFloat((taifexRow.Change || '').replace(/,/g,'')) || 0;
+      dispChg  = _parseSignedChangeWithPct(taifexRow.Change, taifexRow['%']);
       dispPct  = taifexRow['%'] || '';
       const srcLabel = misRow ? (isNightSession() ? '🌙夜盤即時' : '⚡日盤即時') : '日報表';
       const mon = taifexRow['ContractMonth(Week)'] || '';
@@ -4932,7 +5936,7 @@ function updateLivePrice(market, misData) {
   }
 
   // ── 補齊 change (A)：SDK 有 ref 但 change 未帶入時，從 ref 計算 ──
-  if (dispLast != null && dispChg === 0) {
+  if (dispLast != null && (dispChg == null || dispChg === 0)) {
     const _ref = sdkQ?.ref ?? fq?.ref;
     if (_ref != null && _ref > 0) {
       const _dp = p?.dp || 0;
@@ -4943,7 +5947,7 @@ function updateLivePrice(market, misData) {
   }
 
   // ── 補齊 change (B)：用 fallbackMis 的參考價推算（MXF 不在公開行情中）──
-  if (dispLast != null && dispChg === 0 && p?.fallbackMis) {
+  if (dispLast != null && (dispChg == null || dispChg === 0) && p?.fallbackMis && !p?.futKline) {
     for (const fbCode of p.fallbackMis) {
       const fbRow = misData[fbCode] || misData[fbCode + 'F'] || null;
       if (!fbRow) continue;
@@ -4970,7 +5974,7 @@ function updateLivePrice(market, misData) {
       const fbQ = _sdkMktQuotesCache?.quotes?.[fbKey];
       if (fbQ && !fbQ.error && fbQ.last != null && fbQ.last > _livePxMin) {
         dispLast = fbQ.last;
-        dispChg  = fbQ.change ?? 0;
+        dispChg  = fbQ.change ?? null;
         dispPct  = fbQ.change_pct != null
           ? (fbQ.change_pct >= 0 ? '+' : '') + fbQ.change_pct.toFixed(2) + '%' : '';
         const nightL = isNightSession() ? '🌙夜盤' : '⚡日盤';
@@ -4986,25 +5990,85 @@ function updateLivePrice(market, misData) {
   const fubonStyleLive = _resolveFubonStyleChange(currentSymbol, p, dispLast, misData, {
     preferInputLast: !!_sdkPositionPriceMap[currentSymbol],
   });
+  let fubonStyleLiveSource = '';
   if (fubonStyleLive) {
+    fubonStyleLiveSource = fubonStyleLive.source || '';
     if (fubonStyleLive.last != null && !_sdkPositionPriceMap[currentSymbol]) dispLast = fubonStyleLive.last;
     if (fubonStyleLive.source === 'direct_mis' && fubonStyleLive.last != null) dispLast = fubonStyleLive.last;
     dispChg = fubonStyleLive.chg;
     dispPct = fubonStyleLive.pct;
-    dispSrc = _sdkPositionPriceMap[currentSymbol]
+    dispSrc = fubonStyleLive.source === 'direct_mis'
+      ? `期交所 ${p?.mis || ''} 同月份行情 | ${currentSymbol}`
+      : fubonStyleLive.source === 'prev_daily_close'
+      ? `SDK現價 + 日K昨收參考漲跌 | ${currentSymbol}`
+      : _sdkPositionPriceMap[currentSymbol]
       ? `富邦SDK持倉現價 + 期交所漲跌 | ${currentSymbol}`
       : `期交所即時 | ${currentSymbol}`;
+  }
+
+  if (currentSymbol === 'MXFR1') {
+    const sdkDisplayChange = _displayChangeFromSdkQuote(currentSymbol, dispLast);
+    if (sdkDisplayChange) {
+      fubonStyleLiveSource = sdkDisplayChange.source;
+      dispChg = sdkDisplayChange.chg;
+      dispPct = sdkDisplayChange.pct;
+      dispSrc = `富邦SDK同合約基準漲跌 | ${currentSymbol}`;
+    }
   }
 
   if (dispLast == null) {
     el.textContent = '—'; chgEl.textContent = ''; info.textContent = '(等待報價…)';
     return;
   }
+  // ── 最終 MIS 兜底：拿 misCode + fallbackMis 的 Change 跟 dispChg 比，反向或差 >100 點就採 MIS
+  // （不論前面哪個 branch 算出 dispChg，都用 MIS 真實昨收做最後 sanity check）
+  try {
+    // 只有 direct_mis（同月份期貨即時行情）才完全可信；prev_daily_close 用現貨日 K
+    // 昨收反推、含期貨價差誤差，必須再經 MIS 真實昨收兜底校正。
+    if (fubonStyleLiveSource === 'direct_mis' || fubonStyleLiveSource === 'sdk_quote_ref') {
+      throw new Error('skip trusted quote ref');
+    }
+    const _candidates = (p?.futKline ? [misCode] : [misCode, ...(p?.fallbackMis || [])]).filter(Boolean);
+    const _heldMon = p?.futKline ? (_heldContractMonth(currentSymbol) || _symToMonthYYYYMM(currentSymbol) || '') : '';
+    let _misChg = null, _misRef = null;
+    for (const code of _candidates) {
+      const row = misData[code] || misData[code + 'F'] || null;
+      if (!row) continue;
+      if (p?.futKline) {
+        if (!row._quoteList) continue;
+        const rowMon = _normToYYYYMM(row['ContractMonth(Week)'] || row.ContractMonth || row.month || row.Month || '');
+        if (_heldMon && rowMon && rowMon !== _heldMon) continue;
+      }
+      const c = _parseSignedChangeWithPct(row.Change, row['%']);
+      const last = parseFloat((row.Last || '').replace(/,/g, ''));
+      if (c == null || !isFinite(c) || !isFinite(last) || last < 100) continue;
+      const ref = last - c;
+      if (!ref || ref < 100) continue;
+      if (Math.abs(c) / ref > 0.10) continue;
+      // 取第一個有效值（misCode 優先）
+      _misChg = c; _misRef = ref; break;
+    }
+    if (_misRef) {
+      const _curChg = Number(dispChg);
+      const noChg = !Number.isFinite(_curChg);
+      const signFlip = !noChg && _curChg * _misChg < 0 && Math.abs(_curChg) > 0.01 && Math.abs(_misChg) > 0.01;
+      const bigGap = !noChg && Math.abs(_curChg - _misChg) > 100;
+      if (noChg || signFlip || bigGap) {
+        const _newChg = dispLast - _misRef;
+        const _newPct = (_newChg / _misRef) * 100;
+        const dpFix = p?.dp || 0;
+        dispChg = dpFix > 0 ? +_newChg.toFixed(dpFix) : Math.round(_newChg);
+        dispPct = (_newPct >= 0 ? '+' : '') + _newPct.toFixed(2) + '%';
+        console.warn(`[livePrice] 最終兜底：dispChg=${_curChg} → ${dispChg} (採 MIS ref=${_misRef})`);
+      }
+    }
+  } catch (e) { /* mis sanity 失敗不擋 render */ }
   const dp = p?.dp || 0;  // 小數位數（BRF=2, GDF=1, 台指系列=0）
   el.textContent    = dispLast.toLocaleString('zh-TW', {minimumFractionDigits: dp, maximumFractionDigits: dp});
   el.className      = 'value gold';
-  chgEl.textContent = (dispChg >= 0 ? '+' : '') + (typeof dispChg === 'number' ? dispChg.toFixed(dp) : '0') + '  ' + dispPct;
-  chgEl.style.color = dispChg >= 0 ? 'var(--green)' : 'var(--red)';
+  const hasChg = typeof dispChg === 'number' && Number.isFinite(dispChg);
+  chgEl.textContent = hasChg ? (dispChg >= 0 ? '+' : '') + dispChg.toFixed(dp) + '  ' + dispPct : '—';
+  chgEl.style.color = !hasChg ? 'var(--muted)' : (dispChg >= 0 ? 'var(--green)' : 'var(--red)');
   info.textContent  = dispSrc;
   // 兜底：不論哪個 branch 都確保百分比與顯示現價一致
   if (dispLast) _updateTriggerPxSubs(dispLast);
@@ -5016,6 +6080,7 @@ function updateLivePrice(market, misData) {
 //  即時更新加/減槓桿觸發價距離百分比（每次 live price 更新時呼叫）
 // ════════════════════════════════════════════════════════
 function _updateTriggerPxSubs(livePrice) {
+  livePrice = _activeHeldLivePrice(livePrice);
   if (!livePrice) return;
   // 優先用 state 同步的模組變數；state 尚未載入時才 fallback 讀 DOM 輸入框
   const pyramidTrigger = _pyramidTriggerLive ?? parseFloat(document.getElementById('cfgPyramid')?.value) ?? 5.9;
@@ -5040,6 +6105,7 @@ function _updateTriggerPxSubs(livePrice) {
 
 // ════════════════════════════════════════════════════════
 function _updateLeverageLive(livePrice) {
+  livePrice = _activeHeldLivePrice(livePrice);
   if (!livePrice) return;
   // 淨值：優先從 SDK 庫存取，退而讀畫面上的 statEquity
   const equity = (_sdkEquity ?? parseFloat((document.getElementById('statEquity')?.textContent || '').replace(/,/g,''))) || 0;
@@ -5066,6 +6132,22 @@ function _updateLeverageLive(livePrice) {
   const _lPyramid = _pyramidTriggerLive ?? parseFloat(document.getElementById('cfgPyramid')?.value) ?? 5.9;
   const _lMaxLev  = _maxLevLive         ?? parseFloat(document.getElementById('cfgMaxLev')?.value)  ?? 6.8;
   levEl.className = 'value ' + (lev > _lMaxLev ? 'red' : lev > _lPyramid ? 'gold' : 'green');
+
+  // ── 風險指標 = 權益總值 / Σ(qty × init_per_lot) ───────────────
+  //   寫到 statLeverageSub，與「下限/上限」同列；無持倉時不顯示。
+  const _initMargin = _computePortfolioInitMargin();
+  const _riskInd    = _initMargin > 0 ? (equity / _initMargin * 100) : null;
+  const _subEl      = document.getElementById('statLeverageSub');
+  if (_subEl) {
+    const triggers = `下限 ${_lPyramid}x / 上限 ${_lMaxLev}x`;
+    if (_riskInd != null) {
+      // 風險指標警戒色（>250% 健康，150-250% 黃燈，<150% 紅燈）
+      const riColor = _riskInd >= 250 ? 'var(--green)' : _riskInd >= 150 ? 'var(--gold2)' : 'var(--red)';
+      _subEl.innerHTML = `${triggers} ｜ 風險指標 <span style="color:${riColor};font-weight:700">${_riskInd.toFixed(0)}%</span>`;
+    } else {
+      _subEl.textContent = triggers;
+    }
+  }
 
   // ── 即時同步 K 線徽章的槓桿顯示（避免與右側面板數字不一致）──
   //   不走 state.leverage（那是 SDK 同步時的靜態快照），而是用這裡剛算出的 live 值。
@@ -5161,32 +6243,35 @@ function _updateLeverageLive(livePrice) {
   }
 
   // ── 即時更新 K 線最後一根收盤價 ──
-  if (priceChartObj) {
-    const ds0 = priceChartObj.data.datasets[0];
-    const lastBar = ds0?.data?.[ds0.data.length - 1];
-    if (lastBar && typeof lastBar === 'object' && 'c' in lastBar) {
-      lastBar.c = livePrice;
-      if (livePrice > lastBar.h) lastBar.h = livePrice;
-      if (livePrice < lastBar.l) lastBar.l = livePrice;
-      priceChartObj.update('none');
-    }
-  }
+  if (_lwcPrice?.candle) _lwcUpdateLastClose(livePrice);
 
   // ── 強平價：由 updateStats() 從 fmx_state.json 讀取策略計算值（含初始資金），
   //   _updateLeverageLive 不覆蓋，以免用 _sdkEquity 算出錯誤結果。
-  //   僅在有持倉時更新 badgeLiq（強平距離），強平價本身不動。
+  //   僅在有持倉時更新 badgeLiq（強平距離）+ statLiqPriceSub（卡片下方文字），強平價本身不動。
   if (curPos && contracts > 0) {
     const liqEl = document.getElementById('statLiqPrice');
     const liqPxStr = liqEl?.textContent?.replace(/,/g, '') ?? '';
     const liqPx = parseFloat(liqPxStr) || 0;
     if (liqPx > 0) {
-      const liqDist = ((livePrice - liqPx) / livePrice * 100).toFixed(1);
+      const liqDistNum = (livePrice - liqPx) / livePrice * 100;
+      const liqDist    = liqDistNum.toFixed(1);
+      const liqPts     = Math.abs(Math.round(livePrice - liqPx)).toLocaleString();
       const badgeLiq = document.getElementById('badgeLiq');
       if (badgeLiq) {
         badgeLiq.textContent = `強平距離 ${liqDist}%`;
-        badgeLiq.className = 'badge ' + (parseFloat(liqDist) < 5 ? 'red' : parseFloat(liqDist) < 15 ? 'gold' : 'green');
+        badgeLiq.className = 'badge ' + (liqDistNum < 5 ? 'red' : liqDistNum < 15 ? 'gold' : 'green');
+      }
+      // 卡片下方距離文字（同色階）
+      const liqSub = document.getElementById('statLiqPriceSub');
+      if (liqSub) {
+        const liqSubColor = liqDistNum < 5 ? 'var(--red)' : liqDistNum < 15 ? 'var(--gold2)' : 'var(--green)';
+        liqSub.innerHTML = `距離 <span style="color:${liqSubColor};font-weight:700">${liqDist}%</span> (${liqPts} 點)`;
       }
     }
+  } else {
+    // 無持倉時清空
+    const liqSub = document.getElementById('statLiqPriceSub');
+    if (liqSub) liqSub.textContent = '';
   }
 
   // ── 即時更新加/減槓桿觸發價距離百分比 ──────────────────────
@@ -5234,7 +6319,7 @@ async function doManualSync() {
 // ════════════════════════════════════════════════════════
 //  ROLLOVER MODAL
 // ════════════════════════════════════════════════════════
-const _MONTH_CODES_JS = {1:'F',2:'G',3:'H',4:'J',5:'K',6:'M',7:'N',8:'Q',9:'U',10:'V',11:'X',12:'Z'};
+const _MONTH_CODES_JS = {1:'A',2:'B',3:'C',4:'D',5:'E',6:'F',7:'G',8:'H',9:'I',10:'J',11:'K',12:'L'};
 
 function _computeNearNextMonth() {
   // 計算近月 / 次月 YYYYMM 及合約代碼
@@ -5368,10 +6453,8 @@ async function doRollover() {
   }
 
   toggleAutoRefresh();
-  // 雙擊圖表還原縮放
+  // 雙擊圖表還原縮放（LWC 原生提供 wheel 縮放 / 拖拽平移 / 十字游標，不再需要自寫 pan）
   document.getElementById('priceChart')?.addEventListener('dblclick', resetChartZoom);
-  // 左鍵拖曳平移 K 線
-  _initChartPan(document.getElementById('priceChart'));
   // 啟動富邦即時報價輪詢（每 5 秒 fetch、每 1 秒更新 UI）
   startLiveQuotePoll();
   // 啟動 TAIFEX MIS 即時行情輪詢（日盤/夜盤皆自動偵測，每 10 秒刷新）

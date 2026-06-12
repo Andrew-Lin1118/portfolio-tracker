@@ -323,6 +323,28 @@
             body_type: '肥胖',
             std_weight: 64.4, weight_control: -17.1, fat_control: -10.8, muscle_control: '繼續保持',
         },
+        {
+            date: '2026-06-12', time: '08:41', label: '第 2 次追蹤', note: '療程第 14 天',
+            weight: 81.1, weight_tag: '偏高',
+            score: 81,
+            bmi: 27.4, bmi_tag: '偏高',
+            body_fat_pct: 25.3, body_fat_pct_tag: '偏高',
+            water_kg: 38.0, fat_kg: 20.5, bone_kg: 3.0, protein_kg: 18.9,
+            muscle_kg: 57.6, muscle_kg_tag: '標準',
+            lean_mass_kg: 60.6,
+            skeletal_muscle_kg: 26.2, skeletal_muscle_kg_tag: '不足',
+            muscle_pct: 71.0, muscle_pct_tag: '標準',
+            water_pct: 47.0, water_pct_tag: '標準',
+            protein_pct: 23.3, protein_pct_tag: '偏高',
+            bone_pct: 3.7, bone_pct_tag: '不足',
+            whr: 1.4, whr_tag: '偏高',
+            visceral_fat: 15, visceral_fat_tag: '危險',
+            bmr: 1679, bmr_tag: '標準',
+            body_age: 38,
+            heart_rate: 90, heart_rate_tag: '標準',
+            body_type: '肥胖',
+            std_weight: 64.4, weight_control: -16.7, fat_control: -10.8, muscle_control: '繼續保持',
+        },
     ];
 
     const metricGroups = [
@@ -408,8 +430,9 @@
     // 頂部標題 / 總覽
     (function renderHeader() {
         const base = measurements[0], latest = measurements[measurements.length - 1];
+        const name = (typeof PROFILE_NAME !== 'undefined') ? PROFILE_NAME : '林岳廷';
         document.getElementById('subtitle').innerHTML =
-            `GLP-1 / 體重管理用藥效果監控 · 共 ${measurements.length} 次量測`;
+            `${name} · GLP-1 / 體重管理用藥效果監控 · 共 ${measurements.length} 次量測`;
         const days = Math.round((new Date(latest.date) - new Date(base.date)) / 86400000);
         const dw = (latest.weight - base.weight);
         const df = (latest.fat_kg - base.fat_kg);

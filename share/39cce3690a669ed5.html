@@ -430,7 +430,7 @@
     // 頂部標題 / 總覽
     (function renderHeader() {
         const base = measurements[0], latest = measurements[measurements.length - 1];
-        const name = (typeof PROFILE_NAME !== 'undefined') ? PROFILE_NAME : '林岳廷';
+        const name = (typeof PROFILE_NAME !== 'undefined') ? PROFILE_NAME : '天';
         document.getElementById('subtitle').innerHTML =
             `${name} · GLP-1 / 體重管理用藥效果監控 · 共 ${measurements.length} 次量測`;
         const days = Math.round((new Date(latest.date) - new Date(base.date)) / 86400000);

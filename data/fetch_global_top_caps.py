@@ -14,10 +14,32 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import yfinance as yf
+try:
+    from curl_cffi import requests as curl_requests
+except Exception:
+    curl_requests = None
 
 ROOT = Path(__file__).resolve().parent
 OUT_PATH = ROOT / "global_top_caps.json"
 TARGET_TOP_N = 250
+
+# Keep yfinance's SQLite cache inside this project. The user-level cache can
+# become corrupted and make every ticker fail with "database disk image is
+# malformed"; a local cache keeps this job self-healing.
+try:
+    yf.cache.set_cache_location(str(ROOT / ".yfinance_cache_global_caps"))
+except Exception as e:
+    print(f"[warn] yfinance cache location not changed: {e}", file=sys.stderr, flush=True)
+
+# Some Windows/Python installs have a broken curl CA chain for yfinance even
+# when normal HTTPS works. Use a dedicated curl_cffi session so this job can
+# still refresh local JSON without touching the user's global cache.
+YF_SESSION = None
+if curl_requests is not None:
+    try:
+        YF_SESSION = curl_requests.Session(impersonate="chrome", verify=False)
+    except Exception as e:
+        print(f"[warn] yfinance fallback session not created: {e}", file=sys.stderr, flush=True)
 
 # 中文名稱對照（手動維護）— 給前端顯示用
 NAME_ZH = {
@@ -58,6 +80,9 @@ NAME_ZH = {
     "PLTR": "Palantir", "WDC": "西數", "STX": "希捷", "COHR": "Coherent",
     "LITE": "Lumentum", "NBIS": "Nebius", "ASTS": "AST SpaceMobile",
     "AAOI": "AOI", "AXTI": "AXT",
+    "GLW": "Corning", "KTOS": "Kratos", "SMR": "NuScale", "NET": "Cloudflare",
+    "CRCL": "Circle", "ONDS": "Ondas", "CIEN": "Ciena", "BMNR": "BitMine",
+    "POET": "POET Technologies", "ARM": "Arm Holdings", "SPCX": "SpaceX",
     # ── S&P 500 大中型補充 ──
     "INTU": "Intuit", "ISRG": "直覺手術", "ANET": "Arista", "DDOG": "Datadog",
     "FTNT": "Fortinet", "PYPL": "PayPal", "EA": "EA", "MRVL": "Marvell",
@@ -153,6 +178,8 @@ CANDIDATES = [
     "2222.SR",      # Saudi Aramco（yfinance 支援度待驗）
     # ── 用戶持倉 proxy 對應原型 ──
     "PLTR", "WDC", "STX", "COHR", "LITE", "NBIS", "ASTS", "AAOI", "AXTI",
+    # Watchlist / current holdings that need ranking in the fundamentals table.
+    "GLW", "KTOS", "SMR", "NET", "CRCL", "ONDS", "CIEN", "BMNR", "POET", "ARM", "SPCX",
     # ── US S&P 500 大中型擴充 ──
     "INTU", "ISRG", "ANET", "DDOG", "FTNT", "PYPL", "EA", "MRVL",
     "NXPI", "MCHP", "MPWR", "GFS", "ON", "DELL", "HPQ", "HPE",
@@ -197,7 +224,7 @@ def _safe_get(info, *keys):
 def fetch_one(symbol):
     """回傳 normalized dict 或 None。"""
     try:
-        t = yf.Ticker(symbol)
+        t = yf.Ticker(symbol, session=YF_SESSION) if YF_SESSION is not None else yf.Ticker(symbol)
         # 用 fast_info 拿 market_cap / last_price（比 info 快）
         cap = None
         price = None
@@ -298,6 +325,10 @@ def main():
             except UnicodeEncodeError:
                 print(f"  OK {s:<12} cap=${r['market_cap_usd']/1e9:>7.1f}B  ({r['currency']})", flush=True)
         time.sleep(0.25)
+
+    if not results:
+        print("\n[error] No market-cap rows fetched; keeping existing global_top_caps.json unchanged.", file=sys.stderr, flush=True)
+        sys.exit(1)
 
     # 依 USD market_cap 排序、取 top N
     results.sort(key=lambda x: x["market_cap_usd"], reverse=True)

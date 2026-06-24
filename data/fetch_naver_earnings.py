@@ -11,6 +11,7 @@ import urllib.request
 import json
 import re
 import sys
+import html
 from datetime import date, datetime, timedelta
 
 NAVER_HEADERS = {
@@ -30,6 +31,16 @@ def _http_json(url, timeout=15):
         return json.loads(r.read().decode('utf-8'))
 
 
+def _http_text(url, timeout=15):
+    headers = dict(NAVER_HEADERS)
+    headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read()
+        charset = r.headers.get_content_charset() or 'euc-kr'
+        return raw.decode(charset, errors='replace')
+
+
 def _parse_naver_number(s):
     """ '1,783' / '5,298.5' / '-2,500' → float；空字串/非數字 → None """
     if s is None:
@@ -41,6 +52,140 @@ def _parse_naver_number(s):
         return float(s.replace(',', ''))
     except (ValueError, TypeError):
         return None
+
+
+def _fetch_finance_info(stock_code, period):
+    url = f'https://m.stock.naver.com/api/stock/{stock_code}/finance/{period}'
+    data = _http_json(url)
+    return data.get('financeInfo') or {}
+
+
+def _finance_keys(finance_info, *, consensus):
+    keys = []
+    for item in finance_info.get('trTitleList', []) or []:
+        key = item.get('key')
+        if not key:
+            continue
+        is_cons = item.get('isConsensus') == 'Y'
+        if is_cons == consensus:
+            keys.append(key)
+    return sorted(keys)
+
+
+def _finance_value(finance_info, row_title, key):
+    row = next((r for r in finance_info.get('rowList', []) or [] if r.get('title') == row_title), None)
+    if not row:
+        return None
+    columns = row.get('columns') or {}
+    cell = columns.get(key)
+    if isinstance(cell, dict):
+        cell = cell.get('value')
+    return _parse_naver_number(cell)
+
+
+def _strip_html(html_text):
+    html_text = re.sub(r'(?is)<script.*?</script>|<style.*?</style>', ' ', html_text)
+    text = re.sub(r'<[^>]+>', ' ', html_text)
+    text = html.unescape(text)
+    return re.sub(r'\s+', ' ', text)
+
+
+_PAIR_SEP = r'(?:l|\||\u3163|\uff5c)'
+_NUM_RE = r'[-+]?\d[\d,]*(?:\.\d+)?'
+
+
+def _parse_value_pair_after(label, text):
+    # Parse blocks like "PER/EPS ... 32.77 배 l 58,955 원".
+    m = re.search(
+        re.escape(label) + r'.{0,900}?(' + _NUM_RE + r')\s*배\s*' + _PAIR_SEP + r'\s*(' + _NUM_RE + r')\s*원',
+        text,
+        flags=re.I,
+    )
+    if not m:
+        return None, None
+    return _parse_naver_number(m.group(1)), _parse_naver_number(m.group(2))
+
+
+def fetch_naver_fundamentals(stock_code):
+    """
+    Best-effort Korean stock fundamentals from Naver Finance.
+
+    Returns fields compatible with fundamentals.json:
+      pe, fpe, pb, eps_ttm, eps_cur_y, eps_next_y, eps_next_q2
+
+    Naver's HTML investment panel provides current PER/PBR based on the
+    latest TTM EPS/BPS. The mobile finance API provides quarterly/annual
+    EPS rows and consensus estimates.
+    """
+    out = {
+        'source': 'naver',
+        'naver_code': stock_code,
+    }
+
+    # Quarterly API: actual EPS history and next quarter consensus.
+    try:
+        q_info = _fetch_finance_info(stock_code, 'quarter')
+        actual_keys = _finance_keys(q_info, consensus=False)
+        eps_actuals = [
+            _finance_value(q_info, 'EPS', k)
+            for k in actual_keys
+        ]
+        eps_actuals = [v for v in eps_actuals if v is not None]
+        if len(eps_actuals) >= 4:
+            out['eps_ttm'] = round(sum(eps_actuals[-4:]), 4)
+        cons_keys = _finance_keys(q_info, consensus=True)
+        if cons_keys:
+            out['eps_next_q2'] = _finance_value(q_info, 'EPS', cons_keys[0])
+            out['eps_next_q_period'] = cons_keys[0]
+    except Exception as e:
+        print(f'    [Naver] {stock_code} finance/quarter fundamentals FAIL: {e}', flush=True)
+
+    # Annual API: first available consensus year.
+    try:
+        a_info = _fetch_finance_info(stock_code, 'annual')
+        cons_keys = _finance_keys(a_info, consensus=True)
+        if cons_keys:
+            k = cons_keys[0]
+            eps_est = _finance_value(a_info, 'EPS', k)
+            if eps_est is not None:
+                out['eps_cur_y'] = eps_est
+                out['eps_next_y'] = eps_est
+                out['eps_estimate_period'] = k
+            fpe = _finance_value(a_info, 'PER', k)
+            if fpe is not None:
+                out['fpe'] = fpe
+    except Exception as e:
+        print(f'    [Naver] {stock_code} finance/annual fundamentals FAIL: {e}', flush=True)
+
+    # Desktop investment panel: current PER/PBR and the displayed forward EPS.
+    try:
+        page = _http_text(f'https://finance.naver.com/item/main.naver?code={stock_code}')
+        text = _strip_html(page)
+        invest_start = text.find('PER/EPS')
+        invest_text = text[invest_start:] if invest_start >= 0 else text
+
+        pe, eps = _parse_value_pair_after('PER/EPS', invest_text)
+        if pe is not None:
+            out['pe'] = pe
+        if eps is not None:
+            out['eps_ttm'] = eps
+
+        fpe, feps = _parse_value_pair_after('추정PER', invest_text)
+        if fpe is not None:
+            out['fpe'] = fpe
+        if feps is not None:
+            out['eps_next_y'] = feps
+            out.setdefault('eps_cur_y', feps)
+
+        pb, bps = _parse_value_pair_after('PBR', invest_text)
+        if pb is not None:
+            out['pb'] = pb
+        if bps is not None:
+            out['bps'] = bps
+    except Exception as e:
+        print(f'    [Naver] {stock_code} main page fundamentals FAIL: {e}', flush=True)
+
+    return out
 
 
 def _fiscal_to_report_quarter(fiscal_yyyymm):

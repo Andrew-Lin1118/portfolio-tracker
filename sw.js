@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v270';  // 2026-06-11: 日/週/月K 用 ^TWII 現貨依基差續接補足 3 年歷史 + MA 圖例 + RSI 軸寬對齊
+const CACHE_NAME = 'portfolio-tracker-v279';  // 2026-06-29: 加入貸款餘額並納入總資產
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',

@@ -10,7 +10,7 @@
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
-    <link rel="manifest" href="manifest.json?v=282">
+    <link rel="manifest" href="manifest.json?v=283">
     <meta name="theme-color" content="#fbbf24">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- iOS Safari -->
@@ -30,9 +30,9 @@
             // 清掉所有非目前版本的快取（保險）
             if (window.caches) {
               const keys = await caches.keys();
-              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v282').map(k => caches.delete(k)));
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v283').map(k => caches.delete(k)));
             }
-            const reg = await navigator.serviceWorker.register('./sw.js?v=282');
+            const reg = await navigator.serviceWorker.register('./sw.js?v=283');
             // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
             let reloaded = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -1444,7 +1444,7 @@
             <!-- 資料表 -->
             <div class="glass-card" style="padding:0; overflow:hidden;">
                 <div style="overflow-x:auto;">
-                    <table style="width:100%; border-collapse:collapse; min-width:820px;">
+                    <table style="width:100%; border-collapse:collapse; min-width:920px;">
                         <thead>
                             <tr style="background:rgba(15,30,60,0.7); border-bottom:1px solid rgba(59,130,246,0.25);">
                                 <th id="asset-history-date-th" style="padding:0.6rem 0.75rem; text-align:left;  color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">日期</th>
@@ -1453,6 +1453,7 @@
                                 <th id="asset-history-change-pct-th" style="padding:0.6rem 0.75rem; text-align:right; color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">日漲跌%</th>
                                 <th style="padding:0.6rem 0.75rem; text-align:right; color:#3b82f6; font-size:0.8rem; font-weight:600; white-space:nowrap;">市值</th>
                                 <th style="padding:0.6rem 0.75rem; text-align:right; color:#22c55e; font-size:0.8rem; font-weight:600; white-space:nowrap;">現金</th>
+                                <th style="padding:0.6rem 0.75rem; text-align:right; color:#f87171; font-size:0.8rem; font-weight:600; white-space:nowrap;">負債</th>
                                 <th style="padding:0.6rem 0.75rem; text-align:right; color:#a855f7; font-size:0.8rem; font-weight:600; white-space:nowrap;">期貨</th>
                                 <th style="padding:0.6rem 0.75rem; text-align:right; color:#f59e0b; font-size:0.8rem; font-weight:600; white-space:nowrap;">加密</th>
                                 <th class="asset-history-pnl-pct-col" style="display:none; padding:0.6rem 0.75rem; text-align:right; color:#94a3b8; font-size:0.8rem; font-weight:600; white-space:nowrap;">損益%</th>
@@ -5255,11 +5256,149 @@
 
         // ==================== 資產歷史快照（Tab 6）====================
         const PT_ASSET_HISTORY_KEY = 'pt_v13_asset_history';
+        const PT_ASSET_YEAR_END_LOAN_TWD = Object.freeze({
+            2013: 375142,
+            2014: 333070,
+            2015: 290998,
+            2016: 248926,
+            2017: 195589,
+            2018: 158683,
+            2019: 208066,
+            2020: 231416,
+            2021: 1891476,
+            2022: 2302740,
+            2023: 3433335,
+            2024: 2917470,
+            2025: 2539915,
+        });
+        const PT_ASSET_CURRENT_LOAN_ANCHOR = Object.freeze({ date: '2026-06-29', loanTWD: 2840000 });
         // 無天數上限（localStorage 容量充足，5年≈1825筆≈150KB）
 
         function _assetTodayKey() {
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        function _assetHistoryDateParts(dateKey) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateKey || ''));
+            if (!m) return null;
+            return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+        }
+
+        function _assetHistoryCurrentLoanAnchor() {
+            const inputLoan = (typeof getLoanTWD === 'function') ? getLoanTWD() : 0;
+            if (inputLoan > 0) return { date: _assetTodayKey(), loanTWD: Math.round(inputLoan) };
+            return PT_ASSET_CURRENT_LOAN_ANCHOR;
+        }
+
+        function _assetHistoryInterpolatedLoanTWD(dateKey) {
+            const parts = _assetHistoryDateParts(dateKey);
+            if (!parts) return 0;
+            const years = Object.keys(PT_ASSET_YEAR_END_LOAN_TWD).map(Number).sort((a, b) => a - b);
+            const firstYear = years[0];
+            const lastYear = years[years.length - 1];
+            const monthRatio = Math.max(1, Math.min(parts.month, 12)) / 12;
+
+            if (parts.year < firstYear) return 0;
+            if (parts.year === firstYear) return PT_ASSET_YEAR_END_LOAN_TWD[firstYear] || 0;
+            if (parts.year <= lastYear) {
+                const prev = PT_ASSET_YEAR_END_LOAN_TWD[parts.year - 1];
+                const curr = PT_ASSET_YEAR_END_LOAN_TWD[parts.year];
+                if (Number.isFinite(prev) && Number.isFinite(curr)) {
+                    return Math.max(0, Math.round(prev + (curr - prev) * monthRatio));
+                }
+                return Math.max(0, Math.round(curr || prev || 0));
+            }
+
+            const anchor = _assetHistoryCurrentLoanAnchor();
+            const anchorParts = _assetHistoryDateParts(anchor.date);
+            if (!anchorParts || !(anchor.loanTWD > 0) || parts.year !== anchorParts.year || lastYear !== parts.year - 1) return 0;
+            const prev = PT_ASSET_YEAR_END_LOAN_TWD[lastYear] || 0;
+            const maxMonth = Math.max(1, anchorParts.month);
+            const ratio = Math.max(1, Math.min(parts.month, maxMonth)) / maxMonth;
+            return Math.max(0, Math.round(prev + (anchor.loanTWD - prev) * ratio));
+        }
+
+        function _assetHistoryFxFromRow(row) {
+            const vt = Number(row?.vt);
+            const v = Number(row?.v);
+            if (Number.isFinite(vt) && vt > 0 && Number.isFinite(v) && v > 0) return vt / v;
+            const fx = Number(exchangeRates?.USD_TWD);
+            return Number.isFinite(fx) && fx > 0 ? fx : 0;
+        }
+
+        function _assetHistoryBackfillLoanRow(row, dateKey) {
+            if (!row || typeof row !== 'object') return false;
+            const targetLoanTWD = _assetHistoryInterpolatedLoanTWD(dateKey);
+            const existingLoanTWD = Number(row.loan_twd);
+            const hasActualLoan = Number.isFinite(existingLoanTWD) && existingLoanTWD > 0 && row.loan_source !== 'year_end_interpolated';
+            const loanTWD = hasActualLoan ? Math.round(existingLoanTWD) : targetLoanTWD;
+            if (!(loanTWD > 0)) return false;
+
+            const oldLoanTWD = Number.isFinite(existingLoanTWD) && existingLoanTWD > 0 ? Math.round(existingLoanTWD) : 0;
+            const deltaTWD = loanTWD - oldLoanTWD;
+            const round0 = v => Math.round(Number(v || 0));
+            const stock = Number(row.vt) || 0;
+            const cash = Number(row.cash_twd) || 0;
+            const fut = Number(row.fut_twd) || 0;
+            const crypto = Number(row.crypto_twd) || 0;
+            const grossTWD = stock + cash + fut + crypto;
+            const compTWD = Math.max(0, round0(grossTWD - loanTWD));
+            const existingTotalTWD = Number(row.gt ?? row.gtc);
+            const alreadyNetTWD = oldLoanTWD === 0 && Number.isFinite(existingTotalTWD) && existingTotalTWD > 0
+                && Math.abs(existingTotalTWD - compTWD) <= Math.abs(existingTotalTWD - grossTWD);
+            const totalDeltaTWD = alreadyNetTWD ? 0 : deltaTWD;
+            const shiftTwd = key => {
+                const n = Number(row[key]);
+                if (Number.isFinite(n)) row[key] = Math.max(0, round0(n - totalDeltaTWD));
+            };
+            row.loan_twd = loanTWD;
+            if (!hasActualLoan) row.loan_source = 'year_end_interpolated';
+            if (totalDeltaTWD !== 0) ['gto', 'gth', 'gtl'].forEach(shiftTwd);
+            row.gt = compTWD;
+            row.gtc = compTWD;
+            if (!Number.isFinite(Number(row.gto))) row.gto = compTWD;
+            row.gth = Math.max(Number(row.gth) || compTWD, row.gto, compTWD);
+            row.gtl = Math.min(...[Number(row.gtl), row.gto, compTWD].filter(Number.isFinite));
+
+            const fx = _assetHistoryFxFromRow(row);
+            if (fx > 0) {
+                const loanUSD = Math.round((loanTWD / fx) * 100) / 100;
+                const oldLoanUSD = Number(row.loan) || 0;
+                const deltaUSD = loanUSD - oldLoanUSD;
+                const stockUSD = Number(row.v) || 0;
+                const cashUSD = Number(row.cash) || 0;
+                const futUSD = Number(row.fut) || 0;
+                const cryptoUSD = Number(row.crypto) || 0;
+                const grossUSD = stockUSD + cashUSD + futUSD + cryptoUSD;
+                const compUSD = Math.max(0, Math.round((grossUSD - loanUSD) * 100) / 100);
+                const existingTotalUSD = Number(row.g ?? row.gc);
+                const alreadyNetUSD = oldLoanUSD === 0 && Number.isFinite(existingTotalUSD) && existingTotalUSD > 0
+                    && Math.abs(existingTotalUSD - compUSD) <= Math.abs(existingTotalUSD - grossUSD);
+                const totalDeltaUSD = alreadyNetUSD ? 0 : deltaUSD;
+                row.loan = loanUSD;
+                if (totalDeltaUSD !== 0) {
+                    ['g', 'go', 'gh', 'gl', 'gc'].forEach(key => {
+                        const n = Number(row[key]);
+                        if (Number.isFinite(n)) row[key] = Math.max(0, Math.round((n - totalDeltaUSD) * 100) / 100);
+                    });
+                }
+                row.g = compUSD;
+                row.gc = compUSD;
+                if (!Number.isFinite(Number(row.go))) row.go = compUSD;
+                row.gh = Math.max(Number(row.gh) || compUSD, row.go, compUSD);
+                row.gl = Math.min(...[Number(row.gl), row.go, compUSD].filter(Number.isFinite));
+            }
+            return true;
+        }
+
+        function _assetHistoryBackfillYearEndLoans(hist) {
+            if (!hist || typeof hist !== 'object') return false;
+            let changed = false;
+            Object.keys(hist).forEach(k => {
+                if (_assetHistoryBackfillLoanRow(hist[k], k)) changed = true;
+            });
+            return changed;
         }
 
         function _assetHistoryVisible() {
@@ -5585,6 +5724,7 @@
                 const todayKey = _assetTodayKey();
                 if (local[todayKey]) merged[todayKey] = { ...(remote[todayKey] || {}), ...local[todayKey] };
                 _assetSanitizeTodayCashSpike(merged);
+                _assetHistoryBackfillYearEndLoans(merged);
                 localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(merged));
                 return true;
             } catch (_) { return false; }
@@ -5851,7 +5991,7 @@
             }).join('');
             return `<div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">${card}</div>
                 <div style="color:#64748b;font-size:0.72rem;line-height:1.5;margin-bottom:0.35rem;">
-                    備註：MTD/YTD 以總資產（股票 + 現金 + 期貨 + 加密）計算；Alpha = 資產報酬率 - 指數報酬率。
+                    備註：MTD/YTD 以總資產（股票 + 現金 - 負債 + 期貨 + 加密）計算；Alpha = 資產報酬率 - 指數報酬率。
                 </div>`;
         }
 
@@ -5928,7 +6068,8 @@
 
             const raw  = localStorage.getItem(PT_ASSET_HISTORY_KEY);
             const rawHist = raw ? JSON.parse(raw) : {};
-            if (_assetSanitizeTodayCashSpike(rawHist)) {
+            const loanBackfilled = _assetHistoryBackfillYearEndLoans(rawHist);
+            if (_assetSanitizeTodayCashSpike(rawHist) || loanBackfilled) {
                 try { localStorage.setItem(PT_ASSET_HISTORY_KEY, JSON.stringify(rawHist)); } catch (_) {}
             }
             const granularity = _assetHistoryGranularity();
@@ -6511,7 +6652,7 @@
 
             const rows = [...keys].reverse();
             if (rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2.5rem 1rem;color:#475569;">
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2.5rem 1rem;color:#475569;">
                     尚無資產歷史記錄<br><small style="font-size:0.78rem;color:#334155;margin-top:0.4rem;display:block;">每次打開頁面、更新報價時，系統會自動儲存今日快照</small></td></tr>`;
                 return;
             }
@@ -6555,6 +6696,7 @@
                     <td style="padding:0.5rem 0.75rem; text-align:right; color:${dColor}; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; font-size:0.83rem; white-space:nowrap;">${dayPct == null ? '-' : sign(dayPct) + Math.abs(dayPct).toFixed(2) + '%'}</td>
                     <td style="padding:0.5rem 0.75rem; text-align:right; color:#3b82f6; font-weight:700; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; font-size:0.83rem; white-space:nowrap;">${pfx}${fmtN(value, useTWD)}</td>
                     <td style="padding:0.5rem 0.75rem; text-align:right; color:#22c55e; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; font-size:0.83rem; white-space:nowrap;">${pfx}${fmtN(cash, useTWD)}</td>
+                    <td style="padding:0.5rem 0.75rem; text-align:right; color:#f87171; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; font-size:0.83rem; white-space:nowrap;">${loan > 0 ? '−' + pfx + fmtN(loan, useTWD) : '-'}</td>
                     <td style="padding:0.5rem 0.75rem; text-align:right; color:#a855f7; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; font-size:0.83rem; white-space:nowrap;">${pfx}${fmtN(fut, useTWD)}</td>
                     <td style="padding:0.5rem 0.75rem; text-align:right; color:#f59e0b; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; font-size:0.83rem; white-space:nowrap;">${pfx}${fmtN(crypto, useTWD)}</td>
                     <td class="asset-history-pnl-pct-col" style="display:none; padding:0.5rem 0.75rem; text-align:right; color:${pColor}; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; font-size:0.83rem; white-space:nowrap;">${sign(r.p)}${r.p?.toFixed(2)}%</td>

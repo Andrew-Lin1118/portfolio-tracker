@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v280';  // 2026-06-29: 貸款餘額以負債扣除總資產
+const CACHE_NAME = 'portfolio-tracker-v281';  // 2026-06-29: 強制手機/PWA 更新貸款負債介面
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',

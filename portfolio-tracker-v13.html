@@ -10,7 +10,7 @@
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
-    <link rel="manifest" href="manifest.json?v=281">
+    <link rel="manifest" href="manifest.json?v=282">
     <meta name="theme-color" content="#fbbf24">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- iOS Safari -->
@@ -30,9 +30,9 @@
             // 清掉所有非目前版本的快取（保險）
             if (window.caches) {
               const keys = await caches.keys();
-              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v281').map(k => caches.delete(k)));
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v282').map(k => caches.delete(k)));
             }
-            const reg = await navigator.serviceWorker.register('./sw.js?v=281');
+            const reg = await navigator.serviceWorker.register('./sw.js?v=282');
             // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
             let reloaded = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -6111,8 +6111,14 @@
                     const kMinV = isLogScale ? Math.max(kMinRaw - kPad, 0) : 0;
                     const kMaxV = kMaxRaw + kPad;
                     const kRng = kMaxV - kMinV || 1;
-                    const bMaxV = Math.max(...totals) * 1.08;
-                    const bMinV = 0;
+                    const compPositiveMax = Math.max(
+                        ...points.map(p => (p.stock || 0) + (p.cash || 0) + (p.fut || 0) + (p.crypto || 0) + (p.other || 0)),
+                        ...totals,
+                        1
+                    );
+                    const compNegativeMin = Math.min(0, ...points.map(p => -(p.loan || 0)));
+                    const bMaxV = compPositiveMax * 1.08;
+                    const bMinV = compNegativeMin < 0 ? compNegativeMin * 1.15 : 0;
                     const bRng  = bMaxV - bMinV || 1;
                     const W = isMonthly ? 1180 : (isWeekly ? 960 : 860), H = isMonthly ? 520 : 470, PL = 16, PR = 86, PT = 46, PB = isMonthly ? 86 : 54;
                     const pW = W - PL - PR;
@@ -6164,6 +6170,10 @@
                         const y = toYB(v);
                         yLines += `<line x1="${PL}" y1="${y}" x2="${PL+pW}" y2="${y}" stroke="#1f2937" stroke-width="1"/>
                                    <text x="${PL+pW+8}" y="${y+4}" text-anchor="start" fill="#5f6b7a" font-size="9">${fmtMoneyAxis(v)}</text>`;
+                    }
+                    if (bMinV < 0) {
+                        const y0 = toYB(0);
+                        yLines += `<line x1="${PL}" y1="${y0}" x2="${PL+pW}" y2="${y0}" stroke="#4b5563" stroke-width="1" stroke-dasharray="3 3" opacity="0.72"/>`;
                     }
 
                     // X 軸標籤：月模式每個月都顯示；日/週模式維持智能密度。
@@ -6259,25 +6269,31 @@
                     }).join('');
                     const series = [
                         { key:'cash',   label:'現金', color:'#22c55e', vals:points.map(p => p.cash) },
-                        { key:'loan',   label:'貸款', color:'#f87171', vals:points.map(p => -(p.loan || 0)) },
+                        { key:'loan',   label:'負債', color:'#f87171', vals:points.map(p => -(p.loan || 0)) },
                         { key:'fut',    label:'期貨', color:'#a855f7', vals:points.map(p => p.fut) },
                         { key:'crypto', label:'加密', color:'#f59e0b', vals:points.map(p => p.crypto) },
                         { key:'stock',  label:'股票', color:'#3b82f6', vals:points.map(p => p.stock) },
                         { key:'other',  label:'未拆分', color:'#64748b', vals:points.map(p => p.other) },
-                    ].filter(s => s.vals.some(v => v > 0));
+                    ].filter(s => s.vals.some(v => Math.abs(v || 0) > 0));
                     const barGap = Math.max(0.5, Math.min(8, barSlot * 0.18));
                     const barW = Math.max(1, Math.min(28, barSlot - barGap));
                     const barGroups = points.map((p, i) => {
-                        let base = 0;
+                        let posBase = 0;
+                        let negBase = 0;
                         const x = PL + i * barSlot + (barSlot - barW) / 2;
                         const segs = series.map(s => {
                             const v = s.vals[i] || 0;
-                            if (v <= 0) return '';
-                            const yTop = toYB(base + v);
-                            const h = Math.max(0, toYB(base) - yTop);
-                            base += v;
+                            if (!Number.isFinite(v) || v === 0) return '';
+                            const from = v >= 0 ? posBase : negBase;
+                            const to = from + v;
+                            const yA = toYB(from);
+                            const yB = toYB(to);
+                            const y = Math.min(yA, yB);
+                            const h = Math.abs(yB - yA);
+                            if (v >= 0) posBase = to;
+                            else negBase = to;
                             if (h <= 0) return '';
-                            return `<rect x="${x}" y="${yTop}" width="${barW}" height="${h}" fill="${s.color}" opacity="${s.key === 'stock' ? '0.72' : '0.86'}" rx="1.5"/>`;
+                            return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${s.color}" opacity="${s.key === 'stock' ? '0.72' : '0.86'}" rx="1.5"/>`;
                         }).join('');
                         return `<g>${segs}</g>`;
                     }).join('');
@@ -6288,13 +6304,15 @@
                     const latest = points[n - 1];
                     const fmtCompact = v => {
                         if (v == null) return '-';
-                        const a = Math.abs(v);
+                        const n = Number(v) || 0;
+                        const sign = n < 0 ? '-' : '';
+                        const a = Math.abs(n);
                         if (useTWD) {
-                            return `${(a/1e4).toFixed(2)}萬`;
+                            return `${sign}${(a/1e4).toFixed(2)}萬`;
                         }
-                        if (a >= 1e6) return `$${(a/1e6).toFixed(2)}M`;
-                        if (a >= 1e3) return `$${(a/1e3).toFixed(1)}K`;
-                        return `$${Math.round(a).toLocaleString('en-US')}`;
+                        if (a >= 1e6) return `${sign}$${(a/1e6).toFixed(2)}M`;
+                        if (a >= 1e3) return `${sign}$${(a/1e3).toFixed(1)}K`;
+                        return `${sign}$${Math.round(a).toLocaleString('en-US')}`;
                     };
                     const safeAssetIdx = idx => Math.max(0, Math.min(n - 1, Math.round(Number(idx) || 0)));
                     const formatAssetDate = k => {
@@ -6319,7 +6337,7 @@
                         const i = safeAssetIdx(idx);
                         const p = points[i] || latest;
                         return series
-                            .filter(s => s.key !== 'other' || (s.vals[i] || 0) > 0)
+                            .filter(s => Math.abs(s.vals[i] || 0) > 0 && (s.key !== 'other' || (s.vals[i] || 0) > 0))
                             .map(s => {
                                 const v = s.vals[i] || 0;
                                 const pct = p.total > 0 ? (v / p.total * 100).toFixed(1) : '0.0';

@@ -4472,7 +4472,7 @@
                 // 總資產（股票+現金+期貨+加密）→ 算占比；只有此卡內部用，不影響其他地方
                 const _cashTWDForPct  = parseFloat(document.getElementById('cash-twd-input')?.value) || 0;
                 const _loanTWDForPct  = (typeof getLoanTWD === 'function') ? getLoanTWD() : 0;
-                const _grandTWDForPct = (stats?.totalValueTWD || 0) + _cashTWDForPct + futTWD + cryptoTWD + _loanTWDForPct;
+                const _grandTWDForPct = (stats?.totalValueTWD || 0) + _cashTWDForPct + futTWD + cryptoTWD - _loanTWDForPct;
                 const _pct = (v) => (_grandTWDForPct > 0 ? (v / _grandTWDForPct * 100) : 0);
                 const _pctStr = (v) => (_grandTWDForPct > 0 ? _pct(v).toFixed(1) + '%' : '—');
                 const totalPctStr = _pctStr(totalTWD);
@@ -4563,26 +4563,25 @@
                 const loanTWD   = (typeof getLoanTWD === 'function') ? getLoanTWD() : 0;
                 const futTWD    = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
                 const cryptoTWD = (typeof getCryptoTotalTWD   === 'function') ? getCryptoTotalTWD()   : 0;
-                const grandTWD  = stats.totalValueTWD + cashTWD + futTWD + cryptoTWD + loanTWD;
+                const grandTWD  = stats.totalValueTWD + cashTWD + futTWD + cryptoTWD - loanTWD;
                 if (grandTWD <= 0) return '';
-                const netTWD = Math.max(grandTWD - loanTWD, 0);
                 const grandUSD = exchangeRates.USD_TWD > 0 ? grandTWD / exchangeRates.USD_TWD : 0;
                 const mainStr = currency === 'USD' ? fmtAmt(grandUSD, 'USD') : fmtAmt(grandTWD, 'TWD');
                 const subStr  = currency === 'USD' ? fmtAmt(grandTWD, 'TWD') : fmtAmt(grandUSD, 'USD');
-                const netUSD = exchangeRates.USD_TWD > 0 ? netTWD / exchangeRates.USD_TWD : 0;
-                const netStr = currency === 'USD' ? fmtAmt(netUSD, 'USD') : fmtAmt(netTWD, 'TWD');
                 // breakdown: 股 / 現 / 期 / 幣（依當前幣別顯示）
                 const _fxRate = exchangeRates.USD_TWD || 31.5;
                 const _toUsd = twd => _fxRate > 0 ? twd / _fxRate : 0;
                 const _compact = (n, ccy) => {
+                    const sign = Number(n) < 0 ? '-' : '';
+                    const a = Math.abs(Number(n) || 0);
                     if (ccy === 'USD') {
-                        if (n >= 1e6)  return '$' + (n/1e6).toFixed(2) + 'M';
-                        if (n >= 1e3)  return '$' + (n/1e3).toFixed(1) + 'K';
-                        return '$' + Math.round(n).toLocaleString('en-US');
+                        if (a >= 1e6)  return sign + '$' + (a/1e6).toFixed(2) + 'M';
+                        if (a >= 1e3)  return sign + '$' + (a/1e3).toFixed(1) + 'K';
+                        return sign + '$' + Math.round(a).toLocaleString('en-US');
                     }
-                    if (n >= 100000000) return 'NT$' + (n/100000000).toFixed(1) + '億';
-                    if (n >= 10000)     return 'NT$' + (n/10000).toFixed(1) + '萬';
-                    return 'NT$' + Math.round(n).toLocaleString('zh-TW');
+                    if (a >= 100000000) return sign + 'NT$' + (a/100000000).toFixed(1) + '億';
+                    if (a >= 10000)     return sign + 'NT$' + (a/10000).toFixed(1) + '萬';
+                    return sign + 'NT$' + Math.round(a).toLocaleString('zh-TW');
                 };
                 // 各類別逐行顯示：emoji + 類別色 + 金額 + 占比 + 目標；不放分隔符
                 // 顏色對齊既有卡片：股=藍、現=綠、期=紫、幣=橘
@@ -4607,7 +4606,7 @@
                 const rows = [];
                 if (stats.totalValueTWD > 0) rows.push(_row('📊', '股票', '#3b82f6', stats.totalValueTWD, 85));
                 if (cashTWD > 0)             rows.push(_row('💵', '現金', '#10b981', cashTWD,            5));
-                if (loanTWD > 0)             rows.push(_row('🏦', '貸款', '#f87171', loanTWD,            0));
+                if (loanTWD > 0)             rows.push(_row('🏦', '貸款', '#f87171', -loanTWD,           0));
                 if (futTWD > 0)              rows.push(_row('📈', '期貨', '#a855f7', futTWD,             5));
                 if (cryptoTWD > 0)           rows.push(_row('🪙', '加密', '#f59e0b', cryptoTWD,          5));
                 const breakdown = rows.join('');
@@ -4617,7 +4616,6 @@
                     +   '<span style="color:#fbbf24;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;">總資產</span>'
                     + '</div>'
                     + '<div class="mono stat-amount" style="color:#10b981;">'+mainStr+'</div>'
-                    + (loanTWD > 0 ? '<div class="mono" style="color:#94a3b8;font-size:0.72rem;margin-top:0.2rem;">淨資產 '+netStr+'</div>' : '')
                     + (breakdown ? '<div class="stat-breakdown" style="color:#94a3b8;font-size:0.72rem;margin-top:0.35rem;">'+breakdown+'</div>' : '')
                     + '</div>';
             })();
@@ -4963,7 +4961,7 @@
                     badge.style.background  = color + '14';
                     badge.style.color       = color;
                     const fmtT = v => v >= 1e8 ? (v/1e8).toFixed(2) + '億' : v >= 1e4 ? (v/1e4).toFixed(0) + '萬' : v.toFixed(0);
-                    const loanNote = lev.loanTWD > 0 ? `（總資產 NT$${fmtT(lev.grossAssets)}，貸款 NT$${fmtT(lev.loanTWD)}）` : '';
+                    const loanNote = lev.loanTWD > 0 ? `（貸款 -NT$${fmtT(lev.loanTWD)}）` : '';
                     detEl.textContent =
                         `曝險 NT$${fmtT(lev.exposure)} / 淨資產 NT$${fmtT(lev.nav)}${loanNote}`;
                 } else if (badge) {
@@ -5305,12 +5303,12 @@
             const loan = num(row[keys.loan]);
             const fut = num(row[keys.fut]);
             const crypto = num(row[keys.crypto]);
-            const compSum = stock + cash + loan + fut + crypto;
-            const close = num(row[keys.close] ?? row[keys.total]) || Math.max(compSum, stock);
+            const compSum = stock + cash - loan + fut + crypto;
+            const close = num(row[keys.close] ?? row[keys.total]) || compSum;
             const open = num(row[keys.open]) || close;
             let high = num(row[keys.high]) || Math.max(open, close);
             let low = num(row[keys.low]) || Math.min(open, close);
-            const anchorHigh = Math.max(open, close, compSum, stock);
+            const anchorHigh = Math.max(open, close, compSum);
             const anchorLowCandidates = [open, close, compSum].filter(v => v > 0);
             const anchorLow = anchorLowCandidates.length ? Math.min(...anchorLowCandidates) : Math.min(open, close);
             const highLimit = Math.max(anchorHigh * 0.12, cash * 2, keys.floor);
@@ -5352,7 +5350,7 @@
                 const loanTWD = (typeof getLoanTWD === 'function') ? getLoanTWD() : 0;
                 const futTWD = (typeof getFuturesEquityTWD === 'function') ? getFuturesEquityTWD() : 0;
                 const cryptoTWD = (typeof getCryptoTotalTWD === 'function') ? getCryptoTotalTWD() : 0;
-                const totalAssetTWD = (stats.totalValueTWD || 0) + cashTWD + loanTWD + futTWD + cryptoTWD;
+                const totalAssetTWD = (stats.totalValueTWD || 0) + cashTWD - loanTWD + futTWD + cryptoTWD;
                 const fx = exchangeRates.USD_TWD > 0 ? exchangeRates.USD_TWD : 0;
                 const toUSD = twd => fx > 0 ? twd / fx : 0;
                 const totalAssetUSD = fx > 0 ? totalAssetTWD / fx : (stats.totalValue || 0);
@@ -5636,10 +5634,10 @@
             const loan = num(useTWD ? row.loan_twd : row.loan);
             const fut = num(useTWD ? row.fut_twd : row.fut);
             const crypto = num(useTWD ? row.crypto_twd : row.crypto);
-            const compSum = stock + cash + loan + fut + crypto;
+            const compSum = stock + cash - loan + fut + crypto;
             let total = num(useTWD ? row.gt : row.g);
             if (total <= 0) total = compSum;
-            return Math.max(total, compSum, stock);
+            return Math.max(total, compSum, 0);
         }
 
         function _assetHistoryMonthlyView(hist) {
@@ -5993,10 +5991,10 @@
                         const loan = pickPart(r, 'loan_twd', 'loan');
                         const fut = pickPart(r, 'fut_twd', 'fut');
                         const crypto = pickPart(r, 'crypto_twd', 'crypto');
-                        const compSum = stock + cash + loan + fut + crypto;
+                        const compSum = stock + cash - loan + fut + crypto;
                         let total = num(useTWD ? (r.gt ?? null) : (r.g ?? null));
                         if (total <= 0) total = compSum;
-                        total = Math.max(total, compSum, stock);
+                        total = Math.max(total, compSum, 0);
                         const other = Math.max(total - compSum, 0);
                         return {
                             stock, cash, loan, fut, crypto, other,
@@ -6261,7 +6259,7 @@
                     }).join('');
                     const series = [
                         { key:'cash',   label:'現金', color:'#22c55e', vals:points.map(p => p.cash) },
-                        { key:'loan',   label:'貸款', color:'#f87171', vals:points.map(p => p.loan) },
+                        { key:'loan',   label:'貸款', color:'#f87171', vals:points.map(p => -(p.loan || 0)) },
                         { key:'fut',    label:'期貨', color:'#a855f7', vals:points.map(p => p.fut) },
                         { key:'crypto', label:'加密', color:'#f59e0b', vals:points.map(p => p.crypto) },
                         { key:'stock',  label:'股票', color:'#3b82f6', vals:points.map(p => p.stock) },
@@ -6519,12 +6517,12 @@
                 const loan    = useTWD ? (r.loan_twd ?? 0) : (r.loan ?? 0);
                 const fut     = useTWD ? (r.fut_twd ?? 0) : (r.fut ?? 0);
                 const crypto  = useTWD ? (r.crypto_twd ?? 0) : (r.crypto ?? 0);
-                const totalAsset = useTWD ? (r.gt ?? (value + cash + loan + fut + crypto)) : (r.g ?? (value + cash + loan + fut + crypto));
+                const totalAsset = useTWD ? (r.gt ?? (value + cash - loan + fut + crypto)) : (r.g ?? (value + cash - loan + fut + crypto));
                 const cost    = useTWD ? r.ct : r.c;
                 const pnl     = value - cost;
                 const prevVal = prev ? (useTWD
-                    ? (prev.gt ?? ((prev.vt || 0) + (prev.cash_twd || 0) + (prev.loan_twd || 0) + (prev.fut_twd || 0) + (prev.crypto_twd || 0)))
-                    : (prev.g ?? ((prev.v || 0) + (prev.cash || 0) + (prev.loan || 0) + (prev.fut || 0) + (prev.crypto || 0)))) : null;
+                    ? (prev.gt ?? ((prev.vt || 0) + (prev.cash_twd || 0) - (prev.loan_twd || 0) + (prev.fut_twd || 0) + (prev.crypto_twd || 0)))
+                    : (prev.g ?? ((prev.v || 0) + (prev.cash || 0) - (prev.loan || 0) + (prev.fut || 0) + (prev.crypto || 0)))) : null;
                 const dayChg  = prevVal != null ? (totalAsset - prevVal) : null;
                 const dayPct  = prevVal != null && prevVal > 0 ? ((totalAsset - prevVal) / prevVal * 100) : null;
 
@@ -6776,7 +6774,7 @@
             const futExposure    = futTWD    * getFuturesLeverage();
             const cryptoExposure = cryptoTWD * getCryptoLeverage();
             const exposure = stockExposure + futExposure + cryptoExposure;
-            const grossAssets = (stats.totalValueTWD || 0) + cashTWD + futTWD + cryptoTWD + loanTWD;
+            const grossAssets = (stats.totalValueTWD || 0) + cashTWD + futTWD + cryptoTWD;
             const nav = Math.max(grossAssets - loanTWD, 0);
             return {
                 exposure, nav, grossAssets, loanTWD, ratio: nav > 0 ? exposure / nav : 0,

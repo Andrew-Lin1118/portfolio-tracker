@@ -10,7 +10,7 @@
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
-    <link rel="manifest" href="manifest.json?v=283">
+    <link rel="manifest" href="manifest.json?v=284">
     <meta name="theme-color" content="#fbbf24">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- iOS Safari -->
@@ -30,9 +30,9 @@
             // 清掉所有非目前版本的快取（保險）
             if (window.caches) {
               const keys = await caches.keys();
-              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v283').map(k => caches.delete(k)));
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v284').map(k => caches.delete(k)));
             }
-            const reg = await navigator.serviceWorker.register('./sw.js?v=283');
+            const reg = await navigator.serviceWorker.register('./sw.js?v=284');
             // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
             let reloaded = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -6080,7 +6080,9 @@
             _syncAssetHistoryScaleButtons(scaleMode);
             const isLogScale = scaleMode === 'log';
             const hist = isMonthly ? _assetHistoryMonthlyView(rawHist) : (isWeekly ? _assetHistoryWeeklyView(rawHist) : rawHist);
-            const allKeys = Object.keys(hist).sort();
+            const useTWD = (currency === 'TWD');
+            const hasVisibleAssetValue = (source, key) => _assetHistoryTotalValue(source?.[key], useTWD) > 0;
+            const allKeys = Object.keys(hist).sort().filter(k => hasVisibleAssetValue(hist, k));
             const dateTh = document.getElementById('asset-history-date-th');
             const changeTh = document.getElementById('asset-history-change-th');
             const changePctTh = document.getElementById('asset-history-change-pct-th');
@@ -6099,12 +6101,10 @@
                 const cutStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;
                 keys = allKeys.filter(k => k >= cutStr);
             }
-
-            const useTWD = (currency === 'TWD');
             const statusEl = document.getElementById('asset-history-status');
             if (statusEl) {
                 const periodHist = rawHist && Object.keys(rawHist).length ? rawHist : hist;
-                const periodAllKeys = Object.keys(periodHist || {}).sort();
+                const periodAllKeys = Object.keys(periodHist || {}).sort().filter(k => hasVisibleAssetValue(periodHist, k));
                 const displayLatestKey = keys[keys.length - 1] || periodAllKeys[periodAllKeys.length - 1] || '';
                 const periodKeys = displayLatestKey
                     ? periodAllKeys.filter(k => k <= displayLatestKey)
@@ -6393,9 +6393,16 @@
                         const col = v >= 0 ? '#26a69a' : '#ef5350';
                         return `<rect x="${x}" y="${y}" width="${macdBarW}" height="${h}" fill="${col}" opacity="0.58" rx="1"/>`;
                     }).join('');
+                    const isAssetCandleUp = i => {
+                        const c = candles[i] || {};
+                        const close = Number(c.close);
+                        const prevClose = i > 0 ? Number(candles[i - 1]?.close) : Number(c.open);
+                        if (!Number.isFinite(close) || !Number.isFinite(prevClose)) return true;
+                        return close >= prevClose;
+                    };
                     const candleSvg = candles.map((c, i) => {
                         const x = toX(i);
-                        const up = c.close >= c.open;
+                        const up = isAssetCandleUp(i);
                         const col = up ? '#26a69a' : '#ef5350';
                         const yHigh = toYK(toKValue(c.high));
                         const yLow = toYK(toKValue(c.low));
@@ -6441,7 +6448,7 @@
 
                     // 今日顏色（最後一點）
                     const lastV = totals[n-1], prevV = totals[n-2];
-                    const totalColor = lastV >= prevV ? '#10b981' : '#34d399';
+                    const totalColor = lastV >= prevV ? '#10b981' : '#ef5350';
                     const latest = points[n - 1];
                     const fmtCompact = v => {
                         if (v == null) return '-';
@@ -6585,7 +6592,7 @@
                         activeAssetHoverIdx = i;
                         const c = candles[i] || {};
                         const move = dayMoveAt(i);
-                        const up = Number(c.close) >= Number(c.open);
+                        const up = isAssetCandleUp(i);
                         const col = up ? '#26a69a' : '#ef5350';
                         const x = toX(i);
                         const y = toYK(toKValue(c.close ?? totals[i]));

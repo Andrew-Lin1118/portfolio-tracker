@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v283';  // 2026-06-29: 歷史負債年末插值補齊
+const CACHE_NAME = 'portfolio-tracker-v284';  // 2026-06-29: 隱藏總資產為 0 的歷史月份
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',

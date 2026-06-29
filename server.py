@@ -2249,13 +2249,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'status': 'fail', 'error': 'invalid date (need YYYY-MM-DD)'}, status=400)
             return
         try:
-            entry = {
-                'v':  float(body.get('v')  or 0),
-                'vt': float(body.get('vt') or 0),
-                'c':  float(body.get('c')  or 0),
-                'ct': float(body.get('ct') or 0),
-                'p':  float(body.get('p')  or 0),
-            }
+            base_fields = ('v', 'vt', 'c', 'ct', 'p')
+            extra_fields = (
+                'g', 'gt', 'go', 'gh', 'gl', 'gc', 'gto', 'gth', 'gtl', 'gtc',
+                'cash', 'cash_twd', 'loan', 'loan_twd', 'fut', 'fut_twd',
+                'crypto', 'crypto_twd',
+            )
+            entry = {}
+            for key in base_fields + extra_fields:
+                if key in body or key in base_fields:
+                    entry[key] = float(body.get(key) or 0)
         except (TypeError, ValueError) as e:
             self._send_json({'status': 'fail', 'error': f'invalid number: {e}'}, status=400)
             return
@@ -2270,7 +2273,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     raw = json.load(f)
                 if isinstance(raw, dict):
                     hist = raw
-            hist[date] = entry
+            old_entry = hist.get(date) if isinstance(hist.get(date), dict) else {}
+            hist[date] = {**old_entry, **entry}
             tmp = ASSET_HISTORY_FILE + '.tmp'
             os.makedirs(os.path.dirname(ASSET_HISTORY_FILE), exist_ok=True)
             with open(tmp, 'w', encoding='utf-8') as f:

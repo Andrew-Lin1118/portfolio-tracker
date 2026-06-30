@@ -10,7 +10,7 @@
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
-    <link rel="manifest" href="manifest.json?v=284">
+    <link rel="manifest" href="manifest.json?v=285">
     <meta name="theme-color" content="#fbbf24">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- iOS Safari -->
@@ -30,9 +30,9 @@
             // 清掉所有非目前版本的快取（保險）
             if (window.caches) {
               const keys = await caches.keys();
-              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v284').map(k => caches.delete(k)));
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v285').map(k => caches.delete(k)));
             }
-            const reg = await navigator.serviceWorker.register('./sw.js?v=284');
+            const reg = await navigator.serviceWorker.register('./sw.js?v=285');
             // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
             let reloaded = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -7930,6 +7930,7 @@
                 { sym: 'COHX',    tv: 'NASDAQ:COHX',        yf: 'COHX' },
                 { sym: 'LITX',    tv: 'NASDAQ:LITX',        yf: 'LITX' },
                 { sym: 'AXTX',    tv: 'NASDAQ:AXTX',        yf: 'AXTX' },
+                { sym: 'AXTU',    tv: 'NASDAQ:AXTU',        yf: 'AXTU' },
                 { sym: 'AAOX',    tv: 'NASDAQ:AAOX',        yf: 'AAOX' },
                 { sym: 'FBL',     tv: 'NASDAQ:FBL',         yf: 'FBL' },
                 { sym: 'GGLL',    tv: 'NASDAQ:GGLL',        yf: 'GGLL' },
@@ -10269,7 +10270,7 @@
             'COHX':'COHR', 'FBL':'META',  'GGLL':'GOOGL', 'LITX':'LITE',
             'MUU':'MU',    'NBIG':'NBIS', 'ORCU':'ORCL',  'PLTU':'PLTR',
             'SNXX':'SNDK', 'TSLL':'TSLA', 'TSMX':'TSM',   'WDCX':'WDC',
-            'AAOX':'AAOI', 'AXTX':'AXTI', 'STXX':'STX',
+            'AAOX':'AAOI', 'AXTX':'AXTI', 'AXTU':'AXTI', 'STXX':'STX',
             'USD':'SOXX',  '7709.HK':'000660.KS', '9747.HK':'005930.KS'
         };
         // 各槓桿 ETF 對應的「實質曝險倍數」(用於整體槓桿率計算；未列出視為 1.0x)
@@ -10277,7 +10278,7 @@
         const LEVERAGE_FACTOR = {
             'NVDL':2,'AMDL':2,'ASTX':2,'AVGX':2,'COHX':2,'FBL':2,'GGLL':2,'LITX':2,
             'MUU':2, 'NBIG':2,'ORCU':2,'PLTU':2,'SNXX':2,'TSLL':2,'TSMX':2,'WDCX':2,
-            'AAOX':2,'AXTX':2,'STXX':2,
+            'AAOX':2,'AXTX':2,'AXTU':2,'STXX':2,
             'USD':3,
             '7709.HK':2,'9747.HK':2,
         };
@@ -10400,6 +10401,7 @@
             'WDCX':    ['Western Digital', 'WDC'],
             'AAOX':    ['Applied Optoelectronics', 'AAOI'],
             'AXTX':    ['AXT Inc',    'AXTI', 'AXT'],
+            'AXTU':    ['AXT Inc',    'AXTI', 'AXT'],
             'STXX':    ['Seagate',    'Seagate Technology', 'STX'],
             'USD':     ['Semiconductor ETF', 'SOXX', 'PHLX'],   // 半導體 ETF
             '7709.HK': ['SK Hynix',   'Hynix',  '000660', '海力士', 'SK海力士', 'SK 海力士'],
@@ -12022,6 +12024,7 @@
         // 預設備註名稱對照：localStorage 內 name 為空時自動補入
         const _KNOWN_HOLDING_NAMES = {
             'AXTX': 'Tradr 2X Long AXTI Daily ETF',
+            'AXTU': 'T-Rex 2X Long AXTI Daily Target ETF',
             'AAOX': 'Tradr 2X Long AAOI Daily ETF',
             'STXX': 'T-Rex 2X Long STX Daily Target ETF',
         };

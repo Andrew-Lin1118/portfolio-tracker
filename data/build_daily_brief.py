@@ -305,7 +305,7 @@ def build_local_fallback_brief(news_raw, mapping, holdings):
         "AI / 半導體鏈": [
             "NVDA", "AMD", "TSM", "AVGO", "MU", "SNDK", "STX", "WDC",
             "AAOI", "AXTI", "COHR", "LITE", "SOXX", "000660.KS", "005930.KS",
-            "USD", "MUU", "SNXX", "TSMX", "AMDL", "AVGX", "AAOX", "AXTX",
+            "USD", "MUU", "SNXX", "TSMX", "AMDL", "AVGX", "AAOX", "AXTX", "AXTU",
             "COHX", "LITX", "STXX", "WDCX",
         ],
         "大型科技 / 雲端軟體": [

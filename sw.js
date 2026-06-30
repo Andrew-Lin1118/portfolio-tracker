@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v284';  // 2026-06-29: 隱藏總資產為 0 的歷史月份
+const CACHE_NAME = 'portfolio-tracker-v285';  // 2026-06-30: 新增 AXTU / AXTX 槓桿 ETF 對應
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',

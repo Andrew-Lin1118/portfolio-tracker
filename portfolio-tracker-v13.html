@@ -10,7 +10,7 @@
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
-    <link rel="manifest" href="manifest.json?v=285">
+    <link rel="manifest" href="manifest.json?v=286">
     <meta name="theme-color" content="#fbbf24">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- iOS Safari -->
@@ -30,9 +30,9 @@
             // 清掉所有非目前版本的快取（保險）
             if (window.caches) {
               const keys = await caches.keys();
-              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v285').map(k => caches.delete(k)));
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v286').map(k => caches.delete(k)));
             }
-            const reg = await navigator.serviceWorker.register('./sw.js?v=285');
+            const reg = await navigator.serviceWorker.register('./sw.js?v=286');
             // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
             let reloaded = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -15810,6 +15810,39 @@
 
         function _renderEtfHoldingsContent(etf, generatedISO) {
             const fmtPct = v => v == null ? '-' : Number(v).toFixed(2) + '%';
+            const fmtExposureTWD = v => {
+                const n = Number(v);
+                if (!Number.isFinite(n) || n <= 0) return '-';
+                if (n >= 1e8) return `NT$${(n / 1e8).toFixed(2)}億`;
+                if (n >= 1e4) return `NT$${(n / 1e4).toFixed(1)}萬`;
+                return `NT$${Math.round(n).toLocaleString('en-US')}`;
+            };
+            const etfExposure = (() => {
+                const sourceSymbol = etf.symbol === 'DJUSSC' ? 'USD' : etf.symbol;
+                const sourceEtf = etf.symbol === 'DJUSSC' ? (_etfHoldingsData?.etfs?.USD || etf) : etf;
+                const holding = holdings.find(h => String(h.symbol || '').toUpperCase() === String(sourceSymbol || '').toUpperCase());
+                const qty = Number(holding?.quantity);
+                const px = Number(holding?.currentPrice);
+                if (!holding || !Number.isFinite(qty) || !Number.isFinite(px) || qty <= 0 || px <= 0) {
+                    return { hasAmount: false, sourceSymbol, baseTWD: 0, multiplier: 1, totalTWD: 0 };
+                }
+                const nativeValue = qty * px;
+                const symbolKey = String(holding.symbol || '').toUpperCase();
+                const marketKey = String(holding.market || '').toUpperCase();
+                const isHkHkd = (marketKey === 'HK' || symbolKey.endsWith('.HK')) && !HK_USD_PRICED.has(symbolKey);
+                let baseTWD = nativeValue * (Number(exchangeRates.USD_TWD) || 0);
+                if (isHkHkd) baseTWD = nativeValue * (Number(exchangeRates.HKD_TWD) || 0);
+                else if (marketKey === 'TW') baseTWD = nativeValue;
+
+                const totalExposurePct = Number(sourceEtf?.total_exposure);
+                const sourceLeverage = Number(sourceEtf?.leverage);
+                const rowLeverage = Number(etf?.leverage);
+                const multiplier = etf.symbol === 'DJUSSC'
+                    ? (Number.isFinite(totalExposurePct) && totalExposurePct > 0 ? totalExposurePct / 100 : (sourceLeverage > 0 ? sourceLeverage : 1))
+                    : (rowLeverage > 1 ? rowLeverage : 1);
+                const totalTWD = baseTWD * multiplier;
+                return { hasAmount: baseTWD > 0 && multiplier > 0, sourceSymbol, baseTWD, multiplier, totalTWD };
+            })();
 
             // header summary
             const lev = etf.leverage > 1 ? `<span style="background:rgba(239,68,68,0.18);color:#fca5a5;padding:0.15rem 0.55rem;border-radius:5px;font-size:0.78rem;font-weight:700;">${etf.leverage}x 槓桿</span>` : '';
@@ -15824,6 +15857,7 @@
                     <div><div style="color:#94a3b8; font-size:0.74rem;">${etf.symbol === 'DJUSSC' ? '指數成分股' : '直接持股'}</div><div style="color:#10b981; font-weight:700;">${fmtPct(etf.equity_total)}</div></div>
                     ${etf.swap_total > 0 ? `<div><div style="color:#94a3b8; font-size:0.74rem;">Swap 部位</div><div style="color:#a78bfa; font-weight:700;">${fmtPct(etf.swap_total)}</div></div>` : ''}
                     <div><div style="color:#94a3b8; font-size:0.74rem;">合計曝險</div><div style="color:#fbbf24; font-weight:700;">${fmtPct(etf.total_exposure)}</div></div>
+                    ${etfExposure.hasAmount ? `<div><div style="color:#94a3b8; font-size:0.74rem;">個股曝險金額</div><div style="color:#38bdf8; font-weight:700;">${fmtExposureTWD(etfExposure.totalTWD)}</div><div style="color:#64748b; font-size:0.68rem; margin-top:0.12rem;">${etfExposure.sourceSymbol}${etfExposure.multiplier !== 1 ? ` × ${etfExposure.multiplier.toFixed(2)}x` : ''}</div></div>` : ''}
                 </div>
             </div>`;
 
@@ -15832,12 +15866,14 @@
             const maxW = equity[0]?.weight || 1;
             const equityRows = equity.map((e, i) => {
                 const barPct = (e.weight / maxW * 100).toFixed(1);
+                const exposureAmount = etfExposure.hasAmount ? etfExposure.totalTWD * e.weight / 100 : null;
                 // 槓桿後曝險（直接持股 × 槓桿倍數的近似估計）
                 const levered = etf.leverage > 1 ? `<span style="color:#fbbf24; font-size:0.72rem;">→ ${(e.weight * etf.leverage).toFixed(2)}%</span>` : '';
                 return `<tr style="${i%2===0?'background:rgba(15,30,60,0.3);':''}">
                     <td style="padding:0.4rem 0.6rem; font-family:'Microsoft JhengHei','微軟正黑體','PingFang TC','Heiti TC',sans-serif; color:#e2e8f0; font-weight:600;">${e.symbol}</td>
                     <td style="padding:0.4rem 0.6rem; color:#cbd5e1; font-size:0.84rem;">${e.name}</td>
                     <td style="padding:0.4rem 0.6rem; color:#fbbf24; font-weight:700; text-align:right; white-space:nowrap;">${e.weight.toFixed(2)}% ${levered}</td>
+                    ${etfExposure.hasAmount ? `<td style="padding:0.4rem 0.6rem; color:#38bdf8; font-weight:700; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;">${fmtExposureTWD(exposureAmount)}</td>` : ''}
                     <td style="padding:0.4rem 0.4rem; width:90px; vertical-align:middle;">
                         <div style="background:rgba(99,102,241,0.15); border-radius:3px; overflow:hidden; height:8px;">
                             <div style="background:linear-gradient(90deg,#3b82f6,#8b5cf6); height:100%; width:${barPct}%;"></div>
@@ -15854,6 +15890,7 @@
                             <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">代碼</th>
                             <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">公司</th>
                             <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">比重${etf.leverage>1?` <small>(原 → 槓桿後)</small>`:''}</th>
+                            ${etfExposure.hasAmount ? '<th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">曝險金額</th>' : ''}
                             <th></th>
                         </tr></thead>
                         <tbody>${equityRows}</tbody>

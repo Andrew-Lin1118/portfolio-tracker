@@ -10,7 +10,7 @@
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
-    <link rel="manifest" href="manifest.json?v=286">
+    <link rel="manifest" href="manifest.json?v=287">
     <meta name="theme-color" content="#fbbf24">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- iOS Safari -->
@@ -30,9 +30,9 @@
             // 清掉所有非目前版本的快取（保險）
             if (window.caches) {
               const keys = await caches.keys();
-              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v286').map(k => caches.delete(k)));
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v287').map(k => caches.delete(k)));
             }
-            const reg = await navigator.serviceWorker.register('./sw.js?v=286');
+            const reg = await navigator.serviceWorker.register('./sw.js?v=287');
             // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
             let reloaded = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -1297,7 +1297,7 @@
         <!-- 共用：更新按鈕列（Tab2/Tab3 皆顯示） -->
         <div id="analysis-ctrl" style="display:none; padding:1rem 0 0 0;">
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap; margin-bottom:0.5rem;">
-                <button onclick="loadAnalysis(event.shiftKey)" id="analysis-btn" title="Shift+Click 強制重新整理（忽略快取）" style="padding:0.7rem 1.5rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.9rem; text-transform:none; letter-spacing:0;">🔄 更新分析數據</button>
+                <button onclick="loadAnalysis(true)" id="analysis-btn" title="每次點擊都重新讀取最新資料（忽略快取）" style="padding:0.7rem 1.5rem; background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); color:#0a1628; font-weight:700; border-radius:10px; font-size:0.9rem; text-transform:none; letter-spacing:0;">🔄 更新分析數據</button>
                 <button onclick="setBackendUrl()" id="backend-btn" style="display:none; padding:0.7rem 1rem; background:rgba(99,102,241,0.15); color:#818cf8; border:1px solid rgba(99,102,241,0.35); border-radius:10px; font-size:0.82rem; font-weight:600; text-transform:none; letter-spacing:0;">⚙️ 後端設定</button>
                 <span id="backend-status" style="display:none; font-size:0.78rem; color:#64748b;"></span>
                 <span id="last-analysis-time" style="font-size:0.78rem; color:#10b981; font-weight:600;"></span>
@@ -7552,7 +7552,7 @@
 
             // 切換到基本面/技術面時自動載入（快取是否有效由 loadAnalysis 內部判斷）
             if ((n === 2 || n === 3) && _analysisTargets(true).length > 0) {
-                loadAnalysis(false, false);
+                loadAnalysis(true, false);
             }
             // 切換到券商目標 Tab：永遠呼叫 loadEarningsAnalysis(false)
             //   內部會「先用任何舊快取渲染 → 必要時背景刷新」，避免 UI 等待
@@ -9238,7 +9238,7 @@
         async function _ensureFundamentalsCache() {
             if (window._fundJsonCache?.data) return window._fundJsonCache;
             try {
-                const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                const r = await fetch('./data/fundamentals.json?_nosw=1&_=' + Date.now(), { cache: 'no-store' });
                 if (!r.ok) return null;
                 const txt = await r.text();
                 const cleaned = txt.replace(/:\s*NaN/g, ': null')
@@ -10701,7 +10701,7 @@
                 if (!window._fundJsonCache) {
                     // cache:'no-cache' → 強制驗證伺服器端是否有新版本（ETag/Last-Modified），
                     // 確保 GitHub Actions 每次推送的新 fundamentals.json 不被瀏覽器舊快取覆蓋
-                    const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    const r = await fetch('./data/fundamentals.json?_nosw=1&_=' + Date.now(), { cache: 'no-store' });
                     if (r.ok) {
                         // Python 的 JSON 序列化可能包含 NaN/Infinity（非標準 JSON），需先替換為 null
                         const txt = await r.text();
@@ -10964,7 +10964,7 @@
                 el.textContent = '（本機）';
             } else {
                 // GitHub Pages：嘗試讀取 fundamentals.json 更新時間
-                fetch('./data/fundamentals.json')
+                fetch('./data/fundamentals.json?_nosw=1&_=' + Date.now(), { cache: 'no-store' })
                     .then(r => r.ok ? r.json() : null)
                     .then(j => {
                         if (j && j.generated) {
@@ -11197,7 +11197,7 @@
             const ensureFundJsonCache = async () => {
                 if (window._fundJsonCache) return window._fundJsonCache;
                 try {
-                    const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    const r = await fetch('./data/fundamentals.json?_nosw=1&_=' + Date.now(), { cache: 'no-store' });
                     if (r.ok) {
                         const txt = await r.text();
                         const cleaned = txt.replace(/:\s*NaN/g, ': null')
@@ -11257,7 +11257,7 @@
                 // 確保 fundamentals.json 已載入；快取若 fresh 不會走到 fetchSymbolDataFromYahoo，需主動拉一次
                 if (!window._fundJsonCache) {
                     try {
-                        const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                        const r = await fetch('./data/fundamentals.json?_nosw=1&_=' + Date.now(), { cache: 'no-store' });
                         if (r.ok) {
                             const txt = await r.text();
                             const cleaned = txt.replace(/:\s*NaN/g, ': null')
@@ -11665,7 +11665,7 @@
             try {
                 let _fjCache = window._fundJsonCache;
                 if (!_fjCache) {
-                    const _fjR = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    const _fjR = await fetch('./data/fundamentals.json?_nosw=1&_=' + Date.now(), { cache: 'no-store' });
                     if (_fjR.ok) {
                         const _fjTxt = await _fjR.text();
                         _fjCache = JSON.parse(_fjTxt.replace(/:\s*NaN/g, ': null').replace(/:\s*Infinity/g, ': null'));
@@ -12681,7 +12681,7 @@
             //       Python 腳本透過 yfinance.earnings_dates 直接取得並存入 fundamentals.json
             if (!window._fundJsonCache) {
                 try {
-                    const r = await fetch('./data/fundamentals.json', { cache: 'no-store' });
+                    const r = await fetch('./data/fundamentals.json?_nosw=1&_=' + Date.now(), { cache: 'no-store' });
                     if (r.ok) {
                         const txt = await r.text();
                         const cleaned = txt.replace(/:\s*NaN/g, ': null')

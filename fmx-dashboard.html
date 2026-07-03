@@ -1766,12 +1766,22 @@ function _activeSdkPositionsFor(sym) {
 // 優先 _fubonQuoteCache（5s），再從 sdkMktQuotesCache 的 MXFR1/TXFR1 取
 // 只採用時段一致 (_session 欄位) 的 daemon 資料
 function _activeHeldLivePrice(fallbackPrice = null) {
+  const fb = Number(fallbackPrice);
   const pos = _activeSdkPositionFor(currentSymbol);
   const posPx = Number(pos?.cur_price ?? pos?.market_price ?? pos?.last_price ?? _sdkPosPriceRef);
+  if (Number.isFinite(fb) && fb > 0 && Number.isFinite(posPx) && posPx > 0
+      && Math.abs(posPx - fb) > Math.max(100, fb * 0.005)) {
+    return fb;
+  }
   if (Number.isFinite(posPx) && posPx > 0) return posPx;
   const cachedPx = Number(_sdkPosPriceRef);
+  if (Number.isFinite(fb) && fb > 0 && Number.isFinite(cachedPx) && cachedPx > 0
+      && Math.abs(cachedPx - fb) > Math.max(100, fb * 0.005)) {
+    return fb;
+  }
   if (Number.isFinite(cachedPx) && cachedPx > 0) return cachedPx;
-  const fb = Number(fallbackPrice);
+  const misLive = _liveMisQuoteForProduct(currentSymbol, PRODUCTS[currentSymbol], _misCache);
+  if (misLive?.last > 0) return misLive.last;
   return Number.isFinite(fb) && fb > 0 ? fb : null;
 }
 
@@ -1938,6 +1948,90 @@ function _quoteRowRef(row) {
   if (!ref || ref < 100) return null;
   if (Math.abs(chg) / ref > 0.10) return null;
   return { ref, rowLast: last, rowChg: chg };
+}
+
+function _currentMonthYYYYMM() {
+  const now = new Date();
+  let yr = now.getFullYear();
+  let mo = now.getMonth() + 1;
+  const first = new Date(yr, mo - 1, 1);
+  const thirdWed = new Date(yr, mo - 1, 1 + ((3 - first.getDay() + 7) % 7) + 14);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (today >= thirdWed) {
+    mo++;
+    if (mo > 12) { mo = 1; yr++; }
+  }
+  return `${yr}${String(mo).padStart(2, '0')}`;
+}
+
+function _misRowMonth(row) {
+  return _normToYYYYMM(row?.['ContractMonth(Week)'] || row?.ContractMonth || row?.month || row?.Month || '');
+}
+
+function _misRowSnapshot(row, minPx = 0, requireQuoteList = true) {
+  if (!row || (requireQuoteList && !row._quoteList)) return null;
+  const month = _misRowMonth(row);
+  if (month && (month.includes('/') || month.toUpperCase().includes('W'))) return null;
+  const refInfo = _quoteRowRef(row);
+  if (!refInfo) return null;
+  const floor = Number(minPx) || 0;
+  if (floor && refInfo.rowLast < floor) return null;
+  const pctRaw = row?.['%'] ?? row?.CDiffRate ?? row?.ChangeRate;
+  const pctNum = _parseMarketPctNumber(pctRaw);
+  const pctVal = refInfo.rowChg / refInfo.ref * 100;
+  const pct = pctNum != null
+    ? ((pctNum >= 0 ? '+' : '') + pctNum.toFixed(2) + '%')
+    : ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%');
+  return {
+    row,
+    month,
+    ref: refInfo.ref,
+    last: refInfo.rowLast,
+    chg: refInfo.rowChg,
+    pct,
+  };
+}
+
+function _liveMisQuoteForProduct(sym, info, misData = null, opts = {}) {
+  if (!info?.mis) return null;
+  const minPx = Number(opts.minPx ?? (_PROD_MIN_PX[sym] ?? 0)) || 0;
+  const todayYM = _currentMonthYYYYMM();
+  const heldMon = _normToYYYYMM(opts.month || _heldContractMonth(sym) || _symToMonthYYYYMM(sym) || '');
+  const codes = [...new Set((sym === 'MXFR1'
+    ? [info.mis]
+    : [info.mis, info.taifex, info.mis ? info.mis + 'F' : null]).filter(Boolean))];
+  const candidates = [];
+  const addCandidate = (row, code, rank, monthHint = '') => {
+    if (!row) return;
+    const snap = _misRowSnapshot(
+      monthHint ? { ...row, 'ContractMonth(Week)': row['ContractMonth(Week)'] || monthHint } : row,
+      minPx,
+      true
+    );
+    if (!snap?.month || snap.month < todayYM) return;
+    candidates.push({
+      ...snap,
+      code,
+      rank,
+      exactHeld: !!(heldMon && heldMon >= todayYM && snap.month === heldMon),
+    });
+  };
+
+  codes.forEach((code, rank) => {
+    for (const [key, row] of Object.entries(_misByCodeMonth || {})) {
+      if (!key.startsWith(`${code}_`)) continue;
+      addCandidate(row, code, rank, key.slice(code.length + 1));
+    }
+    addCandidate(misData?.[code], code, rank + 20);
+    addCandidate(misData?.[code + 'F'], code, rank + 30);
+  });
+
+  candidates.sort((a, b) =>
+    Number(b.exactHeld) - Number(a.exactHeld) ||
+    String(a.month).localeCompare(String(b.month)) ||
+    a.rank - b.rank
+  );
+  return candidates[0] || null;
 }
 
 function _displayChangeFromSdkQuote(sym, displayLast = null) {
@@ -2372,13 +2466,19 @@ async function fetchTaifexMIS(force = false) {
         };
       }
 
-      // 近月優先：同一商品有多個月份時，保留最近月份（月份 YYYYMM 字串比較）
+      // 近月優先：排除已過期月份後，保留目前月份之後的最近月。
+      // TAIFEX MIS 偶爾會殘留上月列；若不排除，主報價會被刷回舊合約價格。
+      const _todayYM    = _currentMonthYYYYMM();
+      const _monthKey   = String(monthYYYYMM || '');
+      const _isMonthRow = _monthKey && !_monthKey.includes('/') && !_monthKey.toUpperCase().includes('W');
+      const _isLiveMon  = !_isMonthRow || _monthKey >= _todayYM;
       const _existing   = result[code];
       const _existMon   = _existing?.['ContractMonth(Week)'] || '999999';
-      // 只有 month 有實際值時才比較（空字串不算更近）
-      const _isNearer   = monthYYYYMM && (!_existing || monthYYYYMM < _existMon);
+      const _existStale = _existMon && !_existMon.includes('/') && !_existMon.toUpperCase().includes('W') && _existMon < _todayYM;
+      // 只有 month 有實際值且不是過期月份時才比較（空字串不算更近）
+      const _isNearer   = monthYYYYMM && _isLiveMon && (!_existing || _existStale || monthYYYYMM < _existMon);
       const _noPrice    = !_existing?.Last;
-      if (!_existing || (_isNearer && lastValid) || (_noPrice && lastValid)) {
+      if ((!_existing && _isLiveMon) || (_isNearer && lastValid) || (_noPrice && lastValid && _isLiveMon)) {
         result[code] = {
           _mis: true, _code: code,
           Last:   lastValid ? rawPx : '',   // 不合理的價格清空，不顯示
@@ -2620,6 +2720,7 @@ function renderInventory(market, state, misData) {
   const mktMap = {};
   for (const row of (market || [])) mktMap[row.Contract] = row;
   const displayMonthRows = (codes) => {
+    const todayYM = _currentMonthYYYYMM();
     for (const code of [...new Set((codes || []).filter(Boolean))]) {
       const rows = Object.entries(_misByCodeMonth)
         .filter(([key, row]) => key.startsWith(`${code}_`) && row?._quoteList)
@@ -2627,7 +2728,7 @@ function renderInventory(market, state, misData) {
         .filter(row => {
           const m = row['ContractMonth(Week)'] || row._monthKey || '';
           const px = parseFloat(String(row.Last || '').replace(/,/g, ''));
-          return m && !m.includes('/') && !m.includes('W') && px > 0;
+          return m && m >= todayYM && !m.includes('/') && !m.includes('W') && px > 0;
         })
         .sort((a, b) => String(a['ContractMonth(Week)'] || a._monthKey).localeCompare(String(b['ContractMonth(Week)'] || b._monthKey)));
       if (rows.length) return { code, rows };
@@ -2973,7 +3074,28 @@ function renderInventory(market, state, misData) {
       chgPct = fubonStyleFinal.pct;
     }
 
-    if (sym === 'MXFR1') {
+    const liveMisRowQuote = _liveMisQuoteForProduct(sym, info, misData, { minPx });
+    if (liveMisRowQuote) {
+      const dp = info.dp || 0;
+      const posPx = _sdkPositionPriceMap[sym];
+      const usePositionPx = posPx && posPx > 0
+        && Math.abs(posPx - liveMisRowQuote.last) > Math.max(100, liveMisRowQuote.last * 0.005);
+      last = usePositionPx ? posPx : liveMisRowQuote.last;
+      const rawChg = last - liveMisRowQuote.ref;
+      chg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+      const pctVal = rawChg / liveMisRowQuote.ref * 100;
+      chgPct = usePositionPx
+        ? ((pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%')
+        : liveMisRowQuote.pct;
+      month = liveMisRowQuote.month || month;
+      vol = liveMisRowQuote.row?.Volume || vol;
+      oi = liveMisRowQuote.row?.OpenInterest || oi;
+      night = !!liveMisRowQuote.row?._night;
+      isRt = true;
+      isFubon = !!usePositionPx;
+    }
+
+    if (sym === 'MXFR1' && !liveMisRowQuote) {
       const sdkDisplayChange = _displayChangeFromSdkQuote(sym, last);
       if (sdkDisplayChange) {
         chg = sdkDisplayChange.chg;
@@ -3311,10 +3433,10 @@ async function fetchAndRenderPositions(force = false) {
       //   若 daemon 有「同合約月份 + 時段一致」的新鮮即時報價，且持倉價偏離過大
       //   （> max(100 點, 0.5%)），改採 daemon 即時價。月份不一致時（持倉非近月）
       //   仍以持倉價為準，不誤判。
+      const heldMon = _normToYYYYMM(p.contract_month) || _symToMonthYYYYMM(p.symbol) || '';
       const dq = _sdkMktQuotesCache?.quotes?.[pk];
       if (dq && !dq.error && dq.last != null && dq.last > 0
           && _daemonSessionOkStrict(dq, _posNight)) {
-        const heldMon = _normToYYYYMM(p.contract_month) || _symToMonthYYYYMM(p.symbol) || '';
         const dqMon   = _symToMonthYYYYMM(dq.symbol || '') || _normToYYYYMM(dq.month || '');
         const monOk   = !heldMon || !dqMon || heldMon === dqMon;
         if (monOk && Math.abs(px - dq.last) > Math.max(100, dq.last * 0.005)) {
@@ -5765,14 +5887,19 @@ function updateLivePrice(market, misData) {
   misData = misData || _misCache;
 
   // ── 優先順序（與 renderInventory 一致）──────────────────────────
-  // 1. SDK 即時（有 change）→ 最優先，與交易邏輯一致
-  // 2. MIS 即時 / 日報表    → SDK 無資料時備援
-  // 3. SDK 持倉（無 change）→ 最後備援
+  // 1. SDK/持倉現價 + MIS ref → 當 MIS last 明顯落後時，對齊下方行情表
+  // 2. MIS 即時（同月份有效列）→ 無持倉現價差異時使用
+  // 3. SDK 即時（有 change）→ MIS 無同月份資料時使用
+  // 4. SDK 持倉（無 change）→ 最後備援
   const _livePxMin = _PROD_MIN_PX[currentSymbol] ?? 0;
   let dispLast = null, dispChg = null, dispPct = '', dispSrc = '';
+  const liveMisQuote = _liveMisQuoteForProduct(currentSymbol, p, misData, { minPx: _livePxMin });
+  const livePosPx = _sdkPositionPriceMap[currentSymbol] ?? 0;
+  const usePositionWithMisRef = liveMisQuote && livePosPx > 0
+    && Math.abs(livePosPx - liveMisQuote.last) > Math.max(100, liveMisQuote.last * 0.005);
 
   // MIS / 日報表
-  const misRow   = misData[misCode] || misData[misCode + 'F'] || null;
+  const misRow   = liveMisQuote?.row || misData[misCode] || misData[misCode + 'F'] || null;
   const dailyRow = (market || []).find(r => r.Contract === tfCode) || null;
   const taifexRow = misRow || dailyRow;
 
@@ -5847,7 +5974,25 @@ function updateLivePrice(market, misData) {
     return { chg: newChg, pct: newPct };
   };
 
-  if (sdkRealtime) {
+  if (usePositionWithMisRef) {
+    const dp = p?.dp || 0;
+    dispLast = livePosPx;
+    const rawChg = dispLast - liveMisQuote.ref;
+    dispChg = dp > 0 ? +rawChg.toFixed(dp) : Math.round(rawChg);
+    const pctVal = rawChg / liveMisQuote.ref * 100;
+    dispPct = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(2) + '%';
+    dispSrc = `SDK持倉現價 + 期交所 ${liveMisQuote.code || p?.mis || ''} 基準 | ${currentSymbol}`;
+    document.getElementById('quoteSrcLabel').textContent = `即時報價 (SDK持倉現價 + 期交所MIS ${liveMisQuote.code || p?.mis || currentSymbol})`;
+    _updateLeverageLive(dispLast);
+  } else if (liveMisQuote) {
+    const dp = p?.dp || 0;
+    dispLast = liveMisQuote.last;
+    dispChg  = dp > 0 ? +liveMisQuote.chg.toFixed(dp) : Math.round(liveMisQuote.chg);
+    dispPct  = liveMisQuote.pct;
+    dispSrc  = `期交所 ${liveMisQuote.code || p?.mis || ''} ${liveMisQuote.month || ''} 即時行情 | ${currentSymbol}`;
+    document.getElementById('quoteSrcLabel').textContent = `即時報價 (期交所MIS ${liveMisQuote.code || p?.mis || currentSymbol})`;
+    _updateLeverageLive(dispLast);
+  } else if (sdkRealtime) {
     dispLast = sdkQ.last;
     dispChg  = sdkQ.change;
     dispPct  = sdkQ.change_pct != null ? (sdkQ.change_pct >= 0 ? '+' : '') + sdkQ.change_pct.toFixed(2) + '%' : '';
@@ -5987,10 +6132,10 @@ function updateLivePrice(market, misData) {
     }
   }
 
-  const fubonStyleLive = _resolveFubonStyleChange(currentSymbol, p, dispLast, misData, {
+  const fubonStyleLive = (liveMisQuote || usePositionWithMisRef) ? null : _resolveFubonStyleChange(currentSymbol, p, dispLast, misData, {
     preferInputLast: !!_sdkPositionPriceMap[currentSymbol],
   });
-  let fubonStyleLiveSource = '';
+  let fubonStyleLiveSource = (liveMisQuote || usePositionWithMisRef) ? 'direct_mis' : '';
   if (fubonStyleLive) {
     fubonStyleLiveSource = fubonStyleLive.source || '';
     if (fubonStyleLive.last != null && !_sdkPositionPriceMap[currentSymbol]) dispLast = fubonStyleLive.last;
@@ -6006,7 +6151,7 @@ function updateLivePrice(market, misData) {
       : `期交所即時 | ${currentSymbol}`;
   }
 
-  if (currentSymbol === 'MXFR1') {
+  if (currentSymbol === 'MXFR1' && fubonStyleLiveSource !== 'direct_mis') {
     const sdkDisplayChange = _displayChangeFromSdkQuote(currentSymbol, dispLast);
     if (sdkDisplayChange) {
       fubonStyleLiveSource = sdkDisplayChange.source;

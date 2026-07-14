@@ -43,28 +43,59 @@ jobs:
 
       - name: Commit & push updated data
         run: |
-          set +e   # 容許後面的 git add 對不存在檔案失敗
+          set -e
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          generated_files=(
+            data/fundamentals.json
+            data/market_pe.json
+            data/economic_data.json
+            data/earnings_analysis.json
+            data/etf_holdings.json
+            data/fedwatch.json
+            data/taiex_weights.json
+          )
+
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+
           # update_fund.py 末尾會順便跑 fetch_market_pe.py + fetch_economic.py
-          # 用「檔案存在才 add」的方式，避免某個 fetch 失敗導致整步 fail
-          for f in data/fundamentals.json data/market_pe.json data/economic_data.json data/earnings_analysis.json data/etf_holdings.json data/fedwatch.json data/taiex_weights.json; do
+          # 先保存本輪產物，再切回最新 main；避免排隊 run 用舊 base rebase
+          # 自動產生的 JSON 時產生大量衝突。
+          has_output=0
+          for f in "${generated_files[@]}"; do
             if [ -f "$f" ]; then
-              git add "$f"
-              echo "  added: $f"
+              mkdir -p "$tmp_dir/$(dirname "$f")"
+              cp "$f" "$tmp_dir/$f"
+              echo "  captured: $f"
+              has_output=1
             else
               echo "  skip (not exists): $f"
             fi
           done
-          set -e
+
+          if [ "$has_output" -eq 0 ]; then
+            echo "No generated files; skipping commit."
+            exit 0
+          fi
+
+          git fetch origin main
+          git reset --hard origin/main
+
+          for f in "${generated_files[@]}"; do
+            if [ -f "$tmp_dir/$f" ]; then
+              mkdir -p "$(dirname "$f")"
+              cp "$tmp_dir/$f" "$f"
+              git add "$f"
+              echo "  added: $f"
+            fi
+          done
+
           if git diff --cached --quiet; then
             echo "No changes; skipping commit."
             exit 0
           fi
+
           git commit -m "chore: auto-update fundamentals $(date -u '+%Y-%m-%d %H:%M UTC')"
-          for i in 1 2 3; do
-            git pull --rebase --autostash origin main && git push && exit 0
-            echo "Push attempt $i failed, retrying..."
-            sleep 5
-          done
-          echo "All push attempts failed" && exit 1
+          git push

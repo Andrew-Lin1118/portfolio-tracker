@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies
         # beautifulsoup4 → fetch_stockanalysis.py 的 stockanalysis.com fallback 用
-        run: pip install yfinance>=0.2.40 pandas lxml pytz beautifulsoup4
+        run: pip install 'yfinance>=0.2.40' curl_cffi pandas lxml pytz beautifulsoup4
 
       - name: Fetch fundamentals
         env:

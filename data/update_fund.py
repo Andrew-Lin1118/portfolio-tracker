@@ -866,6 +866,41 @@ def _json_safe(v):
         return None
     return v
 
+def _copy_proxy_valuation_fields(result_map):
+    fields = (
+        'pe', 'fpe', 'peg', 'ps', 'pb', 'hist_avg_pe',
+        'eps_ttm', 'eps_cur_q', 'eps_next_q2', 'eps_cur_y', 'eps_next_y',
+        'gross_margin', 'operating_margin',
+        'target_mean_price', 'target_low_price', 'target_high_price',
+        'target_median_price', 'number_of_analysts',
+        'earnings_history', 'next_earnings_date',
+        'fundamental_source', 'naver_code', 'naver_eps_estimate_period',
+    )
+    filled = []
+    for proxy_sym, source_sym in PROXY_VALUATION_MAP.items():
+        if proxy_sym not in symbols:
+            continue
+        source = result_map.get(source_sym)
+        if not _fund_entry_useful(source):
+            continue
+        proxy = result_map.get(proxy_sym)
+        if not isinstance(proxy, dict) or proxy.get('error'):
+            proxy = {}
+        changed = False
+        for field in fields:
+            if field in source and source.get(field) not in (None, '', '-'):
+                if proxy.get(field) != source.get(field):
+                    proxy[field] = copy.deepcopy(source.get(field))
+                    changed = True
+        if changed:
+            proxy['proxy_valuation_source'] = source_sym
+            result_map[proxy_sym] = proxy
+            filled.append(f'{proxy_sym}<-{source_sym}')
+    if filled:
+        print('  proxy valuation filled: ' + ', '.join(filled), flush=True)
+
+_copy_proxy_valuation_fields(result)
+
 for alias_sym, source_sym in FUNDAMENTAL_ALIAS_MAP.items():
     if alias_sym not in symbols:
         continue

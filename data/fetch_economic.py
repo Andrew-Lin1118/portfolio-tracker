@@ -80,12 +80,31 @@ def _last_business_day(year, month):
     return d
 
 
+# BLS 官方 CPI 發布時程（reference month → (發布日, 台北時間)）
+# 美東 08:30 發布：EDT = 台北 20:30；EST（11月初~3月初冬令）= 台北 21:30。
+# 來源：https://www.bls.gov/schedule/news_release/cpi.htm（2026-07-14 抓取，每年更新一次）
+CPI_OFFICIAL_RELEASES = {
+    '2026-06': ('2026-07-14', '20:30'),
+    '2026-07': ('2026-08-12', '20:30'),
+    '2026-08': ('2026-09-11', '20:30'),
+    '2026-09': ('2026-10-14', '20:30'),
+    '2026-10': ('2026-11-10', '21:30'),
+    '2026-11': ('2026-12-10', '21:30'),
+}
+
+
 def estimate_next_update(series_id, obs_date):
     """Monthly FRED observation date -> estimated next release time in Taiwan."""
     try:
         base = datetime.date.fromisoformat(str(obs_date)[:10])
     except Exception:
         return None
+    # CPI（含核心）優先查 BLS 官方時程：下一個 reference month = obs + 1 個月
+    if series_id in ('CPIAUCSL', 'CPILFESL'):
+        nxt = _add_months(base, 1)
+        official = CPI_OFFICIAL_RELEASES.get(f'{nxt.year:04d}-{nxt.month:02d}')
+        if official:
+            return {'date': official[0], 'time_tpe': official[1], 'note': '官方時程'}
     target = _add_months(base, 2)
     if series_id == 'UNRATE':
         d = _first_weekday(target.year, target.month, 4)  # first Friday
@@ -211,9 +230,10 @@ def _fetch_fred_via_proxy(series_id):
     ]
     last_err = None
     for name, proxy_url in proxies:
-        for attempt in range(1, 5):  # 每個 proxy 最多 4 次
+        # 2026-07-14: 4 次×3 proxy 會把整體 as_completed timeout 撐爆 → 降為各 2 次
+        for attempt in range(1, 3):
             try:
-                print(f'    [proxy:{name} {attempt}/4] {target}', flush=True)
+                print(f'    [proxy:{name} {attempt}/2] {target}', flush=True)
                 text = http_get(proxy_url, timeout=25)
                 head = text[:200].lstrip().lower()
                 if not (head.startswith('observation_date') or head.startswith('date')):
@@ -228,9 +248,51 @@ def _fetch_fred_via_proxy(series_id):
             except Exception as e:
                 last_err = e
                 print(f'      ✗ {type(e).__name__}: {str(e)[:120]}', flush=True)
-                if attempt < 4:
-                    _t.sleep(3 * attempt)  # 3s, 6s, 9s 漸增 backoff
+                if attempt < 2:
+                    _t.sleep(3)
     raise last_err if last_err else RuntimeError('all FRED proxies failed')
+
+
+def _fetch_fred_api(series_id):
+    """FRED 官方 API（最穩）。需要免費 API key：https://fred.stlouisfed.org/docs/api/api_key.html
+    設環境變數 FRED_API_KEY（GH Actions 加 repo secret）即自動啟用；沒設則跳過此層。"""
+    key = os.environ.get('FRED_API_KEY', '').strip()
+    if not key:
+        raise RuntimeError('FRED_API_KEY 未設定（跳過）')
+    url = (f'https://api.stlouisfed.org/fred/series/observations?series_id={series_id}'
+           f'&api_key={key}&file_type=json&observation_start=2019-01-01')
+    print(f'    [fred-api] series={series_id}', flush=True)
+    text = http_get_retry(url, attempts=2, timeout=20)
+    obs = json.loads(text).get('observations', [])
+    out = []
+    for o in obs:
+        v = o.get('value')
+        if v in ('.', '', None):
+            continue
+        try:
+            out.append({'date': o.get('date'), 'value': float(v)})
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _fetch_fred_direct_cffi(series_id):
+    """curl_cffi Chrome TLS 指紋直連 FRED。
+    FRED（Akamai）常對非瀏覽器 TLS 指紋 timeout/擋，urllib 直連在 GH Actions 不穩，
+    但 impersonate=chrome 通常可過。curl_cffi 未安裝時跳過此層。"""
+    try:
+        from curl_cffi import requests as curl_requests
+    except ImportError:
+        raise RuntimeError('curl_cffi 未安裝（跳過）')
+    url = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}'
+    print(f'    [fred-cffi] {url}', flush=True)
+    r = curl_requests.get(url, impersonate='chrome', timeout=20, verify=False)
+    if r.status_code != 200:
+        raise RuntimeError(f'HTTP {r.status_code}')
+    head = (r.text or '')[:200].lstrip().lower()
+    if not (head.startswith('observation_date') or head.startswith('date')):
+        raise RuntimeError(f'非 CSV head={head[:60]!r}')
+    return _parse_fred_csv(r.text)
 
 
 def _fetch_stooq(series_id):
@@ -255,15 +317,19 @@ def _fetch_stooq(series_id):
 
 
 def fetch_fred_csv(series_id):
-    """多重來源備援：FRED via proxy → DBnomics → FRED 直連 → Stooq
+    """多重來源備援：FRED API → curl_cffi 直連 → CORS proxy → DBnomics → urllib 直連 → Stooq
 
-    順序設計：
-      ① CORS proxy + FRED CSV：目前唯一穩定通道（2026-05 起 DBnomics 拋棄 FRED）
-      ② DBnomics：保留以防服務恢復
-      ③ FRED 直連：GH Actions / 部份 IP 可能可通
-      ④ Stooq：FRED 月資料鏡像（2024+ 後限 API key）
+    順序設計（2026-07-14 重排）：
+      ① FRED 官方 API：有 FRED_API_KEY 才啟用，最穩；沒 key 立即跳過（零成本）
+      ② curl_cffi Chrome 指紋直連：GH Actions 可過 Akamai；未安裝立即跳過
+      ③ CORS proxy + FRED CSV：allorigins/codetabs/corsproxy（2026-07-14 集體故障過，降級為備援）
+      ④ DBnomics：保留以防服務恢復（2026-05 起已拋棄 FRED）
+      ⑤ urllib 直連：部份 IP 可通
+      ⑥ Stooq：FRED 月資料鏡像（更新有數小時延遲）
     """
     sources = [
+        ('FRED API',        lambda: _fetch_fred_api(series_id)),
+        ('FRED cffi',       lambda: _fetch_fred_direct_cffi(series_id)),
         ('FRED via Proxy',  lambda: _fetch_fred_via_proxy(series_id)),
         ('DBnomics',        lambda: _fetch_dbnomics(series_id)),
         ('FRED CSV direct', lambda: _fetch_fred_csv(series_id)),
@@ -356,28 +422,47 @@ def _load_existing_indicators():
 def main():
     print('抓取 FRED 經濟指標（並行）...', flush=True)
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import TimeoutError as FuturesTimeout
 
     # ★ 先讀現有 JSON 當底圖（merge 模式）：本次失敗的 series 沿用上次 success
     existing = _load_existing_indicators()
     indicators = {sid: existing.get(sid) for sid, _, _ in SERIES}
 
+    def _accept(sid, ind):
+        if ind:
+            indicators[sid] = ind
+            print(f'  ✓ {sid:10s} {ind["date"]} = {ind["value"]}'
+                  + (f' (上期 {ind["prev"]}, 月變 {ind["mom"]:+.2f}pt)' if ind['prev'] is not None else ''),
+                  flush=True)
+        else:
+            kept = '（沿用上次）' if indicators[sid] else ''
+            print(f'  ✗ {sid:10s} 本次無資料{kept}', flush=True)
+
     # 6 個 series 並行抓（耗時從 6×~5s = 30s 縮到 ~5s）
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        futures = {pool.submit(build_indicator, sid, name, kind): sid for sid, name, kind in SERIES}
-        for fut in as_completed(futures, timeout=180):
+    # ⚠ 不用 with：as_completed 逾時後 with 出口的 shutdown(wait=True) 會等所有
+    #   retry 鏈跑完，2026-07-14 曾因此 TimeoutError 直接 crash、一個指標都沒寫。
+    pool = ThreadPoolExecutor(max_workers=6)
+    futures = {pool.submit(build_indicator, sid, name, kind): sid for sid, name, kind in SERIES}
+    timed_out = False
+    try:
+        for fut in as_completed(futures, timeout=200):
             sid = futures[fut]
             try:
-                ind = fut.result()
-                if ind:
-                    indicators[sid] = ind
-                    print(f'  ✓ {sid:10s} {ind["date"]} = {ind["value"]}'
-                          + (f' (上期 {ind["prev"]}, 月變 {ind["mom"]:+.2f}pt)' if ind['prev'] is not None else ''),
-                          flush=True)
-                else:
-                    kept = '（沿用上次）' if indicators[sid] else ''
-                    print(f'  ✗ {sid:10s} 本次無資料{kept}', flush=True)
+                _accept(sid, fut.result())
             except Exception as e:
                 print(f'  ✗ {sid:10s} 例外：{e}', flush=True)
+    except FuturesTimeout:
+        timed_out = True
+        print('  ⚠ 整體逾時（200s）：寫出已完成部分，未完成 series 沿用上次', flush=True)
+        for fut, sid in futures.items():
+            if fut.done() and not fut.cancelled():
+                try:
+                    _accept(sid, fut.result(timeout=0))
+                except Exception:
+                    pass
+        pool.shutdown(wait=False, cancel_futures=True)
+    else:
+        pool.shutdown(wait=True)
 
     # 即使全部失敗，也要寫出 JSON
     payload = {
@@ -389,6 +474,10 @@ def main():
         json.dump(payload, f, ensure_ascii=False, indent=2)
     ok_count = sum(1 for v in indicators.values() if v is not None)
     print(f'\n寫入 → {OUT_FILE}（{ok_count}/{len(SERIES)} 成功）', flush=True)
+    if timed_out:
+        # 殘餘 retry 執行緒非 daemon，會卡住 process 收尾 → JSON 已寫完，直接離開
+        sys.stdout.flush()
+        os._exit(0)
 
 
 if __name__ == '__main__':

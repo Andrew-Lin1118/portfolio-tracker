@@ -2,12 +2,15 @@ name: Update Fundamentals Data
 
 on:
   schedule:
-    # 改為每 2 小時（UTC 偶數點）一次。原本 6 小時會讓剛公布的財報最久要等 6 小時才更新。
-    # 美股盤後 16:00 ET (20:00 UTC) 公布的財報，最遲在 22:00 UTC 那輪會被抓到。
-    # update_fund.py 內部 ThreadPoolExecutor (max_workers=6) 把 42 標的處理時間壓到 ~40 秒。
-    # 12 runs/day × ~2 min ≈ 720 min/month，遠低於 GitHub Actions 公開 repo 的 2000 min 配額。
-    - cron: '0 */2 * * *'
-  workflow_dispatch:               # 允許手動觸發
+    # 每小時輕量刷新（SYMBOL_REFRESH_ONLY=1）：只更新 fundamentals.json（PE/FPE/EPS 等）
+    # 與 earnings_analysis.json，跳過 market_pe / economic / fedwatch / etf_holdings /
+    # taiex_weights 附屬任務，把單輪時間壓到最短，讓 FPE 每小時都是最新。
+    # 避開整點（GitHub 排程尖峰延遲最嚴重），用 :07 分。
+    - cron: '7 * * * *'
+    # 每 4 小時完整跑一次附屬任務（大盤 PE / FRED 經濟指標 / FedWatch / ETF 持股 / 台指權重）。
+    # 公開 repo 標準 runner 分鐘數免費不限量，頻率主要受外部來源 rate limit 約束。
+    - cron: '37 */4 * * *'
+  workflow_dispatch:               # 允許手動觸發（= 完整模式）
 
 concurrency:
   group: update-fundamentals
@@ -33,6 +36,9 @@ jobs:
         run: pip install yfinance>=0.2.40 pandas lxml pytz beautifulsoup4
 
       - name: Fetch fundamentals
+        env:
+          # 每小時排程 → 輕量模式；每 4 小時排程與手動觸發 → 完整模式
+          SYMBOL_REFRESH_ONLY: ${{ github.event.schedule == '7 * * * *' && '1' || '0' }}
         run: python data/update_fund.py
 
       - name: Commit & push updated data

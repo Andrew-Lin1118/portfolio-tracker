@@ -845,6 +845,9 @@ def _fund_entry_useful(d):
     keys = (
         'pe', 'fpe', 'peg', 'ps', 'pb', 'hist_avg_pe',
         'eps_ttm', 'eps_cur_q', 'eps_cur_y', 'eps_next_y',
+        'rev_yoy', 'rev_fwd', 'gross_margin', 'operating_margin',
+        'target_mean_price', 'target_low_price',
+        'target_high_price', 'target_median_price', 'number_of_analysts',
         'daily_k', 'weekly_k', 'hourly_k',
         'daily_macd', 'weekly_macd', 'hourly_macd',
         'daily_rsi', 'weekly_rsi', 'hourly_rsi',
@@ -925,30 +928,37 @@ with open(out_path, 'w', encoding='utf-8') as f:
 
 print(f'\nDone. {len(result)} symbols → fundamentals.json  ({datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")})')
 
+SYMBOL_REFRESH_ONLY = os.environ.get('SYMBOL_REFRESH_ONLY', '0') == '1'
+if SYMBOL_REFRESH_ONLY:
+    print('\nSYMBOL_REFRESH_ONLY=1: skipping auxiliary market/economic/FedWatch/ETF jobs.', flush=True)
+
 # ── 順便更新大盤本益比（市場本益比/河流圖資料；fetch_market_pe.py 獨立可運行）──
-try:
-    print('\n更新大盤本益比 (market_pe.json) ...', flush=True)
-    import subprocess, sys as _sys
-    subprocess.run([_sys.executable, os.path.join(ROOT, 'fetch_market_pe.py')], check=False, timeout=180)
-except Exception as _e:
-    print(f'  [market_pe] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+if not SYMBOL_REFRESH_ONLY:
+    try:
+        print('\n更新大盤本益比 (market_pe.json) ...', flush=True)
+        import subprocess, sys as _sys
+        subprocess.run([_sys.executable, os.path.join(ROOT, 'fetch_market_pe.py')], check=False, timeout=180)
+    except Exception as _e:
+        print(f'  [market_pe] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
 # ── 順便更新 FRED 經濟指標（失業率/CPI/PCE/PPI；fetch_economic.py 獨立可運行）──
-try:
-    print('\n更新經濟指標 (economic_data.json) ...', flush=True)
-    import subprocess as _sp, sys as _sy
-    # timeout 放寬到 300s（6 個 FRED × 12s × 3 retry = 上限 ~216s，留 buffer）
-    _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=300)
-except Exception as _e:
-    print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+if not SYMBOL_REFRESH_ONLY:
+    try:
+        print('\n更新經濟指標 (economic_data.json) ...', flush=True)
+        import subprocess as _sp, sys as _sy
+        # timeout 放寬到 300s（6 個 FRED × 12s × 3 retry = 上限 ~216s，留 buffer）
+        _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=300)
+    except Exception as _e:
+        print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
 # ── 順便更新 FedWatch（CME Fed Funds 期貨隱含的 FOMC 利率機率分布）──
-try:
-    print('\n更新 FedWatch (fedwatch.json) ...', flush=True)
-    import subprocess as _sp_fw, sys as _sy_fw
-    _sp_fw.run([_sy_fw.executable, os.path.join(ROOT, 'fetch_fedwatch.py')], check=False, timeout=120)
-except Exception as _e:
-    print(f'  [fedwatch] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+if not SYMBOL_REFRESH_ONLY:
+    try:
+        print('\n更新 FedWatch (fedwatch.json) ...', flush=True)
+        import subprocess as _sp_fw, sys as _sy_fw
+        _sp_fw.run([_sy_fw.executable, os.path.join(ROOT, 'fetch_fedwatch.py')], check=False, timeout=120)
+    except Exception as _e:
+        print(f'  [fedwatch] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
 # ── 順便更新財報深度分析（針對近 90 天有發財報的標的）──
 try:
@@ -960,17 +970,19 @@ except Exception as _e:
     print(f'  [earnings_deep] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
 # ── 順便更新 ETF 持股（USD swap + 直接持股、SOXX/SMH/XSD/PSI 對照）──
-try:
-    print('\n更新 ETF 持股 (etf_holdings.json) ...', flush=True)
-    import subprocess as _sp3, sys as _sy3
-    _sp3.run([_sy3.executable, os.path.join(ROOT, 'fetch_etf_holdings.py')], check=False, timeout=180)
-except Exception as _e:
-    print(f'  [etf_holdings] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+if not SYMBOL_REFRESH_ONLY:
+    try:
+        print('\n更新 ETF 持股 (etf_holdings.json) ...', flush=True)
+        import subprocess as _sp3, sys as _sy3
+        _sp3.run([_sy3.executable, os.path.join(ROOT, 'fetch_etf_holdings.py')], check=False, timeout=180)
+    except Exception as _e:
+        print(f'  [etf_holdings] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
 # ── 順便更新台指成分股權重（taiex_weights.json；期貨持倉曝險回推用）──
-try:
-    print('\n更新台指成分股權重 (taiex_weights.json) ...', flush=True)
-    import subprocess as _sp4, sys as _sy4
-    _sp4.run([_sy4.executable, os.path.join(ROOT, 'fetch_taiex_weights.py')], check=False, timeout=60)
-except Exception as _e:
-    print(f'  [taiex_weights] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+if not SYMBOL_REFRESH_ONLY:
+    try:
+        print('\n更新台指成分股權重 (taiex_weights.json) ...', flush=True)
+        import subprocess as _sp4, sys as _sy4
+        _sp4.run([_sy4.executable, os.path.join(ROOT, 'fetch_taiex_weights.py')], check=False, timeout=60)
+    except Exception as _e:
+        print(f'  [taiex_weights] 更新失敗（不影響 fundamentals）：{_e}', flush=True)

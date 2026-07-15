@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-15T04:41:03Z",
+  "generated": "2026-07-15T05:07:30Z",
   "etfs": {
     "USD": {
       "symbol": "USD",
@@ -92,47 +92,65 @@
         {
           "counterparty": "UBS AG",
           "weight": 26.9,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "BANK OF AMERICA NA",
           "weight": 25.1,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "CITIBANK NA",
           "weight": 23.66,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "BNP PARIBAS",
           "weight": 23.44,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "GOLDMAN SACHS INTERNATIONAL",
           "weight": 18.92,
-          "target": "DJUSSC"
+          "target": "DJUSSC",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "SOCIETE GENERALE",
           "weight": 17.06,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "JPMORGAN CHASE BANK NA",
           "weight": 16.67,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "MORGAN STANLEY & CO. INTERNATIONAL PLC",
           "weight": 16.3,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         },
         {
           "counterparty": "BARCLAYS CAPITAL",
           "weight": 2.44,
-          "target": "DJ U.S. SEMICONDUCTORS INDEX"
+          "target": "DJ U.S. SEMICONDUCTORS INDEX",
+          "target_symbol": null,
+          "target_name": null
         }
       ],
       "equity_total": 29.21,
@@ -687,13 +705,114 @@
       "swap_total": 0,
       "total_exposure": 90.59
     },
+    "DRAM": {
+      "symbol": "DRAM",
+      "name": "Roundhill Memory ETF",
+      "leverage": 1,
+      "tracks": "Global memory stocks",
+      "equity": [
+        {
+          "symbol": "000660.KS",
+          "name": "SK hynix Inc.",
+          "weight": 16.62
+        },
+        {
+          "symbol": "005930.KS",
+          "name": "Samsung Electronics Co., Ltd.",
+          "weight": 15.57
+        },
+        {
+          "symbol": "SNDK",
+          "name": "Sandisk Corporation",
+          "weight": 4.94
+        },
+        {
+          "symbol": "WDC",
+          "name": "Western Digital Corporation",
+          "weight": 4.52
+        },
+        {
+          "symbol": "STX",
+          "name": "Seagate Technology Holdings plc",
+          "weight": 4.49
+        },
+        {
+          "symbol": "285A.JP",
+          "name": "Kioxia Holdings Corp",
+          "weight": 4.41
+        },
+        {
+          "symbol": "MU",
+          "name": "Micron Technology, Inc.",
+          "weight": 3.36
+        },
+        {
+          "symbol": "603986.SS",
+          "name": "GigaDevice Semiconductor Inc",
+          "weight": 2.81
+        },
+        {
+          "symbol": "2408.TW",
+          "name": "Nanya Technology Corp",
+          "weight": 1.98
+        },
+        {
+          "symbol": "2344.TW",
+          "name": "Winbond Electronics Corp",
+          "weight": 1.09
+        },
+        {
+          "symbol": "8299.TWO",
+          "name": "Phison Electronics Corp",
+          "weight": 0.67
+        },
+        {
+          "symbol": "2337.TW",
+          "name": "Macronix International Co Ltd",
+          "weight": 0.37
+        }
+      ],
+      "swaps": [
+        {
+          "counterparty": "NM",
+          "weight": 13.76,
+          "target": "MICRON TECHNOLOGY INC",
+          "target_symbol": "MU",
+          "target_name": "Micron Technology, Inc."
+        },
+        {
+          "counterparty": "SAMSUNG ELECTRONICS -SWAP-GOLD-L",
+          "weight": 9.38,
+          "target": null,
+          "target_symbol": "005930.KS",
+          "target_name": "Samsung Electronics Co., Ltd."
+        },
+        {
+          "counterparty": "MICRON TECHNOLOGY, INC.-SWAP-GOLD-L",
+          "weight": 8.68,
+          "target": null,
+          "target_symbol": "MU",
+          "target_name": "Micron Technology, Inc."
+        },
+        {
+          "counterparty": "SK HYNIX INC-SWAP-GOLD-L",
+          "weight": 7.07,
+          "target": null,
+          "target_symbol": "000660.KS",
+          "target_name": "SK hynix Inc."
+        }
+      ],
+      "equity_total": 60.83,
+      "swap_total": 38.89,
+      "total_exposure": 99.72
+    },
     "DJUSSC": {
       "symbol": "DJUSSC",
       "name": "Dow Jones U.S. Semiconductors Index",
       "leverage": 1,
       "tracks": "(Index 本身)",
       "derived_from": "USD direct equity (normalized to 100%)",
-      "note": "DJ U.S. Semi Index 權重推算：USD 直接持股 / 39.6% × 100%。槓桿 ETF 直接股票部分按指數比例持有，normalize 即為指數權重。",
+      "note": "DJ U.S. Semi Index weights are derived from USD direct equity holdings normalized to 100%.",
       "equity": [
         {
           "symbol": "NVDA",
@@ -780,6 +899,81 @@
       "equity_total": 100.0,
       "swap_total": 0.0,
       "total_exposure": 100.0
+    },
+    "RAM": {
+      "symbol": "RAM",
+      "name": "Roundhill T-REX 2X Long DRAM Daily Target ETF",
+      "leverage": 2,
+      "tracks": "Roundhill Memory ETF (DRAM)",
+      "derived_from": "DRAM direct holdings and single-name swaps",
+      "source_holding": "RAM",
+      "note": "RAM 為 2x DRAM daily target。成分曝險先用 DRAM 的直接股票部位加上可辨識的單名 swap 聚合，再乘上 RAM 2x 槓桿；例如 MU 不是只看直接持股，而是 MU 直接持股 + Micron swap。",
+      "equity": [
+        {
+          "symbol": "MU",
+          "name": "Micron Technology, Inc.",
+          "weight": 25.8
+        },
+        {
+          "symbol": "005930.KS",
+          "name": "Samsung Electronics Co., Ltd.",
+          "weight": 24.95
+        },
+        {
+          "symbol": "000660.KS",
+          "name": "SK hynix Inc.",
+          "weight": 23.69
+        },
+        {
+          "symbol": "SNDK",
+          "name": "Sandisk Corporation",
+          "weight": 4.94
+        },
+        {
+          "symbol": "WDC",
+          "name": "Western Digital Corporation",
+          "weight": 4.52
+        },
+        {
+          "symbol": "STX",
+          "name": "Seagate Technology Holdings plc",
+          "weight": 4.49
+        },
+        {
+          "symbol": "285A.JP",
+          "name": "Kioxia Holdings Corp",
+          "weight": 4.41
+        },
+        {
+          "symbol": "603986.SS",
+          "name": "GigaDevice Semiconductor Inc",
+          "weight": 2.81
+        },
+        {
+          "symbol": "2408.TW",
+          "name": "Nanya Technology Corp",
+          "weight": 1.98
+        },
+        {
+          "symbol": "2344.TW",
+          "name": "Winbond Electronics Corp",
+          "weight": 1.09
+        },
+        {
+          "symbol": "8299.TWO",
+          "name": "Phison Electronics Corp",
+          "weight": 0.67
+        },
+        {
+          "symbol": "2337.TW",
+          "name": "Macronix International Co Ltd",
+          "weight": 0.37
+        }
+      ],
+      "swaps": [],
+      "equity_total": 99.72,
+      "swap_total": 0.0,
+      "total_exposure": 199.44
     }
   }
 }

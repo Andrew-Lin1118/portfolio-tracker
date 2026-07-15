@@ -977,14 +977,15 @@ if not SYMBOL_REFRESH_ONLY:
         print(f'  [market_pe] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
 # ── 順便更新 FRED 經濟指標（失業率/CPI/PCE/PPI；fetch_economic.py 獨立可運行）──
-if not SYMBOL_REFRESH_ONLY:
-    try:
-        print('\n更新經濟指標 (economic_data.json) ...', flush=True)
-        import subprocess as _sp, sys as _sy
-        # timeout 放寬到 300s（6 個 FRED × 12s × 3 retry = 上限 ~216s，留 buffer）
-        _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=300)
-    except Exception as _e:
-        print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
+# 2026-07-14 起輕量模式也跑：CPI/PCE 公布日（台北 20:30/21:30）靠每小時輕量輪
+# 及時反映；健康路徑只多 ~10-30s，內部 as_completed 200s 上限保護輕量輪時長。
+try:
+    print('\n更新經濟指標 (economic_data.json) ...', flush=True)
+    import subprocess as _sp, sys as _sy
+    # timeout 300s > fetch_economic 內部 200s 逾時自寫（留 buffer）
+    _sp.run([_sy.executable, os.path.join(ROOT, 'fetch_economic.py')], check=False, timeout=300)
+except Exception as _e:
+    print(f'  [economic_data] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 
 # ── 順便更新 FedWatch（CME Fed Funds 期貨隱含的 FOMC 利率機率分布）──
 if not SYMBOL_REFRESH_ONLY:

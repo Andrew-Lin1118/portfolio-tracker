@@ -7914,6 +7914,8 @@
             ],
             lev: [
                 { sym: 'USD',     tv: 'AMEX:USD',           yf: 'USD' },     // NYSEARCA
+                { sym: 'RAM',     tv: 'BATS:RAM',           yf: 'RAM' },
+                { sym: 'DRAM',    tv: 'BATS:DRAM',          yf: 'DRAM' },
                 { sym: 'NVDL',    tv: 'NASDAQ:NVDL',        yf: 'NVDL' },
                 { sym: 'AMDL',    tv: 'NASDAQ:AMDL',        yf: 'AMDL' },
                 { sym: 'AVGX',    tv: 'NASDAQ:AVGX',        yf: 'AVGX' },
@@ -10271,7 +10273,7 @@
             'MUU':'MU',    'NBIG':'NBIS', 'ORCU':'ORCL',  'PLTU':'PLTR',
             'SNXX':'SNDK', 'TSLL':'TSLA', 'TSMX':'TSM',   'WDCX':'WDC',
             'AAOX':'AAOI', 'AXTX':'AXTI', 'AXTU':'AXTI', 'STXX':'STX',
-            'USD':'SOXX',  '7709.HK':'000660.KS', '9747.HK':'005930.KS',
+            'USD':'SOXX',  'RAM':'DRAM', '7709.HK':'000660.KS', '9747.HK':'005930.KS',
             'SKHY':'000660.KS'
         };
         // 各槓桿 ETF 對應的「實質曝險倍數」(用於整體槓桿率計算；未列出視為 1.0x)
@@ -10280,7 +10282,7 @@
             'NVDL':2,'AMDL':2,'ASTX':2,'AVGX':2,'COHX':2,'FBL':2,'GGLL':2,'LITX':2,
             'MUU':2, 'NBIG':2,'ORCU':2,'PLTU':2,'SNXX':2,'TSLL':2,'TSMX':2,'WDCX':2,
             'AAOX':2,'AXTX':2,'AXTU':2,'STXX':2,
-            'USD':3,
+            'USD':3, 'RAM':2,
             '7709.HK':2,'9747.HK':2,
         };
         function getQuerySymbol(symbol) {
@@ -15774,21 +15776,29 @@
         })();
 
         // ==================== ETF 持股結構（data/etf_holdings.json）====================
-        // 涵蓋 USD（含 swap）、SOXX、SMH、XSD、PSI 等半導體 ETF
+        // 涵蓋 USD（含 swap）、SOXX、SMH、XSD、PSI、DRAM/RAM 等 ETF
         let _etfHoldingsData = null;
         async function loadEtfHoldings(force) {
             if (_etfHoldingsData && !force) return _etfHoldingsData;
             try {
-                const r = await fetch('./data/etf_holdings.json' + (force ? '?t=' + Date.now() : ''), { cache: 'no-store' });
+                const r = await fetch('./data/etf_holdings.json?_nosw=1&t=' + Date.now(), { cache: 'no-store' });
                 if (r.ok) _etfHoldingsData = await r.json();
             } catch(_) {}
             return _etfHoldingsData;
         }
-        // 啟動時靜默載入
-        loadEtfHoldings(false);
+        // 啟動時靜默載入；載入後補重畫一次，避免 ETF 按鈕等下一輪刷新才出現
+        loadEtfHoldings(false).then(() => {
+            if (_lastStats?.holdingsWithStats && typeof renderHoldingsDetail === 'function') {
+                renderHoldingsDetail(_lastStats);
+            }
+        }).catch(() => {});
 
+        function _etfHoldingsKey(symbol) {
+            const key = String(symbol || '').trim().toUpperCase();
+            return _etfHoldingsData?.etfs?.[key] ? key : '';
+        }
         function hasEtfHoldings(symbol) {
-            return !!(_etfHoldingsData?.etfs?.[symbol]);
+            return !!_etfHoldingsKey(symbol);
         }
         function hideEtfHoldingsModal() {
             const m = document.getElementById('etf-holdings-modal');
@@ -15796,9 +15806,11 @@
         }
         async function showEtfHoldingsModal(symbol) {
             if (!_etfHoldingsData) await loadEtfHoldings(false);
-            const etf = _etfHoldingsData?.etfs?.[symbol];
+            const key = _etfHoldingsKey(symbol);
+            const etf = key ? _etfHoldingsData?.etfs?.[key] : null;
             if (!etf) {
-                alert(`目前無 ${symbol} 的成分股資料。\n\n（後端 fetch_etf_holdings.py 涵蓋的 ETF：USD / SOXX / SMH / XSD / PSI）`);
+                const covered = Object.keys(_etfHoldingsData?.etfs || {}).sort().join(' / ') || '尚未載入';
+                alert(`目前無 ${symbol} 的成分股資料。\n\n（目前涵蓋：${covered}）`);
                 return;
             }
             const titleEl   = document.getElementById('etf-holdings-modal-title');
@@ -15819,7 +15831,7 @@
                 return `NT$${Math.round(n).toLocaleString('en-US')}`;
             };
             const etfExposure = (() => {
-                const sourceSymbol = etf.symbol === 'DJUSSC' ? 'USD' : etf.symbol;
+                const sourceSymbol = etf.source_holding || (etf.symbol === 'DJUSSC' ? 'USD' : etf.symbol);
                 const sourceEtf = etf.symbol === 'DJUSSC' ? (_etfHoldingsData?.etfs?.USD || etf) : etf;
                 const holding = holdings.find(h => String(h.symbol || '').toUpperCase() === String(sourceSymbol || '').toUpperCase());
                 const qty = Number(holding?.quantity);
@@ -15844,8 +15856,29 @@
                 const totalTWD = baseTWD * multiplier;
                 return { hasAmount: baseTWD > 0 && multiplier > 0, sourceSymbol, baseTWD, multiplier, totalTWD };
             })();
+            const ramMethodNote = (() => {
+                if (etf.symbol !== 'RAM') return '';
+                const dram = _etfHoldingsData?.etfs?.DRAM;
+                const exampleSymbol = 'MU';
+                const direct = Number((dram?.equity || []).find(e => e.symbol === exampleSymbol)?.weight || 0);
+                const swapRows = (dram?.swaps || []).filter(s => s.target_symbol === exampleSymbol);
+                const swapTotal = swapRows.reduce((sum, s) => sum + Number(s.weight || 0), 0);
+                const base = direct + swapTotal;
+                const levered = base * Number(etf.leverage || 1);
+                const swapText = swapRows.length
+                    ? swapRows.map(s => `${Number(s.weight || 0).toFixed(2)}%`).join(' + ')
+                    : '0.00%';
+                const example = base > 0
+                    ? `<div style="margin-top:0.35rem;color:#cbd5e1;">例：MU = 直接持股 ${direct.toFixed(2)}% + Micron swap ${swapText} = DRAM 經濟曝險 ${base.toFixed(2)}%；RAM 2x 後 = ${levered.toFixed(2)}%。</div>`
+                    : '';
+                return `<div style="background:rgba(14,165,233,0.08); border:1px solid rgba(56,189,248,0.22); border-left:3px solid #38bdf8; padding:0.65rem 0.85rem; border-radius:6px; margin-bottom:0.75rem; font-size:0.8rem; color:#94a3b8; line-height:1.55;">
+                    <strong style="color:#7dd3fc;">RAM 計算口徑：</strong>表格左側比重是「DRAM 經濟曝險」，不是單純 DRAM 直接持股；算法為 DRAM 直接股票部位 + 可辨識單名 swap。右側比重再乘上 RAM 的 2x daily target，作為 RAM 推估成分曝險。
+                    ${example}
+                </div>`;
+            })();
 
             // header summary
+            const equityLabel = etf.symbol === 'DJUSSC' ? '指數成分股' : (etf.derived_from ? '成分曝險' : '直接持股');
             const lev = etf.leverage > 1 ? `<span style="background:rgba(239,68,68,0.18);color:#fca5a5;padding:0.15rem 0.55rem;border-radius:5px;font-size:0.78rem;font-weight:700;">${etf.leverage}x 槓桿</span>` : '';
             const indexBadge = etf.symbol === 'DJUSSC' ? `<span style="background:rgba(99,102,241,0.18);color:#c7d2fe;padding:0.15rem 0.55rem;border-radius:5px;font-size:0.78rem;font-weight:700;">指數</span>` : '';
             const summary = `<div style="background:rgba(15,30,60,0.5); padding:0.85rem 1rem; border-radius:10px; margin-bottom:1rem;">
@@ -15855,7 +15888,7 @@
                 </div>
                 ${etf.note ? `<div style="background:rgba(99,102,241,0.08); border-left:3px solid #818cf8; padding:0.5rem 0.7rem; border-radius:4px; margin-bottom:0.55rem; font-size:0.78rem; color:#cbd5e1; line-height:1.55;">📌 ${etf.note}</div>` : ''}
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.5rem;">
-                    <div><div style="color:#94a3b8; font-size:0.74rem;">${etf.symbol === 'DJUSSC' ? '指數成分股' : '直接持股'}</div><div style="color:#10b981; font-weight:700;">${fmtPct(etf.equity_total)}</div></div>
+                    <div><div style="color:#94a3b8; font-size:0.74rem;">${equityLabel}</div><div style="color:#10b981; font-weight:700;">${fmtPct(etf.equity_total)}</div></div>
                     ${etf.swap_total > 0 ? `<div><div style="color:#94a3b8; font-size:0.74rem;">Swap 部位</div><div style="color:#a78bfa; font-weight:700;">${fmtPct(etf.swap_total)}</div></div>` : ''}
                     <div><div style="color:#94a3b8; font-size:0.74rem;">合計曝險</div><div style="color:#fbbf24; font-weight:700;">${fmtPct(etf.total_exposure)}</div></div>
                     ${etfExposure.hasAmount ? `<div><div style="color:#94a3b8; font-size:0.74rem;">個股曝險金額</div><div style="color:#38bdf8; font-weight:700;">${fmtExposureTWD(etfExposure.totalTWD)}</div><div style="color:#64748b; font-size:0.68rem; margin-top:0.12rem;">${etfExposure.sourceSymbol}${etfExposure.multiplier !== 1 ? ` × ${etfExposure.multiplier.toFixed(2)}x` : ''}</div></div>` : ''}
@@ -15884,13 +15917,13 @@
             }).join('');
 
             const equitySection = equity.length > 0 ? `<div style="margin-bottom:1rem;">
-                <div style="color:#10b981; font-weight:700; font-size:0.92rem; margin-bottom:0.5rem;">📊 直接持股 (${equity.length} 檔，合計 ${fmtPct(etf.equity_total)})</div>
+                <div style="color:#10b981; font-weight:700; font-size:0.92rem; margin-bottom:0.5rem;">📊 ${equityLabel} (${equity.length} 檔，合計 ${fmtPct(etf.equity_total)})</div>
                 <div style="overflow-x:auto;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                         <thead><tr style="border-bottom:1px solid rgba(148,163,184,0.2);">
                             <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">代碼</th>
                             <th style="padding:0.4rem 0.6rem;text-align:left;color:#fbbf24;">公司</th>
-                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">比重${etf.leverage>1?` <small>(原 → 槓桿後)</small>`:''}</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">比重${etf.symbol === 'RAM' ? ` <small>(DRAM曝險 → RAM 2x)</small>` : (etf.leverage>1?` <small>(原 → 槓桿後)</small>`:'')}</th>
                             ${etfExposure.hasAmount ? '<th style="padding:0.4rem 0.6rem;text-align:right;color:#fbbf24;">曝險金額</th>' : ''}
                             <th></th>
                         </tr></thead>
@@ -15949,7 +15982,7 @@
                 }
             }
 
-            const generated = generatedISO ? `<div style="color:#64748b; font-size:0.74rem; text-align:right; margin-top:0.5rem;">資料更新：${new Date(generatedISO).toLocaleString('zh-TW')}　·　來源：stockanalysis.com</div>` : '';
+            const generated = generatedISO ? `<div style="color:#64748b; font-size:0.74rem; text-align:right; margin-top:0.5rem;">資料更新：${new Date(generatedISO).toLocaleString('zh-TW')}　·　來源：stockanalysis.com / Roundhill</div>` : '';
 
             // USD 額外加「查看追蹤指數」按鈕（切到 DJUSSC）
             let crossLink = '';
@@ -15958,14 +15991,24 @@
                     <button onclick="showEtfHoldingsModal('DJUSSC')" style="padding:0.5rem 1rem; background:linear-gradient(135deg, #6366f1, #818cf8); color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">📊 查看 DJ U.S. Semi Index 成分股 →</button>
                 </div>`;
             }
+            if (etf.symbol === 'RAM' && _etfHoldingsData?.etfs?.['DRAM']) {
+                crossLink = `<div style="margin-bottom:1rem; text-align:center;">
+                    <button onclick="showEtfHoldingsModal('DRAM')" style="padding:0.5rem 1rem; background:rgba(20,184,166,0.18); color:#5eead4; border:1px solid rgba(20,184,166,0.35); border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">查看 DRAM 原始持股 →</button>
+                </div>`;
+            }
             // DJUSSC 加「返回 USD」按鈕
             if (etf.symbol === 'DJUSSC') {
                 crossLink = `<div style="margin-bottom:1rem; text-align:center;">
                     <button onclick="showEtfHoldingsModal('USD')" style="padding:0.5rem 1rem; background:rgba(168,85,247,0.18); color:#c084fc; border:1px solid rgba(168,85,247,0.35); border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">← 返回 USD ETF（含 swap）</button>
                 </div>`;
             }
+            if (etf.symbol === 'DRAM' && _etfHoldingsData?.etfs?.['RAM']) {
+                crossLink = `<div style="margin-bottom:1rem; text-align:center;">
+                    <button onclick="showEtfHoldingsModal('RAM')" style="padding:0.5rem 1rem; background:rgba(239,68,68,0.14); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">← 返回 RAM 2x 成分曝險</button>
+                </div>`;
+            }
 
-            return summary + crossLink + warning + equitySection + swapSection + generated;
+            return summary + crossLink + ramMethodNote + warning + equitySection + swapSection + generated;
         }
 
         // 提供給 calculateStats/renderPie 使用：回傳期貨權益（TWD）

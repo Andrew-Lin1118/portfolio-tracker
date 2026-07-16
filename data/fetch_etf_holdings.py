@@ -11,8 +11,12 @@ fetch_etf_holdings.py
   - XSD（SPDR Semiconductor Equal Weight，等權重對照）
   - PSI（Invesco Dynamic Semiconductors，動量篩選）
   - DRAM/RAM（Roundhill memory stocks；RAM derives 2x component exposure from DRAM）
+  - 00631L（元大台灣50正2：MoneyDJ 申報持倉 = 臺股期貨 + 現股；
+    期貨部位以 taiex_weights.json（TAIFEX 加權指數權重 Top30）回推個股曝險，
+    與 USD swap 拆解 / RAM 推導同一套邏輯，存成 1x 比重 + leverage 2）
+  - 00981A（主動統一台股增長：主動式 ETF 每日揭露持股，leverage 1）
 
-資料源：stockanalysis.com（公開、無需 API key）
+資料源：stockanalysis.com（美股）、moneydj.com Basic0007B（台股，UTF-8）
 排程：每週一次足矣（ETF 持股變動緩慢）。
 """
 import os, sys, json, datetime, re, urllib.request
@@ -44,8 +48,8 @@ SYMBOL_ALIASES = {
 }
 
 SWAP_TARGETS = [
-    (re.compile(r'MICRON', re.I), ('MU', 'Micron Technology, Inc.')),
-    (re.compile(r'SAMSUNG', re.I), ('005930.KS', 'Samsung Electronics Co., Ltd.')),
+    (re.compile(r'MICRON', re.I),   ('MU',        'Micron Technology, Inc.')),
+    (re.compile(r'SAMSUNG', re.I),  ('005930.KS', 'Samsung Electronics Co., Ltd.')),
     (re.compile(r'SK\s*HYNIX', re.I), ('000660.KS', 'SK hynix Inc.')),
 ]
 
@@ -192,7 +196,9 @@ def derive_ram_from_dram(dram_data):
         add(e.get('symbol'), e.get('name'), e.get('weight'))
 
     for s in dram_data.get('swaps') or []:
-        add(s.get('target_symbol'), s.get('target_name'), s.get('weight'))
+        symbol = s.get('target_symbol')
+        name = s.get('target_name')
+        add(symbol, name, s.get('weight'))
 
     equity = [
         {'symbol': v['symbol'], 'name': v['name'], 'weight': round(v['weight'], 4)}
@@ -216,6 +222,139 @@ def derive_ram_from_dram(dram_data):
         'equity_total': equity_total,
         'swap_total': 0.0,
         'total_exposure': round(equity_total * 2, 2),
+    }
+
+
+# ─────────────────────────── 台股 ETF（MoneyDJ） ───────────────────────────
+
+def fetch_moneydj_tw_holdings(etfid):
+    """
+    抓 MoneyDJ Basic0007B（申報持股明細，含股票代碼）。
+    回傳 {'stocks': [{symbol,name,weight}], 'futures': [{name,weight}], 'asof': 'YYYY-MM-DD'}
+    """
+    url = f'https://www.moneydj.com/ETF/X/Basic/Basic0007B.xdjhtm?etfid={etfid}'
+    html = http_get(url, timeout=25)
+    m = re.search(r'資料日期[：:]\s*([\d/]+)', html)
+    asof = m.group(1).replace('/', '-') if m else None
+    stocks, futures = [], []
+    for tb in re.findall(r'<table[^>]*>(.*?)</table>', html, re.S):
+        heads = ''.join(re.sub(r'<[^>]+>', '', h) for h in re.findall(r'<th[^>]*>(.*?)</th>', tb, re.S))
+        if '個股名稱' not in heads:
+            continue
+        for row in re.findall(r'<tr[^>]*>(.*?)</tr>', tb, re.S):
+            cells = [re.sub(r'<[^>]+>', '', c).strip() for c in re.findall(r'<td[^>]*>(.*?)</td>', row, re.S)]
+            if len(cells) < 2:
+                continue
+            try:
+                w = float(cells[1].replace(',', ''))
+            except ValueError:
+                continue
+            if w <= 0:
+                continue
+            m2 = re.match(r'^(.*?)\((\w+)\.(TW|TWO)\)$', cells[0])
+            if m2:
+                stocks.append({'symbol': f'{m2.group(2)}.{m2.group(3)}',
+                               'name': m2.group(1).strip().rstrip('*').strip(),
+                               'weight': w})
+            elif '期貨' in cells[0]:
+                futures.append({'name': cells[0], 'weight': w})
+        break
+    return {'stocks': stocks, 'futures': futures, 'asof': asof}
+
+
+def load_taiex_weights():
+    """讀本地 taiex_weights.json（fetch_taiex_weights.py 產出，TAIFEX 加權指數權重 Top30）。"""
+    try:
+        with open(os.path.join(ROOT, 'taiex_weights.json'), encoding='utf-8') as f:
+            d = json.load(f)
+        items = [{'symbol': it['code'] + '.TW', 'name': it['name'], 'w': float(it['w'])}
+                 for it in (d.get('items') or []) if float(it.get('w') or 0) > 0]
+        return items, d.get('asof')
+    except Exception:
+        return [], None
+
+
+def build_00631l(hold, taiex_items, taiex_asof):
+    """
+    00631L 成分曝險（與 USD swap 拆解同邏輯）：
+      現股直接持有 + 臺股期貨部位 × 加權指數成分股權重。
+    合併後除以 2 存成 1x 比重、leverage=2（與 RAM 相同存法，前端共用計算）。
+    """
+    if not hold or not (hold['stocks'] or hold['futures']):
+        return None
+
+    buckets = {}
+
+    def add(symbol, name, weight):
+        if not symbol or weight <= 0:
+            return
+        if symbol not in buckets:
+            buckets[symbol] = {'symbol': symbol, 'name': name or symbol, 'weight': 0.0}
+        buckets[symbol]['weight'] += float(weight)
+
+    for s in hold['stocks']:
+        add(s['symbol'], s['name'], s['weight'])
+
+    fut_total = sum(f['weight'] for f in hold['futures'])
+    covered = sum(it['w'] for it in taiex_items)
+    if fut_total > 0 and taiex_items:
+        for it in taiex_items:
+            add(it['symbol'], it['name'], fut_total * it['w'] / 100)
+        residual = max(0.0, 100.0 - covered) * fut_total / 100
+        if residual > 0.05:
+            add('其他', f'加權指數其餘成分股（Top{len(taiex_items)} 以外）', residual)
+    elif fut_total > 0:
+        # 沒有權重檔時退而求其次：期貨腿整包列一列，不拆個股
+        add('臺股期貨', '臺股期貨（無加權指數權重檔，未拆解）', fut_total)
+
+    combined = sorted(buckets.values(), key=lambda x: -x['weight'])
+    total = sum(b['weight'] for b in combined)
+    if total <= 0:
+        return None
+    equity = [{'symbol': b['symbol'], 'name': b['name'], 'weight': round(b['weight'] / 2, 4)}
+              for b in combined]
+    fut_names = '、'.join(f"{f['name']} {f['weight']:.2f}%" for f in hold['futures']) or '無'
+    direct_names = '、'.join(f"{s['name']} {s['weight']:.2f}%" for s in hold['stocks']) or '無'
+    return {
+        'symbol': '00631L',
+        'name': '元大台灣50單日正向2倍',
+        'leverage': 2,
+        'tracks': '台灣50指數單日正向2倍',
+        'derived_from': 'MoneyDJ 申報持倉（現股 + 臺股期貨），期貨部位以 TAIFEX 加權指數權重回推',
+        'source_holding': '00631L',
+        'note': (f'00631L 實際持倉（{hold["asof"] or "近期"}）：現股 {direct_names}；期貨 {fut_names}。'
+                 f'期貨部位按 TAIFEX 加權指數成分股權重（資料日 {taiex_asof or "-"}，Top{len(taiex_items)} '
+                 f'涵蓋 {covered:.1f}%，其餘打包為「其他」）回推個股曝險，再與現股合併；'
+                 f'左欄為除以 2 的 1x 化比重，右欄 ×2 即為每 1 元淨值的實際曝險。'
+                 f'（台指期追蹤加權指數，與台灣50指數相關性 >99%，視為近似。）'),
+        'equity': equity,
+        'swaps': [],
+        'equity_total': round(total / 2, 2),
+        'swap_total': 0.0,
+        'total_exposure': round(total, 2),
+    }
+
+
+def build_00981a(hold):
+    """00981A 主動式 ETF：每日揭露持股直接作為成分曝險（leverage 1）。"""
+    if not hold or not hold['stocks']:
+        return None
+    equity = sorted(({'symbol': s['symbol'], 'name': s['name'], 'weight': round(s['weight'], 4)}
+                     for s in hold['stocks']), key=lambda x: -x['weight'])
+    tot = round(sum(e['weight'] for e in equity), 2)
+    return {
+        'symbol': '00981A',
+        'name': '主動統一台股增長',
+        'leverage': 1,
+        'tracks': '主動式選股（統一投信，無追蹤指數）',
+        'source_holding': '00981A',
+        'note': (f'主動式 ETF 每日揭露持股（MoneyDJ 申報資料，資料日期 {hold["asof"] or "-"}）。'
+                 f'持股合計 {tot:.2f}%，其餘為現金等部位。'),
+        'equity': equity,
+        'swaps': [],
+        'equity_total': tot,
+        'swap_total': 0.0,
+        'total_exposure': tot,
     }
 
 
@@ -267,6 +406,32 @@ def main():
     if ram:
         result['etfs']['RAM'] = ram
         print(f'  derived RAM: {len(ram["equity"])} constituents from DRAM economic exposure', flush=True)
+
+    # ── 台股 ETF：00631L（正2，期貨拆解）、00981A（主動式，直接揭露）──
+    taiex_items, taiex_asof = load_taiex_weights()
+    tw_builders = {
+        '00631L': lambda: build_00631l(fetch_moneydj_tw_holdings('00631L.TW'), taiex_items, taiex_asof),
+        '00981A': lambda: build_00981a(fetch_moneydj_tw_holdings('00981A.TW')),
+    }
+    old = {}
+    try:
+        with open(OUT_FILE, encoding='utf-8') as f:
+            old = (json.load(f).get('etfs') or {})
+    except Exception:
+        pass
+    for key, build in tw_builders.items():
+        print(f'  fetching {key} (MoneyDJ) ...', flush=True)
+        entry = None
+        try:
+            entry = build()
+        except Exception as e:
+            print(f'    [ERR] {key}: {type(e).__name__}: {str(e)[:120]}', flush=True)
+        if entry:
+            result['etfs'][key] = entry
+            print(f'    [OK] {key}: {len(entry["equity"])} 檔，合計曝險 {entry["total_exposure"]}%', flush=True)
+        elif key in old:
+            result['etfs'][key] = old[key]
+            print(f'    [WARN] {key} 本次抓取失敗，沿用舊資料', flush=True)
 
     with open(OUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)

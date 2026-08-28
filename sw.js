@@ -1,6 +1,6 @@
 /* Portfolio Tracker – Service Worker
    版本號更新會清除舊快取並重新下載 */
-const CACHE_NAME = 'portfolio-tracker-v287';  // 2026-07-02: analysis click always fetches fresh data
+const CACHE_NAME = 'portfolio-tracker-v288';  // 2026-08-28: mobile Pionex calendar data
 const PRECACHE = [
   './portfolio-tracker-v13.html',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',

@@ -10,7 +10,7 @@
     <title>Portfolio Tracker v13 持倉追蹤</title>
 
     <!-- PWA / Add to Home Screen -->
-    <link rel="manifest" href="manifest.json?v=287">
+    <link rel="manifest" href="manifest.json?v=288">
     <meta name="theme-color" content="#fbbf24">
     <meta name="mobile-web-app-capable" content="yes">
     <!-- iOS Safari -->
@@ -30,9 +30,9 @@
             // 清掉所有非目前版本的快取（保險）
             if (window.caches) {
               const keys = await caches.keys();
-              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v287').map(k => caches.delete(k)));
+              await Promise.all(keys.filter(k => k !== 'portfolio-tracker-v288').map(k => caches.delete(k)));
             }
-            const reg = await navigator.serviceWorker.register('./sw.js?v=287');
+            const reg = await navigator.serviceWorker.register('./sw.js?v=288');
             // 若偵測到新的 SW 控管本頁（例：CACHE_NAME bump），自動 reload 一次
             let reloaded = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -334,6 +334,13 @@
         .tab-btn.active { background:linear-gradient(135deg,rgba(251,191,36,0.18) 0%,rgba(245,158,11,0.12) 100%); color:#fbbf24; border-color:rgba(251,191,36,0.5); border-bottom-color:transparent; }
         .tab-pane { display:none; }
         .tab-pane.active { display:block; }
+        .db-calendar-mobile-summary { display:none; }
+        .db-calendar-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:0.2rem; }
+        .db-calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(92px,1fr)); gap:0.38rem; min-width:700px; padding:0.75rem; border-radius:11px; background:rgba(2,8,23,0.34); border:1px solid rgba(59,130,246,0.15); }
+        @media (max-width:640px) {
+            .db-calendar-mobile-summary { display:block; }
+            .db-calendar-scroll { margin-right:-0.35rem; padding-right:0.35rem; }
+        }
         /* Watchlist Tab：窄螢幕時左右排版改回上下堆疊
            表格自然展開，K 線用 viewport 高度確保不會被擠成一團 */
         @media (max-width: 900px) {
@@ -1636,6 +1643,7 @@
                 </div>
                 <div id="db-loading" style="color:#94a3b8; padding:2rem; text-align:center;">載入中...</div>
                 <div id="db-content" style="display:none;">
+                    <div id="db-grid-calendar" style="margin-bottom:1.5rem;"></div>
                     <div id="db-themes" style="margin-bottom:1.5rem;"></div>
                     <div id="db-signals" style="margin-bottom:1.5rem;"></div>
                     <div id="db-symbols"></div>
@@ -7595,13 +7603,77 @@
         // ════════════════════════════════════════════════════════════════════
         //  Tab 11: 每日簡報（讀 data/daily_brief.json + symbol_mapping.json）
         // ════════════════════════════════════════════════════════════════════
-        let _dbCache = null;          // {data, mapping, fetchedAt}
+        let _dbCache = null;          // {data, mapping, calendar, fetchedAt}
         let _dailyBriefActiveDate = null;   // 當前選中的日期 (schema v2)，null = auto 取最新
+        let _dbCalendarMonth = null;
         const DB_CACHE_TTL_MS = 60_000;  // 1 分鐘內重切 tab 不重抓
 
         function _setDailyBriefDate(date) {
             _dailyBriefActiveDate = date;
             loadDailyBrief();   // 用快取重 render，不重抓
+        }
+
+        function _shiftDbCalendarMonth(delta) {
+            const base = /^\d{4}-\d{2}$/.test(_dbCalendarMonth || '')
+                ? new Date(_dbCalendarMonth + '-01T00:00:00') : new Date();
+            base.setMonth(base.getMonth() + Number(delta || 0));
+            _dbCalendarMonth = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
+            _renderPionexGridCalendar(_dbCache?.calendar || {days:{}});
+        }
+
+        function _dbMoney(value, digits) {
+            if (value == null || value === '') return '—';
+            const n = Number(value);
+            if (!Number.isFinite(n)) return '—';
+            return n.toLocaleString('zh-TW', {minimumFractionDigits:digits, maximumFractionDigits:digits});
+        }
+
+        function _mergePionexCalendarFallback(calendar, crypto) {
+            const result = calendar && typeof calendar === 'object' ? calendar : {days:{}};
+            if (!result.days || typeof result.days !== 'object') result.days = {};
+            const net = Number(crypto?.manual_pionex_twd);
+            if (!(net > 0)) return result;
+            const parsed = new Date(crypto.manual_pionex_twd_ts || crypto.generated || '');
+            const key = !Number.isNaN(parsed.getTime())
+                ? parsed.toLocaleDateString('sv-SE', {timeZone:'Asia/Taipei'})
+                : new Date().toLocaleDateString('sv-SE', {timeZone:'Asia/Taipei'});
+            const row = result.days[key] && typeof result.days[key] === 'object' ? result.days[key] : {date:key};
+            if (!(Number(row.pionex_net_twd) > 0)) row.pionex_net_twd = net;
+            result.days[key] = row;
+            return result;
+        }
+
+        function _renderPionexGridCalendar(calendar) {
+            const el = document.getElementById('db-grid-calendar');
+            if (!el) return;
+            const days = calendar?.days && typeof calendar.days === 'object' ? calendar.days : {};
+            const dateKeys = Object.keys(days).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+            const latestMonth = dateKeys.length ? dateKeys[dateKeys.length - 1].slice(0, 7) : '';
+            const latestKey = [...dateKeys].reverse().find(key => Number(days[key]?.pionex_net_twd) > 0) || '';
+            const latestRow = latestKey ? days[latestKey] : null;
+            if (!/^\d{4}-\d{2}$/.test(_dbCalendarMonth || '')) _dbCalendarMonth = latestMonth || new Date().toISOString().slice(0,7);
+            const [year, month] = _dbCalendarMonth.split('-').map(Number);
+            const lastDay = new Date(year, month, 0).getDate();
+            const startPad = new Date(year, month - 1, 1).getDay();
+            const today = new Date().toLocaleDateString('sv-SE', {timeZone:'Asia/Taipei'});
+            const cells = Array(startPad).fill('<div></div>');
+            for (let dayNo = 1; dayNo <= lastDay; dayNo++) {
+                const key = `${_dbCalendarMonth}-${String(dayNo).padStart(2,'0')}`;
+                const row = days[key];
+                const daily = Number(row?.daily_grid_profit_usdt);
+                const hasData = !!row;
+                const clickable = hasData && _dbCache?.data?.daily?.[key];
+                cells.push(`<button type="button" ${clickable ? `onclick="_setDailyBriefDate('${key}')"` : ''}
+                  style="min-height:118px;text-align:left;padding:0.55rem;border-radius:9px;overflow:hidden;cursor:${clickable?'pointer':'default'};background:${hasData?'rgba(15,30,60,0.72)':'rgba(15,23,42,0.28)'};border:1px solid ${key===today?'rgba(251,191,36,0.75)':(hasData?'rgba(59,130,246,0.28)':'rgba(51,65,85,0.22)')};">
+                  <div style="color:${key===today?'#fbbf24':'#cbd5e1'};font-weight:800;font-size:0.8rem;margin-bottom:0.42rem;">${dayNo}${key===today?' · 今日':''}</div>
+                  ${hasData ? `<div style="color:#94a3b8;font-size:0.66rem;white-space:nowrap;">派網淨值</div><div style="color:#e2e8f0;font-size:0.76rem;font-weight:700;white-space:nowrap;">NT$${_dbMoney(row.pionex_net_twd,0)}</div><div style="color:#94a3b8;font-size:0.66rem;margin-top:0.18rem;white-space:nowrap;">網格 / 單天</div><div style="font-size:0.74rem;font-weight:800;white-space:nowrap;"><span style="color:#60a5fa;">${_dbMoney(row.grid_profit_usdt,1)} U</span> <span style="color:${Number.isFinite(daily)&&daily<0?'#f87171':'#4ade80'};">${Number.isFinite(daily)&&daily>=0?'+':''}${_dbMoney(row.daily_grid_profit_usdt,1)} U</span></div>` : '<div style="color:#475569;font-size:0.7rem;margin-top:1rem;">尚無快照</div>'}
+                </button>`);
+            }
+            while (cells.length % 7) cells.push('<div></div>');
+            const weekdays = ['日','一','二','三','四','五','六'];
+            el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;margin-bottom:0.65rem;flex-wrap:wrap;"><div><h3 style="color:#fbbf24;font-size:0.95rem;font-weight:800;margin:0;">🗓️ 派網網格利潤日曆</h3><div style="color:#64748b;font-size:0.72rem;margin-top:0.2rem;">每日區間：台北時間 08:00 → 隔日 08:00</div></div><div style="display:flex;align-items:center;gap:0.45rem;"><button type="button" onclick="_shiftDbCalendarMonth(-1)" style="padding:0.3rem 0.58rem;border-radius:7px;border:1px solid rgba(59,130,246,0.25);background:rgba(15,30,60,0.6);color:#94a3b8;">‹</button><span style="color:#e2e8f0;font-weight:800;min-width:82px;text-align:center;">${year} / ${String(month).padStart(2,'0')}</span><button type="button" onclick="_shiftDbCalendarMonth(1)" style="padding:0.3rem 0.58rem;border-radius:7px;border:1px solid rgba(59,130,246,0.25);background:rgba(15,30,60,0.6);color:#94a3b8;">›</button></div></div>
+              ${latestRow?`<div class="db-calendar-mobile-summary" style="margin-bottom:0.65rem;padding:0.7rem 0.8rem;border-radius:10px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.28);"><div style="color:#94a3b8;font-size:0.7rem;">最近派網快照 · ${latestKey}</div><div style="color:#fbbf24;font-size:1rem;font-weight:800;margin-top:0.18rem;">NT$${_dbMoney(latestRow.pionex_net_twd,0)}</div></div>`:''}
+              <div class="db-calendar-scroll" aria-label="派網網格利潤日曆，可左右滑動"><div class="db-calendar-grid">${weekdays.map(w=>`<div style="color:#64748b;font-size:0.7rem;font-weight:800;text-align:center;padding:0.2rem;">${w}</div>`).join('')}${cells.join('')}</div></div>`;
         }
 
         async function loadDailyBrief() {
@@ -7622,19 +7694,24 @@
             }
 
             try {
-                let raw, mapping;
+                let raw, mapping, calendar;
                 if (useCache) {
-                    ({ data: raw, mapping } = _dbCache);
+                    ({ data: raw, mapping, calendar } = _dbCache);
                 } else {
                     const ts = Date.now();
-                    const [briefRes, mapRes] = await Promise.all([
+                    const [briefRes, mapRes, calendarRes, cryptoRes] = await Promise.all([
                         fetch('data/daily_brief.json?_=' + ts),
                         fetch('data/symbol_mapping.json?_=' + ts).catch(() => null),
+                        fetch('data/pionex_grid_calendar.json?_=' + ts, {cache:'no-store'}).catch(() => null),
+                        fetch('data/crypto_balance.json?_=' + ts, {cache:'no-store'}).catch(() => null),
                     ]);
                     if (!briefRes.ok) throw new Error('daily_brief.json HTTP ' + briefRes.status);
                     raw = await briefRes.json();
                     mapping = mapRes && mapRes.ok ? await mapRes.json() : { leveraged_etf:{}, hk_proxy:{} };
-                    _dbCache = { data: raw, mapping, fetchedAt: Date.now() };
+                    calendar = calendarRes && calendarRes.ok ? await calendarRes.json() : {days:{}};
+                    const crypto = cryptoRes && cryptoRes.ok ? await cryptoRes.json() : null;
+                    calendar = _mergePionexCalendarFallback(calendar, crypto);
+                    _dbCache = { data: raw, mapping, calendar, fetchedAt: Date.now() };
                 }
 
                 // ── 偵測 schema v2 (含 daily 7 日 archive) vs 舊 flat schema ──
@@ -7661,6 +7738,7 @@
                     month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'
                 });
                 meta.innerHTML = `<span style="color:#cbd5e1; font-weight:600;">${_esc(data.session_label || '')}</span> · ${fmt}`;
+                _renderPionexGridCalendar(calendar || {days:{}});
 
                 // ── 日期 sub-tab（保留 7 天）──
                 const subTabsHtml = availableDates.length <= 1 ? '' : `

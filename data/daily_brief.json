@@ -1,7 +1,1531 @@
 {
   "schema_version": 2,
-  "latest_date": "2026-09-09",
+  "latest_date": "2026-09-10",
   "daily": {
+    "2026-09-10": {
+      "generated": "2026-09-10T01:02:43Z",
+      "based_on_news_generated": "2026-09-10T00:57:31Z",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input_tokens": 24053,
+        "output_tokens": 16611,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 7001
+      },
+      "session_label": "昨夜 NY 盤後 + 今日亞股盤前",
+      "global_themes": [
+        "AI記憶體超級周期持續：Goldman確認記憶體價格數年內不會回落，SK海力士漲5%、SanDisk漲3%、Micron漲2%，Bank of America點名MU與AMD為最大受益者",
+        "Meta發布Muse個人AI助理股價單日飆升逾6.5%，帶動AI應用股情緒，NVDA則因DOJ調查Groq授權協議承壓",
+        "油價突破百美元、通膨數據前夕市場謹慎，比特幣徘徊80K關卡整理，ETH守住2500美元力求突破"
+      ],
+      "cross_holdings_signals": [
+        {
+          "theme": "AI記憶體超級周期：分析師看多MU、SNDK、SK海力士",
+          "tickers": [
+            "MU",
+            "SNDK",
+            "000660.KS",
+            "005930.KS",
+            "WDC"
+          ],
+          "severity": "high",
+          "direction": "+",
+          "note": "Goldman Sachs表示記憶體價格數年內不會緩解，SK海力士單日漲5%；Micron營業利潤率首破80%歷史記錄，9/30財報被視為年度最重要催化劑；SanDisk年初至今漲幅逾648%仍有分析師追捧。"
+        },
+        {
+          "theme": "NVDA DOJ調查 + 大客戶支出擔憂施壓股價",
+          "tickers": [
+            "NVDA",
+            "AVGO",
+            "NBIS"
+          ],
+          "severity": "medium",
+          "direction": "-",
+          "note": "美國司法部啟動NVDA與AI新創Groq授權協議調查，疊加印尼34億美元大單引發支出過熱疑慮，股價向200美元回落；AVGO財報後因Google自研芯片風險承壓，但Macquarie指Anthropic潛在商機達400億美元。"
+        },
+        {
+          "theme": "AMD CFO上調AI芯片市場規模至3兆美元，盤中漲逾3%",
+          "tickers": [
+            "AMD",
+            "TSM",
+            "QCOM"
+          ],
+          "severity": "medium",
+          "direction": "+",
+          "note": "AMD CFO上調AI芯片市場預測至3兆美元並確認TSMC為主要供應商，IBD將AMD列為「當日精選股」並突破早期買點；相比之下QCOM雖獲Amazon合作，但Barron's指其仍活在NVDA陰影下。"
+        },
+        {
+          "theme": "OpenAI深化三星合作、SK海力士HBM4擴產",
+          "tickers": [
+            "005930.KS",
+            "000660.KS",
+            "MU"
+          ],
+          "severity": "high",
+          "direction": "+",
+          "note": "OpenAI宣布與三星合作延伸至次世代AI芯片開發，SK海力士同步宣布HBM4擴產並大幅現金派息；韓廠股東回報改革進展成為市場焦點。"
+        },
+        {
+          "theme": "ASML高NA EUV與TSMC/Samsung深化合作",
+          "tickers": [
+            "TSM",
+            "005930.KS",
+            "2330.TW"
+          ],
+          "severity": "medium",
+          "direction": "+",
+          "note": "ASML與TSMC推進High-NA EUV合作，報告指雙方時程存在差異但長期有利先進製程護城河；TSMC多名高管透過員工持股計畫持續增持，正面訊號。"
+        },
+        {
+          "theme": "Meta Muse AI發布帶動大型科技廣告股情緒",
+          "tickers": [
+            "META",
+            "GOOGL",
+            "GOOG"
+          ],
+          "severity": "medium",
+          "direction": "+",
+          "note": "Meta發布個人化AI助理Muse並完成瑞典AI新創收購，股價單日漲逾6.5%；Alphabet面臨俄亥俄州資料中心稅收優惠可能取消的隱憂，但Google宣布150億美元芬蘭AI基地投資，長期利多。"
+        },
+        {
+          "theme": "Michael Burry拋售NVDA與PLTR賣權，整體降低風險敞口",
+          "tickers": [
+            "NVDA",
+            "PLTR"
+          ],
+          "severity": "low",
+          "direction": "-",
+          "note": "知名空頭Michael Burry賣出2026年12月到期NVDA與PLTR賣權，並表示整體「縮減風險」，市場解讀為對短期波動保持警惕，非直接做空訊號。"
+        },
+        {
+          "theme": "光通訊/光子股：LITE、AAOI、COHR共同受惠AI數據中心需求",
+          "tickers": [
+            "LITE",
+            "AAOI",
+            "COHR",
+            "AXTI"
+          ],
+          "severity": "medium",
+          "direction": "+",
+          "note": "Zacks指LITE雷射業務加速成長，可能挑戰AVGO與AAOI市占；兩家銀行同日給予LITE買進評級目標價1200美元；AXTI磷化銦產能擴張獲流動性支撐，AI需求持續加溫。"
+        }
+      ],
+      "by_symbol": {
+        "NVDA": {
+          "headlines": [
+            {
+              "title": "US DOJ probes Nvidia's licensing deal with AI startup Groq, NYT reports",
+              "url": "https://finance.yahoo.com/technology/ai/articles/us-doj-probes-nvidias-licensing-003659525.html",
+              "publisher": "Reuters",
+              "ts": "2026-09-10T00:36:59Z",
+              "summary": "美國司法部就NVDA與AI新創Groq的授權協議展開調查，據NYT報導。",
+              "sentiment": "-"
+            },
+            {
+              "title": "An NVIDIA partner is deploying up to 68,000 AI processors - stocktitan.net",
+              "url": "https://news.google.com/rss/articles/CBMitwFBVV95cUxOa2xuMHlXa0I5V181MzJYUzFJY0MzQTZVQy1mMUlXMGYxOFpPVnBaRzlxTG51TXFabk94bldES2VVZ2s3VERkcEJFVE1LSHlPVGdYRTRJRmw0Snd5ekNJTjVtUG9La3p1aS1BTk1MeXBRUGFqeHRNdm9QNW9CMGh6YWhVNE1PNHptT0l1anAtMVpaTy11NG1OTHJFSy1Vd2FnbVA1YmcyLWxUUHZaSDhPYVFLUDcyTFE?oc=5",
+              "publisher": "stocktitan.net",
+              "ts": "2026-09-10T00:11:15Z",
+              "summary": "一家NVIDIA合作夥伴宣布部署多達68,000顆AI處理器，需求動能強勁。",
+              "sentiment": "+"
+            },
+            {
+              "title": "NVDA Stock Falls Toward $200 as $3.1 Billion Indonesia Deal Adds to Growing Spending Concerns - FXLeaders",
+              "url": "https://news.google.com/rss/articles/CBMizwFBVV95cUxQY2RwQ2VoSVJRTmk1eGdMUkhXSmpOWUI2a1NPbnZLeGFSVG1EQXFWR2N6SzdxeXBvTjdScW1yTGs1dE5uMWpIckNCcUdqRkFmWFRjYjUxWkRUaGk2c1BXTjg3aHN5N0VheGVVZmVEY1k1SGJsSTNqMlRCRVNMamItYmNla3dyRVBidXVHV3A3cE1mejNtdDdQOHhXTk1wNGlnM2JwZmdxMEMtYUxsUGtOb05HNFFKZkRyMXR3WlpZNm9xN0dDQS1pZml2Uk1iSVU?oc=5",
+              "publisher": "FXLeaders",
+              "ts": "2026-09-09T20:04:03Z",
+              "summary": "NVDA股價向200美元靠攏，印尼34億美元大單加劇外界對AI支出過熱的擔憂。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Nvidia Blackwell Demand Sent Nebius Auction Prices 20% Higher - benzinga.com",
+              "url": "https://news.google.com/rss/articles/CBMirgFBVV95cUxQaUljek5kTDhBQk1HaEE5anhxS2ZWR0V5eUdMNmhpSUJNV004bWFya0J1d3paeEtGbHA5VWtSaTd5OGJCem1QdlhRbFlMNF9pcEhrMnVma0tPa3A3ZTZ5YWl3SnowZ25nNE1RNFRBTTRpbFMwNmV2MnVwM2tZYWlMSWpYVC1XNXF0cl9yeGRYajUzWnZxQWZHVDdiX0pUejdHemVLRUpNWkFyN1VzRXc?oc=5",
+              "publisher": "benzinga.com",
+              "ts": "2026-09-09T17:13:24Z",
+              "summary": "Blackwell需求強勁，Nebius GPU競標價格因供不應求飆漲20%。",
+              "sentiment": "+"
+            },
+            {
+              "title": "NVDA Looks 41.8% Undervalued on GF Value™ as Buyback Plans Stir Market - GuruFocus",
+              "url": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxQeDhYalg1NDFSbkpDa0dZOGZNdEktbEdPdjRGd1VacG8xRTZKZU55SG9lalh3YVR6ZWcwU0tMbHpDWlZrSU5wU3hqd1JGQTVaNGlyVkxTajBqenh3a09YdFJJbWJwbjd6N21XSHJiaVRSOTh0U1VVSmFYOTQyRExneW8xZ3p0T3BoTmp4WEE4MlpVWFJvWmJJc2ItYV9tZlUxNTRGTUpiM2xoZw?oc=5",
+              "publisher": "GuruFocus",
+              "ts": "2026-09-09T16:16:21Z",
+              "summary": "GuruFocus估算NVDA較GF公允價值低估41.8%，回購計畫提振市場情緒。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Nvidia gap with other chip stocks could narrow amid increased cash return: Melius (NVDA:NASDAQ) - Seeking Alpha",
+              "url": "https://news.google.com/rss/articles/CBMiugFBVV95cUxPc0FEZ3B5MEk5TVJRM3hMZXhuRjNfSVRUUTFNbnljVk5oaTUxOFA2MjllU0JRbTZCcWQxZVZVSUVoVHBzV1VCa0VWWjI4R1pEMm9xdXd4dFNmVkJ3c0VlbDdSOXJsOG5qZGRZTWliV3ZBaTBZWDN3d0pBSGJFNGRHbVZiR2VuVUgzaWhTMFh4WTFoaEZldEFNelZTVHF5ZTlDamtDV0QwTFkyam1kSHlGYTBGTkdkY2hFZUE?oc=5",
+              "publisher": "Seeking Alpha",
+              "ts": "2026-09-09T15:39:06Z",
+              "summary": "Melius Research指NVDA與其他芯片股的估值差距可能因加大現金回報而收窄。",
+              "sentiment": "0"
+            },
+            {
+              "title": "CoreWeave struggling to keep up with demand for Nvidia chips, CEO says",
+              "url": "https://finance.yahoo.com/markets/article/coreweave-struggling-to-keep-up-with-demand-for-nvidia-chips-ceo-says-145336930.html",
+              "publisher": "Yahoo Finance",
+              "ts": "2026-09-09T14:53:36Z",
+              "summary": "CoreWeave CEO表示公司難以跟上對NVDA芯片的需求，供應持續吃緊。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "DOJ針對Groq授權協議的調查是本日最大負面事件，疊加印尼大單引發支出合理性質疑，股價承壓回落至200美元附近。惟Blackwell競標價格飆漲20%、合作夥伴部署6.8萬顆AI處理器，需求面仍強；財報顯示營收年增逾105%、淨利率62%，基本面依然亮眼，估值面被GuruFocus認為低估41.8%。短線受調查利空壓制，中長線需求邏輯未受動搖。",
+          "score": -1,
+          "linked_warnings_used": []
+        },
+        "AMD": {
+          "headlines": [
+            {
+              "title": "AMD, IBD Stock Of The Day, Runs Past Early Buy Point As Chipmaker Returns To Favor",
+              "url": "https://www.investors.com/research/ibd-stock-of-the-day/amd-stock-regains-investor-favor/?src=A00220&yptr=yahoo",
+              "publisher": "Investor's Business Daily",
+              "ts": "2026-09-09T20:49:07Z",
+              "summary": "IBD將AMD列為「當日精選股」，股價突破早期買點，重返市場青睞。",
+              "sentiment": "+"
+            },
+            {
+              "title": "AMD Jumps 3.5% as Its $2 Trillion-Plus AI Promise Raises the Stakes",
+              "url": "https://finance.yahoo.com/technology/ai/articles/amd-jumps-3-5-2-182433703.html",
+              "publisher": "GuruFocus.com",
+              "ts": "2026-09-09T18:24:33Z",
+              "summary": "AMD盤中漲3.5%，$2兆以上AI市場承諾進一步提高市場期待。",
+              "sentiment": "+"
+            },
+            {
+              "title": "AMD CFO Lifts AI Chip Market Forecast to $3 Trillion, Reaffirms TSMC as Primary Supplier - finance.biggo.com",
+              "url": "https://news.google.com/rss/articles/CBMidkFVX3lxTE1TWkhldkF5dzFpdmNhVTBaTVJLS1pOSXVvTVJ1RE1jb2RzbG9YSVhlT3hIVVhsTmdINi1MajEzRUZ6Zy15aFZtaXZORFM2YVc5bWNMYWhkaTBlZ3BSeEZ6eHFiQ1hjMzBGM2QxRVk2TWotY1NfZkE?oc=5",
+              "publisher": "finance.biggo.com",
+              "ts": "2026-09-09T18:17:00Z",
+              "summary": "AMD CFO將AI芯片市場預測上調至3兆美元，並確認TSMC為主要晶圓代工夥伴。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Bank of America Spots a Major Semiconductor. Micron and AMD Are Big Winners - Yahoo Finance",
+              "url": "https://news.google.com/rss/articles/CBMipgFBVV95cUxPdEZFd25BUkluV0llbkhwRFQzRjlfeDM2M2Jwb3R3b3JZbEYyMFZKcGFSamxrOFVMSkZsTjdpUm1qNEhuWEloUXM4NmVSX3B6NmJmdWh1cUt0VkxpNHNBYjc1ajRGMDB4NVFpNDlkcnM4T1ZNU3VheGE5eTRwQU5VengweGxxQmMyVzZGMlRvQWNtTUhpaXB1dmZXQ0tQRVRGSTZMSzRB?oc=5",
+              "publisher": "Yahoo Finance",
+              "ts": "2026-09-09T19:06:24Z",
+              "summary": "Bank of America點名AMD與Micron為半導體大行情中的最大贏家。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Could Advanced Micro Devices (AMD)’s Partnership With Cisco Systems (CSCO) Unlock a Massive Middle East AI Opportunity?",
+              "url": "https://finance.yahoo.com/technology/ai/articles/could-advanced-micro-devices-amd-213247998.html",
+              "publisher": "Insider Monkey",
+              "ts": "2026-09-09T21:32:47Z",
+              "summary": "AMD與Cisco合作布局中東AI基礎建設，潛在商機可觀。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Cathie Wood Swaps Palantir for Cerebras, Trims AMD in $6.5 Million AI Reshuffle - finance.biggo.com",
+              "url": "https://news.google.com/rss/articles/CBMidkFVX3lxTE9TNmZhMnhXQ0M0cWpZcVhEUzRYdTAxdTNkbXkzLTlTNmtzT2Jfd195RVZBNnVTYnVFcE03eURsMDYwblJtTHlaMG01b29lZnFnd05LUHJIUDFLZWJzeDVPSFA2VmRyQzBkcm9raXkyVDF1SFRrRVE?oc=5",
+              "publisher": "finance.biggo.com",
+              "ts": "2026-09-09T18:19:23Z",
+              "summary": "Cathie Wood旗下ARK將部分Palantir部位換倉至Cerebras，並小幅減持AMD。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "AMD CFO大幅上調AI芯片市場規模至3兆美元並確認TSMC供應鏈，IBD當日精選、Bank of America力挺，股價盤中漲逾3.5%，是本日半導體板塊最強勢個股之一。財報面顯示營收年增50%、毛利率年增14pt，基本面配合股價動能。唯一小雜音是Cathie Wood略微減持，但幅度有限，整體多頭氛圍濃厚。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +50.1%，高速成長",
+            "毛利率年增 +14.0pt"
+          ]
+        },
+        "TSM": {
+          "headlines": [
+            {
+              "title": "Can ASML's Tie-Up With TSM to Advance High NA EUV Drive Growth?",
+              "url": "https://finance.yahoo.com/technology/articles/asmls-tie-tsm-advance-high-143500352.html",
+              "publisher": "Zacks",
+              "ts": "2026-09-09T14:35:00Z",
+              "summary": "ASML與TSMC推進高NA EUV合作，分析師指雙方時程有差異但長期有利先進製程發展。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Analysts Offer Insights on Technology Companies: TSMC (TSM) and Oracle (ORCL) - The Globe and Mail",
+              "url": "https://news.google.com/rss/articles/CBMi8AFBVV95cUxOMEliMmxVLXNVcDNTdG1uZU1pWFRpeEFaVF9TTFEzTEROZGh5OV9sWmY2azBCVXJiVDBmaXlWay1lcVdKQmRKNEFjYU1hOWo4Q3hEWWhhQm9aWE9ZQzA2cWoxdWFGd2NiemZXMXd2WWJnUHAtWldWQ1dicHJKQzdTZE9jSHVUYVdWR0V3UVQ5ZlN4Y3gyMVFLcFRqem9mMk9URHNtS2UwZUJoVHVYa1ZCeVBPMng2eXZpcG1vc2xNdExuakxYdU5JazBDb3BVekJHZzE2aUVtRmdmMy1KRm14aWszaGRVdFZMSVpXLVNkNVY?oc=5",
+              "publisher": "The Globe and Mail",
+              "ts": "2026-09-09T13:16:02Z",
+              "summary": "分析師對TSMC與Oracle提出見解，市場持續關注TSM成長潛力。",
+              "sentiment": "+"
+            },
+            {
+              "title": "TSMC (NYSE: TSM) vice president adds shares in small ESPP buy - stocktitan.net",
+              "url": "https://news.google.com/rss/articles/CBMiygFBVV95cUxOVEt5RldXSW03OU9zZWlhNkNCTVQ0RGVkb3NSTUtxZHpOUUs0cGJtOGgtMDJLb2JBenNEV21mOE5VZFA0dnYxSkJyQTBzU3NkU0RwU1JQRk00QVFacTU4dlFZOHNQTnQxT0hhQl9aREI0UUxjRV96WUhqTjdsR2tueW5IUHd0WFpNSmhERFl2NVMxd0J4enI0TWFYbHFLWVEyX3pwRzh4TDFYNDlVN2hSMmZGa050X2JvMGVCYmwxYW9ZSVRmbDlHVkRB?oc=5",
+              "publisher": "stocktitan.net",
+              "ts": "2026-09-09T10:09:46Z",
+              "summary": "TSMC多名副總裁及高管透過員工持股計畫持續增持，正面訊號。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "ASML與TSMC高NA EUV合作進展獲市場關注，多名TSMC高管透過ESPP持續增持，顯示內部信心充足。AMD CFO確認TSMC為AI芯片主要代工夥伴，間接強化訂單能見度。財報顯示營收年增36%、淨利率55.6%，基本面扎實。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +36.0%，高速成長",
+            "淨利率 55.6%，年增 +13.0pt"
+          ]
+        },
+        "AVGO": {
+          "headlines": [
+            {
+              "title": "Broadcom Forecasts $230 Billion in AI Semiconductor Revenue in 2028. The Stock Could Reach $900 Per Share as a Result. - The Globe and Mail",
+              "url": "https://news.google.com/rss/articles/CBMiqAJBVV95cUxNNWhxbVdMSHZhMTJRTV9YUUpTeFpGV1BWZERyNDBIVHZSTGtFaTlCdFlQU2M5ZEdQQkFfb0xHLTBybTVPbk54eDBTa2lRY3hLM0pyTGNWdHJFemdKRmhTQ0FySExLTzJfXy05Tmt6N0lZWlcxTW1sQV9TWlZpaktEZV85dC1YTjFlaGlFbHNjSnQ1RjdKdkVBWGg3Mmo3al9tZ0NrWVlWTlJQVEdNWF83QXVvRXhaeHVzZno3MHlrcE9qakJ4d29TVnZnRUhkZjZ0XzdaM0NBNU90dVJMZlJzbFNCamdqVmt5X205NUxqYngzZk1YejRGS3Rab19lWjF2SzF0Y25TLWpRNWFJNUl1b2IwR2RUeEVlZHlxenJlczM3WlpnYnZxeQ?oc=5",
+              "publisher": "The Globe and Mail",
+              "ts": "2026-09-09T22:55:11Z",
+              "summary": "Broadcom預測2028年AI半導體營收將達2300億美元，分析師估股價可能上看900美元。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Broadcom (AVGO) Faces Google Chip Risks, But Macquarie Sees a $40 Billion Anthropic Opportunity",
+              "url": "https://finance.yahoo.com/technology/ai/articles/broadcom-avgo-faces-google-chip-184606814.html",
+              "publisher": "Insider Monkey",
+              "ts": "2026-09-09T18:46:06Z",
+              "summary": "Macquarie指AVGO面臨Google自研芯片風險，但Anthropic機會潛力高達400億美元。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Broadcom Slides Over 2% While OpenAI Touts a Nine-Month AI Chip Sprint - tradingview.com",
+              "url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxOWHVJNEZwb2NGampaX3dfbFlRR0pEUnFnMjFZUmVCUjRNSWhmcVlXWl9XdGhMWFA3dXdwVGhTZUsyaE5FTnZWTUU5c0haYVVjY0duVDdMaXVmc1AxRjJvN24zc2tLamstbThsS1R2SXl5c2hacVM0VHkwblBVQU5xSjgzcDZOdl95aXducmUzNERJY2pBUDZHMU00ZjlfeEVISWpNRERIdlhZUGMxM2I4d1B0aTh0QnJrU1ZLX0dRSXFadUNwQjZCUw?oc=5",
+              "publisher": "tradingview.com",
+              "ts": "2026-09-09T17:29:50Z",
+              "summary": "OpenAI表示9個月內完成AI芯片衝刺，AVGO股價同日下跌逾2%，市場對自研芯片競爭感到憂慮。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Broadcom Stock Jumps -- AI Revenue Set to Double Again - tradingview.com",
+              "url": "https://news.google.com/rss/articles/CBMisAFBVV95cUxPY0ZjOENZUjhIb0RCWDhHRU11VUtteHEzZkFjUl83Z1o4Y0h6alBLYlVKQ0N3YlRlbkZ0OUdQbGlUSFJxOVlpRk13SHN1X3NHQ0J0NS1SMVBickRjdU14UDNfM1ZXUHc1QTY4Sk00RFFIeXlBU2JMZmRTbWRfaUVUbENNYXdIbTE1WUZiZlFkY08ta1YtcWlvOGl6WFltOXpQNTlvWUdUeUhvamVpVzhzeA?oc=5",
+              "publisher": "tradingview.com",
+              "ts": "2026-09-09T17:12:01Z",
+              "summary": "AVGO AI營收料將再度翻倍，股價盤中跳漲後拉回。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Broadcom Stock Slipped While Its Revenue Schedule Got Longer - Trefis",
+              "url": "https://news.google.com/rss/articles/CBMivgFBVV95cUxPVVV3Rkt0TC1sYUYzRTB2M3RWZHJsMGl4cy1rWktvcTlQSmhjNHlUTHJuNm52NEU0S1VFOE5MWkh1aHdiTzYxSWkweWxkeGpUX2FhRGhNUzhFS0VMRDdlS1d0THdFS1ZKLTFHZjR6Wm9oS084Zlh3azJxZTA5SU83dnZnalRjOXBKT19Qd0tKMTdmTUVZa2hxOVBVckJWMGMtdFM1ZDdvdGNTVDNjNm8xSWw4SGktSjNvTlpIaTlR?oc=5",
+              "publisher": "Trefis",
+              "ts": "2026-09-09T15:30:24Z",
+              "summary": "Trefis指AVGO股價在財報後小幅滑落，但收入能見度時程拉長。",
+              "sentiment": "0"
+            }
+          ],
+          "theme_summary": "Broadcom Q3財報後給出2028年AI半導體2300億美元的宏大預測，是本日最大催化劑，分析師估股價上看900美元；但Google自研芯片替代威脅及OpenAI自建芯片計畫讓股價盤中承壓逾2%。財報顯示營收年增47.9%、現金流強健，長線多頭邏輯未改，短線消化利多後估值爭議升溫。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +47.9%，高速成長",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "MU": {
+          "headlines": [
+            {
+              "title": "Micron's Operating Margin Surged Past 80% for the First Time Ever. History Says This Is What's Coming Next.",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/microns-operating-margin-surged-past-221500965.html",
+              "publisher": "Motley Fool",
+              "ts": "2026-09-09T22:15:00Z",
+              "summary": "Micron營業利潤率首度突破80%歷史新高，分析師認為下一步走向更值得期待。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Prediction: Micron's Sept. 30 Earnings Could Be the Most Important Catalyst for AI Memory Stocks This Year - The Motley Fool",
+              "url": "https://news.google.com/rss/articles/CBMilgFBVV95cUxOYVIxamdGaENQZXlqR3JvbmYyVHFaVlRLcUMxVXZkNkw5c1lxVGpwUFoxSk9qQlh4Q1NUQzYxWXJ2RE1yNnJxa0RJandjdkF2MnBaQzBxbkFubU41c3U1SEtCNU1ndXZMQTJLb2VnVDY0b3k4Vm45RGEwMnI3WHBLZnRaZ1ZWR2E5TkdjbWtuWFhCUnBtN0E?oc=5",
+              "publisher": "The Motley Fool",
+              "ts": "2026-09-09T21:00:00Z",
+              "summary": "分析師預測Micron 9月30日財報將是年度最重要的AI記憶體股催化劑。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Micron Gains 2.4% as Memory's 86% Margin Era Refuses to Break",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/micron-gains-2-4-memorys-182526527.html",
+              "publisher": "GuruFocus.com",
+              "ts": "2026-09-09T18:25:26Z",
+              "summary": "Micron股價上漲2.4%，記憶體86%毛利率時代穩固不動搖。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Top Chip Analyst: Memory Prices Won’t Ease ‘For Years’ and Even Apple Can’t Dodge It",
+              "url": "https://finance.yahoo.com/technology/articles/top-chip-analyst-memory-prices-171037540.html",
+              "publisher": "24/7 Wall St.",
+              "ts": "2026-09-09T17:10:37Z",
+              "summary": "頂級芯片分析師指記憶體價格數年內不會緩解，連Apple都無法規避漲價壓力。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Bank of America Spots a Major Semiconductor. Micron and AMD Are Big Winners - Yahoo Finance",
+              "url": "https://news.google.com/rss/articles/CBMipgFBVV95cUxPdEZFd25BUkluV0llbkhwRFQzRjlfeDM2M2Jwb3R3b3JZbEYyMFZKcGFSamxrOFVMSkZsTjdpUm1qNEhuWEloUXM4NmVSX3B6NmJmdWh1cUt0VkxpNHNBYjc1ajRGMDB4NVFpNDlkcnM4T1ZNU3VheGE5eTRwQU5VengweGxxQmMyVzZGMlRvQWNtTUhpaXB1dmZXQ0tQRVRGSTZMSzRB?oc=5",
+              "publisher": "Yahoo Finance",
+              "ts": "2026-09-09T19:06:24Z",
+              "summary": "Bank of America點名Micron為此波半導體大行情最大贏家之一。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "Micron是本日記憶體板塊最受矚目標的，營業利潤率首破80%歷史新高，Goldman、BofA、多位頂級分析師齊聲看好，股價單日漲近2.4%。9月30日財報被定義為全年最重要催化劑，記憶體漲價週期數年不停的預測進一步強化多頭信心。財報已顯示營收年增346%、毛利率年增46.8pt，基本面極強。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +345.7%，高速成長",
+            "毛利率年增 +46.8pt",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "COHR": {
+          "headlines": [
+            {
+              "title": "Officer lines up potential $155K stock sale at Coherent Corp. (COHR) - stocktitan.net",
+              "url": "https://news.google.com/rss/articles/CBMilAFBVV95cUxPOXhobVltY0l6aHJOU1hTeWJLd3dVQS1mckMtOHlmazdxWmFVQ3I0YUx1N1B6SFJseWQtNGI3TjJjMkNmY0NVcEhZV0RlY1htWG5YWHJFX2xwWWFYbjJtczRHTm1yaWJleDAxREpIazZacFVWdTd5X1U0VEJjaFFfcEdwMnpjck5EVGdzV2NpeE1MOFRv?oc=5",
+              "publisher": "stocktitan.net",
+              "ts": "2026-09-09T20:02:13Z",
+              "summary": "Coherent Corp一名高管預計出售約15.5萬美元股票，小幅內部人賣壓。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Buy 3 AI-Powered Photonics Stocks to Tap Solid Short-Term Price Upside",
+              "url": "https://finance.yahoo.com/technology/ai/articles/buy-3-ai-powered-photonics-123900273.html",
+              "publisher": "Zacks",
+              "ts": "2026-09-09T12:39:00Z",
+              "summary": "Zacks推薦3檔AI光子學股票，Coherent名列其中，短期上漲空間可期。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "COHR在AI數據中心光模組需求浪潮中持續受惠，Zacks推薦為AI光子學買進標的。高管小額賣股屬正常薪酬規劃，無實質利空。財報顯示營收年增33.7%、淨利率年增18pt，成長動能穩健。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +33.7%，高速成長",
+            "淨利率 11.8%，年增 +18.0pt"
+          ]
+        },
+        "AAOI": {
+          "headlines": [
+            {
+              "title": "A Look at Applied Optoelectronics Inc (AAOI) After 3.2% Decline -- GF Value $25.35 vs Price $107.93 - GuruFocus",
+              "url": "https://news.google.com/rss/articles/CBMixgFBVV95cUxOd1ZxUWZPQnUyMVJGT0F6Tko2TlMxN0loODF3UHVaNzFQdEZEazZnY0dpb1FTQUVBbS1YdXRSQW9yejM4aFZSNlUwRHdjZnZ1NzdTcm5EZ2FkblQ2ZG9MNmx6MEF2QkFJRmctTno2a3FGUWdRVDcxU3E2M1RKZ0RjUFdKUllMVzZ3c1lWYmh4ci1xSXM5ZmFGRVdJN0xXa1RIMWppb3VtVGFYZXZoNDJYb2NZeC1hVFVsZGhmQWctWjdIMUtUSkE?oc=5",
+              "publisher": "GuruFocus",
+              "ts": "2026-09-09T22:48:37Z",
+              "summary": "GuruFocus指AAOI股價107.93美元，遠高於GF公允價值25.35美元，估值溢價達325%。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Applied Optoelectronics (AAOI) Expands Houston Footprint As Demand Story Tests Valuation - simplywall.st",
+              "url": "https://news.google.com/rss/articles/CBMi1AFBVV95cUxQZEpDdkdRMVNLQzhCLXhRSFNOMjdlYWlmaE9uejc2OFRiQ3lqMW5aSVU3X0txV19MNG9icmN1eFNkQmNKb3kyazdpRjdteVpxVlJ2SlVwRTVKVmFmdFFkcndEdXFzMTRXX3dfXzhLQzZ0UmxtVGNvSjBxSDJjeGRSOVNIbjZZM0ZpTnkyanBaZ3l3TVRiNHhqZmdQbHZ4bWhiRVFRYjg2MmVaQU5zWmhiYjJaV21zaDI0QXpaUWtxemc4cTd3czZUVlZLRmhKMDhINmdxStIB2gFBVV95cUxPWTdyaFduMkhJNXRfeTNNR1p3Q3pLZUVWT2FGSi1FanVLTjFFWjdoemlNVG5hSDZmblpqcTFEYnJRZkxuWGRTS0RJZ2pJMkRDUHA0azVrVWstSVM0OVl3T0ZqV04weTlCU3p3SkhXV0N2Szl5NUIxZ3lnN21wTkhhWWNwODlBRXE0ckFJd1NhaHJpaHg5dWJuZmd4amoyMXU0YjlkNWpJMzdSTnZxdkNkNUExWE1rVHVEUy1STjNKY1FEUDNtb2NRMFRib1lWTnpmWWZQejZLSWM5Zw?oc=5",
+              "publisher": "simplywall.st",
+              "ts": "2026-09-09T17:38:52Z",
+              "summary": "AAOI擴大休士頓生產基地，需求故事支撐擴產，但估值水位引發爭議。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Form 144 | Applied Optoelectronics(AAOI.US) Officer Proposes to Sell 3.55 Million in Common Stocks - 富途牛牛",
+              "url": "https://news.google.com/rss/articles/CBMiqwFBVV95cUxNajBnQ3FGbkE4WDg5ZW05SHprZWtPSkNnZUR6UjhqT2htWkFfMmVkdUJ0aXlpdGl2THduMlBYRFhWeTl2U2tOLTJacmVoU1J0Yk5VVHRuN2hmX1BUZGxtbWhlYnlMN25IMS1xZHdNdElIRjF6eWc5WHhyUFg0ZHk1X0U2S2NmbFNJRTlIMGI2cHZXUG5nUFJTVUxpbEw4cXpSTlRVNENlV1JraHc?oc=5",
+              "publisher": "富途牛牛",
+              "ts": "2026-09-09T16:52:23Z",
+              "summary": "AAOI高管申報擬出售355萬美元股票，可能形成短線壓力。",
+              "sentiment": "-"
+            },
+            {
+              "title": "LITE's Laser Growth Accelerates: Can It Challenge AVGO & AAOI?",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/lites-laser-growth-accelerates-challenge-164200195.html",
+              "publisher": "Zacks",
+              "ts": "2026-09-09T16:42:00Z",
+              "summary": "Zacks分析LITE雷射業務加速，可能挑戰AVGO與AAOI的市場地位。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "AAOI擴大休士頓廠房反映需求持續強勁，但高管申報大額賣股、估值遠超GuruFocus公允價值，加上LITE競爭升溫，形成多空拉鋸。財報顯示營收年增86%但毛利率年減2.5pt、淨利率仍為負值，高成長伴隨獲利品質壓力。短線內部人賣壓需留意。",
+          "score": -1,
+          "linked_warnings_used": [
+            "毛利率年減 -2.5pt，留意成本壓力",
+            "淨利率 -11.9%，年減 -3.0pt"
+          ]
+        },
+        "AXTI": {
+          "headlines": [
+            {
+              "title": "AXT's Liquidity Supports InP Capacity Expansion: Can Growth Continue?",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/axts-liquidity-supports-inp-capacity-153200067.html",
+              "publisher": "Zacks",
+              "ts": "2026-09-09T15:32:00Z",
+              "summary": "Zacks分析AXT流動性充裕，支撐磷化銦產能持續擴張，AI需求成長可期。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Tradr’s New AXTQ Pays Double When AXT Falls. The Catch Is the Word Daily",
+              "url": "https://finance.yahoo.com/markets/options/articles/tradr-axtq-pays-double-axt-144521685.html",
+              "publisher": "24/7 Wall St.",
+              "ts": "2026-09-09T14:45:21Z",
+              "summary": "Tradr推出新的AXTQ反向2倍ETF，可在AXTI下跌時獲利，增加交易工具選項。",
+              "sentiment": "0"
+            }
+          ],
+          "theme_summary": "AXTI流動性充足支撐InP產能擴張，AI與高速光通訊需求為長期驅動力。財報面亮眼，營收年增164.8%、毛利率年增36.9pt、淨利率轉正至23.4%，各項指標均大幅改善。反向ETF推出屬工具性消息，不代表基本面惡化。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +164.8%，高速成長",
+            "毛利率年增 +36.9pt",
+            "淨利率 23.4%，年增 +62.4pt"
+          ]
+        },
+        "STX": {
+          "headlines": [
+            {
+              "title": "AI Storage Demand Could Be A Game Changer For Seagate (STX) - simplywall.st",
+              "url": "https://news.google.com/rss/articles/CBMi1AFBVV95cUxOalhLWHZXQVlHTVV2bjZDMGlyTC1Xa1p1ZV9fcHpRdXdhOFpMQzlVZXI3T2ZEakxrRWVJTElvRGl6eExkeUQ1WmVrVi1WMzN0RlA4UWlwODNMVV9CSWxfZ2NlMUZRUDJUMUs2QjhUWkRyYnQwSnhqYnZPNGZ5R083LS04ZGp5bjFzQktKMHNEd0g5YkxDZUI0UXp2cVFCczlxck1KZTd4MVh6aXBVQXA4a3ZPSEZnam95YzRnb2NYXzJWZ2R3VUs4a2RzR2VSVlFsSGZiWtIB2gFBVV95cUxNSGNac05iUU1IdXZ5VktkUjduSmp4bDE0QkkzWXdCeVhUN3RQb2lDY0labGR5NHRIMkdacTdMN0s5NmRpQU5FV2ptUTNLZW1JUHRPYVVOeVdOZGdyZ0g2NHlyZnVZa2ZNOVk3TGdkd0liMUQtOTVPd25uamE0Y1laZTF0S0QybXZQREdHdHBTQU5nY3c0MVdsRlBVRldBTEhNUDlXQTNIamh5eEJWLUtQZ2R0ZGctUWZGR0FRUjJFb2hEWlRNQ2hMemE1X0ZyQ2VxMC1uald0cF9pZw?oc=5",
+              "publisher": "simplywall.st",
+              "ts": "2026-09-09T17:38:52Z",
+              "summary": "AI儲存需求可能是Seagate的遊戲規則改變者，HAMR技術進入量產階段。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Seagate Stock Jumped 6% to $904 as Storage Rallied. Here’s Whether It’s Too Late to Buy STX in 2026 - TIKR.com",
+              "url": "https://news.google.com/rss/articles/CBMivAFBVV95cUxNeWl0WElXXzRqTjNEQVlKU0VGSjZBRk5HdTdCTnpXZEh6VVAzaUx1TmczV0d3TEJJYXpCSXYyaGl2Smx0MzNTQnBrcHk2MDFPZkhYaFUwS0tXWHItYktiUE1QSk1FbnhwVE5TSGxUQ196UEhobDNGZEcwNGNTLWczNll6OUdBRWtUNEhOV3prR3pheHY1RFU4QnAyREhXalFyYnFnb1VteWV6MHBJaTg2TTNNNVNDbXBIMU9IXw?oc=5",
+              "publisher": "TIKR.com",
+              "ts": "2026-09-09T16:09:02Z",
+              "summary": "STX股價單日跳漲6%至904美元，儲存股集體走強，分析師評估是否追高。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Seagate's HAMR Bet is Paying Off: Can Mozaic Sustain the Momentum? - The Globe and Mail",
+              "url": "https://news.google.com/rss/articles/CBMi4AFBVV95cUxNYkZtbVUtaXpyUWdQSEl6NVBvbHA2c0RGWkxiOVRKOW5jckJBR2V2bW1fOHd1WVN0Y1ZtQzZGeUhCa1dxbzB2Q1hNbVhfUGJ6SnRBSjZvQ2JmcC15dmFJUGJ6RUFtRVZMek4xS3BFOUg1b1oyd1JrUFdWczVYVmR1SUxxZ2JBV1AtV2VKdkNBMXMycDZxdFJ3bDJVd1d5VHA0UXZ0UzFLZW1vTUVGNVNadV9kNFBhX2FwTFBiOXUyQWRuVkFoX2JiWUJQRkNxdXoxTllsWk5OcExRVFpDNldtZw?oc=5",
+              "publisher": "The Globe and Mail",
+              "ts": "2026-09-09T14:12:36Z",
+              "summary": "Seagate的HAMR技術投注正在回報，Mozaic架構能否持續帶動毛利擴張備受關注。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Bull of the Day: Seagate Technology (STX)",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/bull-day-seagate-technology-stx-083000724.html",
+              "publisher": "Zacks",
+              "ts": "2026-09-09T08:30:00Z",
+              "summary": "Zacks將STX列為「每日多頭精選」，看好AI儲存趨勢推升長期需求。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Seagate Technology (STX) Completes Redemption of Exchangeable Se - GuruFocus",
+              "url": "https://news.google.com/rss/articles/CBMi1wFBVV95cUxNRGdJa1gwY1dPSEMxVnZmXzhYUDJBaXcxMTFQMkM4elY2S3pjVTBXQWRyQmtlTlBRbTBWRl81TklKVkFSQW9XX0h4S3EzNzNYcDlxTkUtWXFJejN1TjhFZFBNNWJkQlBvNEVkMWh4Z0JpXzBDc3FQNl8tUWRneER4ek9Va0Z0bmdSR0UyWUxfTHdQZks2T1J2NEdoZXNmN1lEWGMwN0hBZjE2b0tKczFHYk9HSmdlb2NrSFZyUlc3ZXBtSjlwc2p1QUozdHVfNTNVand1NnpVYw?oc=5",
+              "publisher": "GuruFocus",
+              "ts": "2026-09-09T15:12:01Z",
+              "summary": "Seagate完成可交換債券贖回，支付約1.51億美元並交付165萬股，去槓桿進展。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "STX為本日儲存股龍頭，股價單日跳漲6%，HAMR/Mozaic技術量產帶動毛利率大幅提升，AI雲端儲存需求持續強勁，Zacks列為多頭精選。Seagate贖回可交換債完成去槓桿。財報顯示營收年增38%、淨利率35.7%、現金流強勁，基本面完全配合股價走勢。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +38.0%，高速成長",
+            "毛利率年增 +12.9pt",
+            "淨利率 35.7%，年增 +14.8pt",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "SNDK": {
+          "headlines": [
+            {
+              "title": "SanDisk Stock (SNDK) Is Up 648%+ YTD. Does Wall Street See More Room to Run? - TipRanks",
+              "url": "https://news.google.com/rss/articles/CBMiogFBVV95cUxNRTRZUEhSUHJFbUNkVmhHR0RsanFNbDM5YjdOVDB1eFFrbkI0cmZXTVdKXzhxSVZmN0U3MXlvelV3YnJjRzkzT1JHUW1SZVh6ZHNhSDVKQTBCVGVlSEdHdG9aUVo3Nk1jVVFXc1FBeWVDZkdnN2gxSWRoRUd5d2RON3NDbjhmdy1wa0lqQ29YRlJLckNJS2VKdmpkdDFuUWp5QlE?oc=5",
+              "publisher": "TipRanks",
+              "ts": "2026-09-09T18:24:01Z",
+              "summary": "SanDisk年初至今漲幅逾648%，TipRanks評估華爾街是否仍有上漲空間。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Sandisk Jumps as AI Contracts Attack NAND's Boom-Bust Cycle",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/sandisk-jumps-ai-contracts-attack-175500305.html",
+              "publisher": "GuruFocus.com",
+              "ts": "2026-09-09T17:55:00Z",
+              "summary": "AI長期合約攻破NAND繁榮衰退循環，SanDisk股價跳漲。",
+              "sentiment": "+"
+            },
+            {
+              "title": "SanDisk's CTO Just Sold Nearly $8 Million After a Huge Stock Run",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/sandisks-cto-just-sold-nearly-171156078.html",
+              "publisher": "GuruFocus.com",
+              "ts": "2026-09-09T17:11:56Z",
+              "summary": "SanDisk CTO在股價大漲後出售近800萬美元股票，高管獲利了結。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Sandisk secures $93.9B in contracts, driving st... - Pluang",
+              "url": "https://news.google.com/rss/articles/CBMidkFVX3lxTE81cnhEZms2ZXZEem1CSDZoVEJ4eEZfVWJ0VzBIZUlwYkpDdWVSNlBCcWVPTWRFR05POVBmQWZFQk91UFZnYWhhQVA4bHN4Z2VFMW1faUg5aERLM25rOHlIeWY3OVlRSDMwVnZMTE1vMVZsbHRnUWc?oc=5",
+              "publisher": "Pluang",
+              "ts": "2026-09-09T13:35:12Z",
+              "summary": "SanDisk鎖定939億美元長期合約，有助穩定AI時代NAND業務能見度。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Sandisk: The Math Makes No Sense (NASDAQ:SNDK) - Seeking Alpha",
+              "url": "https://news.google.com/rss/articles/CBMifEFVX3lxTFA0QkJuY01ja1Z5YlA2MXFmNjlFNVFSWWFkb1laZ1Y4b3EyenZJdFVKVmFkemNxbFRJaEFWZVhCcUQxN3c0bjB0U2xYNmV2TkxwVkdvdGE5M3pBZVoxaGlWOWNHa0JqeG14OEIwRlpxejg5dW5feVczODlOMVE?oc=5",
+              "publisher": "Seeking Alpha",
+              "ts": "2026-09-09T13:09:55Z",
+              "summary": "Seeking Alpha分析師質疑SNDK數學邏輯，認為現行估值難以解釋。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "SNDK為今日記憶體板塊另一主角，AI合約鎖單939億美元打破NAND傳統週期性，Goldman確認記憶體榮景，股價年初至今漲幅驚人。惟CTO出售近800萬美元股票及Seeking Alpha的估值質疑，形成短線獲利了結壓力。財報顯示營收年增372%、毛利率年增58.4pt，基本面超強。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +371.6%，高速成長",
+            "毛利率年增 +58.4pt",
+            "淨利率 77.0%，年增 +78.2pt"
+          ]
+        },
+        "WDC": {
+          "headlines": [
+            {
+              "title": "Western Digital (WDC) Rallies Following Fresh Momentum While Fair Value Questions Linger - simplywall.st",
+              "url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxPN2g3OER6MXJocmhvaVRSa3NxX204NVd6NFlHdGMxWUFBb1pZa25ERFdiZnRfa19KcnJqNzZpMnhxdWJpVERiSFl3dkdoa0FodHRkSHdaYlU0YWdqajNzZ09qajBYMGsyclJqUUtjMGFOaXNEajBlMGtYRTJpcWp6d2UxMGdTcjkxRTBwSjdWXzFLbXJSVmNjVHBaaEs1NTltZUlDbDVKLV9LQ3lFa1hMd3Q0aW9tSGFteDNPcG1JR2VobkNDODBETtIBzgFBVV95cUxOejVuRFRHdFFQTk5sUm5ITjhJNkw0MjVlV1RjLXdZa0wyTHd1OE4yM1ZtNUxkRVd5ZGJzemtkemJ1UktiUW9NdlNIOG5OTmZ5ZkJIa1kyY2VuYnhaM3JwTHYtYlBtME9MeHhFMDBaMjF5MHJrOUdEdW5wU0E5YmptV2lkNDVOTGlZcXZSZjRmdkhiZ1lReFBZckZ0NGNDX25DYXF3cTRTRFgtcEdtdk9EYWltc2EwVG9QejA5Ulo2Ry1BUElSc3pJbU0xcS02Zw?oc=5",
+              "publisher": "simplywall.st",
+              "ts": "2026-09-09T20:21:48Z",
+              "summary": "WDC盤中跟隨儲存股集體走強，漲3.35%，公允價值疑問仍存。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Western Digital at Citi’s 2026 Global TMT Conference: cloud demand drives shift - Investing.com",
+              "url": "https://news.google.com/rss/articles/CBMizgFBVV95cUxOTTNUYThtWGc3b0QtNDRrUlNkWmZjQ3lTSWdXTjc3Tm1xdmZmdnNaZ183ckVONURRdk1YQXJra2N4S2lSdWM0ZTU2N3RHekstVHN1UFN4US0za2JNVEd1VVZseFloWlZtLWJya2pFcGtzX0o5QUM5b29aekwxN19oUlc0anBxcjZqYXhqbzh5NGs5RFN4Q1RMWldKdjEyRGkxcjM0LTRBVS1vbE5sMWRDTVVyZU1DUC14TEl1LXJuZGNMMnVLWWJGb3hvc2NHUQ?oc=5",
+              "publisher": "Investing.com",
+              "ts": "2026-09-09T13:51:44Z",
+              "summary": "WDC在Citi TMT大會上強調雲端與AI需求帶動儲存業務轉型。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Western Digital chief legal officer sells $194,918 in stock - Investing.com",
+              "url": "https://news.google.com/rss/articles/CBMivwFBVV95cUxNNmJWd2tYM2JfblpNUmpQU1VwQjg2ajB1Q1JVcV9jSVdUajZTdmpMUXVCRzNnS2UteGpaWVhmVzN1aXJFQWJZVGFuQnpSdENiWUl4TmJfWmc5WkFyWWVUZXBKUC1rZXJGZlJXcFRkc191M0ZKbXZURzJJRW5mY3BQYUZyY0stQjVYQnp2bXFaUEctTi11UDdTT0NmMUtrSkpGbXg0c3A4dnJVV0NVU21CUDhJb3BBWnNJVjhyREpyWQ?oc=5",
+              "publisher": "Investing.com",
+              "ts": "2026-09-09T01:56:00Z",
+              "summary": "WDC首席法務官出售約19.5萬美元股票，例行性薪酬賣股。",
+              "sentiment": "0"
+            }
+          ],
+          "theme_summary": "WDC受AI與雲端儲存需求驅動，股價單日漲3.35%，在Citi大會上管理層積極闡述轉型邏輯。高管例行賣股屬正常薪酬規劃。財報顯示營收年增44%、淨利率81.9%大幅提升，儲存大周期紅利持續釋放。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +43.8%，高速成長",
+            "淨利率 81.9%，年增 +72.0pt",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "LITE": {
+          "headlines": [
+            {
+              "title": "LITE's Laser Growth Accelerates: Can It Challenge AVGO & AAOI?",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/lites-laser-growth-accelerates-challenge-164200195.html",
+              "publisher": "Zacks",
+              "ts": "2026-09-09T16:42:00Z",
+              "summary": "Zacks分析LITE雷射業務加速成長，可能挑戰AVGO與AAOI在AI光通訊的市占。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Lumentum Stock Jumped 11% in a Day After Two Banks Started at Buy. Here’s What the $1,200 Target Means - TIKR.com",
+              "url": "https://news.google.com/rss/articles/CBMiwAFBVV95cUxQTDJycjVDa1UtbnFZcmtuejhaS2J5M0NRdXNHOWttU2htUDBwWDVEbDBJVHRvczNya1FEY1FZS3BjdFFBb3NYRlRjZzJ5Qkdzb1RNVWxjNHZGUU1zUXZwWWFVTXkwZ2JTdHU0T1otTjgxNmVWNXpsQzdNMWk1bVNXM1ZCbS1xdk5PMlZhVDN6c05VNVlPSkVPQ29GRWMxYjdmRkRzTDM1YVAyemZXenI2Rk9vdHAyXzlKbF9hMVF4amE?oc=5",
+              "publisher": "TIKR.com",
+              "ts": "2026-09-09T16:23:05Z",
+              "summary": "兩家銀行同日給予LITE買進評級，目標價1200美元，股價單日跳漲11%。",
+              "sentiment": "+"
+            },
+            {
+              "title": "After a $1.24M sale, Lumentum (NASDAQ: LITE) insider lines up another trade - stocktitan.net",
+              "url": "https://news.google.com/rss/articles/CBMinwFBVV95cUxPTXFqLU1iQTlCTUx6SGpnZUJjRVYyTFdxa3duTFdrSzdsOVRtY3lJZDl2Skx0SnNfWVFubTFUbFZFLWI5X1RkVXllaU5oWDhaNVRYS2lQM0x2Q00zMFRVcDZmRjZQN1NZM0x3dGNTZ2VmVFVNSmZ3ajBZV3hoOVlHVVN2dkhvZjgtazFEMFVnb1otTHE4THpRMkFBR2M3YlU?oc=5",
+              "publisher": "stocktitan.net",
+              "ts": "2026-09-09T20:52:39Z",
+              "summary": "Lumentum高管繼124萬美元賣股後再排定下一批交易，內部人賣壓持續。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Lumentum President Sells 1,500 Shares",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/lumentum-president-sells-1-500-131901228.html",
+              "publisher": "Motley Fool",
+              "ts": "2026-09-09T13:19:01Z",
+              "summary": "Lumentum總裁出售1500股，為近期連續賣股行動之一。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Lumentum's $7.2 Billion Loss Was Not A Loss (NASDAQ:LITE) - Seeking Alpha",
+              "url": "https://news.google.com/rss/articles/CBMiigFBVV95cUxNZkZuRXNsM1RxTzFTOV9IeWo3VkIwcUhSOHJ6R01pc2Jxb2lZY0tkWmtEU2haMnoxU3JFbHp3VHJ4T2luZGpwWHo2d2sybzNaSkV6QmlDR2VyOU9YeUU2Wk9XVTJGeGJfU2VaQk9kTzdhQmQtNGU3Nmk3NWN2Und0ZExULWpYNWpteFE?oc=5",
+              "publisher": "Seeking Alpha",
+              "ts": "2026-09-09T12:08:08Z",
+              "summary": "Seeking Alpha分析認為LITE的72億美元虧損並非真實損失，解釋商譽減損會計處理。",
+              "sentiment": "0"
+            }
+          ],
+          "theme_summary": "LITE是本日光通訊板塊最強勢標的，兩家銀行同日啟動覆蓋並給出1200美元目標價，雷射業務大幅成長被認為可挑戰AVGO與AAOI。財報顯示營收年增109%、毛利率年增14.2pt，成長動能極強。惟總裁與多名高管連續賣股構成短線雜訊。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +109.3%，高速成長",
+            "毛利率年增 +14.2pt",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "META": {
+          "headlines": [
+            {
+              "title": "Meta launches Muse personal AI - Social Media Today",
+              "url": "https://news.google.com/rss/articles/CBMiggFBVV95cUxNX3luUHItR2JMZWNKWnFhenBBVVFWV042YmRFRHJjOEx1aUFTc1Rma215U0YxcjNER01lMkJwOUx0M1A0X3J0dXVTMnF4TFU2R2hkZFBFY2lhVlRabTllMnNEMGNCN1ZsUnFWYWY3Wm1kSmQ2M0ZSYUJNa2Y1OU5TOUNR?oc=5",
+              "publisher": "Social Media Today",
+              "ts": "2026-09-10T00:36:16Z",
+              "summary": "Meta正式推出Muse個人AI助理，具備旅遊預訂等功能。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Meta shares pop on Muse AI agent reveal - CNBC",
+              "url": "https://news.google.com/rss/articles/CBMiigFBVV95cUxQLXRoWjVLSjRteDJCdmQ5WW9fd3k3VXduWjdPbXpteWw0dndFSXdIQVk1Z0FLUWI0ZVBMbkhuVnVEekhnT0lRTjZHajNTU0FBT2FIQXVrNEpoX1JWZS0tZkpDbVlPOEpUVFNBdE9QOEs1MDFaYnRLc1dpQW1Zc29JNTc5WW9ZLWhlN3c?oc=5",
+              "publisher": "CNBC",
+              "ts": "2026-09-09T21:56:42Z",
+              "summary": "Meta股價因Muse AI助理發布大漲，CNBC盤中確認。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Stock Market Today, Sept. 9: Meta Surges Over 6.5% on Muse AI Agent Launch - The Motley Fool",
+              "url": "https://news.google.com/rss/articles/CBMiywFBVV95cUxPRGhEQ1JlVzhfaXp0SmJGc0lDZ1BWSlhEXzRoYjF5eWRMY0NOeEJ1TlR5VGQwMVo5RFhjQlBfN1doSnh3ZGRnbTBVRUxJaU5fOE0yUF9WMHFWLVE0MWtYc2ZHRmlxSUpJV1QyWVdES2tQM1VIamFnRFZDM1ViTDEtTUE3eDk5WVpyX2hhcDN3NWhPRWpYeXJ0UGtWTnAwdU9lMndpVHdXcTFnNlBJTnJ2ZVRnRG5fMEVIMFhUejJ4eHlWSWFnNEN2N3pFMA?oc=5",
+              "publisher": "The Motley Fool",
+              "ts": "2026-09-09T21:41:07Z",
+              "summary": "Meta當日股價飆漲逾6.5%，為近期最強單日漲幅之一。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Star AI Researcher Is Leaving Meta",
+              "url": "https://www.wsj.com/tech/ai/star-ai-researcher-is-leaving-meta-8906e4aa?siteid=yhoof2&yptr=yahoo",
+              "publisher": "The Wall Street Journal",
+              "ts": "2026-09-09T22:21:00Z",
+              "summary": "Meta明星AI研究員Andrew Tulloch離職，Muse發布後旋即出走引發憂慮。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Meta Acquires Swedish AI Startup To Boost Automated Business Messaging 09/10/2026 - MediaPost",
+              "url": "https://news.google.com/rss/articles/CBMirgFBVV95cUxOQlZNUDdPTEM3eXFwell1dUExcFZ4R0tfWXJDQjIySWk1TlNneE1kMzdkWFNRZTktREdsejI0R2s5czluNUNUT1lwel9tRWtHYjd3YUZQaGllQzlLRDY2Q2VzNE9sbUkxT3FXb1p5LS01ZEg2dm9teXNWcWdJdWFoN1FMOHZ5c3lOdnctXzhGX0dySXFYbThEWUltSE53enEtWklwVHhBdWlHdGtDMEE?oc=5",
+              "publisher": "MediaPost",
+              "ts": "2026-09-09T21:30:03Z",
+              "summary": "Meta收購瑞典AI新創，強化自動化商業訊息業務。",
+              "sentiment": "+"
+            },
+            {
+              "title": "AMZN, META, GOOGL Might Lose Billions As Ohio State Reconsiders Data Center Tax Breaks, Says Report - Stocktwits",
+              "url": "https://news.google.com/rss/articles/CBMi8gFBVV95cUxOQU56dDV3WGdjZzgzeGRpeHB0WWtONWxabm1UUnNPRXpvS2pwSUQ4bTU2czZZaTJKS09pQUpNemNBQWJKVWZ1ellvQjN6U1BJQU1oeXFvdndaWjNlVVFnMXlXcmJfOHNRMkVkdHgwTGR3cUlWcWVMV0xoQmVaX2paYjVsSEw0WW5iNnllaW1SMGt3b01rVGthbF9mcjBRS1pFSk10M2tzY21SbVJ0Q3dJaUt5eWxBTGFJVlpfTERHNjYyRTlGQlltcmJ3MXppLTFnM2poeFlPYWRnZm9Qbk1TWlZYU0hlV3FQUTRLX2dJR0s0UQ?oc=5",
+              "publisher": "Stocktwits",
+              "ts": "2026-09-09T23:32:23Z",
+              "summary": "俄亥俄州考慮取消META、AMZN、GOOGL的資料中心稅收優惠，潛在成本壓力。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "Muse個人AI助理發布是Meta近期最重大產品事件，股價單日大漲逾6.5%，顯示市場對其AI商業化前景重燃熱情。同步收購瑞典AI新創擴大AI護城河。核心風險在於明星研究員離職及俄亥俄資料中心稅收優惠可能取消。財報顯示營收年增28%，但注意營益率年減12.1pt的成本壓力。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營益率年減 -12.1pt，營運費用控制需注意"
+          ]
+        },
+        "GOOGL": {
+          "headlines": [
+            {
+              "title": "How Google Is Spending €13 Billion To Get Finland To Build Its AI Grid - Yahoo Finance UK",
+              "url": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxOM1REcUxBR2lvS1dfTEZxdnlJZTc2aFcwT3Nybm1MenprdzJyWlZFSUJpR2ptbTZPQ0NEUXpCUm10UGZJUmZaazFUVXlxQS1BREw5REtoczhIZTBwVjUwOWJqSUhGYXBqNFgyY2J5Nlc3UnZGU0ZWMUFpRjJKU3VXLW5feGdrSWc3WjRF?oc=5",
+              "publisher": "Yahoo Finance UK",
+              "ts": "2026-09-09T23:30:48Z",
+              "summary": "Google宣布斥資130億歐元投資芬蘭，簽署22年核電協議為AI數據中心供電。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Sergey Brin Pushes Gemini From Google ‘Microkitchen’ - Alphabet (NASDAQ:GOOGL) - benzinga.com",
+              "url": "https://news.google.com/rss/articles/CBMiqAFBVV95cUxPTUdLQVNJZWUzTVdWU0hFaVJNNXR5b2V1VEVwYlRyVVNXMU40Z2ZYbVk5YUIzd3VObkUxdU1pSlVPUjFHZXlwNmFrZ00yTVRfZ2pObURhckpmc0RqZklkZ3VEY3ZlMnV5R3EtTHdvTmVwQU1iRnBJVmM2UkZ5c3VWYnBiY0pZbURhSFdYdm1RY05YTEFJakdEanQ2TEsyUmFCN1JZbmZ1MnA?oc=5",
+              "publisher": "benzinga.com",
+              "ts": "2026-09-09T18:16:02Z",
+              "summary": "Google共同創辦人Sergey Brin親赴辦公室力推Gemini AI模型應用。",
+              "sentiment": "+"
+            },
+            {
+              "title": "GOOGL Stock Slips As Legal Risks Rise And AI Battle Heats Up - timothysykes.com",
+              "url": "https://news.google.com/rss/articles/CBMidkFVX3lxTE9GYTVXYzNtZTNBcWhFMlBTeVg4TkdzSmpCUFNURWJoSnpSYzc3VHJtZFlIaURLMWRLb0hWYnlIUTFjcko4MUVwYlMzeElmWXNXWHJsY0htSFNKR0dwdEpmS0dVbHZDY2RLZ3l6VVhVWmJMSWJ1aGc?oc=5",
+              "publisher": "timothysykes.com",
+              "ts": "2026-09-09T13:19:00Z",
+              "summary": "GOOGL股價承壓，法律風險上升且AI競爭對手環伺。",
+              "sentiment": "-"
+            },
+            {
+              "title": "AMZN, META, GOOGL Might Lose Billions As Ohio State Reconsiders Data Center Tax Breaks, Says Report",
+              "url": "https://finance.yahoo.com/economy/policy/articles/amzn-meta-googl-might-lose-212922700.html",
+              "publisher": "Stocktwits",
+              "ts": "2026-09-09T21:29:22Z",
+              "summary": "俄亥俄州考慮取消GOOGL、META、AMZN資料中心稅收優惠，潛在增加數十億成本。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Google Unveils Biggest European Investment Yet - Yahoo Finance",
+              "url": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxNdEZOOWg3Rmp1V190S1hjRFFXOGF6ZFpiMU9Gb0s2TmlJWGR2dWs3RnhmcURYNWJMQ08yclNlWVlJUjdjRE9ZM0dPLUJ4bzRja0ktWFVJd2lDdzltZkUxVVVGM09Fb1UxUG9GWEx4NDFiZURaWEUzWjV6Sm9XbnJ3TkVnWGc4bnpkLVVKYW5xdlI4V25uVGxEWTNrVjR3WndROEJkQXpMMlRFZw?oc=5",
+              "publisher": "Yahoo Finance",
+              "ts": "2026-09-09T12:35:28Z",
+              "summary": "Google宣布史上最大歐洲投資計畫，打造芬蘭AI基礎建設中心。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "Alphabet以150億美元芬蘭AI投資展現長期布局決心，Sergey Brin親自推動Gemini應用加速；另一面，法律風險升溫及俄亥俄資料中心稅收優惠可能取消形成潛在利空。財報顯示營收年增24.2%、現金流強健，整體利多利空相對平衡。",
+          "score": 0,
+          "linked_warnings_used": [
+            "營收年增 +24.2%，穩健成長",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "GOOG": {
+          "headlines": [],
+          "theme_summary": "與GOOGL共享相同基本面，請參閱GOOGL分析。當日無額外重要獨立新聞。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "ORCL": {
+          "headlines": [
+            {
+              "title": "Oracle Reports Thursday. Its Capital Budget Is More Than Twice the Cash Its Business Produces. - The Globe and Mail",
+              "url": "https://news.google.com/rss/articles/CBMiiAJBVV95cUxNdm9tcml6V21BMDdqdWIzSG9JNVlJS1hPMEh3MnloLXpCR1pLcy1zVEwyVnZyZ1VCNGtZSklzQkhVUkpUZGFSVXcwRTJlUElDX1Z0LUZpb2RFQWh3bm5QUjk1ME1SYnpkVEowYjgyN2VxaER1OUhWd3Utc29lQklqUWJfMERPOTJSaG1ud1hwTmNJWkcyZTRKRXpjR295T2JEdkhkVEJSMlBiY21uLWowcHplY00zNHJ4anoxT0czY0RMakVVZ1hGN3Nkd1o4bldUUkhLaEpXU1AtcTVNcFhUZktkXzVJbnlfeEV0dGVRMTNCa0ZFM3VKNGh5bzZMdjVLMWthaF92cXc?oc=5",
+              "publisher": "The Globe and Mail",
+              "ts": "2026-09-09T22:31:06Z",
+              "summary": "Oracle即將公布財報，資本支出為現金流產生量的兩倍以上，市場緊盯燒錢速度。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Here’s How Much Oracle Stock Is Expected to Move After Earnings",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/much-oracle-stock-expected-move-204553838.html",
+              "publisher": "Investopedia",
+              "ts": "2026-09-09T20:45:53Z",
+              "summary": "Investopedia估算Oracle財報後股價預期波動幅度，期權市場高度戒備。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Oracle Stock ORCL Faces Major Earnings Test With Heavy Debt and Negative Free Cash Flow - FXLeaders",
+              "url": "https://news.google.com/rss/articles/CBMiygFBVV95cUxNbXFIM2xKNGRyeUVTX3l0YXJ2aTAzc0VBajBSNzhzVVNzdGhXVjJqQWlTMnNGQW5IZTJfZ0dvTDR5Mjh2V1JSbVBFY1k4eXJ5V3FzN2dzZTY5WjJ0UFBpNXJkODE1UC1sUnpDdWtIVG1UVmtyME5MdVdfRDYyaTEyM2lfMm5pNEcwYUJTTmEyMkJLaGtXcldEMVE3SXpBYjBEWjFxVGtubWdoaUo0aWZ6S01GMzM4OUd2RHdFcjE5WGZubTRkNGZEZktn?oc=5",
+              "publisher": "FXLeaders",
+              "ts": "2026-09-09T19:28:59Z",
+              "summary": "Oracle面臨沉重負債與負自由現金流，財報前風險偏高。",
+              "sentiment": "-"
+            },
+            {
+              "title": "ORCL Stock Sees Price Target Cut Ahead Of Earnings: Analyst Says Bad News Is Priced In - Stocktwits",
+              "url": "https://news.google.com/rss/articles/CBMi3AFBVV95cUxORHZwbDBDZFNpYWlWODlVTzdiWUYzMXpNRVFqRFV3TVhfOGNYZWdtX0gyQTU4ckpjTTlSZ0NpRGJtUmJoNHctZmdSRVVPb0t1OE5mc1lCQXpzRGhnVm5xUEpsZl8xeTNHYWRNYkl6R2JnVmRRbVpJdmZFN2hVdmNtUDZPOUk2dEJQN3RxVFo4dUVPWGIza01NNl9oTzdNZHdrMGJfVFJDbG9fWF9mWlJSTl9VMGU5ZFRieElpaWptZ2s0UWoxNVN1dmwwdTl3NUc4MzVqLTMyUlhhNE5E?oc=5",
+              "publisher": "Stocktwits",
+              "ts": "2026-09-09T17:38:00Z",
+              "summary": "分析師財報前下調Oracle目標價，但稱壞消息已計入，看多長期展望。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Oracle Slips Before Its $638 Billion AI Backlog Reckoning - tradingview.com",
+              "url": "https://news.google.com/rss/articles/CBMitwFBVV95cUxNdHJNX3VwQkNSV0w4YV9TaXotY2NLcjRydF80Y2VXLW1jb1BvMFhhUDhOMG51LU5tY25QM2Y5Ykp5R25SSGJpcFVKcC02MkpldFlkLWlseHpaMTBROTBTcENRN1NJTW5LZ25ROWZzeDdtREREREtPeTNINXdyTi1xbmc4V2llY215SHpUVVE0aEw1VC10NlFpdEJfZWRTMFQ4VnRPeHItSlhKQUhpbHZJeFJudF9fcUE?oc=5",
+              "publisher": "tradingview.com",
+              "ts": "2026-09-09T18:14:59Z",
+              "summary": "Oracle財報前股價小幅走低，市場等待6380億美元AI合約積壓的兌現驗證。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Oracle Earnings Ahead: Can Surging OCI Growth Reignite the Stock? - Moomoo",
+              "url": "https://news.google.com/rss/articles/CBMiugFBVV95cUxOajYtRzdoVGhOZnlNdVNFV19Jc2hXOHU4WE02dlQycXpBZ1VSWk0xN0l3clpnajZScHdNQmUxODR2UEZyc09ldlBhOEtFX1BjaWJpRGc1YVlYUUtZWjN5aVJ1eUtaZVV1MERIQ005ZW00dldXQ3BaV2JmWFVJLUpMWVFzZmtwRlRUX3J6dnpwWkpRZ09PTDJ1azA4c09KLTg3V3pmdnJtTVEyN2sxZWZ2RHdFMndvR0E5bEE?oc=5",
+              "publisher": "Moomoo",
+              "ts": "2026-09-09T13:11:47Z",
+              "summary": "市場期待OCI雲端業務加速成長能重新點燃ORCL股價，財報成試金石。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "Oracle財報（本週四發布）是今日最大懸念，市場焦點集中在AI合約積壓6380億美元能否兌現、資本支出是否失控及自由現金流是否為負。分析師下調目標價但稱壞消息已反映；OCI加速成長預期支撐多頭。財報前風險偏高，建議等待結果確認方向。",
+          "score": -1,
+          "linked_warnings_used": [
+            "毛利率年減 -5.0pt，留意成本壓力"
+          ]
+        },
+        "PLTR": {
+          "headlines": [
+            {
+              "title": "Q2 Data Analytics Earnings Review: First Prize Goes to Palantir Technologies (NASDAQ:PLTR)",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/q2-data-analytics-earnings-review-203438095.html",
+              "publisher": "StockStory",
+              "ts": "2026-09-09T20:34:38Z",
+              "summary": "Q2資料分析股季報評比，Palantir榮獲第一名，各項指標全面領先。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Palantir's CEO says a new partner will power data sovereignty",
+              "url": "https://finance.yahoo.com/technology/ai/articles/palantirs-ceo-says-partner-power-174700807.html",
+              "publisher": "TheStreet",
+              "ts": "2026-09-09T17:47:00Z",
+              "summary": "Palantir CEO宣布新夥伴關係，將協助推動AI數據主權架構。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Sovereign AI: Palantir and Nebius Cut the Cloud Cord - MarketBeat",
+              "url": "https://news.google.com/rss/articles/CBMikgFBVV95cUxObUVKcGxSWHQ0VjBkQVRhMmRLNVhHN1lJOS1DS0hWMUhhZFBaaGNUWUw0UUZXMnJQZ28yVXRzTjNuRklBUW5NVkFiMGc5MGcyTFpaTER4cG1zdTFrMGVZY1laTFpLaFJlbW4zTGJtNVhrVllOX3owVEdkNXBNdGdZeVFmc2xNMG41SkJjcVpPbmpEZw?oc=5",
+              "publisher": "MarketBeat",
+              "ts": "2026-09-09T16:43:52Z",
+              "summary": "Palantir與Nebius合作打造主權AI基礎建設，Nebius股價因此上漲8%。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Michael Burry Sells NVDA, PLTR December 2026 Puts Amid Portfolio-Wide Cuts – Says He’s ‘Pulling Back’ On Risk",
+              "url": "https://finance.yahoo.com/markets/options/articles/michael-burry-sells-nvda-pltr-154038334.html",
+              "publisher": "Stocktwits",
+              "ts": "2026-09-09T15:40:38Z",
+              "summary": "Michael Burry拋售PLTR 12月賣權，整體降低風險敞口。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Palantir’s Next Growth Phase Comes With A Catch (Rating Downgrade) (PLTR) - Seeking Alpha",
+              "url": "https://news.google.com/rss/articles/CBMipwFBVV95cUxQQ0J0bDlSTDJyWmFJODNVQVRFSzJTdTl5dml2TjBvVWtIV2xHWmROWC1ISUJudHVWaVJDNDZwUldVdjdXWklxeXVsMDFGNzJsc2l0Szl5RzliemdlSTBxaFg2UXdpQUtVSG84SjZwbzVWQzl0eXNmbkhmNnlMc2ppdW1BZXdtcmFtcENIaWpEbzh4UEtia3hDdC10eFpTTnNMQkdxRGRBYw?oc=5",
+              "publisher": "Seeking Alpha",
+              "ts": "2026-09-09T15:01:08Z",
+              "summary": "Seeking Alpha下調PLTR評級，認為下一成長階段伴隨估值風險。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Cathie Wood Trimmed Palantir, But the Bigger Story Is Still Valuation - MarketBeat",
+              "url": "https://news.google.com/rss/articles/CBMiqAFBVV95cUxOcTB5RVJiOE1lbTdoZVZvcXNQMzNVNEF4bXhFLWR4enpDOGJxUWZvSE93TTRQWUtZSnRJOUQ5eUtLLWx1WUFRSHozTm05djlrRUJ1eUcwZmRMTkpfbERiR2ZoYTQxdmZkQmxnSlFrWmJLN05xOUNqQmhRZ0ZLb0V3eFlDTnVSQ1Zkb2FNMUhIdXdmRGJTRVp4TUlMWFlkaDJyQXFqUjRJakc?oc=5",
+              "publisher": "MarketBeat",
+              "ts": "2026-09-09T13:47:50Z",
+              "summary": "Cathie Wood小幅減持PLTR，市場關注其估值是否過高。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "PLTR季報被評為Q2資料分析類股冠軍，主權AI夥伴關係帶動Nebius股價大漲8%並引發市場矚目。財報顯示營收年增92.8%、淨利率54.9%，基本面極強。然Seeking Alpha下調評級、Cathie Wood減持、估值疑慮揮之不去，多空情緒複雜，建議持有但注意高估值風險。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +92.8%，高速成長",
+            "淨利率 54.9%，年增 +22.3pt",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "TSLA": {
+          "headlines": [
+            {
+              "title": "Tesla: Cybercab Event Fumble (NASDAQ:TSLA) - Seeking Alpha",
+              "url": "https://news.google.com/rss/articles/CBMid0FVX3lxTFA1N1lvRXo1NjF3QkdJRmdhRTRnbFdqU2hxdHJtV2Eyb1czb0R1MzVQbDEyRE1GWUZRaW1XcXk2bWVIZmMxNU9tYV95cVA3TDNVZnNxSlFPVGJUcG5Fdkg2Wk13dTMwRTV3YW4waVJSM2ZDTVJMZTY4?oc=5",
+              "publisher": "Seeking Alpha",
+              "ts": "2026-09-10T00:00:37Z",
+              "summary": "Seeking Alpha評論特斯拉Cybercab發布會「失誤」，執行不如預期。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Goldman Sachs sends stark message to Tesla investors",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/goldman-sachs-sends-stark-message-230000954.html",
+              "publisher": "TheStreet",
+              "ts": "2026-09-09T23:00:00Z",
+              "summary": "Goldman Sachs向Tesla投資人發出嚴厲警告，暗示估值過高或基本面挑戰。",
+              "sentiment": "-"
+            },
+            {
+              "title": "45 Tesla Cybercabs Are Now Roaming Austin. Here's What That Means for the Robotaxi Business Wall Street Has Been Waiting For.",
+              "url": "https://finance.yahoo.com/technology/ai/articles/45-tesla-cybercabs-now-roaming-165430722.html",
+              "publisher": "Motley Fool",
+              "ts": "2026-09-09T16:54:30Z",
+              "summary": "45輛Cybercab已在德州奧斯汀實地運營，機器人計程車商業化進程加速。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Does Slovenia's FSD Approval Bring Tesla Closer to EU-Wide Approval? - Yahoo Finance",
+              "url": "https://news.google.com/rss/articles/CBMingFBVV95cUxQQ0VQS0drZjRUNlN2b1JHMEhBODZ0UjhhbVFBMTdOdFJvLTVTM0tiSHA1VVBteUVvUUJuN1liSWpGeHVVQ2RGMV9mbkd0SzRYZXBuNmt0d3BKSURZRnp6Ujc0Y0c3TFJLLWkzRHh2WDVST1FNUGhXczRCYXRPZEVieGRxbjI5NFowT0JqWEdfVjUwelB0bDIwdGZ3Ym5idw?oc=5",
+              "publisher": "Yahoo Finance",
+              "ts": "2026-09-09T13:37:00Z",
+              "summary": "斯洛維尼亞批准Tesla FSD，分析師評估是否拉近歐盟全面核准時程。",
+              "sentiment": "+"
+            },
+            {
+              "title": "TSLA Stock Slides 6% — Wells Fargo Says Cybercab Launch Likely Fell Short Of Investor Expectations - Stocktwits",
+              "url": "https://news.google.com/rss/articles/CBMi8AFBVV95cUxQNnJNY0ZrdWJVb0hYNTlxNDRXb0tRNnZpT3FIdEpzYUsteGtLazQyTUdsX3RkU3VYaWc3c0FiWDFtMjlVUUJVdDVORDhlRnZOcFUzSjhhTGdRTTFmVF94TllfYVNRazBuNXFzSXZiUjF0eWNSUndRZC1vZkRjUFRGcWRYWWlHbVlKUF84cnF6b2kwZWF5V3BCX2VEaENMQWh0NDZpdmJTc3lZM0hzMGNwVHYybWJGTmpIel81ZUNuS05ZNjdCUHdfWFJPcWE5bWJGNEZ6SmZBREQyZVdYbVdjV21pcXNCNkoyZVJ3ZUEzMVk?oc=5",
+              "publisher": "Stocktwits",
+              "ts": "2026-09-09T12:57:59Z",
+              "summary": "TSLA股價單日下跌6%，Wells Fargo指Cybercab發布會令市場失望。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Tesla Cybercab Strength Comes with Weakness in China: A Tale of Two Growth Stories",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/tesla-cybercab-strength-comes-weakness-182213666.html",
+              "publisher": "Benzinga",
+              "ts": "2026-09-09T18:22:13Z",
+              "summary": "Cybercab在美本土強勢，但中國市場業務成長疑慮形成兩極對比。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "Cybercab發布會是本日焦點，但Wells Fargo與Seeking Alpha均認為執行面令市場失望，股價下跌6%；Goldman Sachs同步發出警告。亮點在於Austin已有45輛Cybercab實際上路，斯洛維尼亞批准FSD。中國市場疲軟持續拖累。財報雖顯示營收年增25.5%，但機器人計程車短期商業兌現節奏仍是關鍵風險。",
+          "score": -1,
+          "linked_warnings_used": []
+        },
+        "ASTS": {
+          "headlines": [
+            {
+              "title": "A Look at AST SpaceMobile Inc (ASTS) After 5.6% Decline -- GF Value $538.10 vs Price $62.42 - GuruFocus",
+              "url": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxNaHVUYXB2dVo4UjdZSmd5UjlaN0JMYmc2ek51UjZEajFkYm45TFdKY0FDaHYyajBQRzM1SFI5cVlUbHZQbUs0QnIwMl9hc2RGenJXaWxiQncxT1V3d2V3WFZUWkNHaU43LVZHRl95R0UxX1ZOZWY1b01VLV9hdHdKTDRJZHhVaW9RTnJaNFJFcUxnRHBHMEIyOGhTVU9vd3NnUDduZGpBRjV6aWhWNlp6MUx3ZFRpVEtuMWdZ?oc=5",
+              "publisher": "GuruFocus",
+              "ts": "2026-09-09T22:01:54Z",
+              "summary": "GuruFocus估算ASTS公允價值538美元，現價62美元顯著低估，但存在爭議。",
+              "sentiment": "+"
+            },
+            {
+              "title": "SpaceX Sinks 5% as $47.2B Insider Share Unlock Hits the Tape, AST SpaceMobile Drops 4%, Rocket Lab Slips 2%",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/spacex-sinks-5-47-2b-163712208.html",
+              "publisher": "24/7 Wall St.",
+              "ts": "2026-09-09T16:37:12Z",
+              "summary": "SpaceX鎖定股份解禁拖累太空股，ASTS單日跌4%，Rocket Lab跌2%。",
+              "sentiment": "-"
+            },
+            {
+              "title": "ASTS Stock Declines 24.4% in Six Months: Time to be Cautious?",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/asts-stock-declines-24-4-155200254.html",
+              "publisher": "Zacks",
+              "ts": "2026-09-09T15:52:00Z",
+              "summary": "ASTS股價六個月累跌24.4%，Zacks提示謹慎因應。",
+              "sentiment": "-"
+            },
+            {
+              "title": "ASTS Stock Hits Nearly 3-Week High: AST Seeks More Satellite Tests As European Giants Mull Starlink Rival",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/asts-stock-hits-nearly-3-011337160.html",
+              "publisher": "Stocktwits",
+              "ts": "2026-09-09T01:13:37Z",
+              "summary": "ASTS創近三週高點，公司尋求更多衛星測試以推進歐洲電信夥伴計畫。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "ASTS因SpaceX股份解禁的負面溢出效應單日下跌4%，過去六個月累跌24.4%。衛星測試持續推進、歐洲大型電信商洽談中，GuruFocus公允價值遠高於現價反映長期潛力。財報顯示營收年增2626%成長驚人但毛利率惡化74.8pt，成本結構仍待觀察。",
+          "score": -1,
+          "linked_warnings_used": [
+            "毛利率年減 -74.8pt，留意成本壓力"
+          ]
+        },
+        "NBIS": {
+          "headlines": [
+            {
+              "title": "NBIS Initiated Coverage by Truist Securities -- Rating Set to Bu - GuruFocus",
+              "url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQY1NQY0FnS3lCbE1aNUwteklEd013S2kzQjNKNU9KbE13Y182WHU1aTNVT1dud1BXZFlRX0dGVW5idzRjbm1xRkhZRC1wbEFUUkVNTHlHUWwyMHh3SmJHSkRpNnlGTmc4Qkd1OExYZUJ2V1hMTGw1bEF0N0dGQUhYYWI5UF81MVJTRnN5NXRfZVJxWEJ5dEl2UUMzaTZfTzZ0S2NB?oc=5",
+              "publisher": "GuruFocus",
+              "ts": "2026-09-09T22:00:00Z",
+              "summary": "Truist Securities啟動NBIS覆蓋並給予買進評級，看好AI雲端經濟學帶來的業績上行空間。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Nvidia Blackwell Demand Sent Nebius Auction Prices 20% Higher - benzinga.com",
+              "url": "https://news.google.com/rss/articles/CBMirgFBVV95cUxQaUljek5kTDhBQk1HaEE5anhxS2ZWR0V5eUdMNmhpSUJNV004bWFya0J1d3paeEtGbHA5VWtSaTd5OGJCem1QdlhRbFlMNF9pcEhrMnVma0tPa3A3ZTZ5YWl3SnowZ25nNE1RNFRBTTRpbFMwNmV2MnVwM2tZYWlMSWpYVC1XNXF0cl9yeGRYajUzWnZxQWZHVDdiX0pUejdHemVLRUpNWkFyN1VzRXc?oc=5",
+              "publisher": "benzinga.com",
+              "ts": "2026-09-09T17:13:24Z",
+              "summary": "Nvidia Blackwell供不應求，Nebius GPU競標價格飆漲20%，NBIS直接受益。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Sovereign AI: Palantir and Nebius Cut the Cloud Cord - MarketBeat",
+              "url": "https://news.google.com/rss/articles/CBMikgFBVV95cUxObUVKcGxSWHQ0VjBkQVRhMmRLNVhHN1lJOS1DS0hWMUhhZFBaaGNUWUw0UUZXMnJQZ28yVXRzTjNuRklBUW5NVkFiMGc5MGcyTFpaTER4cG1zdTFrMGVZY1laTFpLaFJlbW4zTGJtNVhrVllOX3owVEdkNXBNdGdZeVFmc2xNMG41SkJjcVpPbmpEZw?oc=5",
+              "publisher": "MarketBeat",
+              "ts": "2026-09-09T16:43:52Z",
+              "summary": "Palantir與Nebius合作主權AI基礎建設，Nebius股價因此上漲8%。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Nebius Group (NasdaqGS:NBIS) Stock Could Be Overvalued After Sovereign AI Deal - simplywall.st",
+              "url": "https://news.google.com/rss/articles/CBMiywFBVV95cUxPWC1NOVgyWUdvS01mWWVwUTRSTmtXMk44Nnh2X1NYY1VHX05qTzV6Qm12WWlwWGxWRDF6OE5VaG0weTZJeEFMT2J6ZTB6ZGQ0Q0xQc0ttblJmYWtHVUI3YTl1c0VaT0JuY1h6ZGVZbnQzMFdiLXpJYkY5dUs1VnY4U2NzM0RiSnhxUVk1VkptM1hDZWZYUEY3cU5jMmxGUTcwdjNBR2VKY3oxYjUzdUVpdS1nOFNFRzZwYlg1dm5zWHk5MlowbzJqcDE4a9IB0AFBVV95cUxQRlUxa0pHR04yZkhZaGdZOTlYYVhqSXIwQ293U05EYW9kOGhwZmxycThhWTRJYi0wUWd4MUY5TU9yamFrQ0trR3hiOUxYaWZuSG54emluOGlraHVJQktIRmZYWFc4RVI1elNENkhsaV9MeTJ6MlR2Zmg1Zkh1SlpUWEE2TkR3ZnFLTFU0LTdmc2ZKSXRJMThwcHBldGthV3NMSW9tMFZ0eFplVlJWUG96ZmVlMlcxdF84dVYwR1ZhUGJCWXRUR0k5c1Z1akZmSnlH?oc=5",
+              "publisher": "simplywall.st",
+              "ts": "2026-09-09T08:52:35Z",
+              "summary": "分析師指出主權AI合約簽署後NBIS可能估值偏高，需留意。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "NBIS本日強勢：Truist啟動買進覆蓋、Palantir主權AI合作推動股價單日漲8%、Blackwell供應緊缺使其GPU競標溢價20%。財報顯示營收年增454%、現金流強健，但淨利率仍為負值，估值偏高疑慮存在。中短期催化劑豐富，是本日持倉中的亮點標的。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +454.0%，高速成長",
+            "營業現金流年增超過 30%，現金品質佳",
+            "淨利率 -32.7%，年減 -588.7pt"
+          ]
+        },
+        "MSTR": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞，BTC整體在78,500至80,000美元區間整理，間接影響MSTR持倉價值。財報顯示淨利率極度負值，公司主要靠BTC資產驅動估值，需緊盯加密貨幣走勢。",
+          "score": 0,
+          "linked_warnings_used": [
+            "淨利率 -6717.1%，年減 -15469.9pt"
+          ]
+        },
+        "KTOS": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。財報顯示Kratos營收年增30.5%、現金流強健，國防無人機業務穩步推進。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "ONDS": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。財報顯示ONDS營收年增1235%，但毛利率與營益率惡化，成本結構需持續追蹤。",
+          "score": 0,
+          "linked_warnings_used": [
+            "毛利率年減 -10.0pt，留意成本壓力",
+            "營益率年減 -24.1pt，營運費用控制需注意"
+          ]
+        },
+        "BMNR": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。財報顯示營收年增2168%但淨利率為負，屬高成長早期階段公司。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "CRCL": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。財報顯示CRCL毛利率年增60.4pt，獲利品質大幅改善，現金流轉正。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "COIN": {
+          "headlines": [],
+          "theme_summary": "當日無直接重要新聞。BTC在78,500-80,000美元整理，SEC核准XRP/BTC/ETH/SOL商品信託屬正面生態消息，但COIN財報本身顯示營收年減18.5%、淨利率轉負，基本面壓力存在。",
+          "score": 0,
+          "linked_warnings_used": [
+            "營收年減 -18.5%，需留意需求疲軟",
+            "淨利率 -29.5%，年減 -124.9pt"
+          ]
+        },
+        "BTC-USD": {
+          "headlines": [
+            {
+              "title": "Bitcoin Price Golden Cross Flashes as BTC Eyes $82K Breakout - CryptoRank",
+              "url": "https://news.google.com/rss/articles/CBMingFBVV95cUxPeUZHZHFUWjQxR0NmTnhZamNlNVctNjNCeURJV3doTFV0SVdFaU9QRFk1OEhfN19OdzlpdzJUMzNpWEp3TEdDOEgydGxnNHRNQXFuOG9iaVRibnpLX0FnV0NCWkdwSHU4Wk11ZU5Vb2F4aThNS29WamN3b19NTEZFSk1WM3dXd2RDc2puU1pJYU5lUjNYZi15UTFXNl9ydw?oc=5",
+              "publisher": "CryptoRank",
+              "ts": "2026-09-09T19:41:27Z",
+              "summary": "比特幣黃金交叉技術訊號閃現，市場關注能否突破82,000美元關口。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Bitcoin (BTC) Price Prediction: Record BTC ETF Inflow Since January Puts $82K Breakout in Focus - Brave New Coin",
+              "url": "https://news.google.com/rss/articles/CBMiwwFBVV95cUxQSUZHQk9nQVplS0d2S3VFYzFad3VfYXpTNjBueXhmMEFsWU1EeXpQaE1LbDFRbUhoYm4wWmRpNDBmRThUQS1pcnBwRW1mTFREMVhYSm9JTHVJR0w5UG1Za0Vac2RRemxmWTlnTkEyUXREcmFNVjM1MlU2Y3RGZzNQTm5nQlYtN3VCeXV0U0dnQmVfWUM3b1JFNHp5LXlSdExabU51X1FDenFoQUNSbEliU3ZsN0hyZnB0dWtibkprSXNxUVU?oc=5",
+              "publisher": "Brave New Coin",
+              "ts": "2026-09-09T15:31:37Z",
+              "summary": "BTC ETF自1月以來最大單日淨流入，82K突破機率上升。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Bitcoin's Spot-Backed Rally Hides an Altcoin Leverage Trap Last Seen in 2025",
+              "url": "https://finance.yahoo.com/markets/crypto/articles/bitcoins-spot-backed-rally-hides-224032345.html",
+              "publisher": "BeInCrypto",
+              "ts": "2026-09-09T22:40:32Z",
+              "summary": "比特幣現貨驅動的漲勢背後隱藏山寨幣槓桿陷阱，分析師提醒風險。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Bitcoin Price Resistance at $82K Ceiling Faces Profit-Taking Risk - Yahoo Finance",
+              "url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxOaF9DSkJPVU9MQ1J5TmZJUTZLeERRU0pnQlZTczJqQU9hd1lhcFZJVXdBVDh0SDNVMmJiaWlPWnVXNHZUT1VXSTVYbmhfTmVKUEtpX092UEpwU2VYUTVDZk8xYkdPN2F4d3F0aFNSalk3NzJhS2RfaXBJLUg0LUR3Z1hvSmZYZWlkbU5kTkZlYm1KaW41bXpPY3lUbDJpRVZOMWh3?oc=5",
+              "publisher": "Yahoo Finance",
+              "ts": "2026-09-09T12:08:47Z",
+              "summary": "BTC徘徊82K阻力區，分析師警示獲利了結壓力可能壓制突破。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Bitcoin Price Prediction: Analysts Eye Further Upside Despite Geopolitical Risks and Yen Carry Trade Unwind - CoinGape",
+              "url": "https://news.google.com/rss/articles/CBMixwFBVV95cUxNZjF3amdZSTRyYzdjQ1FYbTBleEVSa1FVMlB0U0hsM2FMT3pQVlNidTU2c05ITnhNQ0VyQ1R2ZmstX1h5bkxqT2lyWW5fbnNUaHVNZGNubElDdlhCVTlQTWFLbDdaOEtDQ0dsUkp5Y2h2YkFNTXotU3N0azVRLXlzbUdZTEtFOHpFdXRzTGhOUDlVUmI2VllHVnR6TTFOSXljanFhWTd1LWFZMFMtd28zX2NrNFZOU0E3Yi1EZXBLWnQyRGljMzhZ?oc=5",
+              "publisher": "CoinGape",
+              "ts": "2026-09-09T12:25:34Z",
+              "summary": "儘管地緣風險升溫與日元套利交易鬆動，分析師仍看多BTC進一步上漲。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "BTC徘徊78,500-80,000美元，技術面黃金交叉形成、ETF大額淨流入提供支撐，市場聚焦能否突破82,000美元歷史阻力區。山寨幣槓桿風險及油價破百引發的風險偏好下降是主要壓制因素，9月16日Fed會議前市場維持觀望。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "ETH": {
+          "headlines": [
+            {
+              "title": "Ethereum Price Forecast: ETH holds near $2,500 amid derivatives weakness - FXStreet",
+              "url": "https://news.google.com/rss/articles/CBMiygFBVV95cUxNaEswY2NhZHZBb0pxVEpfWnRfLVQySHpqMmZMM3B5dFh4YTJWUWpHaU96bkt4TkJ0ODdYTjFpLTdPbXJUXzlsLXI1LTczMEl0X0xaUURETEVvLTNONnZ2SjJiRFJ0NW9IMU5PenA2a1o2Ym1lWHN2UThfZW1ZdWV0UUctMkIySWNuV1p1bDhrMTRWRWM5RUduQ3pkNWhIQ1JjdlAwdmM4ZU5xZkw4YWs2aWliV2dpNHk5XzZIVnNlRXNIVXFONV9qVnV3?oc=5",
+              "publisher": "FXStreet",
+              "ts": "2026-09-09T19:53:06Z",
+              "summary": "ETH守住2,500美元，但衍生品市場偏弱，上行動能不足。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Ethereum’s $3K Breakout Has This One Gatekeeper - DailyCoin",
+              "url": "https://news.google.com/rss/articles/CBMif0FVX3lxTE1iOUpoNUk4MjM1R0dqRjNyWWR3Njl2enFXVFRrcHdyMTQ0VS1SMXJsb2h0amN3Q3JUVThKMG5Ncl9qUThEb2o1R3JVOGV2NF84NmVKSkRkVThyZV9fM0YwYkhLLS1KVUI5YTZtZWxaUVZYMnZGcjNKMGpKZlRwTkU?oc=5",
+              "publisher": "DailyCoin",
+              "ts": "2026-09-09T20:00:00Z",
+              "summary": "ETH突破3,000美元關鍵門檻需解決特定阻力，分析師點名需注意的變數。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Ethereum ETFs Just Posted a $24 Million Outflow After an $824 Million Week. Is the Streak Over?",
+              "url": "https://finance.yahoo.com/markets/crypto/articles/ethereum-etfs-just-posted-24-170029071.html",
+              "publisher": "24/7 Wall St.",
+              "ts": "2026-09-09T17:00:29Z",
+              "summary": "以太坊ETF上週流入8.24億美元後出現2,400萬美元淨流出，連漲氣氛降溫。",
+              "sentiment": "-"
+            },
+            {
+              "title": "Consensys Software Splits Into MetaMask and a New Consensys",
+              "url": "https://finance.yahoo.com/markets/crypto/articles/consensys-software-splits-metamask-consensys-162644306.html",
+              "publisher": "Bankless",
+              "ts": "2026-09-09T16:26:44Z",
+              "summary": "MetaMask從Consensys獨立，IPO與代幣發行計畫仍待明確。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Bitmine Just Bought $69M in Ethereum — Tom Lee Is Closing In on 5% of All ETH - Bitcoin Foundation",
+              "url": "https://news.google.com/rss/articles/CBMiugFBVV95cUxNYWZoMm9CWDBUemU3NkRCdmctQXlVa0J4aDlqbkZKaUhlQ0JyVDVtOFVlUUZ5Ny1CRnRmdnNHN3QwQnBveG5VT3I0d05NT1hFb0hyS3JqVkJuSjdEd3FMdFRCUXgtdi1uMEZSZEo4VWdtZ2g4b1JnWjhuS2NwRUxqT3FSOEE3UjB0TnZwUnNJUjRDZVgyUTZBQXRhZ2hJbzFIVEpRYWswbjA3dEJCd0IycW5KREN6dzhrSkE?oc=5",
+              "publisher": "Bitcoin Foundation",
+              "ts": "2026-09-09T11:39:48Z",
+              "summary": "機構買家Bitmine斥資6,900萬美元買入ETH，Tom Lee逼近全球5%ETH持倉。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "ETH在2,500美元附近整理，ETF上週8.24億美元大額流入後出現回吐2,400萬美元，動能暫時降溫。機構持續買入（Bitmine購入6,900萬美元）支撐底部，MetaMask獨立事件創造生態關注點。突破3,000美元仍是下一里程碑，短線陷入觀望。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "SLV": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。油價突破百美元引發通膨疑慮，可能為貴金屬/白銀提供避險支撐，但無具體消息。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "QQQ": {
+          "headlines": [],
+          "theme_summary": "當日無QQQ專屬重要新聞。AI板塊（META大漲、AMD強勢、記憶體股走強）對QQQ構成正面貢獻，但NVDA受調查壓制、TSLA下跌6%及油價破百形成對沖，整體中性偏多。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "SOXX": {
+          "headlines": [
+            {
+              "title": "Are Chip Stocks a New Short-Term Safety Play?",
+              "url": "https://www.barrons.com/livecoverage/stock-market-news-today-090926/card/are-chip-stocks-a-new-short-term-safety-play--klzwdj1Xa3SZSJuCkNp7?siteid=yhoof2&yptr=yahoo",
+              "publisher": "Barrons.com",
+              "ts": "2026-09-09T18:39:06Z",
+              "summary": "Barron's分析芯片股是否成為新的短期避險標的，半導體ETF資金輪動受關注。",
+              "sentiment": "+"
+            },
+            {
+              "title": "AMD Rises 3% as CFO Lifts AI Chip Market Forecast Toward $3 Trillion; Intel Ticks Up",
+              "url": "https://finance.yahoo.com/technology/ai/articles/amd-rises-3-cfo-lifts-144521803.html",
+              "publisher": "24/7 Wall St.",
+              "ts": "2026-09-09T14:45:21Z",
+              "summary": "AMD漲3%、Intel小漲，AI芯片市場3兆美元預測帶動半導體板塊情緒回溫。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "SOXX持倉標的今日普遍走強：AMD漲3.5%、MU漲2.4%、STX漲6%、SNDK漲3.5%、WDC漲3.35%，半導體板塊資金動能積極。NVDA受DOJ調查和TSLA拖累的負面溢出有限，整體偏多。",
+          "score": 1,
+          "linked_warnings_used": []
+        },
+        "EWY": {
+          "headlines": [
+            {
+              "title": "Analysis-Samsung, SK Hynix payouts test South Korea's reform drive as investors seek more",
+              "url": "https://finance.yahoo.com/news/analysis-samsung-sk-hynix-payouts-233958610.html",
+              "publisher": "Reuters",
+              "ts": "2026-09-10T00:01:39Z",
+              "summary": "Reuters分析三星與SK海力士股東回報計畫測試韓國公司治理改革進程。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Samsung's OpenAI Partnership Expands From Memory Into Next-Generation Chips",
+              "url": "https://finance.yahoo.com/technology/articles/samsungs-openai-partnership-expands-memory-172910431.html",
+              "publisher": "GuruFocus.com",
+              "ts": "2026-09-09T17:29:10Z",
+              "summary": "三星與OpenAI合作從記憶體擴展至次世代AI芯片開發。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "韓國半導體雙龍三星與SK海力士今日齊受AI需求提振，OpenAI深化合作、HBM4擴產、股東回報改革，均為正面催化劑。EWY成分股中科技權重受惠，整體偏多。",
+          "score": 1,
+          "linked_warnings_used": []
+        },
+        "005930.KS": {
+          "headlines": [
+            {
+              "title": "Key facts: KRX:005930 Qtr Revenue 171.5T; OpenAI Stargate Chip Deal - tradingview.com",
+              "url": "https://news.google.com/rss/articles/CBMixgFBVV95cUxOS2xleTlrN3Y4ZVF4UlRRNGxZejluZDlfVU1xbWtXNEppVFVGNzF3RWhZajE4dXNsUjQzMjF2dkJsZlVpbVZ6R25rdXlyUWUtRU1vb1k3eEpCSW15aTJ5QnNicnZXZFZpaVJQTmI3dTc2Q2VMdWxnVDdmZVZCUzRLRk8zbGIxYnQtclBpTF80Sy1obEw2Tml4RWJGQzMtZl9yaDZDM0g4TXhvTlRIQy1TOE1qdlNDalNkSEE1eU9KUXNjYnNoOWc?oc=5",
+              "publisher": "tradingview.com",
+              "ts": "2026-09-10T00:14:00Z",
+              "summary": "三星季度營收達171.5兆韓元，OpenAI Stargate芯片合作為新增驅動力。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Samsung's OpenAI Partnership Expands From Memory Into Next-Generation Chips",
+              "url": "https://finance.yahoo.com/technology/articles/samsungs-openai-partnership-expands-memory-172910431.html",
+              "publisher": "GuruFocus.com",
+              "ts": "2026-09-09T17:29:10Z",
+              "summary": "三星與OpenAI合作從記憶體延伸至次世代AI芯片開發，'進展最顯著領域之一'。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Analysis-Samsung, SK Hynix payouts test South Korea's reform drive as investors seek more",
+              "url": "https://finance.yahoo.com/news/analysis-samsung-sk-hynix-payouts-233958610.html",
+              "publisher": "Reuters",
+              "ts": "2026-09-10T00:01:39Z",
+              "summary": "Samsung、SK海力士股東派息測試韓國公司治理改革，投資人期待更多回報。",
+              "sentiment": "+"
+            },
+            {
+              "title": "ASML Inks Advanced EUV Lithography Deals With Chip Titans TSMC, Samsung",
+              "url": "https://finance.yahoo.com/technology/articles/asml-inks-advanced-euv-lithography-040100681.html",
+              "publisher": "The Daily Upside",
+              "ts": "2026-09-09T04:01:00Z",
+              "summary": "ASML與TSMC、Samsung簽署先進EUV光刻合約，強化先進製程能力。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "三星今日正面消息密集：OpenAI合作延伸至次世代芯片、ASML EUV合約確立先進製程地位、季度營收達171.5兆韓元創紀錄，股東回報改革持續推進。財報顯示營收年增130%、毛利率年增35.4pt，基本面強勁配合催化劑。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +130.0%，高速成長",
+            "毛利率年增 +35.4pt",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "000660.KS": {
+          "headlines": [
+            {
+              "title": "Key facts: SK hynix Inc. (000660) HBM4 expansion; large cash payout - tradingview.com",
+              "url": "https://news.google.com/rss/articles/CBMiwgFBVV95cUxOYnRfczNuRGpXVFdPb2dldTM4eC1IbnFzU0ZSWlR3a29qWkc5SHdHZmkxYlRMeU9xdHdZOW0yMVVncy0zOUZlTThFVXZWTWU2a1JDc2FERVhPMFlWZFphdnd2TUJ1cVZCXzBIa1ZrMjJTSmRfN3VVb2Z1NENUTm1JTHdES0VOel8tSV9ialRheTl6d2xmM01OLUxLOEdjQl9LbXI4cmNvaTlDUXAzWGd6ZTc3SUNMY09tWTRyYW9sSjZ5QQ?oc=5",
+              "publisher": "tradingview.com",
+              "ts": "2026-09-10T00:14:00Z",
+              "summary": "SK海力士推進HBM4大規模擴產，同步宣布大額現金派息計畫。",
+              "sentiment": "+"
+            },
+            {
+              "title": "SK Hynix Jumps Nearly 5% as OpenAI Keeps AI Memory Demand Burning",
+              "url": "https://finance.yahoo.com/technology/ai/articles/sk-hynix-jumps-nearly-5-180910559.html",
+              "publisher": "GuruFocus.com",
+              "ts": "2026-09-09T18:09:10Z",
+              "summary": "SK海力士因OpenAI持續推高AI記憶體需求，股價單日跳漲近5%。",
+              "sentiment": "+"
+            },
+            {
+              "title": "Memory Stocks Rally as Goldman Says the Worst May Be Over: SK Hynix Climbs 5%, SanDisk Advances 3%, Micron Gains 2%",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/memory-stocks-rally-goldman-says-152001933.html",
+              "publisher": "24/7 Wall St.",
+              "ts": "2026-09-09T15:20:01Z",
+              "summary": "Goldman確認記憶體股最壞情況可能已過，SK海力士單日漲5%領漲。",
+              "sentiment": "+"
+            },
+            {
+              "title": "SK hynix Union to Revote on Labor Deal After 25-Vote Defeat - Seoul Economic Daily",
+              "url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQOFpjLWx6MDNYQnNiWEVwaGpjTnNtUllBSTFNMUQxTmJDcjdiN09JLVl5X2FqYXp2MnlvWEtPbXUxSGFIYnVnLWVhQlRIeHJXRzJOVFBJVFZRNVlPaDNIeUh3UHU2eTBOdW5DTEpRelJ1SFhPNkdWd3JBVWo1bHEtSzgxb2NIdldyRFVVQWFhamh4cm5TbVNOVXVxVlpyRm5MMnFZ?oc=5",
+              "publisher": "Seoul Economic Daily",
+              "ts": "2026-09-09T05:49:23Z",
+              "summary": "SK海力士工會對薪資協議再次投票，勞資談判存在不確定性。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "SK海力士是今日記憶體板塊最強勢標的，單日漲近5%；OpenAI需求強勁、Goldman確認景氣底部已過、HBM4產能擴張、大額現金派息計畫，四大利多同步引爆。唯一雜音是工會重新投票的勞資不確定性。財報顯示營收年增257%、淨利率118%，基本面極強。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +256.8%，高速成長",
+            "毛利率年增 +29.3pt",
+            "淨利率 118.3%，年增 +86.8pt",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "SMR": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。Google簽署22年核電協議支持芬蘭AI數據中心，間接反映清潔能源/小型核電需求趨勢對SMR的長期正面背景，但無直接消息。財報顯示SMR目前仍處極度虧損階段。",
+          "score": 0,
+          "linked_warnings_used": [
+            "淨利率 -63385.3%，年減 -63166.3pt"
+          ]
+        },
+        "GLW": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。AI數據中心光纖需求持續強勁為GLW長期利多背景，但無具體新消息。財報顯示營收年增16.6%、現金流強健。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "CIEN": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。AI基礎建設持續拉動光網路設備需求，財報顯示CIEN營收年增37%、淨利率15.9%，基本面扎實，靜待下一催化劑。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "AAPL": {
+          "headlines": [
+            {
+              "title": "Stock Market Today, Sept. 9: Apple Unveils iPhone Duo Foldable and iPhone 18 Pro with AI Upgrades",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/stock-market-today-sept-9-211322704.html",
+              "publisher": "Motley Fool",
+              "ts": "2026-09-09T21:13:22Z",
+              "summary": "Apple正式發布iPhone Duo折疊手機與iPhone 18 Pro，兩款新機均搭載AI升級功能。",
+              "sentiment": "+"
+            },
+            {
+              "title": "A foldable iPhone is nice, but Apple still needs to improve its AI user experience",
+              "url": "https://finance.yahoo.com/video/foldable-iphone-nice-apple-still-141232195.html",
+              "publisher": "Yahoo Finance Video",
+              "ts": "2026-09-09T14:12:32Z",
+              "summary": "分析師指折疊iPhone有新意，但Apple的AI用戶體驗仍需大幅改善。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Huawei and Xiaomi Take on Apple Before Its Foldable iPhone Launch. What This Means for AAPL Stock.",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/huawei-xiaomi-apple-foldable-iphone-130236093.html",
+              "publisher": "Barchart",
+              "ts": "2026-09-09T13:02:36Z",
+              "summary": "華為與小米在Apple折疊機發布前積極備戰，中國市場競爭加劇。",
+              "sentiment": "-"
+            }
+          ],
+          "theme_summary": "Apple正式揭曉首款折疊手機iPhone Duo與AI強化版iPhone 18 Pro，是本日消費電子最重大事件；市場評價正向但對AI體驗要求更高，中國競爭對手Huawei/Xiaomi虎視眈眈。財報顯示AAPL營收年增16.4%，基本面穩健，折疊機產品周期是新成長驅動力。",
+          "score": 1,
+          "linked_warnings_used": []
+        },
+        "CRWD": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。財報顯示CrowdStrike營收年增25.8%、現金流強健，網路安全需求持續。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "NET": {
+          "headlines": [
+            {
+              "title": "Why Cloudflare Rallied Today",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/why-cloudflare-rallied-today-220558926.html",
+              "publisher": "Motley Fool",
+              "ts": "2026-09-09T22:05:58Z",
+              "summary": "Cloudflare（NET）今日股價走高，市場情緒受惠於AI基礎建設主題。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "Cloudflare隨AI基礎建設主題走強，市場整體AI情緒正面，但無Cloudflare自身重大新聞。財報顯示NET營收年增35.9%，惟毛利率微降且淨利率仍為負值，成本控制仍需觀察。",
+          "score": 1,
+          "linked_warnings_used": [
+            "毛利率年減 -3.1pt，留意成本壓力"
+          ]
+        },
+        "MRVL": {
+          "headlines": [
+            {
+              "title": "Marvell Or NVIDIA: Which One Costs Less Per Dollar Of Profit?",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/marvell-nvidia-one-costs-less-230212940.html",
+              "publisher": "Trefis",
+              "ts": "2026-09-09T23:02:12Z",
+              "summary": "Trefis比較Marvell與NVIDIA每美元獲利成本，探討AI芯片替代投資價值。",
+              "sentiment": "0"
+            },
+            {
+              "title": "$Credo Technology (CRDO.US)$$Coherent (COHR.US)$$Marvell Technology (MRVL.US)$ Me, heavily positioned in optical module stocks these past few days 😂😂😂🥳🥳 - Moomoo",
+              "url": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxOS1hZanJ4WW5zTWVJQnU3cXVPWUVKMS1NNGRXSkFNcTlIdWtLSFJqMXFHOVdpMzVPYWwxMFI4dnotNHBlOUZ0ZUVhTEpkN1gtSHdsRHV1YXhVVlZxZVhRLUdBTTRYN2x5TUpybm5WZ1Q3TkFfd3hhemVUSU5BZFp2ZmpQWG4yUU5sbWRiNXJ2dWVvUjdsX1FzbGdWb0xuTU5rS3E4Nk1MbDl2YTBjcm1FN294UWZSdlBQRUE4?oc=5",
+              "publisher": "Moomoo",
+              "ts": "2026-09-09T14:34:09Z",
+              "summary": "Moomoo用戶積極布局光模組股，MRVL與COHR、CRDO並列為主要標的。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "MRVL在AI自定義芯片與光互連領域持續受到機構關注，Moomoo用戶積極建倉光模組股票組合。財報顯示營收年增36.5%、現金流強健，AI芯片多元化布局讓MRVL成為NVDA以外的重要受惠者。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +36.5%，高速成長",
+            "營業現金流年增超過 30%，現金品質佳"
+          ]
+        },
+        "POET": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。AI光子整合需求持續，財報顯示POET營收年增112%但淨虧損深，屬早期高風險成長股。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "DELL": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。AI伺服器需求帶動DELL，財報顯示營收年增57.7%、各項利潤率改善，基本面強健。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "INTC": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。AMD漲3.5%、QCOM獲Amazon合作，Intel在AI芯片競爭中仍面臨壓力。財報顯示營收年增25.4%但淨利率仍為負值。",
+          "score": 0,
+          "linked_warnings_used": [
+            "淨利率 -68.4%，年減 -45.7pt"
+          ]
+        },
+        "ARM": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。Apple iPhone新品發布採用ARM架構是長期正面訊號。財報顯示ARM營收年增22.4%、現金流強健。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "QCOM": {
+          "headlines": [
+            {
+              "title": "Why Qualcomm’s AI Chip Deal Proves Nvidia Is Still Top Dog - Barron's",
+              "url": "https://news.google.com/rss/articles/CBMijgFBVV95cUxORWNITmtPMDNtZXQtSXVpemNHVVRVLXZBWk8wVm9HbjltVGYtckdnNGVCMnpVX09RS3lMc2xXZ2U4am1TZVlCSVBjQUE4Y3B1SDBvbFJseDFOXzRaWjNQQUF5ZkpuWF85emtzbjVScHgyREx3V0pBZVZjdkQwUFcwRFdVb2s4Z3RFR1VqMWF3?oc=5",
+              "publisher": "Barron's",
+              "ts": "2026-09-09T19:34:00Z",
+              "summary": "Barron's指高通與Amazon的AI芯片合作，印證NVDA仍是AI芯片市場的主宰。",
+              "sentiment": "0"
+            },
+            {
+              "title": "Cramer Says Qualcomm’s Amazon Collaboration Gives Stalled Stock “Something Special” to Point At",
+              "url": "https://finance.yahoo.com/markets/stocks/articles/cramer-says-qualcomm-amazon-collaboration-172539720.html",
+              "publisher": "24/7 Wall St.",
+              "ts": "2026-09-09T17:25:39Z",
+              "summary": "Cramer稱高通與Amazon合作給予這檔停滯不前的股票「特別亮點」。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "QCOM與Amazon AI芯片合作為股價注入新話題，Cramer給予正面評價；但Barron's的解讀是此舉反而凸顯NVDA的霸主地位，QCOM的AI定位仍模糊。財報顯示QCOM營收年減4%、各項利潤率全面下滑，基本面偏弱，需靠Amazon合作提振預期。",
+          "score": 0,
+          "linked_warnings_used": [
+            "營收年減 -4.0%，動能轉弱",
+            "毛利率年減 -2.5pt，留意成本壓力",
+            "營益率年減 -10.3pt，營運費用控制需注意"
+          ]
+        },
+        "BE": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。Google簽署22年核電長約為AI電力需求主題，間接利好清潔能源及Bloom Energy的長期邏輯。財報顯示BE營收年增165%、淨利率18.4%大幅改善。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "SHAZ": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。財報顯示SHAZ營收年增412%、毛利率大幅改善，但淨利率深度為負，屬高風險早期成長標的。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "SPCX": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。太空股因SpaceX股份解禁衝擊整體承壓，ASTS下跌4%，Rocket Lab跌2%，SPCX間接受負面溢出影響。",
+          "score": -1,
+          "linked_warnings_used": []
+        },
+        "2327.TW": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。台灣封測龍頭隨AI半導體需求持續成長，財報顯示營收年增35.7%、利潤率穩定改善。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "2327.HK": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞，與2327.TW同步追蹤台灣封測龍頭基本面。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "2492.TW": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。",
+          "score": 0,
+          "linked_warnings_used": []
+        },
+        "2330.TW": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。台積電相關消息請參閱TSM分析，基本面顯示營收年增36%、淨利率55.6%，ASML合作與AMD確認為主要供應夥伴均為正面背景。",
+          "score": 1,
+          "linked_warnings_used": [
+            "營收年增 +36.0%，高速成長",
+            "淨利率 55.6%，年增 +13.0pt"
+          ]
+        },
+        "SKHY": {
+          "headlines": [
+            {
+              "title": "SKHY Stock Climbs As SK hynix Ramps AI Memory Expansion - StocksToTrade",
+              "url": "https://news.google.com/rss/articles/CBMic0FVX3lxTFByb0kzeGJHQjQ3SzRyQW85clpBN2ZrZVhNMkl4TFJWUnYtcGxGQ3JJLWlLWDVyemxqNHd1ZHZ5OVJ0d3RpbFVNUzNmaWkzU1ozX0pOelc4ZkdLRm1weURwbnl4N2d3SUd0dXkwem5GV3ExVGM?oc=5",
+              "publisher": "StocksToTrade",
+              "ts": "2026-09-09T20:47:00Z",
+              "summary": "SKHY（SK海力士ADR）隨SK海力士AI記憶體擴產消息走強，股價上漲。",
+              "sentiment": "+"
+            }
+          ],
+          "theme_summary": "SKHY追蹤SK海力士，今日受OpenAI需求、HBM4擴產、Goldman記憶體多年看多等多重催化劑驅動，單日強勢上漲，詳情請參閱000660.KS分析。",
+          "score": 2,
+          "linked_warnings_used": [
+            "營收年增 +256.8%，高速成長",
+            "淨利率 118.3%，年增 +86.8pt"
+          ]
+        },
+        "8299.TWO": {
+          "headlines": [],
+          "theme_summary": "當日無重要新聞。財報顯示8299.TWO營收年增280%、毛利率年增36pt，受益於AI供應鏈需求強勁。",
+          "score": 0,
+          "linked_warnings_used": []
+        }
+      }
+    },
     "2026-09-09": {
       "generated": "2026-09-09T01:14:00Z",
       "based_on_news_generated": "2026-09-09T01:09:07Z",
@@ -7748,1371 +9272,6 @@
           "score": 0,
           "linked_warnings_used": [
             "營業現金流由正轉負，現金生成能力惡化"
-          ]
-        }
-      }
-    },
-    "2026-09-03": {
-      "generated": "2026-09-03T01:06:59Z",
-      "based_on_news_generated": "2026-09-03T01:02:22Z",
-      "model": "claude-sonnet-4-6",
-      "usage": {
-        "input_tokens": 18569,
-        "output_tokens": 14433,
-        "cache_read_input_tokens": 0,
-        "cache_creation_input_tokens": 7031
-      },
-      "session_label": "昨夜 NY 盤後 + 今日亞股盤前",
-      "global_themes": [
-        "美聯儲9月可能升息疑慮升溫，疊加美伊地緣衝突，加密貨幣與風險資產承壓回落",
-        "Broadcom（AVGO）Q3財報AI芯片營收大增221%但Q4指引偏保守，盤後股價跌逾4%",
-        "NVDA傳擬以約140億美元收購Hugging Face，同日AMD積極布局沙特AI基礎建設，AI算力軍備競賽持續"
-      ],
-      "cross_holdings_signals": [
-        {
-          "theme": "NVDA潛在收購Hugging Face／AI算力擴張",
-          "tickers": [
-            "NVDA",
-            "AMD",
-            "AVGO",
-            "TSM",
-            "MU",
-            "COHR",
-            "SOXX"
-          ],
-          "severity": "high",
-          "direction": "+",
-          "note": "NVDA傳擬斥資約140億美元收購AI模型平台Hugging Face，鞏固推論生態系；AMD同步搶進沙特AI建設，整體AI基礎設施需求持續升溫，利好半導體供應鏈。"
-        },
-        {
-          "theme": "記憶體超級週期與供給稀缺延伸至2027",
-          "tickers": [
-            "MU",
-            "SNDK",
-            "WDC",
-            "000660.KS",
-            "005930.KS"
-          ],
-          "severity": "medium",
-          "direction": "+",
-          "note": "多家機構報告顯示記憶體供給缺口可能延伸至2027年，HBM與NAND需求強勁，惟市場同時警惕週期高峰是否臨近。"
-        },
-        {
-          "theme": "Broadcom Q3財報：AI芯片亮眼但指引令市場失望",
-          "tickers": [
-            "AVGO",
-            "NVDA",
-            "AMD",
-            "COHR",
-            "LITE"
-          ],
-          "severity": "medium",
-          "direction": "-",
-          "note": "AVGO Q3 AI營收年增221%、EPS超預期，但Q4指引略保守，股價盤後跌約4~5%，拖累光通訊及AI芯片板塊情緒。"
-        },
-        {
-          "theme": "加密市場：Fed升息疑慮＋地緣風險拖累BTC/ETH",
-          "tickers": [
-            "BTC-USD",
-            "ETH",
-            "MSTR",
-            "COIN"
-          ],
-          "severity": "high",
-          "direction": "-",
-          "note": "市場擔憂Fed 9月15-16日或升息，疊加美伊緊張局勢，BTC在$73K~$77K區間承壓，ETH跌破$2,400，加密相關持倉面臨短線下行風險。"
-        },
-        {
-          "theme": "Google免遭廣告業務拆分，AI模型與監管雙重催化",
-          "tickers": [
-            "GOOGL",
-            "GOOG",
-            "META"
-          ],
-          "severity": "medium",
-          "direction": "+",
-          "note": "美國法官駁回DOJ拆分Google廣告業務請求，同日Google發布Gemini 3.8 Flash新模型，META亦推出Muse Spark 1.3，大型科技AI攻勢持續。"
-        },
-        {
-          "theme": "韓國記憶體股：大宗資金回流＋電費預繳壓力",
-          "tickers": [
-            "000660.KS",
-            "005930.KS"
-          ],
-          "severity": "medium",
-          "direction": "0",
-          "note": "韓電（KEPCO）要求三星與SK海力士預繳25兆韓元電費，增添現金流壓力；但隔夜華爾街反彈帶動兩股盤前回升逾1%，多空因素並存。"
-        }
-      ],
-      "by_symbol": {
-        "NVDA": {
-          "headlines": [
-            {
-              "title": "Why Is Nvidia Stock Up Today? $14 Billion Hugging Face Deal Nears as NVDA Jumps - Stocks Down Under",
-              "url": "https://news.google.com/rss/articles/CBMieEFVX3lxTE54S1M3eFpKU0x5REdESFNfTDk3TVlvdWRER3hQcjROdzJNV1c2Rk16Q3FpZ0xkalZtcUtvQk84R3NibFgwT1RxTHZZR2gtWWE5Nl9CQnNjQlJncDdlTHREdU8wazJ5dVlJWUxLMmFzdXF2TGs4VXF1WQ?oc=5",
-              "publisher": "Stocks Down Under",
-              "ts": "2026-09-02T18:36:01Z",
-              "summary": "NVDA傳正洽談以約140億美元收購AI模型平台Hugging Face，消息推動股價單日大漲。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Nvidia Stock: How $14B Hugging Face Acquisition Could Secure Its AI Dominance - Barron's",
-              "url": "https://news.google.com/rss/articles/CBMihAFBVV95cUxOWVVDSThXWms1LXd6R2dQZ3d6aFBmQVZvbXJydkNQSDVVV0RlMnl3WTdQOWxxTHBBcm85bnp4NGxzVE51bExLR3d1X3ZHMWpoeTNlQ2JURy12Wm5oNm5rTzlNd3ZNNkhaSHJnbTRCZi10V2lKZWg4dm9ELVdrenRneWs1VGo?oc=5",
-              "publisher": "Barron's",
-              "ts": "2026-09-02T17:42:00Z",
-              "summary": "Barron's分析指收購Hugging Face可強化NVDA在AI推論生態的主導地位。",
-              "sentiment": "+"
-            },
-            {
-              "title": "NVIDIA Stock (NVDA) Rebounds 5% as Inference Partnership Boosts Outlook - FXLeaders",
-              "url": "https://news.google.com/rss/articles/CBMisAFBVV95cUxPVDgxNkpsRGxGSC1zeTdfR0NKUS13Q1VxODJQb1Izc3RrY0phcWNleWhLamtFWFBIdThVVnkxLXhYOVU3YWNVWVRBTHVwcHhHV2tpMmo1eVJCb3czanU5em93ejlmbnVwc1lJeWh2c3VFNGxwU3dDaHZZbTRncnpFZGF6MUplMkR2cWpKWHFiaGw5akJmRUE1UThjdGFtZ1dPT0tPdFRacFA4Y0tpUThaaA?oc=5",
-              "publisher": "FXLeaders",
-              "ts": "2026-09-02T16:16:54Z",
-              "summary": "推論業務合作夥伴關係消息提振，NVDA反彈約5%。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Nvidia Fiscal Q2: The AI Giant Answers To Losing Market Share (NASDAQ:NVDA) - Seeking Alpha",
-              "url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQZ0stMVFMWTNqbEM2NUMzS1pYeUFsdGVVRmlzX3hyWWZwTWJWYUZJeS1FSDVFSFpUSGgyUXNvS2g5VXRFd2loZzF0cG5abVNDWEFaTkUxajc4cW5kM1NyR0FYNG9KODJqYkRKejZxWThpVnhvWDRsUFMxUEZaNFpzdTZYYVJJOGIzTjFyV3B6WWFiYkVYYzBHT1BmdVhscUNHZGlJ?oc=5",
-              "publisher": "Seeking Alpha",
-              "ts": "2026-09-02T21:51:45Z",
-              "summary": "Seeking Alpha文章討論NVDA如何回應市占率流失疑慮，整體仍看多。",
-              "sentiment": "+"
-            },
-            {
-              "title": "NVIDIA (NVDA) CEO Urges G20 to Accelerate AI Adoption for Economic Growth - GuruFocus",
-              "url": "https://news.google.com/rss/articles/CBMirwFBVV95cUxQaC1JRk9NR1RDbEJRbGdJUWhBZXMtM0pOOWlxZlQta1hHSnMtQnpVZDI2UGx2WEpzQ1lKcl9iMjBXUjUxUWlIaFUtTktsakFPY0RfaVhIVERSVGFMR2RkUDdWaDRDTkZNam9wNUs5dFBMZURMRzFCNVNCemNEUmRLcmFmSVVqYUZnWEdXQ3R1eWt1SEV5aVFTNUx5d25PMy1pckU4VWtYOFhEUG5IeHA4?oc=5",
-              "publisher": "GuruFocus",
-              "ts": "2026-09-02T21:18:52Z",
-              "summary": "NVDA執行長黃仁勳在G20呼籲加速AI採用，有助政策面正向氛圍。",
-              "sentiment": "+"
-            },
-            {
-              "title": "NVIDIA(NVDA.US) Officer Sells US$6.54 Million in Common Stock - moomoo.com",
-              "url": "https://news.google.com/rss/articles/CBMimwFBVV95cUxOYjlwbU9FU1htdmEzSm9BU1F1eFRWVmF5ZnN5dU9DbXJvNVotWXc2NjU0aVFXTW16NWh6Vm5GRW1tT05XLXV4VDd5Y2VOSDlRUG5EZERfeFdidExvNzVpSHRCdmxhZDFsVHdmOVBJbEFEellmVG1FOGVzV0xZUFJndEp6MFFpby1YYmx0ZGpnMmhBWGZrTWpndGt3cw?oc=5",
-              "publisher": "moomoo.com",
-              "ts": "2026-09-02T22:12:22Z",
-              "summary": "NVDA一名高管出售約654萬美元普通股，屬預設計畫拋售。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Nvidia didn't like Wall Street's estimates. So it tried to reset them.",
-              "url": "https://finance.yahoo.com/technology/article/nvidia-didnt-like-wall-streets-estimates-so-it-tried-to-reset-them-122218541.html",
-              "publisher": "Yahoo Finance",
-              "ts": "2026-09-02T12:22:18Z",
-              "summary": "NVDA主動嘗試重設華爾街盈利預期，顯示管理層對市場預測有所顧慮。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "傳出約140億美元收購Hugging Face是當日最大催化劑，股價反彈逾4%，推論生態布局顯著擴張。黃仁勳出席G20積極推廣AI政策，強化長線敘事。高管例行拋售不影響基本面，財報顯示營收年增85%、淨利率71.5%，基本面依然强勁。",
-          "score": 2,
-          "linked_warnings_used": []
-        },
-        "AMD": {
-          "headlines": [
-            {
-              "title": "AMD: Winning The Next Phase Of The AI Supercycle (NASDAQ:AMD) - Seeking Alpha",
-              "url": "https://news.google.com/rss/articles/CBMikgFBVV95cUxNZFFCSEo2aGphbndYdVJ0MktRN0pwOTlhcXV4dHR3UUNVTXVray1DNjg4M2JGRWZTMGxDV3Z2SXNRZXhqM2YwaHByaEZ5YnFhTXVHQThBMDNxaUh3M2R2US1DOW5zdndJM2NtN1ZHTGE2WFdCMFBVdjYyU2pvUm5QTzZoRGY0MTdqOGxPNnFEd1NJQQ?oc=5",
-              "publisher": "Seeking Alpha",
-              "ts": "2026-09-02T19:48:26Z",
-              "summary": "Seeking Alpha撰文稱AMD正贏得AI超週期下一階段競爭，長線看多。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Can AMD's Saudi AI Buildout Challenge NVIDIA and Broadcom?",
-              "url": "https://finance.yahoo.com/technology/ai/articles/amds-saudi-ai-buildout-challenge-184700108.html",
-              "publisher": "Zacks",
-              "ts": "2026-09-02T18:47:00Z",
-              "summary": "Zacks分析AMD積極投入沙特AI建設，能否挑戰NVDA與AVGO地位受關注。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Prediction: AMD Will Join the $2 Trillion Club in 2030 Amid Historic Growth in This Market - The Motley Fool",
-              "url": "https://news.google.com/rss/articles/CBMizwFBVV95cUxQcU55a0J6N1g4czdmcUhScnFOWWRSU3pSdFdVdWZGM3RSVUFlLVZmanJ0NEtlekFVV1VwUTZZZlFGckhsdlFSUzVZQUd1RGVWQmlETlZwdHA3OUVOQ0Y0QWFMNVRNeDlrRno4S2RFa1QydVMtSnVyQXlIcHRlTUpHV1ZxajBfS0VZaE4zc3QtUUE2d3JiWDB0c1RSVVBzeDUxVFJkYmd4ZkNma2xMazk4RDdfQWdwVkY0T1l3UHh5cjBzaVlNRzVFU1VnZ2JmdjQ?oc=5",
-              "publisher": "The Motley Fool",
-              "ts": "2026-09-02T18:42:00Z",
-              "summary": "Motley Fool預測AMD到2030年有望加入2兆美元市值俱樂部。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Stanley Druckenmiller Increased Amazon More Than 10-Fold and Opened an AMD Position. What’s the Common Bet?",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/stanley-druckenmiller-increased-amazon-more-215834577.html",
-              "publisher": "Insider Monkey",
-              "ts": "2026-09-02T21:58:34Z",
-              "summary": "億萬富翁德魯肯米勒新開AMD倉位，被認為是押注AI基礎設施需求。",
-              "sentiment": "+"
-            },
-            {
-              "title": "AMD stock slips despite strong Q2 2026 growth and AI momentum - AD HOC NEWS",
-              "url": "https://news.google.com/rss/articles/CBMiwgFBVV95cUxQZ3JvOFR6MFl1OVJpanJJX1ltTUhuNDVyTWVnM0lES3d3dm1lRzJRN2xyZ0FXUm0zc1c4SlFhS2dOVUhydlNUNEJjMkszNmoyMlZZRk5PSzRRYm1ieGptd2dsbGI3WngzSUNhNmZ4Mm92cEZRME9lOHUzT1A5cHJjbXBYN3BwVm1PZlRfeEhxNU41YmhoVW1lUHd1NGEyTzE4Yl9INUo3TkM5SDZwUUNENWgtNDdVQXF0bFhJd0VnQ1NNdw?oc=5",
-              "publisher": "AD HOC NEWS",
-              "ts": "2026-09-02T15:26:23Z",
-              "summary": "AMD Q2財報營收年增50%但股價仍下滑，市場對毛利率改善空間存疑。",
-              "sentiment": "-"
-            },
-            {
-              "title": "AMD posts strong Q2 with 50% revenue growth but flat margins due to cost pressures. - Pluang",
-              "url": "https://news.google.com/rss/articles/CBMifkFVX3lxTFBaMElqbDdzOGsxdVFxeHh6eEZRTWVERERPREdBTTBtY3VKTUh6UVJlTndaVjFHQ0VLTWtXbTdhNmd4X1ZzQ0p5WVNTRTBGZnctLUdQdzlYWFFNbFN1YXBDcndEVDBjQkM3eFVxdUk3d2ttRXBqNzBJaDFjQ1pKZw?oc=5",
-              "publisher": "Pluang",
-              "ts": "2026-09-02T14:45:13Z",
-              "summary": "AMD Q2成長強勁但成本壓力導致毛利率持平，引發部分投資人觀望。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "AMD近期多空交織：頂尖投資人（德魯肯米勒）新建倉、沙特AI建設訂單利多，但Q2財報出爐後股價不漲反跌，市場對成本壓力與估值壓力存有疑慮。財報顯示營收年增50%、毛利率年增14pt，基本面改善明確，惟投資人期待更高。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +50.1%，高速成長",
-            "+ 毛利率年增 +14.0pt"
-          ]
-        },
-        "AVGO": {
-          "headlines": [
-            {
-              "title": "Broadcom Beats Q3 Estimates as AI Revenue Jumps 221%, Shares Slide on Soft Guidance - Benzinga",
-              "url": "https://news.google.com/rss/articles/CBMi1AFBVV95cUxNd0p0OS1fckZoVTA4NmhELVBxSVJhS0pCQ01PbDFRNHBHb2t0OFJBWHkzN19EVnZzbmJLcnNTanJtVlN0NTZnZEh2TURCVkltZ2gzZlFPNlYwbDQ5N0lsM2p3RnJ5aVRWUUpNMFdDZHdtVTdkUGZUZ1JkS0lGS1FKOGdHbzZsRXJjc1liQ0VDakgwZW90WFRiaEp5ZzFEMkNXYjktYmtIejlSQTB2WW1rNHNiWHFIZ1hBdTNTTGFfbElnTW9GdGlOdlI3TmdPR1U2aThsMA?oc=5",
-              "publisher": "Benzinga",
-              "ts": "2026-09-02T20:36:06Z",
-              "summary": "AVGO Q3 AI營收年增221%達167億美元，EPS 3.32元超預期，但Q4指引令市場失望。",
-              "sentiment": "0"
-            },
-            {
-              "title": "Broadcom's stock drops 5% as weak guidance overshadows earnings beat - CNBC",
-              "url": "https://news.google.com/rss/articles/CBMihAFBVV95cUxNZG5pZ0dUQzRxdms1djBEdU5WY0hVMGdCbkJ6OTdkQ1RRRGUxVlE3dk9Oa1dpUUVtMjc4ZHotdmdZR05ZWGk1aks2cDFMX3dyZXNyUnItclBOTUxqVDdzbmtuRm82c0xhOHFwajFDWjNidVM5WGRFcHRWOHFoYnFiQXRGNjbSAYQBQVVfeXFMTWRuaWdHVEM0cXZrNXYwRHVOVmNIVTBnQm5Cejk3ZENUUURlMVZRN3ZPTmtXaVFFbTI3OGR6LXZnWUdOWVhpNWpLNnAxTF93cmVzclJyLXJQTk1MalQ3c25rbkZvNnNMYThxcGoxQ1ozYnVTOVhkRXB0VjhxaGJxYkF0RjY2?oc=5",
-              "publisher": "CNBC",
-              "ts": "2026-09-02T20:22:09Z",
-              "summary": "CNBC：弱勢Q4指引蓋過財報亮點，股價盤後跌約5%。",
-              "sentiment": "-"
-            },
-            {
-              "title": "AVGO Stock Dips 4% After-Hours — Broadcom’s Soft Q4 Outlook Overshadows Strong Q3 Chip Sales",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/avgo-stock-dips-4-hours-214557431.html",
-              "publisher": "Stocktwits",
-              "ts": "2026-09-02T21:45:57Z",
-              "summary": "Q4展望偏軟拖累AVGO盤後下跌4%。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Broadcom Third-Quarter Profit Soars on Growing Custom Chip Demand",
-              "url": "https://www.wsj.com/business/earnings/broadcom-third-quarter-profit-soars-on-ai-driven-revenue-growth-c5add826?siteid=yhoof2&yptr=yahoo",
-              "publisher": "The Wall Street Journal",
-              "ts": "2026-09-02T22:43:00Z",
-              "summary": "WSJ報導AVGO定制芯片需求強勁，Q3利潤大幅躍升。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Broadcom Is Top Pick For AI’s Next Big Shift: Analyst - Benzinga",
-              "url": "https://news.google.com/rss/articles/CBMixgFBVV95cUxQY0ZvVGI3X05pS3JvZXVkLTBub1VBZHJGLU45RFVKN3pIaTB4OWYzaVpOMEdFQTEtUWhvdFhKelRDaWkwRzRMWVVrNG03MDNwZU5JX0llcmNJdGl5dFplX0VyT2g3NG5ERkE0RXdPbUdlWWN5V04wQ0M3dkRUanRBM3F5V0VDS2J0TkloS3MyMzlLOXFHOFZGRlNWSGVzR2xxSmMzRUdvMjJrS2VfdmI1a3BGdEJlQkZycXA1dmRPTThFSUtVb2c?oc=5",
-              "publisher": "Benzinga",
-              "ts": "2026-09-02T17:28:32Z",
-              "summary": "分析師維持AVGO為AI下一波大轉型首選標的。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "AVGO Q3財報AI相關業務表現亮眼，EPS超預期，但Q4指引保守，觸發盤後跌約4~5%的「buy the rumor, sell the news」反應。長線而言AI定制芯片需求趨勢完整，惟短線情緒偏謹慎。財報顯示營收年增47.9%、現金流強勁，基本面無虞。",
-          "score": -1,
-          "linked_warnings_used": [
-            "+ 營收年增 +47.9%，高速成長",
-            "+ 營業現金流年增超過 30%，現金品質佳"
-          ]
-        },
-        "TSM": {
-          "headlines": [
-            {
-              "title": "Taiwan Semiconductor: Stifel Says TSM Is a 'Must-Own' for the Long Term - Barchart.com",
-              "url": "https://news.google.com/rss/articles/CBMisgFBVV95cUxNaFpuQUgzLUdwSXFacHdRcWR2QmNsNkRXa3p6eGd3bmZ4VEQ2dmhsSW05YnoyZlpVcEhQZDczWFJxcEtCNDMzWTZOSlFvRlRJVjNxZ1RYdU1YcjZ6Zll1MlNwWDlkMndmdTRoajJXWmZGM1FYOVhWdjhDMVBVVGtCNnRHZnpXQlJrZWN5bWFiSVVnb0xQa3JQRE5Sc05TQ3A3MXhTeURZTlQzQUtOTnlLbzd3?oc=5",
-              "publisher": "Barchart.com",
-              "ts": "2026-09-02T14:47:04Z",
-              "summary": "Stifel開始追蹤TSM並給予「Must-Own」評級，目標價顯示長線吸引力。",
-              "sentiment": "+"
-            },
-            {
-              "title": "TSMC Rose Higher With a 67.7% Margin--and Taiwan's Trust Pitch",
-              "url": "https://finance.yahoo.com/technology/articles/tsmc-rose-higher-67-7-162343386.html",
-              "publisher": "GuruFocus.com",
-              "ts": "2026-09-02T16:23:43Z",
-              "summary": "GuruFocus報導TSMC毛利率達67.7%，台灣信任優勢持續。",
-              "sentiment": "+"
-            },
-            {
-              "title": "TSMC's Global Expansion Pressures Margins Amid AI-Driven Growth",
-              "url": "https://finance.yahoo.com/technology/articles/tsmcs-global-expansion-pressures-margins-143600133.html",
-              "publisher": "Zacks",
-              "ts": "2026-09-02T14:36:00Z",
-              "summary": "Zacks指TSMC全球擴廠計畫在AI驅動成長下對毛利率構成壓力。",
-              "sentiment": "-"
-            },
-            {
-              "title": "The Firm That Filed a Bet Against Taiwan Semiconductor Then Launched a Foundry Fund Five Days Later - 247wallst.com",
-              "url": "https://news.google.com/rss/articles/CBMi4AFBVV95cUxNNU1BOHp2clhwUDNkVzNQVXU4RTlzd3ctVFgzY1lmQ2djek1RRktnaERaeGZFWXd0anltZVZUd29fWk9iNmFnSU9xbm82TTNHNzdIVV9TMDRzNjNQNG8xeDNnTDVldjVxcFlBTXI0SEhwbVNOSkNUNTFiMV9XVGpQaGNnUlEwNjFkdFJoaDhTOVoxV3ZMVTRrMTRuaENOQmNfRFRGeVFUOC15WGhzWlVJcGdscmh3M19wRlhRNUNsY3MxODNLRVN4OG96bXM4Z3RUeFdhWEVocVJCWWhQNHZWcQ?oc=5",
-              "publisher": "247wallst.com",
-              "ts": "2026-09-02T11:09:00Z",
-              "summary": "有機構在做空TSM後五天成立晶圓代工基金，操作引發關注。",
-              "sentiment": "0"
-            },
-            {
-              "title": "CEO of Taiwan Semiconductor (NYSE: TSM) gains 204K shares from stock vesting - Stock Titan",
-              "url": "https://news.google.com/rss/articles/CBMiygFBVV95cUxOLXhmc0hCa0ZfbGY4eDI1UUpUZmlwZnBUcTFJTkdRQ0dHT1B1OGlvZ0t3M0pzcnlsalZyZHJ1MFBMTU5kTUJIaVRWUFh3YVpoQm5sUmp2aFltWDVRTDZKZUtVdnZ5NjFpdjd2YXY4cTNra2RKN3FEdE90MjRYTWxqNXVySVExS2kyYW1RaEpfaHBnNnIxdjEwZ1AwUVFfbkVMYThSWl8zTFV2S2ZaN1ZMRUZxaXMtNTBPYXNEdjFXRXRmemJZMk5lS1dB?oc=5",
-              "publisher": "Stock Titan",
-              "ts": "2026-09-02T10:22:31Z",
-              "summary": "TSMC執行長透過股票歸屬取得20.4萬股，屬例行薪酬安排。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "TSM獲Stifel開評「長期必持」、技術面與成長面同步正向，但全球擴廠（日、美、歐）的成本攤銷壓力仍是潛在隱患。財報顯示營收年增36%、毛利率年增9.1pt，基本面穩健，新廠稀釋效應值得後續追蹤。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +36.0%，高速成長",
-            "+ 毛利率年增 +9.1pt"
-          ]
-        },
-        "MU": {
-          "headlines": [
-            {
-              "title": "Billionaire Philippe Laffont Just Bought Micron Stock in Q2: Is the Artificial Intelligence (AI) Memory Winner a Buy for 2026?",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/billionaire-philippe-laffont-just-bought-210700669.html",
-              "publisher": "Motley Fool",
-              "ts": "2026-09-02T21:07:00Z",
-              "summary": "億萬富翁拉方特Q2買進MU，視其為AI記憶體長線贏家。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Micron Technology seen as strong long-term buy amid AI-driven demand and sold-out capacity through 2026 - Pluang",
-              "url": "https://news.google.com/rss/articles/CBMigAFBVV95cUxQcmdzWWR2SGFYNTVwcGxpMnFXMUJNc29pbTFVdTU1M1IzSlA5YzFUZmVkcG96Uzh0azhJQWJfcHc2Sm5MX0MxWnMxSGp4UnhoSGlDSWlBQ1RfX0l2XzNUTjJXMU5vQ3dJWmZvRDVCcktzdE1uYjFiNVlUYVgtS3h0Mw?oc=5",
-              "publisher": "Pluang",
-              "ts": "2026-09-02T17:31:40Z",
-              "summary": "分析師看好MU長線，AI需求推動產能售罄至2026年底。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Micron: This Cycle Might Shock Everyone (NASDAQ:MU) - Seeking Alpha",
-              "url": "https://news.google.com/rss/articles/CBMihgFBVV95cUxQOFEwU09WczYzcUl0bU9XYlZrZ3dmZ3Q4WUVoa0l2TE5OQmZqcFNURXlfN1pJYnVEREdYaHdoejRiSlM1cnJfbDJHeUNJQkZtcHpDTjJ6cDVubldjXzA2SVBKbUNoY3dobG5vUkpfcm9wVEpYdENXOUJzYlBpRWUybEtwY0l0dw?oc=5",
-              "publisher": "Seeking Alpha",
-              "ts": "2026-09-02T17:10:00Z",
-              "summary": "Seeking Alpha：本輪記憶體週期強度可能超越所有人預期。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Why Micron's Strategic Customer Agreements Make Me Even More Worried (NASDAQ:MU) - Seeking Alpha",
-              "url": "https://news.google.com/rss/articles/CBMixAFBVV95cUxQdzB1YV81Wi1yajVmYVZFX2t1bl9oSWp4U0RKQ2pSYmp0QUd5aEw3cEwzTkhDZUI5b3ZpamFUZmRfbTlOam5aMkdQcjhBWEw1a3hYdlNuZFgwMVhwM2RlRGJWOHQ0RVB0ODUwVGJmZ0JIcFBrbm5sLVZSZ3BzTmJmWVNvbm0xbUhibm5mSEE2cUVEQVhFbDBDS2VleFZGeWZCWndOb2hiOVlzbTJxaFZsNUtmeHNnU0FpT1Vva1dqdlUwTlVf?oc=5",
-              "publisher": "Seeking Alpha",
-              "ts": "2026-09-02T19:25:37Z",
-              "summary": "Seeking Alpha另一篇文章對MU策略客戶協議表達疑慮，警示下行風險。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Billionaire David Tepper Cut Micron 41% and Kept Buying This AI Chip Stock for a Sixth Quarter",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/billionaire-david-tepper-cut-micron-220154130.html",
-              "publisher": "Insider Monkey",
-              "ts": "2026-09-02T22:01:54Z",
-              "summary": "億萬富翁Tepper削減MU持倉41%，轉買另一AI芯片股。",
-              "sentiment": "-"
-            },
-            {
-              "title": "NLST Clocks Worst Day In 10 Months After Appeals Court Backs Micron On Five Patents — Roth Capital Continues To See Near 200% Upside",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/nlst-clocks-worst-day-10-000822705.html",
-              "publisher": "Stocktwits",
-              "ts": "2026-09-03T00:08:22Z",
-              "summary": "法院裁定支持MU對抗NLST五項專利訴訟，專利風險降低。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "MU當日多方利多支撐：法院裁定五項專利勝訴、AI記憶體需求旺盛產能售罄、多名頂尖基金經理人買入。惟Tepper大幅減持及部分分析師對客戶協議條款的質疑形成短線對立。財報顯示營收年增345%、毛利率暴增46.8pt，基本面極為強勁。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +345.7%，高速成長",
-            "+ 毛利率年增 +46.8pt"
-          ]
-        },
-        "COHR": {
-          "headlines": [
-            {
-              "title": "Nvidia Put $2 Billion Into Coherent. Is Optical Bandwidth the Next AI Bottleneck?",
-              "url": "https://finance.yahoo.com/technology/ai/articles/nvidia-put-2-billion-coherent-110311865.html",
-              "publisher": "Insider Monkey",
-              "ts": "2026-09-02T11:03:11Z",
-              "summary": "NVDA注資20億美元入股COHR，光學頻寬被視為AI下一個瓶頸。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Can Coherent's 79% Datacenter Mix Sustain Its Growth Momentum?",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/coherents-79-datacenter-mix-sustain-145500618.html",
-              "publisher": "Zacks",
-              "ts": "2026-09-02T14:55:00Z",
-              "summary": "Zacks分析COHR數據中心占比達79%，探討能否維持成長動能。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Coherent Corp. (COHR) director sells 2,272 shares - Stock Titan",
-              "url": "https://news.google.com/rss/articles/CBMiqwFBVV95cUxOUFBuUTRPb3ozTzB2RjVOdF9la2NMWEt2RVBSTVdXdkU1T1JwTTktNXZUdGdVaTFpTkRCTEZnYlJPNHF0Z3lQckttaEN2SmJZblg0aXhjXzg0TE1NTFh1d3Zsa0dWZ1A0bWxNLUlKczh6ZEVrenJmNTJ5UUQyVTdaMlpBVUZ6LXdRdnp0QURfZXdkVVFuakg0aXRoamRSVEVrVk9mMzlBWF9hWjA?oc=5",
-              "publisher": "Stock Titan",
-              "ts": "2026-09-03T00:39:25Z",
-              "summary": "COHR董事依預設計畫出售2,272股，屬例行安排。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "NVDA戰略投資COHR強化光互聯供應鏈敘事，AI數據中心光學需求持續旺盛。財報顯示營收年增20.5%，但需留意營業現金流由正轉負的隱憂。AVGO指引偏保守短線或波及光通訊板塊情緒，但COHR自身基本面尚稱穩健。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +20.5%，穩健成長",
-            "! 營業現金流由正轉負，現金生成能力惡化"
-          ]
-        },
-        "AAOI": {
-          "headlines": [
-            {
-              "title": "The Manufacturers Life Insurance Company Invests $3.23 Million in Applied Optoelectronics, Inc. $AAOI - MarketBeat",
-              "url": "https://news.google.com/rss/articles/CBMi7gFBVV95cUxQQnM5RGxzbHZWWUtpMm9tV20zVzJaV250UHlpT1pYSjh5My1NaU5UU2Roc1VaZUF1a2hseG5TTDU0SUZHUmNzTV9DRTE2Yk9xY2YyeHNWOW9SSTJYWDNmc1VjRDExdGpZWHR2ZDdERWhOdTRCZWVqcEw2U2tFQ1FUNi1tUHRQcGh1bXZ3M2RHZjA2RmJUYUUwb0Zhak9SQk4xT25LNEFOUlBnclZsTk53ME1uTDNFanoxVFRLUjZNTnJIbnBfUURrTzV6ZlJlZ2p0a3ZNaEhCcWlMdWozcjdya0lid1FqZllBUzlWNlVR?oc=5",
-              "publisher": "MarketBeat",
-              "ts": "2026-09-02T09:04:06Z",
-              "summary": "Manufacturers Life Insurance新買入AAOI約323萬美元，顯示機構佈局興趣。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Legal & General Group Plc Takes $9.42 Million Position in Applied Optoelectronics, Inc. $AAOI - MarketBeat",
-              "url": "https://news.google.com/rss/articles/CBMi4AFBVV95cUxNbVg0NmxCVUV6ckxWY2Vockk4VGNYVlZzcVQ0c2w1a0VxR1lRV19sek8zVG1zOGtUZGc1M1hUU1Y0NDl4Z3k5dmNVYVJMVEtJQXNzTzR3TENnTjl6U2c2cFFmNlJnQklMY1MwSUtzUldMc2I2QjVYdF9QV0NnSUJhTE5FeVVFUlFlcTJqV2JHOHNRNlpEWWxBQ2V5dDBaOVdMQWxBTHg3WFl1d0JldnBfMF94Tlg3R015UkE3ZkNQUUpSeXlldEswNkdraGgxNG9NNTVIZnpCeWdhUGQwRFRNOA?oc=5",
-              "publisher": "MarketBeat",
-              "ts": "2026-09-02T09:04:03Z",
-              "summary": "Legal & General建立AAOI近942萬美元新倉位。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Is Applied Optoelectronics (AAOI) Overvalued After Its $600 Million Equity Raise And Houston Expansion? - simplywall.st",
-              "url": "https://news.google.com/rss/articles/CBMi1AFBVV95cUxQUjNXeGZ3YXIxeXR5X3VzWE5ENlNJSTR0TlZmWENlZ3ppRHluSzROMV9NbTh4REtia3BuR3BiQ0UtUXBNZExQN3dDZjlCX2YxOXcxaERiakpTRzQyWUJNNC1BWnVqNGU1MHRibGhLaHNWdEkxWWYyZ0diRlp1NkI3N2NGSnNjTUtaalp2RFNNbjgtVXJBcGtSMGFjOFhMY2xJTTNxRjZPV2tBakJfeWlkcW1ndnBCYXg1TGI0QjVuaWxjZUpBa24xOHJxX1BQZDJfMXVpaNIB2gFBVV95cUxNMll1Y2ZGbDlvV0xfam1pS1o1c2ZEeHNWQWpObzkxYjJ2anRtdnFpTnZQbzVvTThkeUtoY0VzY18za1J5bGFkRFZxWVZPS3BIN3FTYzNzYzZWellGcm5YZ0ZxQ1lCQmQxa0RFTHZzdllkLWp2aTE2SEY3aWF3QWt4WXhucktERmc2aVljZ1hKVUowQXlnaEEyUWM5REs0T3duOVpZZGNNZExQLVhkRlZmUDZibDYtMVhCbXF1N3ZUX196QVo4aVp0SzRkRy05Q1BxUlQ2Q1E3c2RZQQ?oc=5",
-              "publisher": "simplywall.st",
-              "ts": "2026-09-02T08:18:04Z",
-              "summary": "Simply Wall St.質疑AAOI在6億美元增資與休士頓擴廠後估值是否偏高。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "兩家大型機構投資人同日建立AAOI新倉位，反映光電器件在AI基礎建設中的需求升溫；但市場對大規模增資後估值稀釋存有疑慮。財報顯示營收年增86%表現強勁，惟毛利率年減2.5pt及淨虧損需持續觀察。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +86.4%，高速成長",
-            "! 毛利率年減 -2.5pt，留意成本壓力",
-            "! 淨利率 -11.9%，年減 -3.0pt"
-          ]
-        },
-        "AXTI": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "STX": {
-          "headlines": [
-            {
-              "title": "Seagate Technology Holdings PLC Stock (STX) Moved Down by 3.33% on Sep 2: Key Drivers Unveiled - tradingkey.com",
-              "url": "https://news.google.com/rss/articles/CBMiigFBVV95cUxOMGgwUWh3X180cmE2U09jekJVOHZsdmFFWkNZUTBrTjhrUVVsSkdCUHBfUXNxTG1Famw4SXJkMElfRHBraElGdDBDYU0wemhPaFAtazJUYnVBdmM1QklqNWR2UElfZEd3MnRELV9WYzlOWkxGTkZ3Q0MyMmJSaHZQZ05Gdlo2Z05tdXc?oc=5",
-              "publisher": "tradingkey.com",
-              "ts": "2026-09-02T15:15:22Z",
-              "summary": "STX單日下跌3.33%，報導點出近期股價承壓的主要驅動因素。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "STX當日無重大基本面新聞，股價小幅回落約3.3%，或受大盤情緒及記憶體板塊整體輪動影響。財報基本面強勁（營收年增38%、毛利率年增12.9pt），短線回落暫視為技術性修正。",
-          "score": -1,
-          "linked_warnings_used": [
-            "+ 營收年增 +38.0%，高速成長"
-          ]
-        },
-        "SNDK": {
-          "headlines": [
-            {
-              "title": "Data Centers Now Deliver a Third of Sandisk's Revenue -- $2.98 Billion in a Single Quarter",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/data-centers-now-deliver-third-225801151.html",
-              "publisher": "Motley Fool",
-              "ts": "2026-09-02T22:58:01Z",
-              "summary": "SNDK數據中心業務單季貢獻29.8億美元，佔總營收近三分之一。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Sandisk Stock: Buy, Sell, or Hold?",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/sandisk-stock-buy-sell-hold-183200381.html",
-              "publisher": "Motley Fool",
-              "ts": "2026-09-02T18:32:00Z",
-              "summary": "Motley Fool評估SNDK現階段是買、賣還是持有，整體看法偏正面。",
-              "sentiment": "+"
-            },
-            {
-              "title": "The Memory Crunch Is Bigger Than Expected. 1 Top Stock to Buy on the Dip (Hint: Not Micron or Sandisk)",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/memory-crunch-bigger-expected-1-144501314.html",
-              "publisher": "Motley Fool",
-              "ts": "2026-09-02T14:45:01Z",
-              "summary": "記憶體供給缺口超預期，但分析師提示並非SNDK是最佳受益標的。",
-              "sentiment": "0"
-            },
-            {
-              "title": "Billionaire David Tepper Sold Micron and Sandisk, and Is Hedging Against 1 of Their Largest Customers",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/billionaire-david-tepper-sold-micron-122700266.html",
-              "publisher": "Motley Fool",
-              "ts": "2026-09-02T12:27:00Z",
-              "summary": "億萬富翁Tepper同步賣出MU與SNDK，並對其最大客戶進行對沖。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "SNDK數據中心業務快速成長，單季貢獻接近三分之一總收入，AI儲存需求旺盛；惟Tepper大戶同步出清MU與SNDK引發短線疑慮。財報顯示營收年增251%、毛利率年增55.8pt，中長線基本面極為亮眼。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +251.0%，高速成長",
-            "+ 毛利率年增 +55.8pt"
-          ]
-        },
-        "WDC": {
-          "headlines": [
-            {
-              "title": "Western Digital (NASDAQ: WDC) CEO restructures 112,500-share stake - Stock Titan",
-              "url": "https://news.google.com/rss/articles/CBMiswFBVV95cUxOX3d1WmxqMzV1MTVjcUdNMTY5UDNTZlBaSnhDeTV5QVJCbl9tWHl0UXdIeUpMX1p2QjRteWJydWJadjVHdTUzaWRtRUJ3d2dZdDFuUzlPUmtkMWRsa2JaZHNaNEN0VG50bV9yTjRfXy0zSnE0VDliVUF0bk14cEk3Ymdkd0dYRVQyTlUyaDRRTkl0TUs1NEJneXhhQ1dmdm9wOUNtVVRlamJZSEhENU1JRkpKSQ?oc=5",
-              "publisher": "Stock Titan",
-              "ts": "2026-09-02T22:38:34Z",
-              "summary": "WDC執行長依預設計畫重新安排11.25萬股持股結構。",
-              "sentiment": "0"
-            },
-            {
-              "title": "Western Digital (NASDAQ: WDC) director sells shares via family trust - Stock Titan",
-              "url": "https://news.google.com/rss/articles/CBMiswFBVV95cUxNR3lDc3VKMldrRi1vS0x2UThfckp4UWFFbzlTa2lQV0VjMlpuQldUakdmdFRUZ2dWM2hKcFNYQ3RPX18ya1F5X1k4V1RJMTJkbmVMbjhHelc5TzhSeFpjT0lyV01adzYzcjktcnNoNXNtYm05UXJaOHlwLUx6bGZyQWhkOHFvcVNKa1JQX2I1QUFINllhcHo3N0JoZ3hCNU9qaE0yTURla3RSX2VkcUpCQUhIcw?oc=5",
-              "publisher": "Stock Titan",
-              "ts": "2026-09-02T22:04:10Z",
-              "summary": "WDC董事透過家族信託出售部分持股。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "WDC當日無重大基本面新聞，高管持股調整屬例行安排。記憶體供給缺口延伸至2027年的大環境對WDC中線有利，財報顯示營收年增45.5%、淨利率高達96%，基本面穩健。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "LITE": {
-          "headlines": [
-            {
-              "title": "Lumentum president Yuen sells $1.37m in Lumentum stock By Investing.com - Investing.com Nigeria",
-              "url": "https://news.google.com/rss/articles/CBMiswFBVV95cUxOQndJSDV3aThtcW52U0FlZDFxR2RzLUF3SE5ka0I2NFoxbG9FeVNZRzNrd1hSQjFDM0pnTXhKVkVqMzl3bXg2R1E4dENJb3d5UGU5THl4VVctcDZYbzR0WW5NSzhnSjlpNlNjZGNHMGpaWENqQ21KNzVLQUxJSXlEdGpvS191b0tERUpQVTY4QkZkekE3VXFqdDItS2FXN3ZqRHJiRjI0bGVHRXBKTjZJUnVkRQ?oc=5",
-              "publisher": "Investing.com Nigeria",
-              "ts": "2026-09-02T04:31:07Z",
-              "summary": "Lumentum總裁依10b5-1預設計畫出售約137萬美元股票。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "LITE當日無重大基本面催化，僅有高管例行拋售。AVGO財報後光通訊板塊情緒偏謹慎，短線需觀察傳導效應。財報顯示營收年增90%、毛利率年增15.4pt，基本面維持強勁。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "META": {
-          "headlines": [
-            {
-              "title": "Meta Unveils New AI Model in Accelerated Effort to Catch Rivals - The Information",
-              "url": "https://news.google.com/rss/articles/CBMinwFBVV95cUxNYzJVYllCZUJybVNXTFVBN29ERVEzcm9yTlI4UkI5Y01NVXJnMWpWSW1VVWRjSk8xTHAxRVhGa0VCMjdWMl82YXpidndhWUI3YVU4UlJodXA4WjFnZXA1ZHZmNE9fVy1pejVDY1NiTEd4eEZwR3p6TmdURzh3eFY2T0pJMFpnMkVnX2FYcWVQd0wwX2lQMXhVZHd0MElObEk?oc=5",
-              "publisher": "The Information",
-              "ts": "2026-09-02T22:39:00Z",
-              "summary": "META推出迄今最強大AI模型Muse Spark 1.3，編程能力據稱超越GPT-5.6 Sol。",
-              "sentiment": "+"
-            },
-            {
-              "title": "META Stock Jumps To Best Day In Nearly A Month — Meta Platforms Unveils Most Powerful AI Model To Compete With AI Rivals",
-              "url": "https://finance.yahoo.com/technology/ai/articles/meta-stock-jumps-best-day-205311103.html",
-              "publisher": "Stocktwits",
-              "ts": "2026-09-02T20:53:11Z",
-              "summary": "Muse Spark 1.3消息帶動META股價創近一個月最佳單日表現。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Meta’s $1B, 520-Acre Data Center Takes Shape in Beaver Dam - Milwaukee Journal Sentinel",
-              "url": "https://news.google.com/rss/articles/CBMiywFBVV95cUxONUF3OEliVldHajVYOW9UalJZbkF5YlBFbVdmRTl5MEt4QUw3T0JvS3M5RUhCZFVZanBDcXJyU2YxTnVaUFpvTFFsLWhpOXVxdlhydkMtMHRzWXp3dy1zckVNVTRINHBxWHA5ZTdTeUJLb082ZGo5VWdDS0tEOHlKd0lxWVpRUHZCa0ptT1U5NXBBRGRFN1J3ZlhrUER4YUhCU1VRTXl0UHhCdTZDZnRPLUdmbFV0ZjY1dGZQZVhVZ3d4WGc2QWpheXRTVQ?oc=5",
-              "publisher": "Milwaukee Journal Sentinel",
-              "ts": "2026-09-02T23:44:14Z",
-              "summary": "META斥資10億美元、佔地520英畝的Beaver Dam數據中心已成形。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Meta Axes Over 1,000 Workers Across 3 Manhattan Offices - www.chelseanewsny.com",
-              "url": "https://news.google.com/rss/articles/CBMioAFBVV95cUxNVUZFUHUyRDJMUHg0NFdDVnBYTWtXUGRUM0UzeVo2OVBNRVc0RVJ5Q0dHVWVGN2JIMFFmSjB3aTdNcVpUeGdfdnB6d0VydlRCYzBtWDlDWnhZdlFzcl9LdUxYcXJyX0lYS2NKZnR3Y3FPSjRxNjRVaUFEQS1uMUliZkRiUGFSV1E3X1dHclVJMXdSQU80VWNiSnM2TnAtQ3dE?oc=5",
-              "publisher": "www.chelseanewsny.com",
-              "ts": "2026-09-02T20:52:51Z",
-              "summary": "META裁撤紐約三個辦公室逾千名員工，聚焦成本控制。",
-              "sentiment": "0"
-            },
-            {
-              "title": "Meta will pay Arizona $223M. Here’s what our readers think about it - Copper Courier",
-              "url": "https://news.google.com/rss/articles/CBMigAFBVV95cUxQdEctX2tUS0JQTnpLQmhGdXdfNDFIeUtUdENmb0hmSXNuQ09oSnRMeUI0ZlVZb3NYNGJlMkQyY0lYa2p5SmJNc05wNWI5VlloY2tJUHZQR1NjRWdzUnFPYWl3a0R1a1FjamtLa3ptTWlwdjJnWjlhUG5reFJST0tEMQ?oc=5",
-              "publisher": "Copper Courier",
-              "ts": "2026-09-02T21:20:39Z",
-              "summary": "META支付亞利桑那州2.23億美元和解金，訴訟風險部分落地。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "META當日強勢：Muse Spark 1.3模型被定位為超越競品的最強編程AI，推動股價創月內最大單日漲幅；同步宣布10億美元數據中心投資強化基礎設施。裁員與和解金屬於結構性整合，財報顯示營收年增28%但營運費用上升值得追蹤。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +28.0%，穩健成長",
-            "! 營益率年減 -12.1pt，營運費用控制需注意"
-          ]
-        },
-        "GOOGL": {
-          "headlines": [
-            {
-              "title": "GOOGL Wins Big In Antitrust Fight — Judge Blocks DOJ’s Push To Break Up Google’s Ad Business - stocktwits.com",
-              "url": "https://news.google.com/rss/articles/CBMi5AFBVV95cUxPUU1Oemp3X2o5aXZnZ1BRRG1RT0hnWnJtYmFpVUhKNVBOVkRSdjBmR0x3WDFJeWk0UEljR20yNFU0SURYMFQ5T2FYUWlORlN2NnR6RFhaQTgwNWFUR1RUdlpPUnVONkpKd3V2TU5GeWVwTWNBMGI1Zmt1cGxPcHU1UnNReXlhX2VSMnpBWU9xb2lxcm02ZW5kTGFTNnBZX2ZyTlFkanA1d3dDWWM2QnZ0a0Q1a0lnUVAxNE5OeFlGQmlxTUFtM1hoQjRqNXhRUkp1dFR4alN1b3E2bXRkeUozM0YxT1E?oc=5",
-              "publisher": "stocktwits.com",
-              "ts": "2026-09-02T22:28:16Z",
-              "summary": "美國法官駁回DOJ拆分Google廣告業務請求，但要求部分營運調整。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Google unveils its 'most intelligent' Gemini 3.8 Flash model; announces Fairwind Program (GOOGL:NASDAQ) - Seeking Alpha",
-              "url": "https://news.google.com/rss/articles/CBMivwFBVV95cUxOeGFKVTNDcTZMNGdBX3RyWElDU1puSXZpR3ZHTWRKU0t4LXpkenA5MS1Ka0dkSTBqWWk2VDlVZ1RfeTh4bGpUSF9jYjNJdU5SckFtN3FLSzNpUmdXeTg5eDVyOE9CS29KUkJqN3ZhWTFVODZQZE1RRkhBOFc4RDFxOVZoU0pKb2ZGajd1QUQ4QlZIbnl0Y0tkV2xnZDdMcV81Y1MyX2RCV29kc01Yc194M1BPeVRwWEkzQ3MwLWp2aw?oc=5",
-              "publisher": "Seeking Alpha",
-              "ts": "2026-09-02T16:02:26Z",
-              "summary": "Google發布最智慧Gemini 3.8 Flash模型，並宣布Fairwind計畫。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Berkshire CEO Abel says Alphabet a 'significant player' in AI after growing stake in Q2 - CNBC",
-              "url": "https://news.google.com/rss/articles/CBMivwFBVV95cUxQLU40OEhJS3gyd25QTW1BeDlId29IWjlfZ3ktWXJianZzQmVsODJGSThLclR4ME4yV0ZKT29CT3F1ZW5RUmlzY002eUdXVDhHbmhQOXdWSUd3cHEyVVNpTTJUX3B2NkVuM0EyWTFrTnRraDVZd29KSGtYZ19XbXdaWkFNWWF3Z1Z4SXNYNUc5bk14LUI4bEh2aE1Nanhhem1fRklzSEZTdG85LW9NTnpQa283bWFtb0UtajEyd3VtVdIBxAFBVV95cUxNaXpLeEl0LTBtZFdtN3FDY2dqNVR3R1lNNnJtcHQ2N0lMbFRjckFuVWRYd3RiNzdIQzRYVVJSZWhZYjZ1ZWw3dGVSUC03S1hrV1ZVQXE0LTlzN2Z4LWwyS0ZUc1RDVFhfV0J4ZjBaUUFkRlJDWWtrYWxhbVZoWlVPSmVIWlNnV1dvdHYzUThmZDcyVmdkSTY0VnM3US1UZjNaMFZjUFhsdFJBTXRXMS01UHBWbDd0QTVMeUNYQ2VKcnljUk1E?oc=5",
-              "publisher": "CNBC",
-              "ts": "2026-09-02T10:54:24Z",
-              "summary": "巴菲特接班人Abel稱Alphabet為AI重要玩家，伯克希爾Q2持續加倉。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Abel Says Berkshire Bought Google at a 6.5% Discount - TradingView",
-              "url": "https://news.google.com/rss/articles/CBMisAFBVV95cUxOdnhJN3pVUUFDVmhjbk1nYzQ5QlR5Nk1MOGxwaFd5V3g5a0QyRGk1bERzc2ZwNTNXV1hTaHJTTnZvcWsxanVzZlJOLU1hTUxDbUpzZ0c5WWwwMkdySGFnV3FubXBkdG9vN0ZlbHdfNkU1cmVjUGFYalF5SFhDVHpKQ0tVeHBCRVJBWmpUVHpnY25SM0V3enlGRXptbzhFN0FXaEZKMWdxc3BKZkVsd1R5Tg?oc=5",
-              "publisher": "TradingView",
-              "ts": "2026-09-02T16:20:01Z",
-              "summary": "Abel透露伯克希爾以6.5%折價買入Google。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "GOOGL迎來雙重利多：廣告業務免遭拆分解除最大監管尾風，同步推出Gemini 3.8 Flash強化AI競爭力；伯克希爾持續加倉進一步背書。財報顯示營收年增24%、現金流強勁，短線情緒明確偏多。",
-          "score": 2,
-          "linked_warnings_used": [
-            "+ 營收年增 +24.2%，穩健成長",
-            "+ 營業現金流年增超過 30%，現金品質佳"
-          ]
-        },
-        "GOOG": {
-          "headlines": [],
-          "theme_summary": "GOOG與GOOGL同為Alphabet，利多訊號同步適用，請參閱GOOGL項目。當日無重要新聞。",
-          "score": 2,
-          "linked_warnings_used": []
-        },
-        "ORCL": {
-          "headlines": [
-            {
-              "title": "Oracle’s $300B OpenAI Deal Could Be AI’s Weak Link - Oracle (NYSE:ORCL) - Benzinga",
-              "url": "https://news.google.com/rss/articles/CBMiogFBVV95cUxPMUlwT2xYM3RsdVR5M2F1R19ST0FjTURqYTlPN2tOVmJQSmpGT1JYNld4SUl2d055cHNiZmFVbElwZFVOWnJGS3hlekRHalcwSWRKVks1cFh0RXg2bEZpb3NEaVljQXlhRFVPZjltbnlMZnhKUFJVbmpER1BPTnYzbFhwT2lwd0FOS0JTdUxBamJCd24td0dXNnpuZ0czS2RyRGc?oc=5",
-              "publisher": "Benzinga",
-              "ts": "2026-09-02T17:44:12Z",
-              "summary": "Benzinga分析ORCL與OpenAI 3000億美元合作可能成為AI擴張的薄弱環節。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Oracle Is Down 25%. Jefferies Says the Worst May Be Priced In",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/oracle-down-25-jefferies-says-210301665.html",
-              "publisher": "GuruFocus.com",
-              "ts": "2026-09-02T21:03:01Z",
-              "summary": "Jefferies稱ORCL已下跌25%，最壞情況可能已反映在股價中，估值具吸引力。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Oracle Corp Stock (ORCL) Moved Up by 3.25% on Sep 2: What Signal Does It Send? - tradingkey.com",
-              "url": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxNNVV2TDdpNHg2SGlkUGVoRU96U0lXMnVwUnoyZTBUTEItdF80eGlEX0Y1WDA4cHpBWkNEbmhDTnNXMHZVdnJKcDBGSEhCV1FSbWtXU2hFVmFYbWZIRGxfN3FQdmxZclpGTGc5VGVqU2xNSnVXeGZnVHFVZVhtTHAwczJUTlBqWVFGNTU4?oc=5",
-              "publisher": "tradingkey.com",
-              "ts": "2026-09-02T18:15:24Z",
-              "summary": "ORCL當日上漲3.25%，市場評估其技術信號轉向。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Oracle Sets the Date for its First Quarter Fiscal Year 2027 Earnings Announcement - Investing News Network",
-              "url": "https://news.google.com/rss/articles/CBMirAFBVV95cUxOTEgyenJzWXBVbHpsM2hFdlVXTHFlSDc1dWZQNjhmQ1dlWXBBbXN1V01URGk0RW9zTFdDamRpYVRLRmZac2NWVzUxc2tsVGp5S2g3bFZ0Tkgwdkc1aWdMdThhTTdqSHFhd25VQzlpdGZUZmxwMmoxd1pSUXB4WHdhM1l3bVY2NEtwY3c5OG4yQ3B2MjBtaFlCd2pSS0c0SWlKVllwbnFGbjRKbGc0?oc=5",
-              "publisher": "Investing News Network",
-              "ts": "2026-09-02T21:22:00Z",
-              "summary": "ORCL宣布FY2027 Q1財報公布日期，投資人關注下一個催化劑時間點。",
-              "sentiment": "0"
-            },
-            {
-              "title": "HPE Earnings Top Estimates Amid Oracle AI Data Center Deal",
-              "url": "https://www.investors.com/news/technology/hpe-stock-hpe-earnings-news-july26/?src=A00220&yptr=yahoo",
-              "publisher": "Investor's Business Daily",
-              "ts": "2026-09-02T21:07:14Z",
-              "summary": "HPE財報超預期，部分受益於Oracle AI數據中心合作訂單。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "ORCL近期承壓後當日反彈3.25%，Jefferies認為跌幅已反映悲觀情緒、估值回調至相對合理區間；惟市場對其OpenAI 3000億美元大合約的執行風險仍存疑慮。財報顯示營收年增20.6%，毛利率有所下滑，需等待Q1 FY2027財報驗證。",
-          "score": 0,
-          "linked_warnings_used": [
-            "+ 營收年增 +20.6%，穩健成長",
-            "! 毛利率年減 -5.0pt，留意成本壓力"
-          ]
-        },
-        "PLTR": {
-          "headlines": [
-            {
-              "title": "Palantir Shares Sink Despite $192 Million Army Contract",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/palantir-shares-sink-despite-192-203219324.html",
-              "publisher": "GuruFocus.com",
-              "ts": "2026-09-02T20:32:19Z",
-              "summary": "PLTR獲1.92億美元美軍合約，但股價仍下跌，市場認為估值已充分反映。",
-              "sentiment": "0"
-            },
-            {
-              "title": "Palantir Stock Gets New Problem From Google",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/palantir-stock-gets-problem-google-203038795.html",
-              "publisher": "GuruFocus.com",
-              "ts": "2026-09-02T20:30:38Z",
-              "summary": "Google擴大布局國防AI市場，市場視為對PLTR的直接競爭威脅。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Palantir Heads for Worst Day in 7 Months. It Isn’t the Only Software Stock Sinking.",
-              "url": "https://www.barrons.com/articles/palantir-stock-technology-software-a0c98d84?siteid=yhoof2&yptr=yahoo",
-              "publisher": "Barrons.com",
-              "ts": "2026-09-02T17:45:00Z",
-              "summary": "PLTR創7個月來最大單日跌幅，多檔軟件股同步下滑。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Palantir Falls 7% Despite Army TITAN Production Award, Salesforce Slips - 247wallst.com",
-              "url": "https://news.google.com/rss/articles/CBMiswFBVV95cUxOZEZ4bFd6M1ZKMVVtdkJ5SVJaS1pRd0d3emkzdXRULUR3UHFGbkkxLVlFZllYdlF2WDFwSEdOdmw3a3ZDNVg3N0tteWliMGpQS1gydEJRdjA4bFpwc3NKSzNZeHkxS3BCQ29uUklFeEx6U1dqdDhWcTZWOHlac2dhYnVoMi1oZk1CekFNUlo0R0lsSmdmQWxfa2xaaEJKZFJxcGUwOWRRVG03el9JNWQtSWJ1SQ?oc=5",
-              "publisher": "247wallst.com",
-              "ts": "2026-09-02T16:30:00Z",
-              "summary": "PLTR獲Army TITAN量產合約仍跌7%，估值壓力主導市場情緒。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Palantir Technologies (PLTR) Upgraded to Strong Buy: Here's Why - Yahoo Finance",
-              "url": "https://news.google.com/rss/articles/CBMiqwFBVV95cUxOM0RJX0MwYlByMzVCa0pRMVhMWE5BbzFrN2RsMlJwR2I3TDdycENOb2ZfSE92UE9yTGYxVW5GZXRqT3VEbjN1SlVFX1BHMjh6MWJId2hzQlpzNlpfSGVKOXJtX25XQ3N3UW9VYkwzNFVBZG1hTDdvbk1WRHY3aW9FOFJ3WGxINkowajN0eE5ja19GbnRtS3c0cUlScnY4TzZTUDloVEVQM1hXczg?oc=5",
-              "publisher": "Yahoo Finance",
-              "ts": "2026-09-02T16:00:02Z",
-              "summary": "某機構將PLTR上調至強力買入評級，看好長線基本面。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Palantir Hits Our Price Target: We Move To Distribute Rating (Downgrade) (NASDAQ:PLTR) - Seeking Alpha",
-              "url": "https://news.google.com/rss/articles/CBMiogFBVV95cUxQZE8yc3ZhbWZiQXdDM3NCdXdEUFpHME91TkJOVGk5QUFLQkFXeXZHbi1MVDJrcVhhaWZoRWIyY1BPdHpXRjh5WW5WUEQxLUNDbEduN3VWdnpuc0Fxd3I2WGkxS2Q5bU44Wng1dHBmMnhLb1dZLW85X1lXMjQxVDVEbk8wdTVKRGpqcWU5S1YwUFRKWi1RWTZsaktHOGphYVZpa0E?oc=5",
-              "publisher": "Seeking Alpha",
-              "ts": "2026-09-02T15:11:36Z",
-              "summary": "Seeking Alpha一分析師稱PLTR已達目標價，降評至「分散」評級。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "PLTR當日承壓跌逾7%：軍方TITAN大單未能提振市場情緒，Google進軍國防AI形成直接競爭，加上多名分析師以估值過高為由降評或調整倉位。財報顯示營收年增92.8%、現金流強勁，基本面無虞，但高估值在競爭加劇時缺乏緩衝。",
-          "score": -1,
-          "linked_warnings_used": [
-            "+ 營收年增 +92.8%，高速成長",
-            "+ 淨利率 54.9%，年增 +22.3pt"
-          ]
-        },
-        "TSLA": {
-          "headlines": [
-            {
-              "title": "Dow Jones Futures: Snowflake, Broadcom, HPE Are Big Earnings Movers; Tesla Cybercab Event Due",
-              "url": "https://www.investors.com/market-trend/stock-market-today/dow-jones-futures-snowflake-broadcom-hpe-earnings-tesla-cybercab-event/?src=A00220&yptr=yahoo",
-              "publisher": "Investor's Business Daily",
-              "ts": "2026-09-03T00:27:28Z",
-              "summary": "Tesla Cybercab發布活動即將在奧斯汀舉行，為近期最大催化劑。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Morgan Stanley Warns Tesla Stock Could Sink If Cybercab Launch Falls Short",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/morgan-stanley-warns-tesla-stock-204925429.html",
-              "publisher": "GuruFocus.com",
-              "ts": "2026-09-02T20:49:25Z",
-              "summary": "摩根士丹利警告若Cybercab發布未達預期，TSLA股價可能顯著承壓。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Tesla (NASDAQ:TSLA) Expands Robotaxi Zones as Cybercab Debuts - Kalkine Media",
-              "url": "https://news.google.com/rss/articles/CBMipwFBVV95cUxPLXpGMFN3TGV3ZmVVMXhVV25hWGI5UHdaS0JRSnpnbV9veDM0T2ZjNUxUX1RzYjdWVDBvNkE5bGJrd0c0aFpfQ3AzQ2Nmc29HdThOcWNsQTVMaDZKaUVEaWpZYjZvSGlpd25CcGUzM2VRQm01QzJLc0pZcFl4QTNkdHdBQkgtNmxaQ0R2d0p0SmxNVW5feDFFVlROT1FvdU00YnlSeDVhWQ?oc=5",
-              "publisher": "Kalkine Media",
-              "ts": "2026-09-02T18:15:00Z",
-              "summary": "Tesla擴大Robotaxi營運區域，Cybercab正式亮相。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Gary Black Says Tesla’s Sky-High Valuation Is a Reason to ‘Not Own It’ — But ‘Not a Reason to Short It’ - Benzinga",
-              "url": "https://news.google.com/rss/articles/CBMi6AFBVV95cUxPY1lHN2xmYXR2QVZsSE8tbTFvM25rWVNCX2xNMWhka19uR05nQU5DQ2h2WUh4NVd2RmRRaFoyZ0haY3U5d0MyREVGRlQ3TGxVN0ZBUmJzRHc1ZUZPTUhBUUpSRkdBYkY2TGVkR28wdmVUNzJZVkY4d043a0lZRDhjakxiTUNubHptMFU5Q01nN2QwWkd3Z3JrZFJ4YS1HUm90SUxyTDg0TWxzZFhUMS1JTVEydmRFQ1JKT0phZ20tR1V0VWhfbF9MRDJXZXNGbXJJSlNCYUxrS3dkVUpvNTQ2a3hnRlBsUWxF?oc=5",
-              "publisher": "Benzinga",
-              "ts": "2026-09-02T13:53:47Z",
-              "summary": "分析師Black認為TSLA高估值是不持有的理由，但不構成做空依據。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "TSLA最大近期催化劑為Austin Cybercab發布活動，市場期待殷切但摩根士丹利警告若發布低於預期恐引發大跌；多方期權部位顯示選擇權交易熱烈，存在雙向波動風險。財報顯示營收年增25.5%、現金流強勁，Robotaxi敘事是否落地執行為關鍵觀察點。",
-          "score": 0,
-          "linked_warnings_used": [
-            "+ 營收年增 +25.5%，穩健成長"
-          ]
-        },
-        "ASTS": {
-          "headlines": [
-            {
-              "title": "ASTS Stock Pops 10% To Best Day In A Month After Berenberg’s Bullish Ratings, Early Investor Cisnero’s Stock Buy-In - stocktwits.com",
-              "url": "https://news.google.com/rss/articles/CBMiqAFBVV95cUxQS0ZmY254Y3JmZklQbXdhRzRJSkhiUDNBZGxQaWhBV0hfaTdHbmJwUnNIeHBaUUp0czVRbld5bDFQM2tNSGF1Z084bGlmYTZXaS1kX09uZ2FicWNwTDlzS0ROVXRMNU5aZnlsRjU1WWM2UDdsQWo5Ml9PU1BfRnoyR1Z6UWpNSURnRTdjckJVb1JiUjVoOU1PdDQwbUhPeXBXR1cyVDNJQW8?oc=5",
-              "publisher": "stocktwits.com",
-              "ts": "2026-09-02T22:07:36Z",
-              "summary": "ASTS單日大漲10%，Berenberg給出92美元目標價並開評買入。",
-              "sentiment": "+"
-            },
-            {
-              "title": "AST SpaceMobile Stock Soars on New Buy Call",
-              "url": "https://www.barrons.com/articles/ast-spacemobile-stock-buy-rating-price-146b0862?siteid=yhoof2&yptr=yahoo",
-              "publisher": "Barrons.com",
-              "ts": "2026-09-02T20:23:00Z",
-              "summary": "Barron's報導ASTS因新買入評級股價飆升。",
-              "sentiment": "+"
-            },
-            {
-              "title": "AST SpaceMobile Fell More Than 50%. A Director Just Made Her Biggest Buy Yet",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/ast-spacemobile-fell-more-50-144921771.html",
-              "publisher": "Barchart",
-              "ts": "2026-09-02T14:49:21Z",
-              "summary": "ASTS較高點下跌逾50%後，一名董事進行最大規模的個人買入。",
-              "sentiment": "+"
-            },
-            {
-              "title": "AST SpaceMobile Jumps After Director's Family Buys $619,000 in Shares - finance.biggo.com",
-              "url": "https://news.google.com/rss/articles/CBMidkFVX3lxTE5zbzBZN0hrRE1tQ2Y2di1fZ1p5eXF0WktObzNZeDBqUmtsbDVMNU1MVUdteXZtV0JRVzFfUjJyOEVBdUF1WFhDbUdFeXMwMzlZNzhWY3hiX3cycERJU3lrT0V4aVh0MC1jQ2Z4WjUxUkMxVzhET0E?oc=5",
-              "publisher": "finance.biggo.com",
-              "ts": "2026-09-02T19:11:08Z",
-              "summary": "ASTS董事家屬買入61.9萬美元股票，內部人士信心增強。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "ASTS在盤中創近一個月最佳單日表現，三重利多齊發：Berenberg開評$92目標價、董事及早期投資人大額買入、衛星部署進展順利。盤前繼續受到市場關注。財報顯示營收年增1952%但毛利率大幅下滑需持續追蹤成本控制。",
-          "score": 2,
-          "linked_warnings_used": [
-            "+ 營收年增 +1952.2%，高速成長",
-            "! 毛利率年減 -79.1pt，留意成本壓力"
-          ]
-        },
-        "NBIS": {
-          "headlines": [
-            {
-              "title": "How Nebius Group’s AI Data Center Power Surge Could Reshape Nebius Group (NBIS) Investors",
-              "url": "https://finance.yahoo.com/technology/ai/articles/nebius-group-ai-data-center-230625246.html",
-              "publisher": "Simply Wall St.",
-              "ts": "2026-09-02T23:06:25Z",
-              "summary": "Simply Wall St.分析NBIS AI數據中心電力需求激增如何重塑投資者視角。",
-              "sentiment": "+"
-            },
-            {
-              "title": "This Is The New Pricing Story For Nebius (NASDAQ:NBIS) - Seeking Alpha",
-              "url": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxQQnAybXJTQmxFc2g0NDRUNE9iUlQ5UlVaUUtiR0FZMnBpbmdFWTFTWGp6ZmFzamFkLUk5WUxuSjBqQ04xLTBoUVZBQTRhZTNSWnNwM3QxTGtCUHVFblFwakp0RGc0Nm9yMVg3U1czdlMyaHdIbHlaNTlycldQcGFkb3FaeWc4bno1?oc=5",
-              "publisher": "Seeking Alpha",
-              "ts": "2026-09-02T14:49:44Z",
-              "summary": "Seeking Alpha探討NBIS新定價策略對估值的影響。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Nebius Group (NASDAQ:NBIS) CFO Sanchez Maria Del Dado Alonso Sells 470 Shares - MarketBeat",
-              "url": "https://news.google.com/rss/articles/CBMi0wFBVV95cUxPa2NuSEJZaWJsNm1sODVldE4xb1BvZ0RYMGJXeTdaRk5sMFNkS1hpUUVhT09JVF9CenlqamU4YkVtRzFOeU9oNkp5NDdLSm5udU15cUxTdFN6NnZyQWNxMVhVZ2pMOXlqTDFWbE95aUcxYm93djVhYTY4U0NxSzVad1dmQUdqVHM4ajdSRlhicVFPQV83RG5oU1BWMDlfS0JHZDJHSEZoRlc5cU1iWlR2d2lHdDVCQ01ZbEVMajEwY01KVHNNdFRTU1VWekVGRF8ybHNn?oc=5",
-              "publisher": "MarketBeat",
-              "ts": "2026-09-02T17:10:41Z",
-              "summary": "NBIS CFO依預設計畫出售470股，例行安排。",
-              "sentiment": "0"
-            },
-            {
-              "title": "NBIS, IREN, CRWV At Risk? OpenAI Co-Founder Warns AI Agents Could Turn Neoclouds Into Cybersecurity Targets — Palo Alto CEO Offers Fix - Yahoo Finance",
-              "url": "https://news.google.com/rss/articles/CBMilAFBVV95cUxPeDJ5UnFLa2gtTTZ5dk8weWlPVzZjeXc3VW1iTWMxX3Zmd3JPMkY2aHJhN1FySG5sZkt1dk5VTnV3SUhrM3V3S0ZGbmRWU0RUM0hmbGp0NTNEWHd5Q09MUEpDQktkdnEwZ2tTT1RiU2tBTC1RVnE2ZUxmVEtncjBuY2M4Q3dRQjc2WHl3YkItRFFfekow?oc=5",
-              "publisher": "Yahoo Finance",
-              "ts": "2026-09-02T04:55:00Z",
-              "summary": "OpenAI共同創辦人警告AI代理可能使Neoclouds成為網路安全攻擊目標，NBIS被點名。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "NBIS聚焦AI算力基礎設施，吸引市場持續關注；新定價策略帶來正面估值重估機會，但AI雲端安全風險警示值得留意。財報顯示營收年增684%、淨利率155.7%，基本面極為亮眼。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +683.9%，高速成長",
-            "+ 淨利率 155.7%，年增 +378.7pt"
-          ]
-        },
-        "BTC-USD": {
-          "headlines": [
-            {
-              "title": "Bitcoin and ethereum prices today, Wednesday, September 2, 2026: Crypto prices tumble as Iran war reignites",
-              "url": "https://finance.yahoo.com/personal-finance/investing/article/bitcoin-and-ethereum-prices-today-wednesday-september-2-2026-crypto-prices-tumble-as-iran-war-reignites-112639522.html",
-              "publisher": "Yahoo Personal Finance",
-              "ts": "2026-09-02T11:26:39Z",
-              "summary": "加密貨幣全面下跌，原因是美伊衝突重燃避險情緒並拖累風險資產。",
-              "sentiment": "-"
-            },
-            {
-              "title": "A Fed rate increase would be a mistake, some observers say as bitcoin, gold, stocks fall - CoinDesk",
-              "url": "https://news.google.com/rss/articles/CBMizAFBVV95cUxNeHJKZC1pQ1AtOUR0NlVRU3ZScEN0eGs2VWlLQVBOa0FoNWpWVExvaFpjTnllaUFwQUw1Qno5Y0FjZUZlTzFITTZkcHAtUHU1OGY4MnloRVl6VWVuMDJmemw3R1NfeEY4N1dWay1XaTRhNmZnWHhQc25RWXpKVE9nTzhDNXB1SENhTlJsVFNDRVE0bnpFdG5UMW9zc29ocWFlOVRoS0JYeE1JQmZTTFdwMC1pUERVdjAyeHZ3ekpkem5XMGJJRFd4Y2x4N0I?oc=5",
-              "publisher": "CoinDesk",
-              "ts": "2026-09-02T11:14:58Z",
-              "summary": "部分市場觀察者警告Fed若9月升息將是錯誤決策，但比特幣與股票同步下滑。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Bitcoin Price Forecast: BTC Holds $73K Support as Elliott Wave Setup Targets $90K - Yahoo Finance Singapore",
-              "url": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxQenkzNkFRQ3VoUG5weEd4SE5xT1RpNEZ1cnZBQWNaR2dLN2dTN0ZNeUZCeFRTdjFyMGdSbFJMeEE2SndTVEJpbmc3Z2tlY2tFZDVtVWRhZG9IV1NnLW96cGNuTDQ2QzJSVjJ2X0VTaTYxTkdxdUhLVUg1aGkwbU1TYmwxejZlSHlJ?oc=5",
-              "publisher": "Yahoo Finance Singapore",
-              "ts": "2026-09-02T19:14:55Z",
-              "summary": "技術分析顯示BTC維守7.3萬美元支撐，艾略特波浪目標上看9萬美元。",
-              "sentiment": "0"
-            },
-            {
-              "title": "CZ Says AI Money Is Rotating Back to Crypto as $840,000 Case Builds for Bitcoin - beincrypto.com",
-              "url": "https://news.google.com/rss/articles/CBMiZ0FVX3lxTE9nVUJfX2xEbENSM0o0RGJEUVJWUGY1cEFuRlF4dTZFOUlBYW5ablRBbW8ya0lmdnlFSmJaUG9Ka2tRLTFqOFJFQ1UzeTgwZVhfS1NWRkREeFpNWUNvaHBEeE9jZGxObW8?oc=5",
-              "publisher": "beincrypto.com",
-              "ts": "2026-09-02T20:56:00Z",
-              "summary": "CZ認為AI資金正輪動回流加密市場，比特幣長線看漲8.4萬美元。",
-              "sentiment": "+"
-            },
-            {
-              "title": "The bearish 'Bart Simpson' pattern is back as bitcoin and XRP prices pull back - CoinDesk",
-              "url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxQaENja21XSUlLaFlUYUFKdHFLU2lfbkhxQzdxYlpUUUJScDIwbXAtNEdnM2pmQU96RXhIM3JXejM3bzlneHJSZkN6cXhxZFZJUUZGUXVrNi1NMFBOcHVyUHctaDBHbWw3MmhnTHM0dzh2dktROHRISDB1NWlZdW9QTXpaYTJhVmZRak9iclJxaGtZdFNSM2R1aE0wMEhkNnZndExqRzA3QWlpbGc0Mk9nSjRGRkNxUkhNWWtYZ1hJTi11SmM0UG0ybA?oc=5",
-              "publisher": "CoinDesk",
-              "ts": "2026-09-02T13:35:01Z",
-              "summary": "CoinDesk分析顯示「巴特辛普森」看跌形態再現，BTC與XRP同步回落。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "BTC在7.3萬至7.7萬美元區間承壓，核心壓力來自Fed可能9月升息的預期與美伊地緣緊張。技術面出現空頭形態但有分析師維持樂觀展望。短線情緒偏空，待Fed會議（9/15-16）結果明朗後方向更清晰。",
-          "score": -1,
-          "linked_warnings_used": []
-        },
-        "ETH": {
-          "headlines": [
-            {
-              "title": "Ethereum Succumbs To Pressure, Price Dips Below $2.4k - MarketForces Africa",
-              "url": "https://news.google.com/rss/articles/CBMihAFBVV95cUxOSEVqcm5GVFVPN2szcGlUc0huMXZMWm5sQ0FCSFlnbGc3OFNiejZpUVVyNXBZRFhibnZITWMwd0JyREhqQ3NJM3Rvdk5mQjRTekJjR05rRmVHSk9oNUFHMEhLZEtYX0pCSVk2Wnd4VDlPYkFhOEMwb1JCTmdaeHFsM05DT18?oc=5",
-              "publisher": "MarketForces Africa",
-              "ts": "2026-09-02T18:36:39Z",
-              "summary": "ETH跌破2,400美元，承受與BTC相同的宏觀壓力。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Japan’s Remixpoint Dumps Ethereum, XRP in Shift to Bitcoin-Only Treasury",
-              "url": "https://finance.yahoo.com/markets/crypto/articles/japan-remixpoint-dumps-ethereum-xrp-213105670.html",
-              "publisher": "decrypt",
-              "ts": "2026-09-02T21:31:05Z",
-              "summary": "日本Remixpoint清空ETH與XRP轉為純比特幣國庫策略，ETH資金面偏空。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Ethereum Price Forecast as ARK Invest Analyst Exposes Why L2s Are \"Bad Business\" for ETH - CoinGape",
-              "url": "https://news.google.com/rss/articles/CBMitwFBVV95cUxPcHVZR0dRSVYxYlpBZW15UDhvUVpkYVlmbXoyZnYyM3B2M1RUWGJoaEhaWU5pQ0xXeFRGWGFuN29QcFFrckNJR0ZtaTlGTjBlSjVwcUduMXEtTHJqenJqRlhoYU1TQlFXT3RXcFA4TDFVSkNUNHhqT1FVel85WkVCRGNMTHdLa0JUNC1aRWc3cXRxQjlHU0dMcU5WVm5KVmNEQnIxdDUzcVU1MkhqWjVGR3RNNEIzc1k?oc=5",
-              "publisher": "CoinGape",
-              "ts": "2026-09-02T12:50:21Z",
-              "summary": "ARK Invest分析師指L2方案對ETH主網是「糟糕生意」，長線價值邏輯受質疑。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Ethereum price targets $2,550 if key EMA holds - Crypto News",
-              "url": "https://news.google.com/rss/articles/CBMifkFVX3lxTE9ZR2MyNF9mMkxoVktFSTFPTXVSOXVWbzJENXFOMjBpOWtPSE40SE5FN292VnE3c1dWUGVkYkU4MHNfbzNVYkFPbkJ2M1BDRVJBb2F5YzZ2Sk5TWU42cVZoRTJiZmlVVTNtMzFPbEZVc1d1WjZYNFFsZHNRYWZ5QQ?oc=5",
-              "publisher": "Crypto News",
-              "ts": "2026-09-02T12:00:00Z",
-              "summary": "技術分析顯示ETH若守住關鍵EMA，目標上看2,550美元。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "ETH面臨多重壓力：機構資金轉向純BTC策略、L2生態系稀釋ETH主鏈價值質疑聲浪再起、宏觀環境不友善。短線價格跌破$2,400，技術面偏弱，方向跟隨BTC與Fed決策。",
-          "score": -1,
-          "linked_warnings_used": []
-        },
-        "MSTR": {
-          "headlines": [
-            {
-              "title": "Elon Musk's 2025 Tesla pay could buy nearly 10% of all Bitcoin",
-              "url": "https://finance.yahoo.com/markets/crypto/articles/elon-musks-2025-tesla-pay-232621322.html",
-              "publisher": "TheStreet",
-              "ts": "2026-09-02T23:26:21Z",
-              "summary": "Elon Musk 2025年薪酬若全部換算為比特幣約可購入全球10%的比特幣供應量，突顯BTC稀缺性。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "MSTR當日無直接重大消息，走勢高度跟隨BTC。BTC當日在7.3萬至7.7萬區間承壓，對MSTR淨資產估值構成短線壓力。財報顯示淨利率極度負數，為加密資產持有的核算影響，非現金業務惡化。",
-          "score": -1,
-          "linked_warnings_used": [
-            "! 淨利率 -6717.1%，年減 -15469.9pt"
-          ]
-        },
-        "COIN": {
-          "headlines": [
-            {
-              "title": "Coinbase Brings Crypto Futures to Canadian Traders",
-              "url": "https://finance.yahoo.com/markets/crypto/articles/coinbase-brings-crypto-futures-canadian-171800728.html",
-              "publisher": "CryptoProwl",
-              "ts": "2026-09-02T17:18:00Z",
-              "summary": "Coinbase將加密期貨服務擴展至加拿大交易者。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "COIN當日無重大財務新聞，加拿大期貨擴張屬正面業務進展，但整體加密市場情緒偏空對交易量及手續費收入造成壓力。財報顯示營收年減18.5%、淨利率轉負，基本面疲軟需留意。",
-          "score": -1,
-          "linked_warnings_used": [
-            "! 營收年減 -18.5%，需留意需求疲軟",
-            "! 淨利率 -29.5%，年減 -124.9pt"
-          ]
-        },
-        "KTOS": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。PLTR受Google進軍國防AI衝擊，但KTOS業務定位偏向無人機系統，傳導效應有限。財報顯示營收年增30.5%、現金流強勁，基本面維持正向。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "ONDS": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "BMNR": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "CRCL": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "EWY": {
-          "headlines": [],
-          "theme_summary": "當日無直接相關重要新聞。韓國記憶體股（三星、SK海力士）受韓電要求預繳電費及華爾街反彈兩股力量拉鋸，EWY短線方向不明，整體跟隨韓股板塊。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "005930.KS": {
-          "headlines": [
-            {
-              "title": "Samsung Loses 4% as $95 Oil Hits Its AI-Memory Rally",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/samsung-loses-4-95-oil-220232652.html",
-              "publisher": "GuruFocus.com",
-              "ts": "2026-09-02T22:02:32Z",
-              "summary": "三星因油價衝破95美元帶動避險情緒，AI記憶體反彈行情受壓，單日跌約4%。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Samsung, SK hynix Rebound Over 1% in Premarket After Wall Street Gains - Seoul Economic Daily",
-              "url": "https://news.google.com/rss/articles/CBMingFBVV95cUxOLWppY05XNkVnZDFMSFVybFRfR3ZueHIwRVNnVTF4NDQySnhfYXlNbU1OS3lQYkdsNldsSUNfakRHYWtNZ2d4bDV3anpvT0lCTlVZZmJOWVVPNG40bEZyeTJBaHc0RmhodzhxY01iNm41UUdFQ05CUTlnUldDVURxZEN4OXpwUUVfbzlyWndTWjR1R1hBSklBazcwenVUdw?oc=5",
-              "publisher": "Seoul Economic Daily",
-              "ts": "2026-09-02T23:27:17Z",
-              "summary": "三星與SK海力士盤前回升逾1%，跟隨華爾街漲勢。",
-              "sentiment": "+"
-            },
-            {
-              "title": "KEPCO Asks Samsung, SK hynix to Prepay 25 Trillion Won in Power Bills - Seoul Economic Daily",
-              "url": "https://news.google.com/rss/articles/CBMinwFBVV95cUxNUlhFa3c0UHRhTTA2UzJETEpMazJKQUI1SHJUV0VGX0dQS2lDUTZ3ci1hU19RVENIaG8zNlFBbUw0ci10N0tWSnVQck5XUE9Ob1E2RWFQaTNVbDAtU1oxNDN2SmUtc2pwaFBYY1ZDM2RodW1YX1RuUUlkMlhoM1M1alRrRWRIcXBhZldsa0hmNnlEUU05b25RNUJEdW9CUFk?oc=5",
-              "publisher": "Seoul Economic Daily",
-              "ts": "2026-09-03T00:34:58Z",
-              "summary": "韓電要求三星與SK海力士預繳25兆韓元電費，增加現金流壓力。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "三星當日受雙重壓力：高油價壓制AI記憶體漲勢、韓電大額電費預繳增添財務負擔，但隔夜美股反彈帶動盤前走強。記憶體需求長線正向，但短線宏觀風險主導。財報顯示營收年增69%基本面強勁。",
-          "score": -1,
-          "linked_warnings_used": [
-            "+ 營收年增 +69.2%，高速成長"
-          ]
-        },
-        "000660.KS": {
-          "headlines": [
-            {
-              "title": "KEPCO Asks Samsung, SK hynix to Prepay 25 Trillion Won in Power Bills - Seoul Economic Daily",
-              "url": "https://news.google.com/rss/articles/CBMinwFBVV95cUxNUlhFa3c0UHRhTTA2UzJETEpMazJKQUI1SHJUV0VGX0dQS2lDUTZ3ci1hU19RVENIaG8zNlFBbUw0ci10N0tWSnVQck5XUE9Ob1E2RWFQaTNVbDAtU1oxNDN2SmUtc2pwaFBYY1ZDM2RodW1YX1RuUUlkMlhoM1M1alRrRWRIcXBhZldsa0hmNnlEUU05b25RNUJEdW9CUFk?oc=5",
-              "publisher": "Seoul Economic Daily",
-              "ts": "2026-09-03T00:34:58Z",
-              "summary": "韓電要求SK海力士預繳大額電費，影響短期現金流。",
-              "sentiment": "-"
-            },
-            {
-              "title": "Samsung, SK hynix Rebound Over 1% in Premarket After Wall Street Gains - Seoul Economic Daily",
-              "url": "https://news.google.com/rss/articles/CBMingFBVV95cUxOLWppY05XNkVnZDFMSFVybFRfR3ZueHIwRVNnVTF4NDQySnhfYXlNbU1OS3lQYkdsNldsSUNfakRHYWtNZ2d4bDV3anpvT0lCTlVZZmJOWVVPNG40bEZyeTJBaHc0RmhodzhxY01iNm41UUdFQ05CUTlnUldDVURxZEN4OXpwUUVfbzlyWndTWjR1R1hBSklBazcwenVUdw?oc=5",
-              "publisher": "Seoul Economic Daily",
-              "ts": "2026-09-02T23:27:17Z",
-              "summary": "SK海力士盤前回升逾1%，跟隨美股反彈。",
-              "sentiment": "+"
-            },
-            {
-              "title": "How to Play SKHY Stock as SK hynix Looks to Build a New Plant in Japan",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/play-skhy-stock-sk-hynix-160544641.html",
-              "publisher": "Barchart",
-              "ts": "2026-09-02T16:05:44Z",
-              "summary": "SKHY（SK海力士ADR）分析師探討如何佈局其日本新廠建設題材。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Exclusive-South Korean FX authorities bought $20 billion in repatriated SK Hynix funds, source says",
-              "url": "https://finance.yahoo.com/markets/currencies/articles/exclusive-south-korean-fx-authorities-073601807.html",
-              "publisher": "Reuters",
-              "ts": "2026-09-02T07:36:01Z",
-              "summary": "韓國外匯當局買入SK海力士資金回流的200億美元，穩定韓元匯率。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "SK海力士面臨電費預繳的短期現金壓力，但日本新廠建設擴產計畫維持長線積極態勢；韓元匯率穩定有助減少匯兌損失。財報顯示營收年增198%、淨利率76.7%，基本面優異。",
-          "score": 0,
-          "linked_warnings_used": [
-            "+ 營收年增 +198.1%，高速成長",
-            "+ 淨利率 76.7%，年增 +30.8pt"
-          ]
-        },
-        "SOXX": {
-          "headlines": [
-            {
-              "title": "Should You Invest in the iShares Semiconductor ETF (SOXX)?",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/invest-ishares-semiconductor-etf-soxx-102002863.html",
-              "publisher": "Zacks",
-              "ts": "2026-09-02T10:20:02Z",
-              "summary": "Zacks分析是否值得投資iShares半導體ETF（SOXX），整體中性偏正面。",
-              "sentiment": "0"
-            },
-            {
-              "title": "Exchange-Traded Funds, Equity Futures Mixed Pre-Bell Wednesday Amid Escalating US-Iran Tensions",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/exchange-traded-funds-equity-futures-130827604.html",
-              "publisher": "MT Newswires",
-              "ts": "2026-09-02T13:08:27Z",
-              "summary": "NVDA上漲4%、Dell大漲8%，帶動半導體ETF向上。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Applied Materials Just Dropped 14% in a Month. Sell Now, or Buy More?",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/applied-materials-just-dropped-14-192049654.html",
-              "publisher": "24/7 Wall St.",
-              "ts": "2026-09-02T19:20:49Z",
-              "summary": "Applied Materials近一個月跌14%，探討是否賣出或加倉，為SOXX成分股潛在拖累。",
-              "sentiment": "-"
-            }
-          ],
-          "theme_summary": "SOXX受NVDA強勁反彈帶動，但AVGO盤後下跌及AMAT近期疲軟形成部分抵消。整體AI算力投資趨勢仍支撐半導體指數中線偏多，短線波動跟隨個股財報季節奏。",
-          "score": 1,
-          "linked_warnings_used": []
-        },
-        "SMR": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。財報顯示營收幾近歸零、各利潤指標大幅惡化，為早期商業化階段公司特性，需等待具體訂單或政策利好催化。",
-          "score": 0,
-          "linked_warnings_used": [
-            "! 營收年減 -99.1%，需留意需求疲軟",
-            "! 淨利率 -63385.3%，年減 -63166.3pt"
-          ]
-        },
-        "GLW": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。GLW光纖業務受惠AI數據中心建設，財報顯示營收年增16.6%、現金流強勁，中線受益於COHR與光通訊需求旺盛趨勢。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "CIEN": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。CIEN光網路設備受惠AI基礎建設擴張，財報顯示營收年增39.5%基本面強勁，但AVGO指引保守可能短線影響光通訊板塊情緒。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "AAPL": {
-          "headlines": [
-            {
-              "title": "Apple's Foldable iPhone May Contribute $14 Billion to December Quarter Revenue, Morgan Stanley Says",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/apple-apos-foldable-iphone-may-180909159.html",
-              "publisher": "MT Newswires",
-              "ts": "2026-09-02T18:09:09Z",
-              "summary": "摩根士丹利估計Apple可折疊iPhone可為12月季度貢獻140億美元營收。",
-              "sentiment": "+"
-            },
-            {
-              "title": "Apple's iPhone 18 Launch Could Be Most 'Consequential' Since iPhone X, Morgan Stanley Says",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/apple-apos-iphone-18-launch-150937436.html",
-              "publisher": "MT Newswires",
-              "ts": "2026-09-02T15:09:37Z",
-              "summary": "摩根士丹利稱iPhone 18發布可能是iPhone X以來最重大的換機週期催化。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "Apple當日利多聚焦在摩根士丹利的iPhone 18超級換機週期預測，以及可折疊iPhone將貢獻140億美元的樂觀展望。財報顯示營收年增16.4%、毛利率年增3.6pt，基本面穩健，換機週期若成真將為下半年業績提供強勁支撐。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +16.4%，穩健成長"
-          ]
-        },
-        "CRWD": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "NET": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。財報顯示營收年增35.9%但淨利率仍為負值，成長性強但盈利能力待觀察。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "MRVL": {
-          "headlines": [
-            {
-              "title": "The Real Price of Marvell Stock's Growth",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/real-price-marvell-stocks-growth-210333774.html",
-              "publisher": "Trefis",
-              "ts": "2026-09-02T21:03:33Z",
-              "summary": "Trefis深入分析Marvell股價成長背後的真實代價，評估估值合理性。",
-              "sentiment": "0"
-            }
-          ],
-          "theme_summary": "MRVL當日新聞稀少，僅有估值討論文章。AI定制芯片需求趨勢對MRVL長線正面，但淨利率年減8pt為近期財報瑕疵，需下季財報驗證改善。",
-          "score": 0,
-          "linked_warnings_used": [
-            "! 淨利率 1.4%，年減 -8.0pt"
-          ]
-        },
-        "POET": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。財報顯示EPS不如預期且淨利率深度負值，為早期商業化公司，需關注客戶訂單進展。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "DELL": {
-          "headlines": [
-            {
-              "title": "NVIDIA (NVDA) Surges as U.S. Markets Rally; Dell Soars on Upgraded Revenue Forecast - GuruFocus",
-              "url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxQTnI1Q3JXQ1JvRnJIWWVremtubEZqb0JpOVk1SVNvTG9Dd3dFc0xPTjM0OEpkcjI4NE1VOGZ0VW5kTXlfdHAtZk1lUEtrZkpkZjdjWFpiVG45dkpGcHA4Y3NUQzQ2Q19FVDNvSjFoRkItYmQwaFV5Y19zTmFZYlpOUkV0VFhZX011RVQwQ2RDY0daUU1tZXJzV1U5b19XeThxTFUxOEozdzNQLVNwUzJ3TWNHTDM2Wm94?oc=5",
-              "publisher": "GuruFocus",
-              "ts": "2026-09-02T23:15:23Z",
-              "summary": "NVDA AI交易傳出利好信號，同日Dell因上調營收預期大漲。",
-              "sentiment": "+"
-            },
-            {
-              "title": "NVIDIA Rises 4% on Reported $12.9B Hugging Face Deal, Dell Jumps 8% After Guidance Beat",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/nvidia-rises-4-reported-12-173138538.html",
-              "publisher": "24/7 Wall St.",
-              "ts": "2026-09-02T17:31:38Z",
-              "summary": "Dell財報後指引上調，股價大漲8%；NVDA同日上漲4%。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "Dell當日大漲8%，受惠於AI伺服器需求強勁的業績指引上調，並直接指出記憶體晶片供給短缺。財報顯示營收年增87.5%，基本面極為亮眼，AI基礎建設需求持續為核心驅動力。",
-          "score": 2,
-          "linked_warnings_used": [
-            "+ 營收年增 +87.5%，高速成長"
-          ]
-        },
-        "INTC": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。NVDA與AMD的AI芯片強勢持續壓縮INTC的市場空間，財報顯示營收年增25.4%但淨利率仍深度負值，轉型進展需持續關注。",
-          "score": 0,
-          "linked_warnings_used": [
-            "! 淨利率 -68.4%，年減 -45.7pt"
-          ]
-        },
-        "ARM": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。財報顯示營收年增22.4%、現金流強勁，AI晶片設計授權需求長線正向。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "QCOM": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。財報顯示營收年減4%、各利潤指標惡化，手機市場需求疲軟為主要壓力，AI端側機會尚待商業化驗證。",
-          "score": 0,
-          "linked_warnings_used": [
-            "! 營收年減 -4.0%，動能轉弱"
-          ]
-        },
-        "BE": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。BE能源業務受益於數據中心電力需求激增，財報顯示營收年增165.5%、淨利率大幅改善，中線基本面向好。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "SLV": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。美伊地緣緊張與避險情緒升溫理論上利好貴金屬，但高利率環境對無息資產仍有壓制。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "QQQ": {
-          "headlines": [
-            {
-              "title": "QQQ is up 0.2% today, on NVDA stock price movement - Quiver Quantitative",
-              "url": "https://news.google.com/rss/articles/CBMikAFBVV95cUxNcVRVMVhDUHFrTXhvUE54a1h5eXltcUJtSmE0Z2JRSENReHFxSW9IVWJhYnRjSHROWlRzTUtHTFh3QlVnYkw5VmJwemZJS210QnEwX3VVcWJIakVOTzU0Y19MVUo1YW14NHVZOUU5T0tFMkFWb0l2cUNpRVhHWk1TN3RVR21leGVfU0xRUEJzelQ?oc=5",
-              "publisher": "Quiver Quantitative",
-              "ts": "2026-09-02T16:15:00Z",
-              "summary": "QQQ當日小漲0.2%，主要受NVDA股價拉動。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "QQQ當日輕微上漲，主要受NVDA帶動，但AVGO盤後下跌和PLTR重挫形成部分抵消。AI算力題材持續主導指數方向，短線追蹤AVGO與Fed預期變化。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "SPCX": {
-          "headlines": [
-            {
-              "title": "ASTS, RKLB, PL Stocks In Focus As Berenberg Sees $1 Trillion Space Economy — Here’s How It Picks The Winners",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/asts-rklb-pl-stocks-focus-105740862.html",
-              "publisher": "Stocktwits",
-              "ts": "2026-09-02T10:57:40Z",
-              "summary": "Berenberg預測太空經濟規模到2030年可超過1兆美元，ASTS等太空股受惠。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "SPCX作為太空主題ETF，ASTS的強勁反彈及Berenberg對兆元太空經濟的預測有助提振板塊情緒，短線跟隨ASTS等成分股表現。",
-          "score": 1,
-          "linked_warnings_used": []
-        },
-        "2330.TW": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。2330.TW為台積電台股，基本面與TSM相同，AI晶圓代工需求旺盛，財報顯示營收年增36%、毛利率年增9.1pt，基本面強勁。",
-          "score": 1,
-          "linked_warnings_used": []
-        },
-        "2327.TW": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "2327.HK": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "2492.TW": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "8299.TWO": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。財報顯示營收年增196%、EPS超預期，AI光電元件需求旺盛，惟現金流由正轉負需關注。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "SHAZ": {
-          "headlines": [],
-          "theme_summary": "當日無重要新聞。財報顯示營收年增412%但淨利率深度負值，為高速成長早期階段公司。",
-          "score": 0,
-          "linked_warnings_used": []
-        },
-        "SKHY": {
-          "headlines": [
-            {
-              "title": "Micron (MU) and SK Hynix (SKHY) Stocks Gained on Wednesday – Here’s Why - TipRanks",
-              "url": "https://news.google.com/rss/articles/CBMimgFBVV95cUxOXzgtdTJHdnNjZ29KQjRLLXhIdGxJeW9tVjEzRzd4V0ZqVWhabmliZEJ0Y0RCdlFyVG1WYzFLZjlOUU4xQzRQZzhqZ0RWWWJQS1JoY0lLckpxcGRIVi04c0ljNktWcVdYY18xcFlLd0U0eUN5dXVxSl9RWmRZbU9uT2VMOW1jN2ZDZEVJOEFiOWRHY2FqU0ozcWtR?oc=5",
-              "publisher": "TipRanks",
-              "ts": "2026-09-02T17:47:17Z",
-              "summary": "MU與SKHY當日同步上漲，受AI記憶體需求旺盛消息支撐。",
-              "sentiment": "+"
-            },
-            {
-              "title": "How to Play SKHY Stock as SK hynix Looks to Build a New Plant in Japan",
-              "url": "https://finance.yahoo.com/markets/stocks/articles/play-skhy-stock-sk-hynix-160544641.html",
-              "publisher": "Barchart",
-              "ts": "2026-09-02T16:05:44Z",
-              "summary": "分析師探討SKHY如何佈局SK海力士日本新廠建設題材。",
-              "sentiment": "+"
-            }
-          ],
-          "theme_summary": "SKHY跟隨000660.KS走勢，AI HBM需求強勁支撐多頭情緒，日本新廠建設為中長線成長催化劑。韓電電費預繳為短線負面因素，整體偏正面。",
-          "score": 1,
-          "linked_warnings_used": [
-            "+ 營收年增 +198.1%，高速成長"
           ]
         }
       }

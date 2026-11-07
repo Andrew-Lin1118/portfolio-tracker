@@ -259,6 +259,7 @@
 
     <div id="sections"></div>
 
+    <div class="info-banner">資料更新至 <b>2026-11-07</b>；未拍攝的欄位以「—」顯示。</div>
     <div class="legend">
         <span><i style="background:#10b981"></i> 朝健康方向（綠）</span>
         <span><i style="background:#ef4444"></i> 朝不利方向（紅）</span>
@@ -565,6 +566,94 @@
             body_type: '健康型',
             std_weight: 53.4, weight_control: 3.7, fat_control: -0.7, muscle_control: '+4.4 kg',
         },
+        {
+            "date": "2026-10-17",
+            "time": "10:27",
+            "label": "第 13 次追蹤",
+            "note": "療程第 141 天",
+            "weight": 49.6,
+            "score": 79,
+            "bmi": 19.6,
+            "body_fat_pct": 25.8,
+            "water_kg": 25.5,
+            "fat_kg": 12.8,
+            "bone_kg": 2.0,
+            "protein_kg": 8.8,
+            "muscle_kg": 34.8,
+            "lean_mass_kg": 36.8,
+            "skeletal_muscle_kg": 17.4,
+            "muscle_pct": 70.2,
+            "water_pct": 51.6,
+            "protein_pct": 17.7,
+            "bone_pct": 4.0,
+            "whr": 1.1,
+            "visceral_fat": 7,
+            "bmr": 1165,
+            "body_age": 38,
+            "heart_rate": 106,
+            "body_type": "健康型",
+            "std_weight": 53.4,
+            "weight_control": 3.8,
+            "fat_control": -0.5,
+            "muscle_control": "+4.3 kg",
+            "weight_tag": "標準",
+            "bmi_tag": "標準",
+            "body_fat_pct_tag": "標準",
+            "muscle_kg_tag": "不足",
+            "skeletal_muscle_kg_tag": "不足",
+            "muscle_pct_tag": "不足",
+            "water_pct_tag": "不足",
+            "protein_pct_tag": "標準",
+            "bone_pct_tag": "不足",
+            "visceral_fat_tag": "警戒",
+            "bmr_tag": "標準",
+            "whr_tag": "偏高",
+            "heart_rate_tag": "偏高"
+        },
+        {
+            "date": "2026-11-07",
+            "time": "10:25",
+            "label": "第 14 次追蹤",
+            "note": "療程第 162 天",
+            "weight": 50.1,
+            "score": 79,
+            "bmi": 19.8,
+            "body_fat_pct": 26.1,
+            "water_kg": 25.8,
+            "fat_kg": 13.1,
+            "bone_kg": 2.1,
+            "protein_kg": 8.7,
+            "muscle_kg": 34.9,
+            "lean_mass_kg": 37.0,
+            "skeletal_muscle_kg": 17.6,
+            "muscle_pct": 69.7,
+            "water_pct": 51.5,
+            "protein_pct": 17.4,
+            "bone_pct": 4.2,
+            "whr": 1.1,
+            "visceral_fat": 7,
+            "bmr": 1169,
+            "body_age": 38,
+            "heart_rate": 115,
+            "body_type": "健康型",
+            "std_weight": 53.4,
+            "weight_control": 3.3,
+            "fat_control": -0.8,
+            "muscle_control": "+4.1 kg",
+            "weight_tag": "標準",
+            "bmi_tag": "標準",
+            "body_fat_pct_tag": "標準",
+            "muscle_kg_tag": "不足",
+            "skeletal_muscle_kg_tag": "不足",
+            "muscle_pct_tag": "不足",
+            "water_pct_tag": "不足",
+            "protein_pct_tag": "標準",
+            "bone_pct_tag": "不足",
+            "visceral_fat_tag": "警戒",
+            "bmr_tag": "標準",
+            "whr_tag": "偏高",
+            "heart_rate_tag": "偏高"
+        },
     ];
 
     const metricGroups = [
@@ -775,11 +864,13 @@
             });
             const baseY = (H - padB + 0.5).toFixed(1);
             const dotsSvg = dots.map(p => `<circle cx="${p.X.toFixed(1)}" cy="${p.Y.toFixed(1)}" r="3.6" fill="${m.color}"/>`).join('');
-            const valLabels = dots.map(p => {
+            const labelStep = Math.max(1, Math.ceil((n - 1) / 4));
+            const showLabel = i => i === 0 || i === n - 1 || (i % labelStep === 0 && i < n - 2);
+            const valLabels = dots.filter(p => showLabel(p.i)).map(p => {
                 const ly = (p.Y > padT + 16) ? p.Y - 9 : p.Y + 15;
                 return `<text x="${p.X.toFixed(1)}" y="${ly.toFixed(1)}" fill="#e2e8f0" font-size="11.5" font-weight="700" text-anchor="${anchorAt(p.i)}">${p.v.toFixed(m.decimals)}</text>`;
             }).join('');
-            const xLabels = dates.map((dt, i) => `<text x="${xAt(i).toFixed(1)}" y="${H - 7}" fill="#64748b" font-size="10" text-anchor="${anchorAt(i)}">${dt}</text>`).join('');
+            const xLabels = dates.map((dt, i) => showLabel(i) ? `<text x="${xAt(i).toFixed(1)}" y="${H - 7}" fill="#64748b" font-size="10" text-anchor="${anchorAt(i)}">${dt}</text>` : '').join('');
             const latest = nums[nums.length - 1];
             return `
                 <div class="chart-card" style="border-top:3px solid ${m.color}">

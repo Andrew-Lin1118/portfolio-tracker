@@ -868,7 +868,7 @@
 
     function renderSections() {
         const baseline = measurements[0];
-        const cols = measurements;
+        const cols = [...measurements].reverse();
         const multi = cols.length >= 3; // 3 次以上才同時顯示「對基線/對上次」
         const html = metricGroups.map(group => {
             const headHtml = `
@@ -880,8 +880,8 @@
                 </tr></thead>`;
             const rows = group.metrics.map(metric => {
                 const baseVal = baseline[metric.key];
-                const latest = cols[cols.length - 1][metric.key];
-                const prev = cols.length >= 2 ? cols[cols.length - 2][metric.key] : null;
+                const latest = cols[0][metric.key];
+                const prev = cols.length >= 2 ? cols[1][metric.key] : null;
                 const deltaBase = (typeof latest === 'number' && typeof baseVal === 'number') ? latest - baseVal : null;
                 const deltaPrev = (typeof latest === 'number' && typeof prev === 'number') ? latest - prev : null;
                 const cellHtml = cols.map(m => {
@@ -930,11 +930,12 @@
             { key: 'muscle_kg',          name: '肌肉量',   unit: 'kg', decimals: 1, color: '#22d3ee' },
             { key: 'skeletal_muscle_kg', name: '骨骼肌量', unit: 'kg', decimals: 1, color: '#f472b6' },
         ];
-        const dates = measurements.map(m => m.date.slice(5));
+        const timeline = [...measurements].reverse();
+        const dates = timeline.map(m => m.date.slice(5));
         const n = measurements.length;
 
         function svgChart(m) {
-            const series = measurements.map(mm => mm[m.key]);
+            const series = timeline.map(mm => mm[m.key]);
             const nums = series.filter(v => typeof v === 'number');
             if (nums.length === 0) return '';
             let lo = Math.min(...nums), hi = Math.max(...nums);
@@ -962,7 +963,7 @@
                 return `<text x="${p.X.toFixed(1)}" y="${ly.toFixed(1)}" fill="#e2e8f0" font-size="11.5" font-weight="700" text-anchor="${anchorAt(p.i)}">${p.v.toFixed(m.decimals)}</text>`;
             }).join('');
             const xLabels = dates.map((dt, i) => showLabel(i) ? `<text x="${xAt(i).toFixed(1)}" y="${H - 7}" fill="#64748b" font-size="10" text-anchor="${anchorAt(i)}">${dt}</text>` : '').join('');
-            const latest = nums[nums.length - 1];
+            const latest = nums[0];
             return `
                 <div class="chart-card" style="border-top:3px solid ${m.color}">
                     <div class="chart-head">
@@ -981,7 +982,7 @@
         if (!cards) return;
         document.getElementById('charts').innerHTML = `
             <div class="section">
-                <div class="section-title" style="color:#22d3ee">📈 趨勢圖</div>
+                <div class="section-title" style="color:#22d3ee">📈 趨勢圖（最新 → 最早）</div>
                 <div class="charts-grid">${cards}</div>
             </div>`;
     }

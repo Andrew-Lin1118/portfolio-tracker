@@ -839,7 +839,7 @@
             { key: 'muscle_kg',          name: '肌肉量',   unit: 'kg', decimals: 1, color: '#22d3ee' },
             { key: 'skeletal_muscle_kg', name: '骨骼肌量', unit: 'kg', decimals: 1, color: '#f472b6' },
         ];
-        const timeline = [...measurements].reverse();
+        const timeline = measurements;
         const dates = timeline.map(m => m.date.slice(5));
         const n = measurements.length;
 
@@ -872,7 +872,7 @@
                 return `<text x="${p.X.toFixed(1)}" y="${ly.toFixed(1)}" fill="#e2e8f0" font-size="11.5" font-weight="700" text-anchor="${anchorAt(p.i)}">${p.v.toFixed(m.decimals)}</text>`;
             }).join('');
             const xLabels = dates.map((dt, i) => showLabel(i) ? `<text x="${xAt(i).toFixed(1)}" y="${H - 7}" fill="#64748b" font-size="10" text-anchor="${anchorAt(i)}">${dt}</text>` : '').join('');
-            const latest = nums[0];
+            const latest = nums[nums.length - 1];
             return `
                 <div class="chart-card" style="border-top:3px solid ${m.color}">
                     <div class="chart-head">
@@ -891,7 +891,7 @@
         if (!cards) return;
         document.getElementById('charts').innerHTML = `
             <div class="section">
-                <div class="section-title" style="color:#22d3ee">📈 趨勢圖（最新 → 最早）</div>
+                <div class="section-title" style="color:#22d3ee">📈 趨勢圖</div>
                 <div class="charts-grid">${cards}</div>
             </div>`;
     }

@@ -972,7 +972,7 @@ if not SYMBOL_REFRESH_ONLY:
     try:
         print('\n更新大盤本益比 (market_pe.json) ...', flush=True)
         import subprocess, sys as _sys
-        subprocess.run([_sys.executable, os.path.join(ROOT, 'fetch_market_pe.py')], check=False, timeout=180)
+        subprocess.run([_sys.executable, os.path.join(ROOT, 'fetch_market_pe.py')], check=False, timeout=420)
     except Exception as _e:
         print(f'  [market_pe] 更新失敗（不影響 fundamentals）：{_e}', flush=True)
 

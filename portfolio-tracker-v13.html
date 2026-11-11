@@ -14874,7 +14874,8 @@
             }
             _marketPECache = marketPE;
             const cards = marketPE.indexes.map(idx => {
-                const stats = _peStats(idx.history);
+                // 快照累積型歷史（費半）：未滿 12 個月不顯示百分位/均值，避免樣本太少誤導
+                const stats = (idx.history_method === 'snapshot' && (idx.history || []).length < 12) ? null : _peStats(idx.history);
                 const tpe = idx.trailing_pe, fpe = idx.forward_pe, spe = idx.shiller_pe;
                 let pctileColor = '#94a3b8';
                 if (stats) {
@@ -14919,7 +14920,7 @@
                     <canvas id="mpe-chart-canvas"></canvas>
                 </div>
                 <div style="color:#64748b;font-size:0.7rem;margin-top:0.5rem;line-height:1.5;">
-                    ※ 河流圖紅線=平均、虛線=±1σ。S&amp;P 500 PE 來源 multpl.com（20 年月度真實 PE）；Nasdaq 100 用 ^NDX 指數價 + QQQ 當前 trailingPE 反推、台股以 ^TWII 指數價 + 0050.TW trailingPE 反推（EPS 假設不變、僅 5 年內近似）。
+                    ※ 河流圖紅線=平均、虛線=±1σ。S&amp;P 500 PE 來源 multpl.com（20 年月度真實 PE）；Nasdaq 100 用 ^NDX 指數價 + QQQ 當前 trailingPE 反推、台股以 ^TWII 指數價 + 0050.TW trailingPE 反推（EPS 假設不變、僅 5 年內近似）。費城半導體為成分股加總（SOXQ 持股權重 × 個股 PE／Forward PE 的加權調和平均），歷史為逐月累積快照；Nasdaq、台股的 FPE 同為成分股加總。
                 </div>
             </div>`;
         }
